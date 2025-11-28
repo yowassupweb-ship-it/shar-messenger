@@ -794,52 +794,54 @@ export default function AdminPage() {
         {/* Tools Access Modal */}
         {showToolsModal && selectedUser && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg max-w-lg w-full shadow-2xl">
-              <div className="p-6 border-b border-[var(--border)]">
-                <h2 className="text-2xl font-bold text-[var(--foreground)]">
-                  Управление доступом
-                </h2>
-                <p className="text-sm text-[var(--foreground)] opacity-70 mt-1">
-                  {selectedUser.name || selectedUser.username || 'Пользователь'}
-                </p>
-              </div>
-
-              <div className="p-6 space-y-3">
-                {availableTools.map((tool) => (
-                  <div
-                    key={tool.id}
-                    className="flex items-center justify-between p-4 bg-[var(--background)] rounded-lg hover:border hover:border-[var(--button)] transition-all"
-                  >
-                    <div className="flex-1">
-                      <h3 className="font-medium text-[var(--foreground)]">{tool.name}</h3>
-                      <p className="text-sm text-[var(--foreground)] opacity-60">{tool.description}</p>
-                    </div>
-                    <button
-                      onClick={() => toggleTool(selectedUser.id, tool.id)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        selectedUser.enabledTools?.includes(tool.id)
-                          ? 'bg-[var(--button)]'
-                          : 'bg-[var(--border)]'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          selectedUser.enabledTools?.includes(tool.id) ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                ))}
-
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg max-w-4xl w-full shadow-2xl">
+              <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-[var(--foreground)]">
+                    Управление доступом
+                  </h2>
+                  <p className="text-sm text-[var(--foreground)] opacity-70">
+                    {selectedUser.name || selectedUser.username || 'Пользователь'}
+                  </p>
+                </div>
                 <button
                   onClick={() => {
                     setShowToolsModal(false)
                     setSelectedUser(null)
                   }}
-                  className="w-full mt-4 px-6 py-2 border border-[var(--border)] rounded-lg text-[var(--foreground)] hover:bg-[var(--background)] transition-colors"
+                  className="px-4 py-2 border border-[var(--border)] rounded-lg text-[var(--foreground)] hover:bg-[var(--background)] transition-colors text-sm"
                 >
                   Закрыть
                 </button>
+              </div>
+
+              <div className="p-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {availableTools.map((tool) => (
+                    <div
+                      key={tool.id}
+                      onClick={() => toggleTool(selectedUser.id, tool.id)}
+                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all border ${
+                        selectedUser.enabledTools?.includes(tool.id)
+                          ? 'bg-[var(--button)]/20 border-[var(--button)]'
+                          : 'bg-[var(--background)] border-transparent hover:border-[var(--border)]'
+                      }`}
+                    >
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                        selectedUser.enabledTools?.includes(tool.id)
+                          ? 'bg-[var(--button)] border-[var(--button)]'
+                          : 'border-[var(--border)]'
+                      }`}>
+                        {selectedUser.enabledTools?.includes(tool.id) && (
+                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className="font-medium text-[var(--foreground)] text-sm truncate">{tool.name}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
