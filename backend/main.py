@@ -876,9 +876,21 @@ def _apply_template_manual(template_content: str, products: List[Dict[str, Any]]
         cat_id = unique_categories.get(cat_name, 1)
         available = 'true' if product.get('active', True) else 'false'
         
+        # Формируем oldprice тег если есть
+        oldprice_xml = ""
+        old_price_value = product.get('oldPrice') or product.get('oldprice')
+        if old_price_value:
+            try:
+                old_price_num = float(old_price_value)
+                current_price_num = float(product.get('price', 0))
+                if old_price_num > current_price_num:
+                    oldprice_xml = f"\n        <oldprice>{int(old_price_num)}</oldprice>"
+            except (ValueError, TypeError):
+                pass
+        
         offers_xml += f'''      <offer id="{product.get('id', '')}" available="{available}">
         <url>{product.get('url', '')}</url>
-        <price>{product.get('price', '0')}</price>
+        <price>{product.get('price', '0')}</price>{oldprice_xml}
         <currencyId>{currency}</currencyId>
         <categoryId>{cat_id}</categoryId>
         <picture>{product.get('image', '')}</picture>
@@ -2600,6 +2612,48 @@ def submit_task_results(task_id: str, data: TaskResults):
     db.save()
     
     return {"success": True, "saved": len(data.results)}
+
+
+# API ключи для парсера
+@app.post("/api/direct-parser/api-key/generate")
+def generate_api_key():
+    """Генерация нового API ключа для парсера"""
+    import secrets
+    
+    api_key = secrets.token_urlsafe(32)
+    
+    # Сохраняем ключ в настройки
+    settings = db.get_settings()
+    settings['directParserApiKey'] = api_key
+    settings['directParserApiKeyCreated'] = datetime.now().isoformat()
+    db.update_settings(settings)
+    
+    return {"api_key": api_key}
+
+
+@app.get("/api/direct-parser/api-key")
+def get_api_key():
+    """Получить текущий API ключ"""
+    settings = db.get_settings()
+    api_key = settings.get('directParserApiKey')
+    created = settings.get('directParserApiKeyCreated')
+    
+    return {
+        "api_key": api_key,
+        "created": created,
+        "is_set": bool(api_key)
+    }
+
+
+@app.delete("/api/direct-parser/api-key")
+def revoke_api_key():
+    """Отозвать API ключ"""
+    settings = db.get_settings()
+    settings['directParserApiKey'] = None
+    settings['directParserApiKeyCreated'] = None
+    db.update_settings(settings)
+    
+    return {"success": True}
 
 
 if __name__ == "__main__":

@@ -41,12 +41,12 @@ interface Preset {
 }
 
 const PRESETS: Preset[] = [
-  { id: 'yandex', name: 'Яндекс.Директ', icon: '🔍', source: 'yandex', medium: 'cpc', color: 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300', description: 'Контекстная реклама Яндекс' },
-  { id: 'google', name: 'Google Ads', icon: '🎯', source: 'google', medium: 'cpc', color: 'bg-blue-500/20 border-blue-500/50 text-blue-300', description: 'Контекстная реклама Google' },
-  { id: 'vk', name: 'ВКонтакте', icon: '💬', source: 'vk', medium: 'social', color: 'bg-sky-500/20 border-sky-500/50 text-sky-300', description: 'Посты и реклама ВК' },
-  { id: 'telegram', name: 'Telegram', icon: '✈️', source: 'telegram', medium: 'social', color: 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300', description: 'Каналы и чаты' },
-  { id: 'email', name: 'Email', icon: '📧', source: 'email', medium: 'email', color: 'bg-purple-500/20 border-purple-500/50 text-purple-300', description: 'Email рассылки' },
-  { id: 'qr', name: 'QR-код', icon: '📱', source: 'qr', medium: 'offline', color: 'bg-green-500/20 border-green-500/50 text-green-300', description: 'Оффлайн материалы' },
+  { id: 'yandex', name: 'Яндекс', icon: 'Y', source: 'yandex', medium: 'cpc', color: 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300', description: 'Яндекс.Директ' },
+  { id: 'google', name: 'Google', icon: 'G', source: 'google', medium: 'cpc', color: 'bg-blue-500/20 border-blue-500/50 text-blue-300', description: 'Google Ads' },
+  { id: 'vk', name: 'VK', icon: 'VK', source: 'vk', medium: 'social', color: 'bg-sky-500/20 border-sky-500/50 text-sky-300', description: 'ВКонтакте' },
+  { id: 'tg', name: 'Telegram', icon: 'TG', source: 'telegram', medium: 'social', color: 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300', description: 'Telegram' },
+  { id: 'email', name: 'Email', icon: '@', source: 'email', medium: 'email', color: 'bg-purple-500/20 border-purple-500/50 text-purple-300', description: 'Email' },
+  { id: 'qr', name: 'QR', icon: 'QR', source: 'qr', medium: 'offline', color: 'bg-green-500/20 border-green-500/50 text-green-300', description: 'Оффлайн' },
 ]
 
 export default function UTMGeneratorPage() {
@@ -295,15 +295,6 @@ export default function UTMGeneratorPage() {
 
   return (
     <div className="min-h-screen p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-1 flex items-center gap-2">
-          <Link2 className="w-6 h-6 text-[var(--button)]" />
-          Генератор UTM
-        </h1>
-        <p className="text-sm opacity-60">Создавайте и управляйте UTM метками для отслеживания трафика</p>
-      </div>
-
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-[var(--card)] p-1 rounded-lg border border-[var(--border)] w-fit">
         {[
@@ -340,105 +331,99 @@ export default function UTMGeneratorPage() {
           <div className="lg:col-span-2 space-y-4">
             {/* Presets */}
             <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
-              <h3 className="text-sm font-medium mb-3 opacity-70">Быстрые пресеты</h3>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {PRESETS.map(preset => (
                   <button
                     key={preset.id}
                     onClick={() => applyPreset(preset)}
-                    className={`flex flex-col items-center gap-1 p-3 rounded-lg border transition-all ${
+                    className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
                       selectedPreset === preset.id 
-                        ? preset.color + ' ring-2 ring-offset-2 ring-offset-[var(--background)]'
+                        ? preset.color + ' ring-1 ring-offset-1 ring-offset-[var(--background)]'
                         : 'border-[var(--border)] hover:border-[var(--button)] hover:bg-[var(--border)]/30'
                     }`}
                     title={preset.description}
                   >
-                    <span className="text-xl">{preset.icon}</span>
-                    <span className="text-xs font-medium truncate w-full text-center">{preset.name}</span>
+                    {preset.name}
                   </button>
                 ))}
               </div>
             </div>
 
             {/* Form Fields */}
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-4">
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-3">
               <div>
-                <label className="block text-sm font-medium mb-1.5">
-                  Базовый URL <span className="text-red-400">*</span>
-                </label>
+                <label className="block text-xs font-medium mb-1 opacity-70">URL</label>
                 <input
                   type="url"
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
-                  placeholder="https://example.com/landing"
-                  className="input-field w-full"
+                  placeholder="https://example.com/page"
+                  className="input-field w-full text-sm"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-sm font-medium mb-1.5">
-                    utm_source <span className="text-red-400">*</span>
-                  </label>
+                  <label className="block text-xs font-medium mb-1 opacity-70">source *</label>
                   <input
                     type="text"
                     value={source}
                     onChange={(e) => { setSource(e.target.value); setSelectedPreset(null) }}
-                    placeholder="yandex, google, vk"
-                    className="input-field w-full"
+                    placeholder="yandex"
+                    className="input-field w-full text-sm"
+                    maxLength={30}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1.5">
-                    utm_medium <span className="text-red-400">*</span>
-                  </label>
+                  <label className="block text-xs font-medium mb-1 opacity-70">medium *</label>
                   <input
                     type="text"
                     value={medium}
                     onChange={(e) => { setMedium(e.target.value); setSelectedPreset(null) }}
-                    placeholder="cpc, social, email"
-                    className="input-field w-full"
+                    placeholder="cpc"
+                    className="input-field w-full text-sm"
+                    maxLength={30}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1 opacity-70">campaign *</label>
+                  <input
+                    type="text"
+                    value={campaign}
+                    onChange={(e) => setCampaign(e.target.value)}
+                    placeholder="sale_2025"
+                    className="input-field w-full text-sm"
+                    maxLength={30}
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1.5">
-                  utm_campaign <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={campaign}
-                  onChange={(e) => setCampaign(e.target.value)}
-                  placeholder="autumn_sale_2025"
-                  className="input-field w-full"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium mb-1.5 opacity-70">utm_term</label>
+                  <label className="block text-xs font-medium mb-1 opacity-50">term</label>
                   <input
                     type="text"
                     value={term}
                     onChange={(e) => setTerm(e.target.value)}
-                    placeholder="ключевое слово"
-                    className="input-field w-full"
+                    placeholder="keyword"
+                    className="input-field w-full text-sm"
+                    maxLength={30}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1.5 opacity-70">utm_content</label>
+                  <label className="block text-xs font-medium mb-1 opacity-50">content</label>
                   <input
                     type="text"
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
-                    placeholder="вариант объявления"
-                    className="input-field w-full"
+                    placeholder="banner_1"
+                    className="input-field w-full text-sm"
+                    maxLength={30}
                   />
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-1">
                 <button onClick={clearForm} className="btn-secondary flex items-center gap-2">
                   <RotateCcw className="w-4 h-4" />
                   Очистить

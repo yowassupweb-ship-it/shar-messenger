@@ -62,7 +62,7 @@ interface ParsingTask {
   results?: DirectAd[]
 }
 
-type Tab = 'ads' | 'domains' | 'history' | 'stats' | 'tasks'
+type Tab = 'ads' | 'domains' | 'history' | 'stats' | 'tasks' | 'settings'
 
 export default function DirectParserPage() {
   const [activeTab, setActiveTab] = useState<Tab>('tasks')
@@ -75,6 +75,8 @@ export default function DirectParserPage() {
   const [searches, setSearches] = useState<DirectSearch[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [tasks, setTasks] = useState<ParsingTask[]>([])
+  const [apiKey, setApiKey] = useState<string | null>(null)
+  const [apiKeyCreated, setApiKeyCreated] = useState<string | null>(null)
   
   // Форма создания задачи
   const [newTaskQueries, setNewTaskQueries] = useState('')
@@ -158,6 +160,45 @@ export default function DirectParserPage() {
     }
   }, [])
 
+  const loadApiKey = useCallback(async () => {
+    try {
+      const response = await apiFetch('/api/direct-parser/api-key')
+      if (response.ok) {
+        const data = await response.json()
+        setApiKey(data.api_key)
+        setApiKeyCreated(data.created)
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки API ключа:', error)
+    }
+  }, [])
+
+  const generateApiKey = async () => {
+    try {
+      const response = await apiFetch('/api/direct-parser/api-key/generate', { method: 'POST' })
+      if (response.ok) {
+        const data = await response.json()
+        setApiKey(data.api_key)
+        setApiKeyCreated(new Date().toISOString())
+        showToast('API ключ сгенерирован', 'success')
+      }
+    } catch (error) {
+      showToast('Ошибка генерации ключа', 'error')
+    }
+  }
+
+  const revokeApiKey = async () => {
+    if (!confirm('Отозвать API ключ? Все подключённые агенты перестанут работать.')) return
+    try {
+      await apiFetch('/api/direct-parser/api-key', { method: 'DELETE' })
+      setApiKey(null)
+      setApiKeyCreated(null)
+      showToast('API ключ отозван', 'success')
+    } catch (error) {
+      showToast('Ошибка отзыва ключа', 'error')
+    }
+  }
+
   // Создание задачи
   const createTask = async () => {
     const queries = newTaskQueries
@@ -211,12 +252,14 @@ export default function DirectParserPage() {
     loadAds()
     loadStats()
     loadTasks()
-  }, [loadAds, loadStats, loadTasks])
+    loadApiKey()
+  }, [loadAds, loadStats, loadTasks, loadApiKey])
 
   useEffect(() => {
     if (activeTab === 'domains') loadDomains()
     if (activeTab === 'history') loadSearches()
     if (activeTab === 'stats') loadStats()
+    if (activeTab === 'settings') loadApiKey()
   }, [activeTab, loadDomains, loadSearches, loadStats])
 
   // Обработчики
@@ -282,17 +325,8 @@ export default function DirectParserPage() {
 
   return (
     <div>
-      {/* Заголовок */}
-      <div className="flex justify-between items-start mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--foreground)] mb-1">
-              Парсер Я.Директ
-            </h1>
-            <p className="text-sm opacity-70">
-              Анализ и извлечение данных из рекламы конкурентов
-            </p>
-          </div>
-          
+      {/* Действия */}
+      <div className="flex justify-end items-center mb-4">
           <div className="flex gap-2">
             <button
               onClick={() => { loadAds(); loadStats(); }}
@@ -314,7 +348,7 @@ export default function DirectParserPage() {
           </div>
         </div>
 
-        {/* Статистика карточки */}
+        {/* Статистика */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="card !p-4">
             <div className="text-2xl font-bold text-[var(--button)]">{stats?.total_ads || 0}</div>
@@ -339,11 +373,12 @@ export default function DirectParserPage() {
         {/* Табы */}
         <div className="flex gap-1 mb-4 bg-[var(--card)] p-1 rounded-lg w-fit">
           {[
-            { id: 'tasks', label: '🎯 Задачи', count: tasks.filter(t => t.status !== 'completed').length || undefined },
+            { id: 'tasks', label: 'Задачи', count: tasks.filter(t => t.status !== 'completed').length || undefined },
             { id: 'ads', label: 'Объявления', count: totalAds },
             { id: 'domains', label: 'Домены', count: stats?.unique_domains },
             { id: 'history', label: 'История' },
             { id: 'stats', label: 'Аналитика' },
+            { id: 'settings', label: 'Настройки' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -757,19 +792,124 @@ export default function DirectParserPage() {
             {/* Инструкция */}
             <div className="card !p-4 lg:col-span-2 bg-[var(--button)]/5 border-[var(--button)]/20">
               <h3 className="font-medium mb-3 flex items-center gap-2">
-                <span>📡</span> Как использовать
+                Как использовать
               </h3>
               <div className="text-sm space-y-2 opacity-80">
-                <p>1. Запустите локальный парсер на вашем компьютере:</p>
-                <code className="block bg-[var(--background)] p-2 rounded text-xs font-mono">
-                  cd direct-parser && python app.py
-                </code>
-                <p>2. Откройте http://127.0.0.1:5000 и введите поисковые запросы</p>
-                <p>3. После парсинга нажмите "Отправить на сервер" — данные появятся здесь</p>
-                <p className="text-xs opacity-60 mt-3">
-                  Примечание: Локальный парсер использует Selenium и требует Chrome/Chromium
-                </p>
+                <p>1. Скачайте парсер на вкладке "Настройки" и запустите на ПК</p>
+                <p>2. Создайте задачу на вкладке "Задачи"</p>
+                <p>3. После парсинга данные появятся на вкладке "Объявления"</p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Настройки */}
+        {activeTab === 'settings' && (
+          <div className="space-y-6 max-w-2xl">
+            {/* API ключ */}
+            <div className="card !p-6">
+              <h3 className="font-medium mb-4">API ключ</h3>
+              <p className="text-sm opacity-70 mb-4">
+                Ключ используется для подключения локального парсера к серверу
+              </p>
+              
+              {apiKey ? (
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={apiKey}
+                      readOnly
+                      className="flex-1 px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg font-mono text-sm"
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(apiKey)
+                        showToast('Скопировано', 'success')
+                      }}
+                      className="px-4 py-2 bg-[var(--button)] text-white rounded-lg hover:opacity-90 text-sm"
+                    >
+                      Копировать
+                    </button>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs opacity-50">
+                      Создан: {apiKeyCreated ? new Date(apiKeyCreated).toLocaleString('ru-RU') : '—'}
+                    </span>
+                    <button
+                      onClick={revokeApiKey}
+                      className="text-sm text-red-400 hover:text-red-300"
+                    >
+                      Отозвать ключ
+                    </button>
+                  </div>
+                  <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                    <p className="text-sm text-green-400">Парсер подключён</p>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={generateApiKey}
+                  className="px-6 py-3 bg-[var(--button)] text-white rounded-lg hover:opacity-90 font-medium"
+                >
+                  Сгенерировать API ключ
+                </button>
+              )}
+            </div>
+
+            {/* Установка парсера */}
+            <div className="card !p-6">
+              <h3 className="font-medium mb-4">Установка парсера</h3>
+              <div className="space-y-4">
+                <div className="p-4 bg-[var(--background)] rounded-lg">
+                  <h4 className="text-sm font-medium mb-2">1. Скачайте файлы</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <a
+                      href="/api/direct-parser/download/agent"
+                      className="px-3 py-1.5 bg-[var(--card)] border border-[var(--border)] rounded text-sm hover:border-[var(--button)]"
+                    >
+                      direct_agent.py
+                    </a>
+                    <a
+                      href="/api/direct-parser/download/parser"
+                      className="px-3 py-1.5 bg-[var(--card)] border border-[var(--border)] rounded text-sm hover:border-[var(--button)]"
+                    >
+                      ad_parser.py
+                    </a>
+                    <a
+                      href="/api/direct-parser/download/requirements"
+                      className="px-3 py-1.5 bg-[var(--card)] border border-[var(--border)] rounded text-sm hover:border-[var(--button)]"
+                    >
+                      requirements.txt
+                    </a>
+                  </div>
+                </div>
+                
+                <div className="p-4 bg-[var(--background)] rounded-lg">
+                  <h4 className="text-sm font-medium mb-2">2. Установите зависимости</h4>
+                  <code className="block text-xs font-mono opacity-80">
+                    pip install -r requirements.txt
+                  </code>
+                </div>
+
+                <div className="p-4 bg-[var(--background)] rounded-lg">
+                  <h4 className="text-sm font-medium mb-2">3. Запустите агент</h4>
+                  <code className="block text-xs font-mono opacity-80">
+                    python direct_agent.py --api-url {typeof window !== 'undefined' ? window.location.origin : 'https://tools.connecting-server.ru'} --api-key {apiKey || 'ВАШ_КЛЮЧ'}
+                  </code>
+                </div>
+              </div>
+            </div>
+
+            {/* Требования */}
+            <div className="card !p-6">
+              <h3 className="font-medium mb-4">Требования</h3>
+              <ul className="text-sm space-y-2 opacity-80">
+                <li>• Python 3.8+</li>
+                <li>• Google Chrome</li>
+                <li>• ChromeDriver (соответствующей версии)</li>
+                <li>• Интернет-соединение</li>
+              </ul>
             </div>
           </div>
         )}

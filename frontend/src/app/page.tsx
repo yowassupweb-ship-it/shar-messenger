@@ -162,17 +162,11 @@ export default function HomePage() {
         </div>
       </div>
 
-      <main className="container mx-auto px-6 py-12">
-        <div className="text-center mb-16">
-          <h1 className="text-4xl font-bold text-[var(--foreground)] mb-4">
-            Доступные инструменты
-          </h1>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+      <main className="container mx-auto px-6 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
           {tools.map((tool) => (
             <Link key={tool.id} href={tool.href}>
-              <div className="group relative bg-[#252538] border border-[var(--border)] rounded-lg p-6 hover:shadow-lg transition-shadow duration-300 cursor-pointer">
+              <div className="group relative bg-[#252538] border border-[var(--border)] rounded-lg p-5 h-[120px] hover:shadow-lg transition-shadow duration-300 cursor-pointer">
                 <div className="flex items-start space-x-4 mb-4">
                   <div className={`p-3 rounded-lg text-white group-hover:scale-110 transition-transform duration-300 ${tool.color}`}>
                     {tool.icon}
