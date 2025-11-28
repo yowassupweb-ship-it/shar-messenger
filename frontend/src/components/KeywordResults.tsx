@@ -6,6 +6,7 @@ import { TopRequestsResponse } from '@/types/yandex-wordstat'
 import { AIAnalysis } from './AIAnalysis'
 import DynamicsChart from './DynamicsChart'
 import { Download, X } from 'lucide-react'
+import { useBodyScrollLock } from '@/hooks'
 
 interface KeywordResultsProps {
   results: TopRequestsResponse | null
@@ -64,6 +65,9 @@ export function KeywordResults({ results, onExport, dynamicsPeriod }: KeywordRes
   const [showExportModal, setShowExportModal] = useState(false)
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
   const [exportHotness, setExportHotness] = useState<'all' | 'cold' | 'warm' | 'hot'>('all')
+  
+  // Блокируем скролл body при открытой модалке экспорта
+  useBodyScrollLock(showExportModal)
   
   if (!results) {
     return (
@@ -222,20 +226,24 @@ export function KeywordResults({ results, onExport, dynamicsPeriod }: KeywordRes
       {/* Export Modal */}
       {showExportModal && (
         <div 
-          className="modal-backdrop fixed inset-0 flex items-center justify-center z-50 p-4"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)' }}
+          className="fixed inset-0 z-[9999] flex items-center justify-center"
+          style={{ 
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            backdropFilter: 'blur(8px)'
+          }}
           onClick={(e) => e.target === e.currentTarget && setShowExportModal(false)}
         >
           <div 
-            className="modal-content w-full max-w-2xl rounded-xl border max-h-[80vh] flex flex-col"
+            className="w-full h-full md:w-[90vw] md:h-[90vh] md:max-w-4xl md:rounded-xl border overflow-hidden flex flex-col"
             style={{
               background: 'var(--glass-bg-card)',
               borderColor: 'var(--glass-border)',
-              backdropFilter: 'blur(16px)'
+              backdropFilter: 'blur(16px)',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)'
             }}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-opacity-10">
+            <div className="flex-shrink-0 flex items-center justify-between p-6 border-b border-opacity-10">
               <h3 className="text-lg font-semibold" style={{ color: 'var(--glass-text-primary)' }}>
                 Выберите данные для экспорта
               </h3>
@@ -249,7 +257,8 @@ export function KeywordResults({ results, onExport, dynamicsPeriod }: KeywordRes
             </div>
 
             {/* Controls */}
-            <div className="p-4 border-b border-opacity-10">
+            {/* Controls */}
+            <div className="flex-shrink-0 p-4 border-b border-opacity-10">
               <div className="flex items-center justify-between">
                 <div className="text-sm" style={{ color: 'var(--glass-text-secondary)' }}>
                   Выбрано: {selectedItems.size} из {allItems.length}
@@ -356,7 +365,7 @@ export function KeywordResults({ results, onExport, dynamicsPeriod }: KeywordRes
             </div>
 
             {/* Footer */}
-            <div className="p-6 border-t border-opacity-10">
+            <div className="flex-shrink-0 p-6 border-t border-opacity-10">
               <div className="flex gap-3">
                 <button
                   onClick={handleExport}

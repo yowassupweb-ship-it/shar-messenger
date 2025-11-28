@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
-import path from 'path';
+import { getDbPath } from '@/lib/db';
 
 export async function GET() {
   try {
-    const dbPath = path.join(process.cwd(), '..', 'backend', 'database.json');
+    const dbPath = getDbPath();
     
     if (!fs.existsSync(dbPath)) {
       return NextResponse.json({ error: 'Database file not found' }, { status: 404 });

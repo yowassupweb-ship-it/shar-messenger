@@ -1,7 +1,36 @@
 import fs from 'fs/promises'
+import fsSync from 'fs'
 import path from 'path'
 
-const DB_PATH = path.join(process.cwd(), '..', 'backend', 'database.json')
+// Функция для определения пути к database.json с fallback
+function getDbPath(): string {
+  const possiblePaths = [
+    // Для development: frontend/../backend/database.json
+    path.join(process.cwd(), '..', 'backend', 'database.json'),
+    // Для production standalone: /var/www/feed-editor/backend/database.json
+    '/var/www/feed-editor/backend/database.json',
+    // Fallback на переменную окружения
+    process.env.DATABASE_PATH || ''
+  ].filter(Boolean)
+  
+  for (const p of possiblePaths) {
+    try {
+      if (fsSync.existsSync(p)) {
+        return p
+      }
+    } catch {
+      continue
+    }
+  }
+  
+  // Возвращаем первый путь как default
+  return possiblePaths[0]
+}
+
+const DB_PATH = getDbPath()
+
+// Экспортируем функцию для использования в API routes
+export { getDbPath }
 
 export interface Database {
   settings?: any

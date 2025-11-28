@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { AIPreset } from '@/types/chat'
+import { useBodyScrollLock } from '@/hooks'
 
 interface AIAnalysisProps {
   keywords: string[]
@@ -16,6 +17,9 @@ interface AnalysisResult {
 }
 
 export function AIAnalysis({ keywords, visible, onClose }: AIAnalysisProps) {
+  // Блокируем скролл body при открытой модалке
+  useBodyScrollLock(visible)
+  
   const [presets, setPresets] = useState<AIPreset[]>([])
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult>({
     analysis: '',
@@ -140,14 +144,15 @@ export function AIAnalysis({ keywords, visible, onClose }: AIAnalysisProps) {
 
   return (
     <div 
-      className="fixed inset-0 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 z-[9999] flex items-center justify-center"
       style={{ 
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
-        backdropFilter: 'blur(4px)'
+        backgroundColor: 'rgba(0, 0, 0, 0.85)',
+        backdropFilter: 'blur(8px)'
       }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div 
-        className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl border"
+        className="w-full h-full md:w-[90vw] md:h-[90vh] md:max-w-6xl md:rounded-xl border overflow-hidden flex flex-col"
         style={{
           background: 'var(--glass-bg-card)',
           borderColor: 'var(--glass-border)',
@@ -155,7 +160,7 @@ export function AIAnalysis({ keywords, visible, onClose }: AIAnalysisProps) {
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)'
         }}
       >
-        <div className="p-6">
+        <div className="flex-1 overflow-y-auto p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold" style={{ color: 'var(--glass-text-primary)' }}>
               ИИ Анализ ключевых слов

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { KeywordSearch, SearchOptions } from '@/components/KeywordSearch'
 import type { DeviceType } from '@/types/yandex-wordstat'
@@ -20,7 +21,13 @@ import '../slovolov-styles.css'
 type Tab = 'search' | 'dynamics' | 'regions' | 'settings'
 
 function WordcatcherContent() {
-  const [activeTab, setActiveTab] = useState<Tab>('search')
+  const searchParams = useSearchParams()
+  
+  // Синхронизируем activeTab с URL параметром
+  const tabFromUrl = searchParams.get('tab') as Tab | null
+  const activeTab: Tab = tabFromUrl && ['dynamics', 'regions', 'settings'].includes(tabFromUrl) 
+    ? tabFromUrl 
+    : 'search'
 
   const [currentPhrase, setCurrentPhrase] = useState('')
   const [currentDynamicsPeriod, setCurrentDynamicsPeriod] = useState<'daily' | 'weekly' | 'monthly'>('monthly')

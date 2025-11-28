@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
-import path from 'path'
+import { getDbPath } from '@/lib/db'
 
 export interface SearchPreset {
   id: string
@@ -10,7 +10,7 @@ export interface SearchPreset {
   createdAt: string
 }
 
-const dbPath = path.join(process.cwd(), '..', 'backend', 'database.json')
+const dbPath = getDbPath()
 
 function readDatabase() {
   try {

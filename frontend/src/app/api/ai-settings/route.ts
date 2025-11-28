@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
-import path from 'path'
+import { getDbPath } from '@/lib/db'
 
-const dbPath = path.join(process.cwd(), '..', 'backend', 'database.json')
+const dbPath = getDbPath()
 
 function readDatabase() {
   try {

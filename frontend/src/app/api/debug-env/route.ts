@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
 import fs from 'fs'
-import path from 'path'
+import { getDbPath } from '@/lib/db'
 
 export async function GET() {
   try {
     // Читаем database.json
-    const dbPath = path.join(process.cwd(), '..', 'backend', 'database.json')
+    const dbPath = getDbPath()
     const dbContent = fs.readFileSync(dbPath, 'utf-8')
     const db = JSON.parse(dbContent)
 

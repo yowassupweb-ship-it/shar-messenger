@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import fs from 'fs'
-import path from 'path'
+import { getDbPath } from '@/lib/db'
 
 interface Message {
   content: string
@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     const { message, context, history } = body
 
     // Получаем API ключ из database.json
-    const dbPath = path.join(process.cwd(), '..', 'backend', 'database.json')
+    const dbPath = getDbPath()
     const dbContent = fs.readFileSync(dbPath, 'utf-8')
     const data = JSON.parse(dbContent)
 

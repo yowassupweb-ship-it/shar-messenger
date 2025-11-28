@@ -118,6 +118,25 @@ async def log_requests(request, call_next):
     print(f"<<< Response status: {response.status_code}")
     return response
 
+# Test Telegram endpoint
+@app.post("/api/test-telegram")
+async def test_telegram():
+    """Тестовая отправка уведомления в Telegram"""
+    settings = db.get_settings()
+    result = {
+        "enabled": settings.get('telegramNotifications', False),
+        "has_token": bool(settings.get('telegramBotToken')),
+        "has_chat_id": bool(settings.get('telegramChatId')),
+        "token_length": len(settings.get('telegramBotToken', '')),
+        "chat_id": settings.get('telegramChatId', '')
+    }
+    
+    # Пробуем отправить
+    success = telegram.send_notification("🧪 <b>Тестовое сообщение</b>\n\nЕсли вы видите это - уведомления работают!")
+    result["send_success"] = success
+    
+    return result
+
 # Models
 class DataSourceCreate(BaseModel):
     name: str
@@ -778,17 +797,32 @@ def _apply_custom_template(template: Dict[str, Any], products: List[Dict[str, An
                 'id': product.get('id', ''),
                 'url': product.get('url', ''),
                 'price': str(product.get('price', '0')),
+                'oldPrice': str(product.get('oldPrice', '')) if product.get('oldPrice') else '',
+                'oldprice': str(product.get('oldPrice', '')) if product.get('oldPrice') else '',  # alias
                 'categoryId': unique_categories.get(cat_name, 1),
                 'picture': product.get('image', ''),
+                'image': product.get('image', ''),  # alias
                 'name': product.get('name', ''),
                 'route': product.get('route', ''),
                 'description': product.get('description') or product.get('route', ''),
                 'vendor': product.get('vendor', settings.get('siteName', 'Вокруг света')),
                 'model': product.get('model', product.get('name', '')),
                 'days': product.get('days', ''),
-                'available': 'true' if product.get('active', True) else 'false'
+                'available': 'true' if product.get('active', True) else 'false',
+                # Алиасы для VK/Google формата
+                'title': product.get('name', ''),
+                'link': product.get('url', ''),
+                'image_link': product.get('image', ''),
+                'condition': 'new',
+                'availability': 'in stock' if product.get('active', True) else 'out of stock',
+                'brand': product.get('vendor', settings.get('siteName', 'Вокруг света')),
+                'product_type': cat_name,
+                'currency': settings.get('defaultCurrency', 'RUB')
             }
             template_data['offers'].append(offer_data)
+        
+        # Добавляем entries как алиас для offers (для VK/Google шаблонов)
+        template_data['entries'] = template_data['offers']
         
         # Рендерим шаблон
         renderer = pystache.Renderer(escape=lambda u: u)  # Отключаем HTML escaping для XML

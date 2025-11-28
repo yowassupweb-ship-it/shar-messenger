@@ -66,7 +66,11 @@ class TelegramNotifier:
             message: Сообщение
             status: Статус (success, error, warning, info)
         """
+        # Перезагружаем настройки перед проверкой
+        self._load_settings()
+        
         if not self.enabled:
+            print(f"Telegram notify_log skipped: notifications disabled")
             return
         
         # Иконки для разных типов
