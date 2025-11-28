@@ -2,6 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { apiFetch } from '@/lib/api'
+import { showToast } from '@/components/Toast'
+import { 
+  Plus, Search, RefreshCw, Copy, ExternalLink, Trash2, 
+  FolderPlus, Folder, FolderOpen, ChevronRight, ChevronDown,
+  BarChart3, Eye, MousePointer, TrendingUp, X
+} from 'lucide-react'
 
 interface TrackedPost {
   id: string
@@ -13,56 +19,111 @@ interface TrackedPost {
   clicks: number
   views: number
   conversions: number
+  folderId?: string
 }
+
+interface TrackedFolder {
+  id: string
+  name: string
+  color: string
+  createdAt: string
+}
+
+const PLATFORMS = [
+  { id: 'vk', name: 'VK', color: 'bg-blue-500/20 text-blue-400' },
+  { id: 'telegram', name: 'TG', color: 'bg-sky-500/20 text-sky-400' },
+  { id: 'yandex', name: 'Я.Директ', color: 'bg-yellow-500/20 text-yellow-400' },
+  { id: 'google', name: 'Google', color: 'bg-green-500/20 text-green-400' },
+  { id: 'email', name: 'Email', color: 'bg-purple-500/20 text-purple-400' },
+  { id: 'dzen', name: 'Дзен', color: 'bg-orange-500/20 text-orange-400' },
+  { id: 'other', name: 'Другое', color: 'bg-gray-500/20 text-gray-400' },
+]
+
+const FOLDER_COLORS = [
+  { id: 'blue', color: 'bg-blue-500/20 border-blue-500/50 text-blue-400' },
+  { id: 'green', color: 'bg-green-500/20 border-green-500/50 text-green-400' },
+  { id: 'purple', color: 'bg-purple-500/20 border-purple-500/50 text-purple-400' },
+  { id: 'orange', color: 'bg-orange-500/20 border-orange-500/50 text-orange-400' },
+  { id: 'pink', color: 'bg-pink-500/20 border-pink-500/50 text-pink-400' },
+  { id: 'cyan', color: 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' },
+]
 
 export default function TrackerPage() {
   const [posts, setPosts] = useState<TrackedPost[]>([])
-  const [showAddPost, setShowAddPost] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [platformFilter, setPlatformFilter] = useState<string>('all')
+  const [folders, setFolders] = useState<TrackedFolder[]>([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   
-  const [newPost, setNewPost] = useState({
-    platform: '',
-    postUrl: '',
+  // Filters
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
+  
+  // Modals
+  const [showAddLink, setShowAddLink] = useState(false)
+  const [showAddFolder, setShowAddFolder] = useState(false)
+  
+  // New link form
+  const [newLink, setNewLink] = useState({
     title: '',
-    utmTemplate: '',
-    utmUrl: ''
+    utmUrl: '',
+    platform: 'vk',
+    folderId: ''
   })
-  const [manualUtm, setManualUtm] = useState(false)
+  
+  // New folder form
+  const [newFolder, setNewFolder] = useState({
+    name: '',
+    color: 'blue'
+  })
 
   useEffect(() => {
-    loadPosts()
+    loadData()
   }, [])
 
-  const loadPosts = async () => {
+  const loadData = async () => {
+    setLoading(true)
     try {
-      const response = await apiFetch('/api/tracked-posts')
-      if (response.ok) {
-        const data = await response.json()
-        setPosts(data)
+      const [postsRes, foldersRes] = await Promise.all([
+        apiFetch('/api/tracked-posts'),
+        apiFetch('/api/tracked-folders')
+      ])
+      
+      if (postsRes.ok) {
+        const data = await postsRes.json()
+        setPosts(Array.isArray(data) ? data : [])
+      }
+      
+      if (foldersRes.ok) {
+        const data = await foldersRes.json()
+        setFolders(Array.isArray(data) ? data : [])
       }
     } catch (error) {
       console.error('Ошибка загрузки:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
-  const addPost = async () => {
-    if (!newPost.title) {
-      alert('Заполните название!')
-      return
+  const refreshStats = async () => {
+    setRefreshing(true)
+    showToast('Обновление статистики...', 'info')
+    
+    try {
+      // Здесь будет логика обновления статистики из Метрики
+      await loadData()
+      showToast('Статистика обновлена', 'success')
+    } catch {
+      showToast('Ошибка обновления', 'error')
+    } finally {
+      setRefreshing(false)
     }
+  }
 
-    // Проверка: если ручной ввод - требуем UTM, иначе - требуем URL
-    if (manualUtm) {
-      if (!newPost.utmUrl) {
-        alert('Введите готовую UTM-ссылку!')
-        return
-      }
-    } else {
-      if (!newPost.postUrl) {
-        alert('Введите URL!')
-        return
-      }
+  const addLink = async () => {
+    if (!newLink.title || !newLink.utmUrl) {
+      showToast('Заполните название и ссылку', 'error')
+      return
     }
 
     try {
@@ -70,11 +131,11 @@ export default function TrackerPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          platform: newPost.platform,
-          postUrl: newPost.postUrl,
-          title: newPost.title,
-          utmTemplate: manualUtm ? null : newPost.utmTemplate,
-          utmUrl: manualUtm ? newPost.utmUrl : null,
+          title: newLink.title,
+          utmUrl: newLink.utmUrl,
+          platform: newLink.platform,
+          folderId: newLink.folderId || null,
+          postUrl: newLink.utmUrl,
           clicks: 0,
           views: 0,
           conversions: 0
@@ -82,336 +143,454 @@ export default function TrackerPage() {
       })
 
       if (response.ok) {
-        await loadPosts()
-        setNewPost({
-          platform: '',
-          postUrl: '',
-          title: '',
-          utmTemplate: '',
-          utmUrl: ''
-        })
-        setManualUtm(false)
-        setShowAddPost(false)
+        await loadData()
+        setNewLink({ title: '', utmUrl: '', platform: 'vk', folderId: '' })
+        setShowAddLink(false)
+        showToast('Ссылка добавлена', 'success')
       }
-    } catch (error) {
-      console.error('Ошибка добавления:', error)
-      alert('Ошибка добавления ссылки')
+    } catch {
+      showToast('Ошибка добавления', 'error')
     }
   }
 
-  const deletePost = async (id: string) => {
-    if (!confirm('Удалить эту ссылку из трекера?')) return
+  const addFolder = async () => {
+    if (!newFolder.name) {
+      showToast('Введите название папки', 'error')
+      return
+    }
 
     try {
-      const response = await apiFetch(`/api/tracked-posts/${id}`, {
-        method: 'DELETE'
+      const response = await apiFetch('/api/tracked-folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newFolder.name,
+          color: newFolder.color
+        })
       })
 
       if (response.ok) {
-        await loadPosts()
+        await loadData()
+        setNewFolder({ name: '', color: 'blue' })
+        setShowAddFolder(false)
+        showToast('Папка создана', 'success')
       }
-    } catch (error) {
-      console.error('Ошибка удаления:', error)
+    } catch {
+      showToast('Ошибка создания папки', 'error')
     }
   }
 
-  const copyToClipboard = (text: string) => {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text)
-        .then(() => alert('Скопировано в буфер обмена!'))
-        .catch(() => alert('Ошибка копирования'))
-    } else {
-      // Fallback для старых браузеров
-      const textArea = document.createElement('textarea')
-      textArea.value = text
-      document.body.appendChild(textArea)
-      textArea.select()
-      try {
-        document.execCommand('copy')
-        alert('Скопировано в буфер обмена!')
-      } catch (err) {
-        alert('Ошибка копирования')
-      }
-      document.body.removeChild(textArea)
+  const deleteLink = async (id: string) => {
+    if (!confirm('Удалить ссылку?')) return
+    
+    try {
+      await apiFetch(`/api/tracked-posts/${id}`, { method: 'DELETE' })
+      setPosts(prev => prev.filter(p => p.id !== id))
+      showToast('Удалено', 'success')
+    } catch {
+      showToast('Ошибка удаления', 'error')
     }
   }
 
+  const deleteFolder = async (id: string) => {
+    if (!confirm('Удалить папку? Ссылки будут перемещены в корень.')) return
+    
+    try {
+      await apiFetch(`/api/tracked-folders/${id}`, { method: 'DELETE' })
+      setFolders(prev => prev.filter(f => f.id !== id))
+      // Обновляем посты - убираем folderId
+      setPosts(prev => prev.map(p => p.folderId === id ? { ...p, folderId: undefined } : p))
+      showToast('Папка удалена', 'success')
+    } catch {
+      showToast('Ошибка удаления', 'error')
+    }
+  }
+
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev)
+      if (next.has(folderId)) {
+        next.delete(folderId)
+      } else {
+        next.add(folderId)
+      }
+      return next
+    })
+  }
+
+  const copyLink = (url: string) => {
+    navigator.clipboard.writeText(url)
+    showToast('Скопировано!', 'success')
+  }
+
+  const getPlatform = (id: string) => PLATFORMS.find(p => p.id === id) || PLATFORMS[PLATFORMS.length - 1]
+  const getFolderColor = (colorId: string) => FOLDER_COLORS.find(c => c.id === colorId)?.color || FOLDER_COLORS[0].color
+
+  // Фильтрация
   const filteredPosts = posts.filter(post => {
-    const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         post.postUrl.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesPlatform = platformFilter === 'all' || post.platform === platformFilter
-    return matchesSearch && matchesPlatform
+    const matchesSearch = !searchQuery || 
+      post.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      post.utmUrl?.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesFolder = !selectedFolder || post.folderId === selectedFolder
+    return matchesSearch && matchesFolder
   })
 
-  const getPlatformName = (platform: string) => {
-    const names: { [key: string]: string } = {
-      'vk': 'ВКонтакте',
-      'telegram': 'Telegram',
-      'dzen': 'Яндекс.Дзен',
-      'yandex_direct': 'Яндекс.Директ',
-      'yandex_business': 'Яндекс Бизнес',
-      'google': 'Google Ads',
-      'email': 'Email'
-    }
-    return names[platform] || platform
-  }
+  // Группировка по папкам
+  const rootPosts = filteredPosts.filter(p => !p.folderId)
+  const postsByFolder = folders.reduce((acc, folder) => {
+    acc[folder.id] = filteredPosts.filter(p => p.folderId === folder.id)
+    return acc
+  }, {} as Record<string, TrackedPost[]>)
 
-  const getPlatformColor = (platform: string) => {
-    const colors: { [key: string]: string } = {
-      'vk': 'text-blue-400 border-blue-400',
-      'telegram': 'text-sky-400 border-sky-400',
-      'dzen': 'text-orange-400 border-orange-400',
-      'yandex_direct': 'text-red-400 border-red-400',
-      'yandex_business': 'text-yellow-400 border-yellow-400',
-      'google': 'text-green-400 border-green-400',
-      'email': 'text-purple-400 border-purple-400'
-    }
-    return colors[platform] || 'text-gray-400 border-gray-400'
-  }
+  // Статистика
+  const totalViews = posts.reduce((sum, p) => sum + (p.views || 0), 0)
+  const totalClicks = posts.reduce((sum, p) => sum + (p.clicks || 0), 0)
+  const totalConversions = posts.reduce((sum, p) => sum + (p.conversions || 0), 0)
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-8">
+    <div className="min-h-screen p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-[var(--foreground)] mb-2">
-            Трекер ссылок
-          </h1>
-          <p className="text-[var(--foreground)] opacity-70">
-            Отслеживайте эффективность UTM-ссылок и кампаний
-          </p>
+          <h1 className="text-2xl font-bold">Трекер ссылок</h1>
+          <p className="text-sm opacity-60 mt-1">Отслеживание эффективности UTM-ссылок</p>
         </div>
-        <button className="btn-primary flex items-center" onClick={() => setShowAddPost(true)}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mr-2">
-            <line x1="12" y1="5" x2="12" y2="19"/>
-            <line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          Добавить ссылку
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={refreshStats}
+            disabled={refreshing}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Обновить
+          </button>
+          <button 
+            onClick={() => setShowAddFolder(true)}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <FolderPlus className="w-4 h-4" />
+            Папка
+          </button>
+          <button 
+            onClick={() => setShowAddLink(true)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Добавить
+          </button>
+        </div>
       </div>
 
-      {/* Форма добавления */}
-      {showAddPost && (
-        <div className="card mb-6">
-          <h3 className="text-lg font-semibold mb-4">Добавить для отслеживания</h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-500/20 rounded-lg">
+              <BarChart3 className="w-5 h-5 text-blue-400" />
+            </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Платформа/Источник *</label>
-              <input
-                type="text"
-                value={newPost.platform}
-                onChange={(e) => setNewPost({ ...newPost, platform: e.target.value })}
-                placeholder="vk, telegram, yandex_direct, email..."
-                className="input-field w-full"
-              />
-              <p className="text-xs opacity-50 mt-1">Например: vk, telegram, dzen, yandex_direct, google, email</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Название *</label>
-              <input
-                type="text"
-                value={newPost.title}
-                onChange={(e) => setNewPost({ ...newPost, title: e.target.value })}
-                placeholder="Название кампании или ссылки"
-                className="input-field w-full"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-2">Исходный URL {!manualUtm && '*'}</label>
-              <input
-                type="text"
-                value={newPost.postUrl}
-                onChange={(e) => setNewPost({ ...newPost, postUrl: e.target.value })}
-                placeholder="https://vs-travel.ru/tours/europe или https://vk.com/wall-123_456"
-                className="input-field w-full"
-              />
-              <p className="text-xs opacity-50 mt-1">URL страницы, куда будет вести ссылка{!manualUtm && ' (обязательно при использовании шаблона)'}</p>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-2">Способ добавления UTM</label>
-              <div className="flex gap-4 mb-3">
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="radio"
-                    checked={!manualUtm}
-                    onChange={() => setManualUtm(false)}
-                    className="mr-2"
-                  />
-                  <span>Использовать шаблон</span>
-                </label>
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="radio"
-                    checked={manualUtm}
-                    onChange={() => setManualUtm(true)}
-                    className="mr-2"
-                  />
-                  <span>Ввести готовую UTM-ссылку</span>
-                </label>
-              </div>
-
-              {!manualUtm ? (
-                <div>
-                  <label className="block text-sm font-medium mb-2">UTM шаблон (опционально)</label>
-                  <input
-                    type="text"
-                    value={newPost.utmTemplate}
-                    onChange={(e) => setNewPost({ ...newPost, utmTemplate: e.target.value })}
-                    placeholder="ID шаблона UTM метки"
-                    className="input-field w-full"
-                  />
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-sm font-medium mb-2">Готовая UTM-ссылка *</label>
-                  <input
-                    type="text"
-                    value={newPost.utmUrl}
-                    onChange={(e) => setNewPost({ ...newPost, utmUrl: e.target.value })}
-                    placeholder="https://example.com?utm_source=vk&utm_medium=social&utm_campaign=summer"
-                    className="input-field w-full"
-                  />
-                  <p className="text-xs opacity-50 mt-1">Вставьте готовую ссылку с UTM-параметрами</p>
-                </div>
-              )}
+              <p className="text-2xl font-bold">{posts.length}</p>
+              <p className="text-xs opacity-60">Ссылок</p>
             </div>
           </div>
+        </div>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-500/20 rounded-lg">
+              <Eye className="w-5 h-5 text-green-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{totalViews.toLocaleString()}</p>
+              <p className="text-xs opacity-60">Визитов</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-500/20 rounded-lg">
+              <MousePointer className="w-5 h-5 text-purple-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{totalClicks.toLocaleString()}</p>
+              <p className="text-xs opacity-60">Кликов</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-orange-500/20 rounded-lg">
+              <TrendingUp className="w-5 h-5 text-orange-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{totalConversions}</p>
+              <p className="text-xs opacity-60">Конверсий</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
-          <div className="flex gap-2">
-            <button onClick={addPost} className="btn-primary">
-              Добавить
-            </button>
-            <button onClick={() => setShowAddPost(false)} className="btn-secondary">
-              Отмена
-            </button>
+      {/* Search */}
+      <div className="mb-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" />
+          <input
+            type="text"
+            placeholder="Поиск по названию или ссылке..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="input-field w-full pl-10"
+          />
+        </div>
+      </div>
+
+      {/* Content */}
+      {loading ? (
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-12 text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-[var(--button)] border-t-transparent rounded-full mx-auto mb-3"></div>
+          <p className="text-sm opacity-60">Загрузка...</p>
+        </div>
+      ) : posts.length === 0 ? (
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-12 text-center">
+          <BarChart3 className="w-12 h-12 mx-auto mb-4 opacity-30" />
+          <h3 className="font-medium mb-2">Нет отслеживаемых ссылок</h3>
+          <p className="text-sm opacity-60 mb-4">Добавьте первую ссылку для отслеживания</p>
+          <button onClick={() => setShowAddLink(true)} className="btn-primary">
+            Добавить ссылку
+          </button>
+        </div>
+      ) : (
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
+          {/* Folders */}
+          {folders.map(folder => {
+            const folderPosts = postsByFolder[folder.id] || []
+            const isExpanded = expandedFolders.has(folder.id)
+            
+            return (
+              <div key={folder.id} className="border-b border-[var(--border)] last:border-b-0">
+                <div 
+                  className="flex items-center gap-3 p-3 hover:bg-[var(--background)]/50 cursor-pointer"
+                  onClick={() => toggleFolder(folder.id)}
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="w-4 h-4 opacity-50" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 opacity-50" />
+                  )}
+                  <div className={`p-1.5 rounded ${getFolderColor(folder.color)}`}>
+                    {isExpanded ? <FolderOpen className="w-4 h-4" /> : <Folder className="w-4 h-4" />}
+                  </div>
+                  <span className="font-medium flex-1">{folder.name}</span>
+                  <span className="text-xs opacity-50">{folderPosts.length} ссылок</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); deleteFolder(folder.id) }}
+                    className="p-1 opacity-0 group-hover:opacity-100 hover:opacity-100 hover:text-red-400"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+                
+                {isExpanded && folderPosts.length > 0 && (
+                  <div className="bg-[var(--background)]/30">
+                    {folderPosts.map(post => (
+                      <LinkRow key={post.id} post={post} onCopy={copyLink} onDelete={deleteLink} getPlatform={getPlatform} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          
+          {/* Root posts */}
+          {rootPosts.map(post => (
+            <LinkRow key={post.id} post={post} onCopy={copyLink} onDelete={deleteLink} getPlatform={getPlatform} />
+          ))}
+        </div>
+      )}
+
+      {/* Add Link Modal */}
+      {showAddLink && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-lg">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">Добавить ссылку</h3>
+              <button onClick={() => setShowAddLink(false)} className="p-1 hover:bg-[var(--border)] rounded">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1 opacity-70">Название *</label>
+                <input
+                  type="text"
+                  value={newLink.title}
+                  onChange={(e) => setNewLink({ ...newLink, title: e.target.value })}
+                  placeholder="Летняя распродажа VK"
+                  className="input-field w-full"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1 opacity-70">UTM-ссылка *</label>
+                <input
+                  type="text"
+                  value={newLink.utmUrl}
+                  onChange={(e) => setNewLink({ ...newLink, utmUrl: e.target.value })}
+                  placeholder="https://vs-travel.ru?utm_source=vk&utm_medium=social"
+                  className="input-field w-full font-mono text-sm"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1 opacity-70">Платформа</label>
+                  <select
+                    value={newLink.platform}
+                    onChange={(e) => setNewLink({ ...newLink, platform: e.target.value })}
+                    className="input-field w-full"
+                  >
+                    {PLATFORMS.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1 opacity-70">Папка</label>
+                  <select
+                    value={newLink.folderId}
+                    onChange={(e) => setNewLink({ ...newLink, folderId: e.target.value })}
+                    className="input-field w-full"
+                  >
+                    <option value="">Без папки</option>
+                    {folders.map(f => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex gap-2 mt-6">
+              <button onClick={addLink} className="btn-primary flex-1">Добавить</button>
+              <button onClick={() => setShowAddLink(false)} className="btn-secondary">Отмена</button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Поиск и фильтры */}
-      <div className="card mb-6">
-        <div className="flex gap-4 items-center">
-          <div className="flex-1">
-            <input
-              type="text"
-              className="input-field w-full"
-              placeholder="Поиск..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <select
-            className="input-field"
-            value={platformFilter}
-            onChange={(e) => setPlatformFilter(e.target.value)}
-          >
-            <option value="all">Все платформы</option>
-            <option value="vk">ВКонтакте</option>
-            <option value="telegram">Telegram</option>
-            <option value="dzen">Яндекс.Дзен</option>
-            <option value="yandex_direct">Яндекс.Директ</option>
-            <option value="yandex_business">Яндекс Бизнес</option>
-            <option value="google">Google Ads</option>
-            <option value="email">Email</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Список ссылок */}
-      <div className="space-y-4">
-        {filteredPosts.length === 0 ? (
-          <div className="card text-center py-12">
-            <div className="w-16 h-16 bg-[var(--button)] rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--background)" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
+      {/* Add Folder Modal */}
+      {showAddFolder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">Создать папку</h3>
+              <button onClick={() => setShowAddFolder(false)} className="p-1 hover:bg-[var(--border)] rounded">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <h3 className="text-lg font-semibold mb-2">Нет отслеживаемых ссылок</h3>
-            <p className="text-[var(--foreground)] opacity-70 mb-6">
-              Добавьте первую ссылку для отслеживания эффективности
-            </p>
-            <button className="btn-primary" onClick={() => setShowAddPost(true)}>
-              Добавить первую ссылку
-            </button>
-          </div>
-        ) : (
-          filteredPosts.map(post => (
-            <div key={post.id} className="card">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-lg font-semibold">{post.title}</h3>
-                    <span className={`px-2 py-1 text-xs border rounded ${getPlatformColor(post.platform)}`}>
-                      {getPlatformName(post.platform)}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm opacity-70 mb-4">
-                    <div>
-                      <span className="font-medium">Просмотры:</span> {post.views}
-                    </div>
-                    <div>
-                      <span className="font-medium">Клики:</span> {post.clicks}
-                    </div>
-                    <div>
-                      <span className="font-medium">Конверсии:</span> {post.conversions}
-                    </div>
-                    <div>
-                      <span className="font-medium">CTR:</span> {post.views > 0 ? ((post.clicks / post.views) * 100).toFixed(2) : 0}%
-                    </div>
-                  </div>
-
-                  <div className="card mb-4" style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}>
-                    <p className="text-xs opacity-70 mb-1">UTM-ссылка:</p>
-                    <p className="text-sm font-mono break-all">{post.utmUrl}</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 ml-4">
-                  <button
-                    onClick={() => copyToClipboard(post.utmUrl)}
-                    className="btn-primary text-sm flex items-center"
-                    title="Копировать UTM ссылку"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                    </svg>
-                    Копировать
-                  </button>
-
-                  <button
-                    onClick={() => window.open(post.utmUrl, '_blank')}
-                    className="btn-secondary text-sm flex items-center"
-                    title="Открыть ссылку"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                      <polyline points="15 3 21 3 21 9"/>
-                      <line x1="10" y1="14" x2="21" y2="3"/>
-                    </svg>
-                    Открыть
-                  </button>
-
-                  <button
-                    onClick={() => deletePost(post.id)}
-                    className="btn-secondary text-sm flex items-center text-red-400 hover:text-red-300"
-                    title="Удалить"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="3 6 5 6 21 6"/>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                    </svg>
-                    Удалить
-                  </button>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1 opacity-70">Название</label>
+                <input
+                  type="text"
+                  value={newFolder.name}
+                  onChange={(e) => setNewFolder({ ...newFolder, name: e.target.value })}
+                  placeholder="Рекламные кампании"
+                  className="input-field w-full"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-2 opacity-70">Цвет</label>
+                <div className="flex gap-2">
+                  {FOLDER_COLORS.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => setNewFolder({ ...newFolder, color: c.id })}
+                      className={`w-8 h-8 rounded-lg border-2 transition-all ${c.color} ${
+                        newFolder.color === c.id ? 'ring-2 ring-offset-2 ring-offset-[var(--card)]' : ''
+                      }`}
+                    />
+                  ))}
                 </div>
               </div>
             </div>
-          ))
-        )}
+            
+            <div className="flex gap-2 mt-6">
+              <button onClick={addFolder} className="btn-primary flex-1">Создать</button>
+              <button onClick={() => setShowAddFolder(false)} className="btn-secondary">Отмена</button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <p className="text-xs opacity-40 mt-4">
+        💡 Для получения данных из Яндекс.Метрики настройте токен и ID счётчика в Настройках
+      </p>
+    </div>
+  )
+}
+
+// Компонент строки ссылки
+function LinkRow({ 
+  post, 
+  onCopy, 
+  onDelete, 
+  getPlatform 
+}: { 
+  post: TrackedPost
+  onCopy: (url: string) => void
+  onDelete: (id: string) => void
+  getPlatform: (id: string) => { id: string; name: string; color: string }
+}) {
+  const platform = getPlatform(post.platform)
+  
+  return (
+    <div className="flex items-center gap-4 p-3 border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--background)]/50 group">
+      <span className={`px-2 py-1 text-xs rounded ${platform.color}`}>
+        {platform.name}
+      </span>
+      
+      <div className="flex-1 min-w-0">
+        <p className="font-medium truncate">{post.title || 'Без названия'}</p>
+        <p className="text-xs opacity-50 truncate font-mono">{post.utmUrl}</p>
+      </div>
+      
+      <div className="flex items-center gap-4 text-xs">
+        <div className="text-center">
+          <p className="font-medium">{post.views || 0}</p>
+          <p className="opacity-50">визитов</p>
+        </div>
+        <div className="text-center">
+          <p className="font-medium">{post.clicks || 0}</p>
+          <p className="opacity-50">кликов</p>
+        </div>
+      </div>
+      
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={() => onCopy(post.utmUrl)}
+          className="p-1.5 hover:bg-[var(--border)] rounded"
+          title="Копировать"
+        >
+          <Copy className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => window.open(post.utmUrl, '_blank')}
+          className="p-1.5 hover:bg-[var(--border)] rounded"
+          title="Открыть"
+        >
+          <ExternalLink className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => onDelete(post.id)}
+          className="p-1.5 hover:bg-[var(--border)] rounded text-red-400"
+          title="Удалить"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
       </div>
     </div>
   )

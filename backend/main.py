@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, FileResponse
+from fastapi.responses import Response, FileResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime
@@ -1988,6 +1988,61 @@ def delete_tracked_post(post_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ============== Tracked Folders ==============
+
+@app.get("/api/tracked-folders")
+def get_tracked_folders():
+    """Получить список папок для ссылок"""
+    try:
+        data = db._load_data()
+        folders = data.get('trackedFolders', [])
+        return folders
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/tracked-folders")
+def create_tracked_folder(folder: dict):
+    """Создать новую папку"""
+    import uuid
+    try:
+        data = db._load_data()
+        if 'trackedFolders' not in data:
+            data['trackedFolders'] = []
+        
+        new_folder = {
+            "id": str(uuid.uuid4()),
+            "name": folder.get("name", "Новая папка"),
+            "color": folder.get("color", "blue"),
+            "createdAt": datetime.now().isoformat()
+        }
+        
+        data['trackedFolders'].append(new_folder)
+        db._save_data(data)
+        return new_folder
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/tracked-folders/{folder_id}")
+def delete_tracked_folder(folder_id: str):
+    """Удалить папку"""
+    try:
+        data = db._load_data()
+        folders = data.get('trackedFolders', [])
+        data['trackedFolders'] = [f for f in folders if f['id'] != folder_id]
+        
+        # Убираем folderId у постов в этой папке
+        posts = data.get('trackedPosts', [])
+        for post in posts:
+            if post.get('folderId') == folder_id:
+                post['folderId'] = None
+        
+        db._save_data(data)
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # UTM History endpoints
 @app.get("/api/utm-history")
 def get_utm_history():
@@ -2658,14 +2713,43 @@ def revoke_api_key():
 
 # ============== Direct Parser File Downloads ==============
 
-DIRECT_PARSER_PATH = os.path.join(os.path.dirname(__file__), '..', 'direct-parser')
+import zipfile
+import io
+
+# Путь к direct-parser относительно backend
+DIRECT_PARSER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'direct-parser')
+
+@app.get("/api/direct-parser/download/archive")
+def download_archive():
+    """Скачать архив с файлами парсера"""
+    files_to_include = ['direct_agent.py', 'ad_parser.py', 'requirements.txt']
+    
+    # Создаём ZIP в памяти
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        for filename in files_to_include:
+            file_path = os.path.join(DIRECT_PARSER_PATH, filename)
+            if os.path.exists(file_path):
+                zip_file.write(file_path, filename)
+            else:
+                # Если файл не найден, логируем
+                print(f"File not found: {file_path}")
+    
+    zip_buffer.seek(0)
+    
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=direct-parser.zip"}
+    )
 
 @app.get("/api/direct-parser/download/agent")
 def download_agent():
     """Скачать файл direct_agent.py"""
     file_path = os.path.join(DIRECT_PARSER_PATH, 'direct_agent.py')
+    print(f"Looking for file: {file_path}, exists: {os.path.exists(file_path)}")
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Файл не найден")
+        raise HTTPException(status_code=404, detail=f"Файл не найден: {file_path}")
     return FileResponse(
         path=file_path,
         filename="direct_agent.py",
@@ -2677,7 +2761,7 @@ def download_parser():
     """Скачать файл ad_parser.py"""
     file_path = os.path.join(DIRECT_PARSER_PATH, 'ad_parser.py')
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Файл не найден")
+        raise HTTPException(status_code=404, detail=f"Файл не найден: {file_path}")
     return FileResponse(
         path=file_path,
         filename="ad_parser.py",
@@ -2689,7 +2773,7 @@ def download_requirements():
     """Скачать файл requirements.txt для Direct Parser"""
     file_path = os.path.join(DIRECT_PARSER_PATH, 'requirements.txt')
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Файл не найден")
+        raise HTTPException(status_code=404, detail=f"Файл не найден: {file_path}")
     return FileResponse(
         path=file_path,
         filename="requirements.txt",
