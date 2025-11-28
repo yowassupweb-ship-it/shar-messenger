@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useCallback, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { KeywordSearch, SearchOptions } from '@/components/KeywordSearch'
 import type { DeviceType } from '@/types/yandex-wordstat'
@@ -18,22 +17,10 @@ import { TopRequestsResponse, KeywordData } from '@/types/yandex-wordstat'
 import { loadRegionsTree, getRegionNameById } from '@/lib/regions-utils'
 import '../slovolov-styles.css'
 
-// Отключаем prerendering для этой страницы
-export const dynamic = 'force-dynamic'
-
 type Tab = 'search' | 'dynamics' | 'regions' | 'settings'
 
 function WordcatcherContent() {
-  const searchParams = useSearchParams()
-  const tabParam = searchParams.get('tab') as Tab | null
-  const [activeTab, setActiveTab] = useState<Tab>(tabParam || 'search')
-
-  // Update active tab when URL changes
-  useEffect(() => {
-    if (tabParam && tabParam !== activeTab) {
-      setActiveTab(tabParam)
-    }
-  }, [tabParam, activeTab])
+  const [activeTab, setActiveTab] = useState<Tab>('search')
 
   const [currentPhrase, setCurrentPhrase] = useState('')
   const [currentDynamicsPeriod, setCurrentDynamicsPeriod] = useState<'daily' | 'weekly' | 'monthly'>('monthly')
