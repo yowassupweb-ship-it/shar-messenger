@@ -42,6 +42,7 @@ interface Product {
   image: string
   price: string
   hidden?: boolean
+  sourceId?: string
 }
 
 interface Folder {
