@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime
@@ -2651,6 +2651,93 @@ def revoke_api_key():
     settings = db.get_settings()
     settings['directParserApiKey'] = None
     settings['directParserApiKeyCreated'] = None
+    db.update_settings(settings)
+    
+    return {"success": True}
+
+
+# ============== Direct Parser File Downloads ==============
+
+DIRECT_PARSER_PATH = os.path.join(os.path.dirname(__file__), '..', 'direct-parser')
+
+@app.get("/api/direct-parser/download/agent")
+def download_agent():
+    """Скачать файл direct_agent.py"""
+    file_path = os.path.join(DIRECT_PARSER_PATH, 'direct_agent.py')
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Файл не найден")
+    return FileResponse(
+        path=file_path,
+        filename="direct_agent.py",
+        media_type="text/x-python"
+    )
+
+@app.get("/api/direct-parser/download/parser")
+def download_parser():
+    """Скачать файл ad_parser.py"""
+    file_path = os.path.join(DIRECT_PARSER_PATH, 'ad_parser.py')
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Файл не найден")
+    return FileResponse(
+        path=file_path,
+        filename="ad_parser.py",
+        media_type="text/x-python"
+    )
+
+@app.get("/api/direct-parser/download/requirements")
+def download_requirements():
+    """Скачать файл requirements.txt для Direct Parser"""
+    file_path = os.path.join(DIRECT_PARSER_PATH, 'requirements.txt')
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Файл не найден")
+    return FileResponse(
+        path=file_path,
+        filename="requirements.txt",
+        media_type="text/plain"
+    )
+
+
+# ============== Direct Parser API Keys Management ==============
+
+@app.get("/api/direct-parser/api-keys")
+def get_direct_parser_api_keys():
+    """Получить список всех API ключей"""
+    settings = db.get_settings()
+    api_keys = settings.get('directParserApiKeys', [])
+    return api_keys
+
+@app.post("/api/direct-parser/api-keys")
+def create_direct_parser_api_key(data: dict):
+    """Создать новый API ключ"""
+    settings = db.get_settings()
+    api_keys = settings.get('directParserApiKeys', [])
+    
+    # Генерируем новый ключ
+    import uuid
+    new_key = {
+        "id": str(uuid.uuid4()),
+        "name": data.get("name", "Unnamed Key"),
+        "key": secrets.token_urlsafe(32),
+        "createdAt": datetime.now().isoformat(),
+        "lastUsed": None,
+        "requestCount": 0
+    }
+    
+    api_keys.append(new_key)
+    settings['directParserApiKeys'] = api_keys
+    db.update_settings(settings)
+    
+    return new_key
+
+@app.delete("/api/direct-parser/api-keys/{key_id}")
+def delete_direct_parser_api_key(key_id: str):
+    """Удалить API ключ"""
+    settings = db.get_settings()
+    api_keys = settings.get('directParserApiKeys', [])
+    
+    # Фильтруем ключи
+    api_keys = [k for k in api_keys if k['id'] != key_id]
+    settings['directParserApiKeys'] = api_keys
     db.update_settings(settings)
     
     return {"success": True}

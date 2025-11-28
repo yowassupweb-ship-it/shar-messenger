@@ -172,13 +172,16 @@ export default function AdminPage() {
       const response = await apiFetch('/api/users')
       if (response.ok) {
         const data = await response.json()
-        setUsers(data)
+        // Ensure data is an array
+        setUsers(Array.isArray(data) ? data : [])
       } else {
         showToast('Ошибка загрузки пользователей', 'error')
+        setUsers([])
       }
     } catch (error) {
       console.error('Ошибка загрузки пользователей:', error)
       showToast('Ошибка подключения к серверу', 'error')
+      setUsers([])
     } finally {
       setLoading(false)
     }

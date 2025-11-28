@@ -64,8 +64,19 @@ export default function TourTimeline({}: TourTimelineProps) {
         throw new Error('Ошибка загрузки данных');
       }
       
-      const data: TimelineData = await response.json();
-      let loadedTours = data.items;
+      const data = await response.json();
+      
+      // API returns { items: [...] } or { own: [...], competitors: [...] }
+      let loadedTours: TimelineTour[] = [];
+      
+      if (data.items && Array.isArray(data.items)) {
+        loadedTours = data.items;
+      } else {
+        // Handle alternative format
+        const ownTours = Array.isArray(data.own) ? data.own : [];
+        const competitorTours = Array.isArray(data.competitors) ? data.competitors : [];
+        loadedTours = [...ownTours, ...competitorTours];
+      }
       
       if (mode.type === 'range' && mode.dateFrom && mode.dateTo) {
         const fromDate = new Date(mode.dateFrom);

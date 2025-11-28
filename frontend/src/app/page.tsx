@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FileText, Languages, Search, TrendingUp, ShoppingBag, Tag, Settings } from 'lucide-react';
+import { FileText, Languages, Search, TrendingUp, ShoppingBag, Tag, Settings, Code, Map, BarChart3, LineChart, Sparkles, CalendarDays } from 'lucide-react';
 
 interface Tool {
   id: string;
@@ -12,6 +12,7 @@ interface Tool {
   href: string;
   icon: React.ReactNode;
   color: string;
+  inDevelopment?: boolean;
 }
 
 const tools: Tool[] = [
@@ -62,6 +63,61 @@ const tools: Tool[] = [
     href: '/utm-generator',
     icon: <Tag className="w-6 h-6" />,
     color: 'bg-purple-500'
+  },
+  // В разработке
+  {
+    id: 'api-seo',
+    name: 'API SEO',
+    description: 'Массовое обновление SEO в админке MODX',
+    href: '#',
+    icon: <Code className="w-6 h-6" />,
+    color: 'bg-cyan-500',
+    inDevelopment: true
+  },
+  {
+    id: 'architect',
+    name: 'Архитектур',
+    description: 'Ваш помощник для создания маршрута',
+    href: '#',
+    icon: <Map className="w-6 h-6" />,
+    color: 'bg-emerald-500',
+    inDevelopment: true
+  },
+  {
+    id: 'content-planner',
+    name: 'Контент планнер',
+    description: 'Продвинутый контент план и медиапланирование',
+    href: '#',
+    icon: <CalendarDays className="w-6 h-6" />,
+    color: 'bg-teal-500',
+    inDevelopment: true
+  },
+  {
+    id: 'reports',
+    name: 'Отчеты',
+    description: 'Набор отчетов для руководства на основе данных',
+    href: '#',
+    icon: <BarChart3 className="w-6 h-6" />,
+    color: 'bg-amber-500',
+    inDevelopment: true
+  },
+  {
+    id: 'tour-analyzer',
+    name: 'Анализатор туров',
+    description: 'Анализ продаж с помощью AI и скриптов',
+    href: '#',
+    icon: <LineChart className="w-6 h-6" />,
+    color: 'bg-rose-500',
+    inDevelopment: true
+  },
+  {
+    id: 'advice-engine',
+    name: 'Advice Engine',
+    description: 'Умный алгоритм рекомендаций на сайте',
+    href: '#',
+    icon: <Sparkles className="w-6 h-6" />,
+    color: 'bg-violet-500',
+    inDevelopment: true
   }
 ];
 
@@ -164,15 +220,20 @@ export default function HomePage() {
 
       <main className="container mx-auto px-6 py-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-          {tools.map((tool) => (
-            <Link key={tool.id} href={tool.href}>
-              <div className="group relative bg-[#252538] border border-[var(--border)] rounded-lg p-5 h-[120px] hover:shadow-lg transition-shadow duration-300 cursor-pointer">
+          {tools.map((tool) => {
+            const content = (
+              <div className={`group relative bg-[#252538] border border-[var(--border)] rounded-lg p-5 h-[120px] transition-shadow duration-300 ${tool.inDevelopment ? 'opacity-60 cursor-not-allowed' : 'hover:shadow-lg cursor-pointer'}`}>
+                {tool.inDevelopment && (
+                  <div className="absolute top-2 right-2 px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-medium">
+                    В разработке
+                  </div>
+                )}
                 <div className="flex items-start space-x-4 mb-4">
-                  <div className={`p-3 rounded-lg text-white group-hover:scale-110 transition-transform duration-300 ${tool.color}`}>
+                  <div className={`p-3 rounded-lg text-white ${!tool.inDevelopment ? 'group-hover:scale-110' : ''} transition-transform duration-300 ${tool.color}`}>
                     {tool.icon}
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-xl font-semibold text-[var(--foreground)] mb-2 group-hover:text-[var(--primary)] transition-colors duration-300">
+                    <h3 className={`text-xl font-semibold text-[var(--foreground)] mb-2 ${!tool.inDevelopment ? 'group-hover:text-[var(--primary)]' : ''} transition-colors duration-300`}>
                       {tool.name}
                     </h3>
                     <p className="text-[var(--muted)] text-sm">
@@ -181,14 +242,22 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className="absolute bottom-4 right-4 text-[var(--muted)] group-hover:text-[var(--primary)] group-hover:translate-x-1 transition-all duration-300">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="m9 18 6-6-6-6"/>
-                  </svg>
-                </div>
+                {!tool.inDevelopment && (
+                  <div className="absolute bottom-4 right-4 text-[var(--muted)] group-hover:text-[var(--primary)] group-hover:translate-x-1 transition-all duration-300">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="m9 18 6-6-6-6"/>
+                    </svg>
+                  </div>
+                )}
               </div>
-            </Link>
-          ))}
+            );
+            
+            return tool.inDevelopment ? (
+              <div key={tool.id}>{content}</div>
+            ) : (
+              <Link key={tool.id} href={tool.href}>{content}</Link>
+            );
+          })}
         </div>
       </main>
     </div>
