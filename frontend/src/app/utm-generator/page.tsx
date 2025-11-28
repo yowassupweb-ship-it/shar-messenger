@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { apiFetch } from '@/lib/api'
+import { showToast } from '@/components/Toast'
+import { Copy, ExternalLink, Trash2, History, Link2, Sparkles, Check, RotateCcw, Download, Star, Clock } from 'lucide-react'
 
 interface UTMTemplate {
   id: string
@@ -16,121 +18,62 @@ interface UTMTemplate {
   status: 'active' | 'draft'
 }
 
-interface PredefinedTemplate {
-  name: string
+interface HistoryItem {
+  id: string
+  url: string
   source: string
   medium: string
-  category: 'social' | 'ads' | 'email'
-  description?: string
-  additionalParams?: string[]
+  campaign: string
+  term?: string
+  content?: string
+  createdAt: string
+  copiedCount: number
 }
 
-export default function UTMGeneratorPage() {
-  const [templates, setTemplates] = useState<UTMTemplate[]>([])
-  const [predefinedTemplates] = useState<PredefinedTemplate[]>([
-    // Яндекс платформы
-    { 
-      name: 'Яндекс.Метрика', 
-      source: 'yandex', 
-      medium: 'metrica', 
-      category: 'ads',
-      description: 'utm_source, utm_medium, utm_campaign, yclid',
-      additionalParams: ['yclid']
-    },
-    { 
-      name: 'Яндекс.Директ', 
-      source: 'yandex', 
-      medium: 'cpc', 
-      category: 'ads',
-      description: 'utm_source=yandex, utm_medium=cpc, utm_campaign'
-    },
-    { 
-      name: 'Яндекс Бизнес', 
-      source: 'yandex_business', 
-      medium: 'cpc', 
-      category: 'ads' 
-    },
-    { 
-      name: 'Яндекс.Дзен', 
-      source: 'dzen', 
-      medium: 'social', 
-      category: 'social' 
-    },
-    
-    // Google платформы
-    { 
-      name: 'Google Ads', 
-      source: 'google', 
-      medium: 'cpc', 
-      category: 'ads',
-      description: 'utm_source=google, utm_medium=cpc, utm_campaign, gclid',
-      additionalParams: ['gclid']
-    },
-    
-    // Facebook/Meta
-    { 
-      name: 'Facebook Ads', 
-      source: 'facebook', 
-      medium: 'cpc', 
-      category: 'ads',
-      description: 'utm_source=facebook, utm_medium=cpc, utm_campaign, fbclid',
-      additionalParams: ['fbclid']
-    },
-    
-    // Социальные сети
-    { 
-      name: 'ВКонтакте', 
-      source: 'vk', 
-      medium: 'social', 
-      category: 'social' 
-    },
-    { 
-      name: 'Telegram', 
-      source: 'telegram', 
-      medium: 'social', 
-      category: 'social' 
-    },
-    
-    // Email
-    { 
-      name: 'Email рассылка', 
-      source: 'email', 
-      medium: 'email', 
-      category: 'email' 
-    },
-  ])
-  const [formData, setFormData] = useState({
-    name: '',
-    baseUrl: '',
-    source: '',
-    medium: '',
-    campaign: '',
-    term: '',
-    content: '',
-    status: 'active' as 'active' | 'draft',
-    enableTracking: false,
-    trackingFolder: 'social' as 'social' | 'ads' | 'email' | 'other'
-  })
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'draft'>('all')
+interface Preset {
+  id: string
+  name: string
+  icon: string
+  source: string
+  medium: string
+  color: string
+  description: string
+}
 
+const PRESETS: Preset[] = [
+  { id: 'yandex', name: 'Яндекс.Директ', icon: '🔍', source: 'yandex', medium: 'cpc', color: 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300', description: 'Контекстная реклама Яндекс' },
+  { id: 'google', name: 'Google Ads', icon: '🎯', source: 'google', medium: 'cpc', color: 'bg-blue-500/20 border-blue-500/50 text-blue-300', description: 'Контекстная реклама Google' },
+  { id: 'vk', name: 'ВКонтакте', icon: '💬', source: 'vk', medium: 'social', color: 'bg-sky-500/20 border-sky-500/50 text-sky-300', description: 'Посты и реклама ВК' },
+  { id: 'telegram', name: 'Telegram', icon: '✈️', source: 'telegram', medium: 'social', color: 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300', description: 'Каналы и чаты' },
+  { id: 'email', name: 'Email', icon: '📧', source: 'email', medium: 'email', color: 'bg-purple-500/20 border-purple-500/50 text-purple-300', description: 'Email рассылки' },
+  { id: 'qr', name: 'QR-код', icon: '📱', source: 'qr', medium: 'offline', color: 'bg-green-500/20 border-green-500/50 text-green-300', description: 'Оффлайн материалы' },
+]
+
+export default function UTMGeneratorPage() {
+  // Состояния формы
+  const [baseUrl, setBaseUrl] = useState('')
+  const [source, setSource] = useState('')
+  const [medium, setMedium] = useState('')
+  const [campaign, setCampaign] = useState('')
+  const [term, setTerm] = useState('')
+  const [content, setContent] = useState('')
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null)
+  
+  // Данные
+  const [templates, setTemplates] = useState<UTMTemplate[]>([])
+  const [history, setHistory] = useState<HistoryItem[]>([])
+  const [favorites, setFavorites] = useState<string[]>([])
+  
+  // UI
+  const [activeTab, setActiveTab] = useState<'generator' | 'templates' | 'history'>('generator')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isCopied, setIsCopied] = useState(false)
+
+  // Загрузка данных
   useEffect(() => {
     loadTemplates()
-    
-    // Проверяем URL параметры для предзаполнения формы
-    const params = new URLSearchParams(window.location.search)
-    const source = params.get('source')
-    const medium = params.get('medium')
-    const name = params.get('name')
-    
-    if (source || medium || name) {
-      setFormData(prev => ({
-        ...prev,
-        source: source || prev.source,
-        medium: medium || prev.medium,
-        name: name || prev.name
-      }))
-    }
+    loadHistory()
+    loadFavorites()
   }, [])
 
   const loadTemplates = async () => {
@@ -145,511 +88,578 @@ export default function UTMGeneratorPage() {
     }
   }
 
-  const createTemplate = async () => {
-    if (!formData.name || !formData.baseUrl || !formData.source || !formData.medium || !formData.campaign) {
-      alert('Заполните обязательные поля!')
+  const loadHistory = () => {
+    const saved = localStorage.getItem('utm-history')
+    if (saved) {
+      try {
+        setHistory(JSON.parse(saved))
+      } catch {
+        setHistory([])
+      }
+    }
+  }
+
+  const loadFavorites = () => {
+    const saved = localStorage.getItem('utm-favorites')
+    if (saved) {
+      try {
+        setFavorites(JSON.parse(saved))
+      } catch {
+        setFavorites([])
+      }
+    }
+  }
+
+  // Live генерация URL
+  const generatedUrl = useMemo(() => {
+    if (!baseUrl) return ''
+    
+    const params = new URLSearchParams()
+    if (source) params.append('utm_source', source)
+    if (medium) params.append('utm_medium', medium)
+    if (campaign) params.append('utm_campaign', campaign)
+    if (term) params.append('utm_term', term)
+    if (content) params.append('utm_content', content)
+    
+    if (params.toString() === '') return baseUrl
+    
+    const separator = baseUrl.includes('?') ? '&' : '?'
+    return `${baseUrl}${separator}${params.toString()}`
+  }, [baseUrl, source, medium, campaign, term, content])
+
+  // Применение пресета
+  const applyPreset = useCallback((preset: Preset) => {
+    setSource(preset.source)
+    setMedium(preset.medium)
+    setSelectedPreset(preset.id)
+    showToast(`Применён шаблон: ${preset.name}`, 'success')
+  }, [])
+
+  // Копирование
+  const copyUrl = useCallback(async (url?: string) => {
+    const urlToCopy = url || generatedUrl
+    if (!urlToCopy) {
+      showToast('Нет URL для копирования', 'error')
       return
     }
+
+    try {
+      await navigator.clipboard.writeText(urlToCopy)
+      setIsCopied(true)
+      setTimeout(() => setIsCopied(false), 2000)
+      
+      // Сохраняем в историю
+      if (!url) {
+        const newItem: HistoryItem = {
+          id: Date.now().toString(),
+          url: urlToCopy,
+          source,
+          medium,
+          campaign,
+          term: term || undefined,
+          content: content || undefined,
+          createdAt: new Date().toISOString(),
+          copiedCount: 1
+        }
+        
+        const updatedHistory = [newItem, ...history.filter(h => h.url !== urlToCopy)].slice(0, 50)
+        setHistory(updatedHistory)
+        localStorage.setItem('utm-history', JSON.stringify(updatedHistory))
+      }
+      
+      showToast('Скопировано!', 'success')
+    } catch {
+      showToast('Ошибка копирования', 'error')
+    }
+  }, [generatedUrl, source, medium, campaign, term, content, history])
+
+  // Очистка формы
+  const clearForm = useCallback(() => {
+    setBaseUrl('')
+    setSource('')
+    setMedium('')
+    setCampaign('')
+    setTerm('')
+    setContent('')
+    setSelectedPreset(null)
+  }, [])
+
+  // Сохранение как шаблон
+  const saveAsTemplate = async () => {
+    if (!source || !medium || !campaign) {
+      showToast('Заполните обязательные поля', 'error')
+      return
+    }
+
+    const name = prompt('Название шаблона:')
+    if (!name) return
 
     try {
       const response = await apiFetch('/api/utm-templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...formData,
+          name,
+          baseUrl,
+          source,
+          medium,
+          campaign,
+          term: term || undefined,
+          content: content || undefined,
+          status: 'active',
           createdAt: new Date().toISOString()
         })
       })
 
       if (response.ok) {
-        const createdTemplate = await response.json()
-        
-        // Сохраняем в историю
-        const username = localStorage.getItem('username') || 'Unknown'
-        const generatedUrl = generateUTMUrl(createdTemplate)
-        
-        try {
-          await apiFetch('/api/utm-history', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              url: generatedUrl,
-              source: formData.source,
-              medium: formData.medium,
-              campaign: formData.campaign,
-              term: formData.term || null,
-              content: formData.content || null,
-              username: username
-            })
-          })
-        } catch (historyError) {
-          console.error('Ошибка сохранения в историю:', historyError)
-        }
-        
-        // Если включено отслеживание, добавляем в трекер
-        if (formData.enableTracking) {
-          await apiFetch('/api/tracked-posts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              platform: formData.source,
-              postUrl: formData.baseUrl,
-              title: formData.name,
-              utmTemplate: createdTemplate.id,
-              createdAt: new Date().toISOString(),
-              clicks: 0,
-              views: 0,
-              conversions: 0
-            })
-          })
-        }
-        
         await loadTemplates()
-        setFormData({
-          name: '',
-          baseUrl: '',
-          source: '',
-          medium: '',
-          campaign: '',
-          term: '',
-          content: '',
-          status: 'active',
-          enableTracking: false,
-          trackingFolder: 'social'
-        })
-        alert('UTM метка успешно создана' + (formData.enableTracking ? ' и добавлена в трекер' : ''))
+        showToast('Шаблон сохранён!', 'success')
       }
     } catch (error) {
-      console.error('Ошибка создания шаблона:', error)
-      alert('Ошибка создания шаблона')
+      showToast('Ошибка сохранения', 'error')
     }
   }
 
+  // Удаление шаблона
   const deleteTemplate = async (id: string) => {
-    if (!confirm('Удалить этот UTM шаблон?')) return
+    if (!confirm('Удалить шаблон?')) return
 
     try {
-      const response = await apiFetch(`/api/utm-templates/${id}`, {
-        method: 'DELETE'
-      })
-
+      const response = await apiFetch(`/api/utm-templates/${id}`, { method: 'DELETE' })
       if (response.ok) {
         await loadTemplates()
+        showToast('Шаблон удалён', 'success')
       }
     } catch (error) {
-      console.error('Ошибка удаления шаблона:', error)
+      showToast('Ошибка удаления', 'error')
     }
   }
 
-  const generateUTMUrl = (template: UTMTemplate): string => {
-    const params = new URLSearchParams()
-    params.append('utm_source', template.source)
-    params.append('utm_medium', template.medium)
-    params.append('utm_campaign', template.campaign)
-    if (template.term) params.append('utm_term', template.term)
-    if (template.content) params.append('utm_content', template.content)
-
-    const baseUrl = template.baseUrl || ''
-    const separator = baseUrl.includes('?') ? '&' : '?'
-    return `${baseUrl}${separator}${params.toString()}`
+  // Загрузка из шаблона
+  const loadFromTemplate = (template: UTMTemplate) => {
+    setBaseUrl(template.baseUrl || '')
+    setSource(template.source)
+    setMedium(template.medium)
+    setCampaign(template.campaign)
+    setTerm(template.term || '')
+    setContent(template.content || '')
+    setSelectedPreset(null)
+    setActiveTab('generator')
+    showToast(`Загружен: ${template.name}`, 'success')
   }
 
-  const copyToClipboard = (text: string) => {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => {
-        alert('Скопировано в буфер обмена!')
-      }).catch(() => {
-        // Fallback for older browsers
-        const textarea = document.createElement('textarea')
-        textarea.value = text
-        document.body.appendChild(textarea)
-        textarea.select()
-        document.execCommand('copy')
-        document.body.removeChild(textarea)
-        alert('Скопировано в буфер обмена!')
-      })
-    } else {
-      // Fallback for older browsers
-      const textarea = document.createElement('textarea')
-      textarea.value = text
-      document.body.appendChild(textarea)
-      textarea.select()
-      document.execCommand('copy')
-      document.body.removeChild(textarea)
-      alert('Скопировано в буфер обмена!')
-    }
+  // Загрузка из истории
+  const loadFromHistory = (item: HistoryItem) => {
+    setSource(item.source)
+    setMedium(item.medium)
+    setCampaign(item.campaign)
+    setTerm(item.term || '')
+    setContent(item.content || '')
+    setSelectedPreset(null)
+    setActiveTab('generator')
+    showToast('Загружено из истории', 'success')
   }
 
-  const handleTemplateChange = (templateName: string) => {
-    if (templateName === '') {
-      setFormData(prev => ({ ...prev, source: '', medium: '', name: '' }))
-      return
-    }
-    
-    const template = predefinedTemplates.find(t => t.name === templateName)
-    if (template) {
-      let additionalInfo = ''
-      if (template.additionalParams && template.additionalParams.length > 0) {
-        additionalInfo = ` (автоматически добавляется: ${template.additionalParams.join(', ')})`
-      }
-      
-      setFormData(prev => ({
-        ...prev,
-        source: template.source,
-        medium: template.medium,
-        trackingFolder: template.category,
-        name: prev.name || `${template.name}${additionalInfo}`
-      }))
-    }
+  // Очистка истории
+  const clearHistory = () => {
+    if (!confirm('Очистить всю историю?')) return
+    setHistory([])
+    localStorage.removeItem('utm-history')
+    showToast('История очищена', 'success')
   }
 
-  const filteredTemplates = templates.filter(t => {
-    const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         t.source.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         t.campaign.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || t.status === statusFilter
-    return matchesSearch && matchesStatus
+  // Избранное
+  const toggleFavorite = (id: string) => {
+    const updated = favorites.includes(id) 
+      ? favorites.filter(f => f !== id)
+      : [...favorites, id]
+    setFavorites(updated)
+    localStorage.setItem('utm-favorites', JSON.stringify(updated))
+  }
+
+  // Фильтрованные шаблоны
+  const filteredTemplates = templates.filter(t => 
+    t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.source.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.campaign.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  // Сортировка: избранные первыми
+  const sortedTemplates = [...filteredTemplates].sort((a, b) => {
+    const aFav = favorites.includes(a.id)
+    const bFav = favorites.includes(b.id)
+    if (aFav && !bFav) return -1
+    if (!aFav && bFav) return 1
+    return 0
   })
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'text-green-400 border-green-400'
-      case 'draft': return 'text-yellow-400 border-yellow-400'
-      default: return 'text-gray-400 border-gray-400'
-    }
-  }
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'active': return 'Активный'
-      case 'draft': return 'Черновик'
-      default: return 'Неизвестно'
-    }
-  }
-
   return (
-    <div>
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-[var(--foreground)] mb-2">
-            Генератор UTM меток
-          </h1>
-          <p className="text-[var(--foreground)] opacity-70">
-            Создавайте и управляйте UTM метками для отслеживания рекламных кампаний
-          </p>
-        </div>
+    <div className="min-h-screen p-6">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold mb-1 flex items-center gap-2">
+          <Link2 className="w-6 h-6 text-[var(--button)]" />
+          Генератор UTM
+        </h1>
+        <p className="text-sm opacity-60">Создавайте и управляйте UTM метками для отслеживания трафика</p>
       </div>
 
-      {/* Форма создания */}
-      <div className="card mb-6">
-        <h3 className="text-lg font-semibold mb-4">Создание UTM метки</h3>
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 bg-[var(--card)] p-1 rounded-lg border border-[var(--border)] w-fit">
+        {[
+          { id: 'generator', label: 'Генератор', icon: Sparkles },
+          { id: 'templates', label: 'Шаблоны', icon: Copy, count: templates.length },
+          { id: 'history', label: 'История', icon: History, count: history.length },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as 'generator' | 'templates' | 'history')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+              activeTab === tab.id 
+                ? 'bg-[var(--button)] text-[var(--background)]' 
+                : 'hover:bg-[var(--border)]'
+            }`}
+          >
+            <tab.icon className="w-4 h-4" />
+            {tab.label}
+            {tab.count !== undefined && tab.count > 0 && (
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeTab === tab.id ? 'bg-black/20' : 'bg-[var(--border)]'
+              }`}>
+                {tab.count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Шаблон</label>
-              <select
-                onChange={(e) => handleTemplateChange(e.target.value)}
-                className="input-field w-full"
-              >
-                <option value="">Без шаблона</option>
-                <optgroup label="Реклама">
-                  {predefinedTemplates.filter(t => t.category === 'ads').map(t => (
-                    <option key={t.source + t.medium} value={t.name}>
-                      {t.name} {t.description ? `— ${t.description}` : ''}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Социальные сети">
-                  {predefinedTemplates.filter(t => t.category === 'social').map(t => (
-                    <option key={t.source + t.medium} value={t.name}>
-                      {t.name} {t.description ? `— ${t.description}` : ''}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Email">
-                  {predefinedTemplates.filter(t => t.category === 'email').map(t => (
-                    <option key={t.source + t.medium} value={t.name}>
-                      {t.name} {t.description ? `— ${t.description}` : ''}
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
+      {/* Generator Tab */}
+      {activeTab === 'generator' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left: Form */}
+          <div className="lg:col-span-2 space-y-4">
+            {/* Presets */}
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+              <h3 className="text-sm font-medium mb-3 opacity-70">Быстрые пресеты</h3>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                {PRESETS.map(preset => (
+                  <button
+                    key={preset.id}
+                    onClick={() => applyPreset(preset)}
+                    className={`flex flex-col items-center gap-1 p-3 rounded-lg border transition-all ${
+                      selectedPreset === preset.id 
+                        ? preset.color + ' ring-2 ring-offset-2 ring-offset-[var(--background)]'
+                        : 'border-[var(--border)] hover:border-[var(--button)] hover:bg-[var(--border)]/30'
+                    }`}
+                    title={preset.description}
+                  >
+                    <span className="text-xl">{preset.icon}</span>
+                    <span className="text-xs font-medium truncate w-full text-center">{preset.name}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">Название *</label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Например: ВК осенняя кампания"
-                className="input-field w-full"
-              />
+            {/* Form Fields */}
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1.5">
+                  Базовый URL <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="url"
+                  value={baseUrl}
+                  onChange={(e) => setBaseUrl(e.target.value)}
+                  placeholder="https://example.com/landing"
+                  className="input-field w-full"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">
+                    utm_source <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={source}
+                    onChange={(e) => { setSource(e.target.value); setSelectedPreset(null) }}
+                    placeholder="yandex, google, vk"
+                    className="input-field w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">
+                    utm_medium <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={medium}
+                    onChange={(e) => { setMedium(e.target.value); setSelectedPreset(null) }}
+                    placeholder="cpc, social, email"
+                    className="input-field w-full"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1.5">
+                  utm_campaign <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={campaign}
+                  onChange={(e) => setCampaign(e.target.value)}
+                  placeholder="autumn_sale_2025"
+                  className="input-field w-full"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1.5 opacity-70">utm_term</label>
+                  <input
+                    type="text"
+                    value={term}
+                    onChange={(e) => setTerm(e.target.value)}
+                    placeholder="ключевое слово"
+                    className="input-field w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1.5 opacity-70">utm_content</label>
+                  <input
+                    type="text"
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder="вариант объявления"
+                    className="input-field w-full"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button onClick={clearForm} className="btn-secondary flex items-center gap-2">
+                  <RotateCcw className="w-4 h-4" />
+                  Очистить
+                </button>
+                <button onClick={saveAsTemplate} className="btn-secondary flex items-center gap-2">
+                  <Download className="w-4 h-4" />
+                  Сохранить шаблон
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Информация о выбранном шаблоне */}
-          {formData.source && formData.medium && (
-            <div className="mb-4 p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
-              <div className="flex items-start gap-2">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-400 flex-shrink-0 mt-0.5">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="12" y1="16" x2="12" y2="12"/>
-                  <line x1="12" y1="8" x2="12.01" y2="8"/>
-                </svg>
-                <div className="text-sm">
-                  <p className="font-medium mb-1">Параметры шаблона:</p>
-                  <p className="opacity-70">
-                    <span className="font-mono">utm_source={formData.source}</span>
-                    {', '}
-                    <span className="font-mono">utm_medium={formData.medium}</span>
-                    {', '}
-                    <span className="font-mono">utm_campaign=(ваша кампания)</span>
-                  </p>
-                  {predefinedTemplates.find(t => t.source === formData.source && t.medium === formData.medium)?.additionalParams && (
-                    <p className="opacity-70 mt-1">
-                      <span className="text-yellow-400">Автоматически добавляется: </span>
-                      {predefinedTemplates.find(t => t.source === formData.source && t.medium === formData.medium)?.additionalParams?.map(param => (
-                        <span key={param} className="font-mono">{param} </span>
-                      ))}
+          {/* Right: Preview */}
+          <div className="space-y-4">
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 sticky top-4">
+              <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                <Link2 className="w-4 h-4 text-[var(--button)]" />
+                Сгенерированная ссылка
+              </h3>
+              
+              {generatedUrl ? (
+                <>
+                  <div className="bg-[var(--background)] rounded-lg p-3 mb-3 border border-[var(--border)]">
+                    <p className="text-sm font-mono break-all text-[var(--button)]">
+                      {generatedUrl}
                     </p>
-                  )}
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => copyUrl()}
+                      className={`btn-primary flex-1 flex items-center justify-center gap-2 ${isCopied ? 'bg-green-600' : ''}`}
+                    >
+                      {isCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      {isCopied ? 'Скопировано!' : 'Копировать'}
+                    </button>
+                    <button 
+                      onClick={() => window.open(generatedUrl, '_blank')}
+                      className="btn-secondary p-2"
+                      title="Открыть в новой вкладке"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* UTM Breakdown */}
+                  <div className="mt-4 pt-4 border-t border-[var(--border)]">
+                    <h4 className="text-xs font-medium mb-2 opacity-60">Параметры:</h4>
+                    <div className="space-y-1 text-xs">
+                      {source && (
+                        <div className="flex justify-between">
+                          <span className="opacity-60">utm_source</span>
+                          <span className="font-mono text-yellow-400">{source}</span>
+                        </div>
+                      )}
+                      {medium && (
+                        <div className="flex justify-between">
+                          <span className="opacity-60">utm_medium</span>
+                          <span className="font-mono text-blue-400">{medium}</span>
+                        </div>
+                      )}
+                      {campaign && (
+                        <div className="flex justify-between">
+                          <span className="opacity-60">utm_campaign</span>
+                          <span className="font-mono text-green-400">{campaign}</span>
+                        </div>
+                      )}
+                      {term && (
+                        <div className="flex justify-between">
+                          <span className="opacity-60">utm_term</span>
+                          <span className="font-mono text-purple-400">{term}</span>
+                        </div>
+                      )}
+                      {content && (
+                        <div className="flex justify-between">
+                          <span className="opacity-60">utm_content</span>
+                          <span className="font-mono text-pink-400">{content}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-8 opacity-50">
+                  <Link2 className="w-8 h-8 mx-auto mb-2" />
+                  <p className="text-sm">Заполните поля для генерации ссылки</p>
                 </div>
-              </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Templates Tab */}
+      {activeTab === 'templates' && (
+        <div className="space-y-4">
+          <div className="flex gap-4 items-center">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Поиск шаблонов..."
+              className="input-field flex-1"
+            />
+          </div>
+
+          {sortedTemplates.length === 0 ? (
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-12 text-center">
+              <Copy className="w-12 h-12 mx-auto mb-4 opacity-30" />
+              <h3 className="text-lg font-medium mb-2">Нет шаблонов</h3>
+              <p className="text-sm opacity-60 mb-4">Создайте первый шаблон в генераторе</p>
+              <button onClick={() => setActiveTab('generator')} className="btn-primary">
+                Создать шаблон
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {sortedTemplates.map(template => (
+                <div 
+                  key={template.id} 
+                  className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 hover:border-[var(--button)] transition-all"
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h3 className="font-medium flex items-center gap-2">
+                        {favorites.includes(template.id) && <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />}
+                        {template.name}
+                      </h3>
+                      <p className="text-xs opacity-60 mt-1">
+                        {template.source} / {template.medium} / {template.campaign}
+                      </p>
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => toggleFavorite(template.id)}
+                        className="p-1.5 rounded hover:bg-[var(--border)] transition-colors"
+                        title={favorites.includes(template.id) ? 'Убрать из избранного' : 'В избранное'}
+                      >
+                        <Star className={`w-4 h-4 ${favorites.includes(template.id) ? 'text-yellow-400 fill-yellow-400' : 'opacity-50'}`} />
+                      </button>
+                      <button
+                        onClick={() => deleteTemplate(template.id)}
+                        className="p-1.5 rounded hover:bg-red-500/20 text-red-400 transition-colors"
+                        title="Удалить"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={() => loadFromTemplate(template)}
+                    className="btn-secondary w-full text-sm"
+                  >
+                    Использовать
+                  </button>
+                </div>
+              ))}
             </div>
           )}
+        </div>
+      )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Статус</label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'draft' })}
-                className="input-field w-full"
-              >
-                <option value="active">Активный</option>
-                <option value="draft">Черновик</option>
-              </select>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-2">Базовый URL *</label>
-              <input
-                type="text"
-                value={formData.baseUrl}
-                onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
-                placeholder="https://example.com/page"
-                className="input-field w-full"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">utm_source *</label>
-              <input
-                type="text"
-                value={formData.source}
-                onChange={(e) => setFormData({ ...formData, source: e.target.value })}
-                placeholder="vk, google, yandex"
-                className="input-field w-full"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">utm_medium *</label>
-              <input
-                type="text"
-                value={formData.medium}
-                onChange={(e) => setFormData({ ...formData, medium: e.target.value })}
-                placeholder="cpc, social, email"
-                className="input-field w-full"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-2">utm_campaign *</label>
-              <input
-                type="text"
-                value={formData.campaign}
-                onChange={(e) => setFormData({ ...formData, campaign: e.target.value })}
-                placeholder="autumn_sale_2025"
-                className="input-field w-full"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">utm_term (опционально)</label>
-              <input
-                type="text"
-                value={formData.term}
-                onChange={(e) => setFormData({ ...formData, term: e.target.value })}
-                placeholder="ключевое слово"
-                className="input-field w-full"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">utm_content (опционально)</label>
-              <input
-                type="text"
-                value={formData.content}
-                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                placeholder="вариант объявления"
-                className="input-field w-full"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={formData.enableTracking}
-                  onChange={(e) => setFormData({ ...formData, enableTracking: e.target.checked })}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm font-medium">Включить отслеживание</span>
-              </label>
-            </div>
-
-            {formData.enableTracking && (
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-2">Папка для отслеживания</label>
-                <select
-                  value={formData.trackingFolder}
-                  onChange={(e) => setFormData({ ...formData, trackingFolder: e.target.value as 'social' | 'ads' | 'email' | 'other' })}
-                  className="input-field w-full"
-                >
-                  <option value="social">Социальные сети</option>
-                  <option value="ads">Реклама</option>
-                  <option value="email">Email рассылки</option>
-                  <option value="other">Другое</option>
-                </select>
-              </div>
+      {/* History Tab */}
+      {activeTab === 'history' && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <p className="text-sm opacity-60">Последние {history.length} ссылок</p>
+            {history.length > 0 && (
+              <button onClick={clearHistory} className="btn-secondary text-sm flex items-center gap-2">
+                <Trash2 className="w-4 h-4" />
+                Очистить
+              </button>
             )}
           </div>
 
-          <div className="flex gap-2">
-            <button onClick={createTemplate} className="btn-primary">
-              Создать UTM метку
-            </button>
-          </div>
-        </div>
-
-      {/* Поиск и фильтры */}
-      <div className="card mb-6">
-        <div className="flex gap-4 items-center">
-          <div className="flex-1">
-            <input
-              type="text"
-              className="input-field w-full"
-              placeholder="Поиск UTM меток..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <select
-            className="input-field"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'draft')}
-          >
-            <option value="all">Все статусы</option>
-            <option value="active">Активные</option>
-            <option value="draft">Черновики</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Список шаблонов */}
-      <div className="space-y-4">
-        {filteredTemplates.length === 0 ? (
-          <div className="card text-center py-12">
-            <div className="w-16 h-16 bg-[var(--button)] rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--background)" strokeWidth="2">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-              </svg>
+          {history.length === 0 ? (
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-12 text-center">
+              <Clock className="w-12 h-12 mx-auto mb-4 opacity-30" />
+              <h3 className="text-lg font-medium mb-2">История пуста</h3>
+              <p className="text-sm opacity-60">Созданные UTM-ссылки появятся здесь</p>
             </div>
-            <h3 className="text-lg font-semibold mb-2">Нет UTM меток</h3>
-            <p className="text-[var(--foreground)] opacity-70 mb-6">
-              Создайте первую UTM метку или используйте готовый шаблон
-            </p>
-          </div>
-        ) : (
-          filteredTemplates.map(template => {
-            const generatedUrl = generateUTMUrl(template)
-
-            return (
-              <div key={template.id} className="card">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold">{template.name}</h3>
-                      <span className={`px-2 py-1 text-xs border rounded ${getStatusColor(template.status)}`}>
-                        {getStatusText(template.status)}
-                      </span>
+          ) : (
+            <div className="space-y-2">
+              {history.map(item => (
+                <div 
+                  key={item.id}
+                  className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 hover:border-[var(--button)] transition-all"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-mono truncate text-[var(--button)]">{item.url}</p>
+                      <p className="text-xs opacity-50 mt-1">
+                        {item.source} / {item.medium} / {item.campaign}
+                        {' • '}
+                        {new Date(item.createdAt).toLocaleString('ru')}
+                      </p>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm opacity-70 mb-4">
-                      <div>
-                        <span className="font-medium">Source:</span> {template.source}
-                      </div>
-                      <div>
-                        <span className="font-medium">Medium:</span> {template.medium}
-                      </div>
-                      <div>
-                        <span className="font-medium">Campaign:</span> {template.campaign}
-                      </div>
+                    <div className="flex gap-1 flex-shrink-0">
+                      <button
+                        onClick={() => loadFromHistory(item)}
+                        className="p-1.5 rounded hover:bg-[var(--border)] transition-colors"
+                        title="Загрузить"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => copyUrl(item.url)}
+                        className="p-1.5 rounded hover:bg-[var(--border)] transition-colors"
+                        title="Копировать"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
                     </div>
-
-                    <div className="card mb-4" style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}>
-                      <p className="text-xs opacity-70 mb-1">Сгенерированная ссылка:</p>
-                      <p className="text-sm font-mono break-all">{generatedUrl}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2 ml-4">
-                    <button
-                      onClick={() => copyToClipboard(generatedUrl)}
-                      className="btn-primary text-sm flex items-center"
-                      title="Копировать"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                      </svg>
-                      Копировать
-                    </button>
-
-                    <button
-                      onClick={() => window.open(generatedUrl, '_blank')}
-                      className="btn-secondary text-sm flex items-center"
-                      title="Открыть"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                        <polyline points="15 3 21 3 21 9"/>
-                        <line x1="10" y1="14" x2="21" y2="3"/>
-                      </svg>
-                      Открыть
-                    </button>
-
-                    <button
-                      onClick={() => deleteTemplate(template.id)}
-                      className="btn-secondary text-sm flex items-center"
-                      title="Удалить"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                      </svg>
-                      Удалить
-                    </button>
                   </div>
                 </div>
-              </div>
-            )
-          })
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

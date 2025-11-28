@@ -2456,6 +2456,152 @@ def get_direct_domains():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============== Direct Parser Agent API ==============
+# API для управления локальным агентом парсинга
+
+class DirectParserTask(BaseModel):
+    """Задача на парсинг"""
+    queries: List[str]
+    max_pages: int = 2
+    headless: bool = False
+
+class TaskStatusUpdate(BaseModel):
+    """Обновление статуса задачи"""
+    status: str
+    message: str = ""
+    progress: int = 0
+
+class TaskResults(BaseModel):
+    """Результаты парсинга"""
+    results: List[Dict[str, Any]]
+    completed_at: str
+
+# Хранилище задач (в памяти, можно перенести в БД)
+direct_parser_tasks = {}
+
+@app.get("/api/direct-parser/agent/ping")
+def agent_ping():
+    """Проверка подключения агента к API"""
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+@app.post("/api/direct-parser/tasks")
+def create_direct_parser_task(task: DirectParserTask):
+    """Создать задачу на парсинг (из веб-интерфейса)"""
+    import uuid
+    task_id = str(uuid.uuid4())[:8]
+    
+    direct_parser_tasks[task_id] = {
+        'id': task_id,
+        'queries': task.queries,
+        'max_pages': task.max_pages,
+        'headless': task.headless,
+        'status': 'pending',
+        'message': 'Ожидает агента',
+        'progress': 0,
+        'created_at': datetime.now().isoformat(),
+        'results': []
+    }
+    
+    # Сохраняем в историю поисков
+    for query in task.queries:
+        searches = db.data.get('direct_searches', [])
+        existing = next((s for s in searches if s.get('query') == query), None)
+        if existing:
+            existing['lastSearched'] = datetime.now().isoformat()
+            existing['searchCount'] = existing.get('searchCount', 0) + 1
+        else:
+            searches.append({
+                'id': task_id + '_' + query[:10],
+                'query': query,
+                'lastSearched': datetime.now().isoformat(),
+                'searchCount': 1,
+                'resultsCount': 0
+            })
+        db.data['direct_searches'] = searches
+        db.save()
+    
+    return {"task_id": task_id, "status": "created"}
+
+@app.get("/api/direct-parser/tasks")
+def get_direct_parser_tasks():
+    """Получить все задачи"""
+    return {"tasks": list(direct_parser_tasks.values())}
+
+@app.get("/api/direct-parser/tasks/{task_id}")
+def get_direct_parser_task(task_id: str):
+    """Получить задачу по ID"""
+    if task_id not in direct_parser_tasks:
+        raise HTTPException(status_code=404, detail="Задача не найдена")
+    return direct_parser_tasks[task_id]
+
+@app.delete("/api/direct-parser/tasks/{task_id}")
+def delete_direct_parser_task(task_id: str):
+    """Удалить задачу"""
+    if task_id not in direct_parser_tasks:
+        raise HTTPException(status_code=404, detail="Задача не найдена")
+    del direct_parser_tasks[task_id]
+    return {"success": True}
+
+@app.get("/api/direct-parser/agent/task")
+def get_pending_task_for_agent():
+    """Получить следующую задачу для выполнения агентом"""
+    for task_id, task in direct_parser_tasks.items():
+        if task['status'] == 'pending':
+            task['status'] = 'assigned'
+            task['message'] = 'Назначена агенту'
+            return task
+    return {}
+
+@app.post("/api/direct-parser/agent/task/{task_id}/status")
+def update_task_status(task_id: str, update: TaskStatusUpdate):
+    """Обновить статус задачи от агента"""
+    if task_id not in direct_parser_tasks:
+        raise HTTPException(status_code=404, detail="Задача не найдена")
+    
+    direct_parser_tasks[task_id]['status'] = update.status
+    direct_parser_tasks[task_id]['message'] = update.message
+    direct_parser_tasks[task_id]['progress'] = update.progress
+    direct_parser_tasks[task_id]['updated_at'] = datetime.now().isoformat()
+    
+    return {"success": True}
+
+@app.post("/api/direct-parser/agent/task/{task_id}/results")
+def submit_task_results(task_id: str, data: TaskResults):
+    """Отправить результаты парсинга от агента"""
+    if task_id not in direct_parser_tasks:
+        raise HTTPException(status_code=404, detail="Задача не найдена")
+    
+    task = direct_parser_tasks[task_id]
+    task['results'] = data.results
+    task['status'] = 'completed'
+    task['completed_at'] = data.completed_at
+    
+    # Сохраняем результаты в БД
+    ads = db.data.get('direct_ads', [])
+    for result in data.results:
+        # Проверяем дубликаты по URL
+        existing = next((a for a in ads if a.get('url') == result.get('url')), None)
+        if not existing:
+            result['id'] = str(len(ads) + 1)
+            result['createdAt'] = datetime.now().isoformat()
+            result['taskId'] = task_id
+            ads.append(result)
+    
+    db.data['direct_ads'] = ads
+    
+    # Обновляем счётчики в истории поисков
+    for query in task.get('queries', []):
+        searches = db.data.get('direct_searches', [])
+        for s in searches:
+            if s.get('query') == query:
+                s['resultsCount'] = len([r for r in data.results if r.get('query') == query])
+        db.data['direct_searches'] = searches
+    
+    db.save()
+    
+    return {"success": True, "saved": len(data.results)}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

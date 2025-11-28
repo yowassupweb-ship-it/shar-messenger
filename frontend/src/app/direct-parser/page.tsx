@@ -45,10 +45,27 @@ interface Stats {
   last_update: string | null
 }
 
-type Tab = 'ads' | 'domains' | 'history' | 'stats'
+interface ParsingTask {
+  id: string
+  queries: string[]
+  query?: string
+  max_pages: number
+  headless: boolean
+  status: 'pending' | 'assigned' | 'running' | 'completed' | 'failed'
+  message: string
+  progress: number
+  priority?: number
+  agent_id?: string
+  error?: string
+  created_at: string
+  completed_at?: string
+  results?: DirectAd[]
+}
+
+type Tab = 'ads' | 'domains' | 'history' | 'stats' | 'tasks'
 
 export default function DirectParserPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('ads')
+  const [activeTab, setActiveTab] = useState<Tab>('tasks')
   const [isLoading, setIsLoading] = useState(true)
   
   // Данные
@@ -57,6 +74,13 @@ export default function DirectParserPage() {
   const [domains, setDomains] = useState<DomainInfo[]>([])
   const [searches, setSearches] = useState<DirectSearch[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
+  const [tasks, setTasks] = useState<ParsingTask[]>([])
+  
+  // Форма создания задачи
+  const [newTaskQueries, setNewTaskQueries] = useState('')
+  const [newTaskMaxPages, setNewTaskMaxPages] = useState(2)
+  const [newTaskHeadless, setNewTaskHeadless] = useState(false)
+  const [isCreatingTask, setIsCreatingTask] = useState(false)
   
   // Фильтры
   const [searchQuery, setSearchQuery] = useState('')
@@ -122,10 +146,72 @@ export default function DirectParserPage() {
     }
   }, [])
 
+  const loadTasks = useCallback(async () => {
+    try {
+      const response = await apiFetch('/api/direct-parser/tasks')
+      if (response.ok) {
+        const data = await response.json()
+        setTasks(data.tasks || [])
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки задач:', error)
+    }
+  }, [])
+
+  // Создание задачи
+  const createTask = async () => {
+    const queries = newTaskQueries
+      .split('\n')
+      .map(q => q.trim())
+      .filter(q => q.length > 0)
+    
+    if (queries.length === 0) {
+      showToast('Введите хотя бы один запрос', 'error')
+      return
+    }
+
+    setIsCreatingTask(true)
+    try {
+      const response = await apiFetch('/api/direct-parser/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          queries,
+          max_pages: newTaskMaxPages,
+          headless: newTaskHeadless
+        })
+      })
+      
+      if (response.ok) {
+        showToast('Задача создана! Запустите агент на локальном компьютере.', 'success')
+        setNewTaskQueries('')
+        loadTasks()
+      } else {
+        showToast('Ошибка создания задачи', 'error')
+      }
+    } catch (error) {
+      showToast('Ошибка создания задачи', 'error')
+    } finally {
+      setIsCreatingTask(false)
+    }
+  }
+
+  const deleteTask = async (taskId: string) => {
+    if (!confirm('Удалить эту задачу?')) return
+    try {
+      await apiFetch(`/api/direct-parser/tasks/${taskId}`, { method: 'DELETE' })
+      showToast('Задача удалена', 'success')
+      loadTasks()
+    } catch (error) {
+      showToast('Ошибка удаления', 'error')
+    }
+  }
+
   useEffect(() => {
     loadAds()
     loadStats()
-  }, [loadAds, loadStats])
+    loadTasks()
+  }, [loadAds, loadStats, loadTasks])
 
   useEffect(() => {
     if (activeTab === 'domains') loadDomains()
@@ -253,6 +339,7 @@ export default function DirectParserPage() {
         {/* Табы */}
         <div className="flex gap-1 mb-4 bg-[var(--card)] p-1 rounded-lg w-fit">
           {[
+            { id: 'tasks', label: '🎯 Задачи', count: tasks.filter(t => t.status !== 'completed').length || undefined },
             { id: 'ads', label: 'Объявления', count: totalAds },
             { id: 'domains', label: 'Домены', count: stats?.unique_domains },
             { id: 'history', label: 'История' },
@@ -276,6 +363,160 @@ export default function DirectParserPage() {
         </div>
 
         {/* Контент табов */}
+        {activeTab === 'tasks' && (
+          <div className="space-y-4">
+            {/* Форма создания задачи */}
+            <div className="card !p-4">
+              <h3 className="font-medium mb-3">Создать задачу на парсинг</h3>
+              <div className="space-y-3">
+                <textarea
+                  value={newTaskQueries}
+                  onChange={(e) => setNewTaskQueries(e.target.value)}
+                  placeholder="Поисковые запросы (по одному на строку):&#10;туры в Карелию&#10;отдых на Байкале&#10;экскурсии в Санкт-Петербург"
+                  className="w-full px-4 py-3 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--button)] text-sm min-h-[100px] resize-y"
+                />
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 text-sm">
+                    <span className="opacity-70">Страниц:</span>
+                    <input
+                      type="number"
+                      value={newTaskMaxPages}
+                      onChange={(e) => setNewTaskMaxPages(parseInt(e.target.value) || 1)}
+                      min="1"
+                      max="10"
+                      className="w-16 px-2 py-1 bg-[var(--background)] border border-[var(--border)] rounded text-center"
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newTaskHeadless}
+                      onChange={(e) => setNewTaskHeadless(e.target.checked)}
+                      className="w-4 h-4 accent-[var(--button)]"
+                    />
+                    <span className="opacity-70">Фоновый режим (без окна браузера)</span>
+                  </label>
+                  <button
+                    onClick={createTask}
+                    disabled={isCreatingTask || !newTaskQueries.trim()}
+                    className="ml-auto px-4 py-2 bg-[var(--button)] text-white rounded-lg hover:bg-[var(--button)]/90 transition-colors text-sm disabled:opacity-50"
+                  >
+                    {isCreatingTask ? 'Создание...' : 'Создать задачу'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Действия */}
+            <div className="flex gap-2">
+              <button
+                onClick={loadTasks}
+                className="px-3 py-1.5 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:bg-[var(--card-hover)] transition-colors text-sm flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Обновить
+              </button>
+            </div>
+
+            {/* Статистика */}
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                { label: 'Ожидает', count: tasks.filter(t => t.status === 'pending').length, color: 'text-yellow-500' },
+                { label: 'В работе', count: tasks.filter(t => t.status === 'running' || t.status === 'assigned').length, color: 'text-blue-500' },
+                { label: 'Завершено', count: tasks.filter(t => t.status === 'completed').length, color: 'text-green-500' },
+                { label: 'Ошибки', count: tasks.filter(t => t.status === 'failed').length, color: 'text-red-500' },
+              ].map((stat) => (
+                <div key={stat.label} className="card !p-3 text-center">
+                  <div className={`text-2xl font-bold ${stat.color}`}>{stat.count}</div>
+                  <div className="text-xs opacity-70">{stat.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Список задач */}
+            {tasks.length === 0 ? (
+              <div className="text-center py-12 opacity-50">
+                <svg className="w-16 h-16 mx-auto mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <p>Нет задач в очереди</p>
+                <p className="text-sm mt-1">Создайте задачу выше или запустите локальный агент</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {tasks.map((task) => (
+                  <div key={task.id} className="card !p-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                        task.status === 'pending' ? 'bg-yellow-500' :
+                        task.status === 'running' || task.status === 'assigned' ? 'bg-blue-500 animate-pulse' :
+                        task.status === 'completed' ? 'bg-green-500' : 'bg-red-500'
+                      }`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-sm truncate">
+                          {task.query || task.queries?.join(', ') || 'Задача'}
+                        </div>
+                        <div className="text-xs opacity-50 flex flex-wrap gap-2">
+                          <span>{new Date(task.created_at).toLocaleString('ru-RU')}</span>
+                          <span>📄 {task.max_pages} стр.</span>
+                          {task.priority && task.priority > 0 && (
+                            <span className="text-orange-500">⚡ Приоритет: {task.priority}</span>
+                          )}
+                          {task.agent_id && (
+                            <span className="text-blue-500">🤖 {task.agent_id}</span>
+                          )}
+                          {task.progress > 0 && task.progress < 100 && (
+                            <span className="text-blue-400">⏳ {task.progress}%</span>
+                          )}
+                          {task.results && task.results.length > 0 && (
+                            <span className="text-green-500">✓ {task.results.length} объявлений</span>
+                          )}
+                          {task.error && (
+                            <span className="text-red-500">✗ {task.error}</span>
+                          )}
+                          {task.message && (
+                            <span className="opacity-70">{task.message}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                      {(task.status === 'pending' || task.status === 'failed') && (
+                        <button
+                          onClick={() => deleteTask(task.id)}
+                          className="px-2 py-1 text-xs bg-red-500/10 text-red-500 rounded hover:bg-red-500/20 transition-colors"
+                        >
+                          Удалить
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Инструкция */}
+            <div className="card !p-4 bg-blue-500/5 border-blue-500/20">
+              <h4 className="font-medium text-blue-400 mb-2">💡 Как работает очередь задач</h4>
+              <ol className="text-sm opacity-70 space-y-1 list-decimal list-inside">
+                <li>Создайте задачу с поисковыми запросами выше</li>
+                <li>Запустите локальный агент: <code className="px-1 py-0.5 bg-[var(--background)] rounded text-xs">python direct_agent.py</code></li>
+                <li>Агент автоматически возьмёт задачу и выполнит парсинг</li>
+                <li>При капче - решите её вручную в открывшемся браузере</li>
+                <li>Результаты появятся на вкладке "Объявления"</li>
+              </ol>
+              <div className="mt-3 pt-3 border-t border-[var(--border)]">
+                <p className="text-xs opacity-50">
+                  Агент находится в папке <code className="px-1 py-0.5 bg-[var(--background)] rounded">direct-parser/</code>. 
+                  Перед запуском установите зависимости: <code className="px-1 py-0.5 bg-[var(--background)] rounded">pip install -r requirements.txt</code>
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'ads' && (
           <div>
             {/* Поиск */}
