@@ -399,9 +399,9 @@ export default function FeedEditorPage() {
     
     const baseUrl = window.location.origin.replace(':3000', ':8000')
     if (feed.settings?.requireAuth && feed.settings.username) {
-      return `${baseUrl.replace('://', `://${feed.settings.username}:${feed.settings.password}@`)}/feed/${feedId}`
+      return `${baseUrl.replace('://', `://${feed.settings.username}:${feed.settings.password}@`)}/api/feeds/${feedId}/xml`
     }
-    return `${baseUrl}/feed/${feedId}`
+    return `${baseUrl}/api/feeds/${feedId}/xml`
   }
 
   const copyFeedUrl = (feedId: string) => {
