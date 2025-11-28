@@ -1,13 +1,27 @@
 // API URL utility with automatic fallback
-// Prefers localhost by default to avoid CORS issues
+// Uses relative URLs in production, localhost in development
 
 const LOCALHOST_API = 'http://localhost:8000'
 const NETWORK_API = 'http://117.117.117.235:8000'
+
+// Check if running in browser and not on localhost
+const isProduction = typeof window !== 'undefined' && 
+  !window.location.hostname.includes('localhost') && 
+  !window.location.hostname.includes('127.0.0.1')
+
+// In production, use relative URLs (Nginx will proxy)
+// In development, use localhost:8000
+const getDefaultApiUrl = () => isProduction ? '' : LOCALHOST_API
 
 let cachedApiUrl: string | null = null
 let detectionInProgress = false
 
 export async function getApiUrl(): Promise<string> {
+  // In production, always use relative URLs
+  if (isProduction) {
+    return ''
+  }
+  
   // Return cached URL if already detected
   if (cachedApiUrl) {
     return cachedApiUrl
@@ -70,8 +84,11 @@ export async function getApiUrl(): Promise<string> {
   return LOCALHOST_API
 }
 
-// Synchronous version for immediate use (uses cached value or defaults to localhost)
+// Synchronous version for immediate use (uses cached value or defaults)
 export function getApiUrlSync(): string {
+  if (isProduction) {
+    return ''
+  }
   return cachedApiUrl || LOCALHOST_API
 }
 
