@@ -96,21 +96,6 @@ export default function TransliteratorPage() {
         </p>
       </div>
 
-      {/* Rule Hint */}
-      <div className="card mb-6 bg-gradient-to-r from-[var(--button)]/5 to-[var(--button)]/10 border-l-4 border-[var(--button)]">
-        <div className="flex items-start gap-3">
-          <svg className="w-6 h-6 text-[var(--button)] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <div>
-            <p className="font-semibold text-[var(--foreground)] mb-2">Как использовать:</p>
-            <p className="text-sm text-[var(--foreground)] opacity-80">
-              Выделяйте слова двойными слэшами <code className="bg-[var(--background)] px-1 rounded">//слово//</code> для выборочной транслитерации отдельных слов.
-            </p>
-          </div>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Input Field */}
         <div className="card hover:border-[var(--button)]/30 transition-colors">

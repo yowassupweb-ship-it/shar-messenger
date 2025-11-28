@@ -7,8 +7,10 @@ import { showToast } from '@/components/Toast'
 
 interface User {
   id: string
-  name: string
-  email: string
+  name?: string
+  username?: string
+  email?: string
+  password?: string
   role: 'admin' | 'user'
   enabledTools?: string[]
   createdAt: string
@@ -626,15 +628,17 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
+                {users.map((user) => {
+                  const displayName = user.name || user.username || 'Без имени'
+                  return (
                   <tr key={user.id} className="border-b border-[var(--border)] hover:bg-[var(--background)] transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-[var(--button)] flex items-center justify-center text-white font-semibold">
-                          {user.name ? user.name.charAt(0).toUpperCase() : '?'}
+                          {displayName.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <div className="font-medium text-[var(--foreground)]">{user.name || 'Без имени'}</div>
+                          <div className="font-medium text-[var(--foreground)]">{displayName}</div>
                           <div className="text-xs text-[var(--foreground)] opacity-50">
                             ID: {user.id}
                           </div>
@@ -693,7 +697,7 @@ export default function AdminPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
@@ -796,7 +800,7 @@ export default function AdminPage() {
                   Управление доступом
                 </h2>
                 <p className="text-sm text-[var(--foreground)] opacity-70 mt-1">
-                  {selectedUser.name}
+                  {selectedUser.name || selectedUser.username || 'Пользователь'}
                 </p>
               </div>
 
