@@ -2,9 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 
-export default function SlovolovLayout({
+function SlovolovLayoutContent({
   children,
 }: {
   children: React.ReactNode
@@ -139,5 +139,17 @@ export default function SlovolovLayout({
         <div className="container mx-auto p-8">{children}</div>
       </main>
     </div>
+  )
+}
+
+export default function SlovolovLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center">Загрузка...</div>}>
+      <SlovolovLayoutContent>{children}</SlovolovLayoutContent>
+    </Suspense>
   )
 }
