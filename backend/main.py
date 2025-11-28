@@ -797,8 +797,8 @@ def _apply_custom_template(template: Dict[str, Any], products: List[Dict[str, An
                 'id': product.get('id', ''),
                 'url': product.get('url', ''),
                 'price': str(product.get('price', '0')),
-                'oldPrice': str(product.get('oldPrice', '')) if product.get('oldPrice') else '',
-                'oldprice': str(product.get('oldPrice', '')) if product.get('oldPrice') else '',  # alias
+                'oldPrice': str(product.get('oldPrice')) if product.get('oldPrice') else None,
+                'oldprice': str(product.get('oldPrice')) if product.get('oldPrice') else None,  # alias
                 'categoryId': unique_categories.get(cat_name, 1),
                 'picture': product.get('image', ''),
                 'image': product.get('image', ''),  # alias
