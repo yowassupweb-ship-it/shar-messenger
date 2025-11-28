@@ -93,7 +93,7 @@ export default function DataSourcesPage() {
 
       console.log('Отправка данных:', payload)
 
-      const response = await fetch('http://localhost:8000/api/data-sources', {
+      const response = await apiFetch('/api/data-sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -135,7 +135,7 @@ export default function DataSourcesPage() {
         updateData.auth = editingSource.auth
       }
 
-      const response = await fetch(`http://localhost:8000/api/data-sources/${editingSource.id}`, {
+      const response = await apiFetch(`/api/data-sources/${editingSource.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updateData)
@@ -156,7 +156,7 @@ export default function DataSourcesPage() {
 
   const handleParse = async (sourceId: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/data-sources/${sourceId}/parse`, {
+      const response = await apiFetch(`/api/data-sources/${sourceId}/parse`, {
         method: 'POST'
       })
       
@@ -194,7 +194,7 @@ export default function DataSourcesPage() {
 
   const handleStopParse = async (sourceId: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/data-sources/${sourceId}/stop-parse`, {
+      const response = await apiFetch(`/api/data-sources/${sourceId}/stop-parse`, {
         method: 'POST'
       })
       
@@ -329,7 +329,7 @@ export default function DataSourcesPage() {
                   onClick={async () => {
                     if (confirm(`Удалить источник "${source.name}" и все его товары?`)) {
                       try {
-                        const response = await fetch(`http://localhost:8000/api/data-sources/${source.id}`, {
+                        const response = await apiFetch(`/api/data-sources/${source.id}`, {
                           method: 'DELETE'
                         })
                         if (response.ok) {

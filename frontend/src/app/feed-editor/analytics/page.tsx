@@ -86,7 +86,7 @@ export default function AnalyticsPage() {
 
   const saveSettings = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/settings', {
+      const response = await apiFetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings)

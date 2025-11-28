@@ -63,7 +63,7 @@ export default function DataSourcesPage() {
       setParsing(prev => ({...prev, [sourceId]: true}))
       showToast('Запуск парсинга...', 'info')
       
-      const response = await fetch(`http://localhost:8000/api/data-sources/${sourceId}/parse`, {
+      const response = await apiFetch(`/api/data-sources/${sourceId}/parse`, {
         method: 'POST'
       })
       
@@ -89,7 +89,7 @@ export default function DataSourcesPage() {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/api/data-sources', {
+      const response = await apiFetch('/api/data-sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newSource)
@@ -122,7 +122,7 @@ export default function DataSourcesPage() {
     if (!confirm('Удалить этот источник данных?')) return
 
     try {
-      const response = await fetch(`http://localhost:8000/api/data-sources/${sourceId}`, {
+      const response = await apiFetch(`/api/data-sources/${sourceId}`, {
         method: 'DELETE'
       })
 

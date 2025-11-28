@@ -160,7 +160,7 @@ export default function TemplatesPage() {
     try {
       if (selectedTemplate && !isCopying) {
         // Обновление существующего шаблона
-        const response = await fetch(`http://localhost:8000/api/templates/${selectedTemplate.id}`, {
+        const response = await apiFetch(`/api/templates/${selectedTemplate.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -175,7 +175,7 @@ export default function TemplatesPage() {
         alert('Шаблон успешно обновлен!')
       } else {
         // Создание нового шаблона
-        const response = await fetch('http://localhost:8000/api/templates', {
+        const response = await apiFetch('/api/templates', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -203,7 +203,7 @@ export default function TemplatesPage() {
     if (!confirm('Вы уверены, что хотите удалить этот шаблон?')) return
     
     try {
-      const response = await fetch(`http://localhost:8000/api/templates/${templateId}`, {
+      const response = await apiFetch(`/api/templates/${templateId}`, {
         method: 'DELETE'
       })
       

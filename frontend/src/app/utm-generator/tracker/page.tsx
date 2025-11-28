@@ -66,7 +66,7 @@ export default function TrackerPage() {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/api/tracked-posts', {
+      const response = await apiFetch('/api/tracked-posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -103,7 +103,7 @@ export default function TrackerPage() {
     if (!confirm('Удалить эту ссылку из трекера?')) return
 
     try {
-      const response = await fetch(`http://localhost:8000/api/tracked-posts/${id}`, {
+      const response = await apiFetch(`/api/tracked-posts/${id}`, {
         method: 'DELETE'
       })
 

@@ -70,7 +70,7 @@ export default function FeedDetailsPage() {
   const handleCreateCollection = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const response = await fetch('http://localhost:8000/api/collections', {
+      const response = await apiFetch('/api/collections', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -114,7 +114,7 @@ export default function FeedDetailsPage() {
 
   const handleAddProductToCollection = async (collectionId: string, productId: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/collections/${collectionId}/products/${productId}`, {
+      const response = await apiFetch(`/api/collections/${collectionId}/products/${productId}`, {
         method: 'POST'
       })
       if (response.ok) {
@@ -175,7 +175,7 @@ export default function FeedDetailsPage() {
           </button>
 
           <Link 
-            href={`http://localhost:8000/feed/${feedId}`}
+            href={`/api/feeds/${feedId}/xml`}
             target="_blank"
             className="flex items-center gap-2 btn-secondary px-6 py-3"
           >

@@ -9,6 +9,7 @@ interface Product {
   id: string
   name: string
   price: string | number
+  oldPrice?: string | number  // Старая цена (для скидок)
   category?: string
   image: string
   inStock?: boolean
@@ -150,7 +151,7 @@ export default function ProductsPage() {
     if (!product) return
 
     try {
-      const response = await fetch(`http://localhost:8000/api/products/${productId}`, {
+      const response = await apiFetch(`/api/products/${productId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hidden: !product.hidden })
@@ -173,7 +174,7 @@ export default function ProductsPage() {
     if (!product) return
 
     try {
-      const response = await fetch(`http://localhost:8000/api/products/${productId}`, {
+      const response = await apiFetch(`/api/products/${productId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active: product.active === false ? true : false })
@@ -213,8 +214,8 @@ export default function ProductsPage() {
     try {
       const isNewProduct = !editingProduct.id || editingProduct.id === ''
       const url = isNewProduct 
-        ? 'http://localhost:8000/api/products'
-        : `http://localhost:8000/api/products/${editingProduct.id}`
+        ? '/api/products'
+        : `/api/products/${editingProduct.id}`
       
       const method = isNewProduct ? 'POST' : 'PUT'
 
@@ -562,9 +563,16 @@ export default function ProductsPage() {
 
                 {/* Price & Actions */}
                 <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
-                  <span className="text-lg font-bold text-[var(--button)]">
-                    {typeof product.price === 'string' ? parseInt(product.price).toLocaleString('ru-RU') : product.price.toLocaleString('ru-RU')} ₽
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold text-[var(--button)]">
+                      {typeof product.price === 'string' ? parseInt(product.price).toLocaleString('ru-RU') : product.price.toLocaleString('ru-RU')} ₽
+                    </span>
+                    {product.oldPrice && Number(product.oldPrice) > Number(product.price) && (
+                      <span className="text-sm text-gray-400 line-through">
+                        {typeof product.oldPrice === 'string' ? parseInt(product.oldPrice).toLocaleString('ru-RU') : product.oldPrice.toLocaleString('ru-RU')} ₽
+                      </span>
+                    )}
+                  </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => openEditModal(product)}
@@ -658,7 +666,12 @@ export default function ProductsPage() {
                     {product.route && <div className="text-sm text-[var(--foreground)] opacity-60 mt-1">{product.route}</div>}
                   </td>
                   <td className="p-4">
-                    <span className="font-semibold text-[var(--button)]">{product.price} ₽</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-[var(--button)]">{product.price} ₽</span>
+                      {product.oldPrice && Number(product.oldPrice) > Number(product.price) && (
+                        <span className="text-sm text-gray-400 line-through">{product.oldPrice} ₽</span>
+                      )}
+                    </div>
                   </td>
                   <td className="p-4">
                     {product.days && (
@@ -814,6 +827,21 @@ export default function ProductsPage() {
                     />
                   </div>
 
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                      Старая цена (для скидки)
+                    </label>
+                    <input
+                      type="number"
+                      value={editingProduct.oldPrice || ''}
+                      onChange={(e) => setEditingProduct({...editingProduct, oldPrice: e.target.value || undefined})}
+                      placeholder="Если есть скидка"
+                      className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
+                    />
+                  </div>
+                </div>
+
+                <div>
                   <div>
                     <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
                       Дней

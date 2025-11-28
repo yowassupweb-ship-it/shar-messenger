@@ -152,7 +152,7 @@ export default function UTMGeneratorPage() {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/api/utm-templates', {
+      const response = await apiFetch('/api/utm-templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -169,7 +169,7 @@ export default function UTMGeneratorPage() {
         const generatedUrl = generateUTMUrl(createdTemplate)
         
         try {
-          await fetch('http://localhost:8000/api/utm-history', {
+          await apiFetch('/api/utm-history', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -188,7 +188,7 @@ export default function UTMGeneratorPage() {
         
         // Если включено отслеживание, добавляем в трекер
         if (formData.enableTracking) {
-          await fetch('http://localhost:8000/api/tracked-posts', {
+          await apiFetch('/api/tracked-posts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -229,7 +229,7 @@ export default function UTMGeneratorPage() {
     if (!confirm('Удалить этот UTM шаблон?')) return
 
     try {
-      const response = await fetch(`http://localhost:8000/api/utm-templates/${id}`, {
+      const response = await apiFetch(`/api/utm-templates/${id}`, {
         method: 'DELETE'
       })
 

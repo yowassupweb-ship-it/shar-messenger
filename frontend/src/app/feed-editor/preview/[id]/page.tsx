@@ -241,7 +241,7 @@ export default function FeedPreviewPage() {
   }
 
   const copyFeedUrl = () => {
-    const url = `http://localhost:8000/api/feeds/${feedId}/xml`
+    const url = `${window.location.origin}/api/feeds/${feedId}/xml`
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(() => {
         showToast('Ссылка скопирована', 'success')
@@ -284,7 +284,7 @@ export default function FeedPreviewPage() {
 
   const addToCatalog = async (catalogId: string) => {
     try {
-      const response = await fetch('http://localhost:8000/api/products/bulk-add-to-catalog', {
+      const response = await apiFetch('/api/products/bulk-add-to-catalog', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -336,7 +336,7 @@ export default function FeedPreviewPage() {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/api/collections', {
+      const response = await apiFetch('/api/collections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -366,7 +366,7 @@ export default function FeedPreviewPage() {
     if (!confirm('Удалить этот каталог? Товары не будут удалены.')) return
 
     try {
-      const response = await fetch(`http://localhost:8000/api/collections/${catalogId}`, {
+      const response = await apiFetch(`/api/collections/${catalogId}`, {
         method: 'DELETE'
       })
 
@@ -431,7 +431,7 @@ export default function FeedPreviewPage() {
     }
 
     try {
-      const response = await fetch(`http://localhost:8000/api/feeds/${feedId}`, {
+      const response = await apiFetch(`/api/feeds/${feedId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

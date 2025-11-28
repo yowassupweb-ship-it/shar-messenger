@@ -71,7 +71,7 @@ export default function CompetitorSourcesPage() {
       showToast('Запуск синхронизации...', 'info');
       
       // Запускаем парсинг источника конкурентов
-      const response = await fetch(`http://localhost:8000/api/competitors/sources/${sourceId}/parse`, {
+      const response = await apiFetch(`/api/competitors/sources/${sourceId}/parse`, {
         method: 'POST'
       });
       
@@ -133,7 +133,7 @@ export default function CompetitorSourcesPage() {
       
       // Запускаем парсинг дат для каждого источника
       for (const source of dataSources) {
-        const response = await fetch(`http://localhost:8000/api/data-sources/${source.id}/parse-all-dates`, {
+        const response = await apiFetch(`/api/data-sources/${source.id}/parse-all-dates`, {
           method: 'POST'
         });
         

@@ -48,7 +48,7 @@ export default function FeedEditPage() {
 
     setIsLoading(true)
     try {
-      const response = await fetch(`http://localhost:8000/api/tours/${editingTour.id}`, {
+      const response = await apiFetch(`/api/tours/${editingTour.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -72,7 +72,7 @@ export default function FeedEditPage() {
 
     setIsLoading(true)
     try {
-      const response = await fetch(`http://localhost:8000/api/tours/${id}`, {
+      const response = await apiFetch(`/api/tours/${id}`, {
         method: 'DELETE'
       })
 

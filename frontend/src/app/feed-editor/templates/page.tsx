@@ -159,7 +159,7 @@ export default function TemplatesPage() {
 
   const handleCreateTemplate = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/templates', {
+      const response = await apiFetch('/api/templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newTemplate)
@@ -181,7 +181,7 @@ export default function TemplatesPage() {
     if (!selectedTemplate) return
     
     try {
-      const response = await fetch(`http://localhost:8000/api/templates/${selectedTemplate.id}`, {
+      const response = await apiFetch(`/api/templates/${selectedTemplate.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -204,7 +204,7 @@ export default function TemplatesPage() {
 
   const deleteTemplate = async (id: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/templates/${id}`, {
+      const response = await apiFetch(`/api/templates/${id}`, {
         method: 'DELETE'
       })
 

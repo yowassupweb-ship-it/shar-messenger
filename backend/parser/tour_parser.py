@@ -161,13 +161,34 @@ class TourParser:
                                     if not image_url.startswith('http'):
                                         image_url = f"{self.base_url}{image_url}"
                             
-                            # Цена
+                            # Цена (с учётом скидок)
                             bottom_right = item.find('div', class_='catalog-item__main_bottom-right')
                             price = '0'
+                            old_price = None
+                            
                             if bottom_right:
                                 price_wrapper = bottom_right.find('div', class_='catalog-price-wrapper')
                                 if price_wrapper:
-                                    price = ''.join(filter(str.isdigit, price_wrapper.text))
+                                    # Ищем старую цену (зачёркнутую)
+                                    old_price_span = price_wrapper.find('span', class_='catalog-price__old-price')
+                                    if old_price_span:
+                                        old_price_elem = old_price_span.find('span', class_='catalog-price__price_b')
+                                        if old_price_elem:
+                                            old_price = ''.join(filter(str.isdigit, old_price_elem.text))
+                                    
+                                    # Ищем актуальную цену - берём последний catalog-price__price_b
+                                    # который НЕ находится внутри old-price
+                                    price_spans = price_wrapper.find_all('span', class_='catalog-price__price_b')
+                                    for price_span in price_spans:
+                                        # Проверяем, что это не внутри old-price
+                                        parent = price_span.find_parent('span', class_='catalog-price__old-price')
+                                        if not parent:
+                                            price = ''.join(filter(str.isdigit, price_span.text))
+                                            break
+                                    
+                                    # Если не нашли отдельную цену, берём всю
+                                    if price == '0' and not old_price:
+                                        price = ''.join(filter(str.isdigit, price_wrapper.text))
                             
                             formatted_id = f"tour_{tour_id.zfill(6)}"
                             cleaned_name = tour_name.replace('\n', ' ').strip()
@@ -179,6 +200,7 @@ class TourParser:
                                 'route': route,
                                 'image': image_url,
                                 'price': price,
+                                'oldPrice': old_price,  # Старая цена (если есть скидка)
                                 'model': cleaned_name,
                                 'url': f"{self.base_url}/tour?id={tour_id}"
                             }

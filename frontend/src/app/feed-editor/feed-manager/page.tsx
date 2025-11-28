@@ -174,7 +174,7 @@ export default function FeedManagerPage() {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/api/collections', {
+      const response = await apiFetch('/api/collections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

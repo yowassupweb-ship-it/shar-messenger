@@ -85,7 +85,7 @@ export default function FeedUploadPage() {
     try {
       // Сохраняем каждый тур
       for (const tour of feedData) {
-        await fetch('http://localhost:8000/api/tours', {
+        await apiFetch('/api/tours', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -157,7 +157,7 @@ export default function FeedUploadPage() {
             </button>
             
             <p className="text-xs text-[var(--muted)]">
-              Получить данные из локального API (http://localhost:8000/api/tours)
+              Получить данные из локального API (/api/tours)
             </p>
           </div>
         </div>

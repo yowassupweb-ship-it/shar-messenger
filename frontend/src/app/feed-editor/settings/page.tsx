@@ -63,7 +63,7 @@ export default function SettingsPage() {
 
   const handleSave = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/settings', {
+      const response = await apiFetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings)

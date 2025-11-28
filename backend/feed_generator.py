@@ -153,10 +153,17 @@ def _add_offer(offers: ET.Element, product: Dict[str, Any], settings: Dict[str, 
         price = ET.SubElement(offer, 'price')
         price.text = str(product['price'])
         
-        # Старая цена (для показа скидки)
-        if product.get('oldprice') and float(product.get('oldprice', 0)) > float(product.get('price', 0)):
-            oldprice = ET.SubElement(offer, 'oldprice')
-            oldprice.text = str(product['oldprice'])
+        # Старая цена (для показа скидки) - поддерживаем оба варианта написания
+        old_price_value = product.get('oldPrice') or product.get('oldprice')
+        if old_price_value:
+            try:
+                old_price_num = float(old_price_value)
+                current_price_num = float(product.get('price', 0))
+                if old_price_num > current_price_num:
+                    oldprice = ET.SubElement(offer, 'oldprice')
+                    oldprice.text = str(int(old_price_num))
+            except (ValueError, TypeError):
+                pass
         
         # Валюта (обязательная если есть price)
         currency_id = ET.SubElement(offer, 'currencyId')

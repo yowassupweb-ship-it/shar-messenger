@@ -72,7 +72,7 @@ export default function UTMBuilderPage() {
     const variables = extractVariables(template)
     
     try {
-      const response = await fetch('http://localhost:8000/api/templates', {
+      const response = await apiFetch('/api/templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -110,7 +110,7 @@ export default function UTMBuilderPage() {
     const variables = extractVariables(editingTemplate.template)
     
     try {
-      const response = await fetch(`http://localhost:8000/api/templates/${editingTemplate.id}`, {
+      const response = await apiFetch(`/api/templates/${editingTemplate.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -137,7 +137,7 @@ export default function UTMBuilderPage() {
     if (!confirm('Удалить этот шаблон?')) return
     
     try {
-      const response = await fetch(`http://localhost:8000/api/templates/${template.id}`, {
+      const response = await apiFetch(`/api/templates/${template.id}`, {
         method: 'DELETE'
       })
       
