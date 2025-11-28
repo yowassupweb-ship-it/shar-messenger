@@ -18,6 +18,9 @@ import { TopRequestsResponse, KeywordData } from '@/types/yandex-wordstat'
 import { loadRegionsTree, getRegionNameById } from '@/lib/regions-utils'
 import '../slovolov-styles.css'
 
+// Отключаем prerendering для этой страницы
+export const dynamic = 'force-dynamic'
+
 type Tab = 'search' | 'dynamics' | 'regions' | 'settings'
 
 function WordcatcherContent() {
