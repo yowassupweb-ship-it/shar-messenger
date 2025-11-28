@@ -13,19 +13,20 @@ import ErrorDisplay from '@/components/ErrorDisplay'
 import { useWordstat } from '@/hooks/useWordstat'
 import SettingsPanel from '@/components/SettingsPanel'
 import DynamicsPanel from '@/components/DynamicsPanel'
+import ComboSearch from '@/components/ComboSearch'
 import { exportTopRequestsToCSV } from '@/lib/export'
 import { TopRequestsResponse, KeywordData } from '@/types/yandex-wordstat'
 import { loadRegionsTree, getRegionNameById } from '@/lib/regions-utils'
 import '../slovolov-styles.css'
 
-type Tab = 'search' | 'dynamics' | 'regions' | 'settings'
+type Tab = 'search' | 'combo' | 'dynamics' | 'regions' | 'settings'
 
 function WordcatcherContent() {
   const searchParams = useSearchParams()
   
   // Синхронизируем activeTab с URL параметром
   const tabFromUrl = searchParams.get('tab') as Tab | null
-  const activeTab: Tab = tabFromUrl && ['dynamics', 'regions', 'settings'].includes(tabFromUrl) 
+  const activeTab: Tab = tabFromUrl && ['combo', 'dynamics', 'regions', 'settings'].includes(tabFromUrl) 
     ? tabFromUrl 
     : 'search'
 
@@ -38,6 +39,27 @@ function WordcatcherContent() {
   const [lastRegionsRequest, setLastRegionsRequest] = useState<string>('')
 
   const { loading, error, clearError, getTopRequests, getDynamics, getRegions } = useWordstat()
+
+  // Пакетный поиск для Комбо режима
+  const handleBatchSearch = async (keywords: string[], options: { numPhrases: number }) => {
+    const results = new Map<string, TopRequestsResponse>()
+    
+    for (const keyword of keywords) {
+      try {
+        const result = await getTopRequests(keyword, {
+          numPhrases: options.numPhrases,
+          regions: [],
+          devices: ['all'],
+          includeDynamics: false
+        })
+        results.set(keyword, result)
+      } catch (err) {
+        console.error(`Ошибка поиска для "${keyword}":`, err)
+      }
+    }
+    
+    return results
+  }
 
   const handleSingleSearch = async (phrase: string, options: SearchOptions) => {
     try {
@@ -205,6 +227,15 @@ function WordcatcherContent() {
             <div className="space-y-6">
               <div className="max-w-4xl mx-auto">
                 <SettingsPanel />
+              </div>
+            </div>
+          ) : activeTab === 'combo' ? (
+            <div className="space-y-6">
+              <div className="max-w-4xl mx-auto space-y-6">
+                <ComboSearch 
+                  onBatchSearch={handleBatchSearch}
+                  loading={loading}
+                />
               </div>
             </div>
           ) : activeTab === 'dynamics' ? (

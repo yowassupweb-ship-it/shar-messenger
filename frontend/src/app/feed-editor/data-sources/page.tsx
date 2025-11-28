@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { showToast } from '@/components/Toast'
+import LoadingOverlay from '@/components/LoadingOverlay'
 import { apiFetch } from '@/lib/api'
 
 interface DataSource {
@@ -28,6 +29,7 @@ export default function DataSourcesPage() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingSource, setEditingSource] = useState<DataSource | null>(null)
   const [isParsingAll, setIsParsingAll] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [newSource, setNewSource] = useState({
     name: '',
     url: '',
@@ -56,14 +58,17 @@ export default function DataSourcesPage() {
     loadSources()
   }, [])
 
-  const loadSources = async () => {
+  const loadSources = async (isRefresh = false) => {
     try {
+      if (isRefresh) setIsRefreshing(true)
       const response = await apiFetch('/api/data-sources')
       const data = await response.json()
       setSources(data)
     } catch (error) {
       console.error('Ошибка загрузки источников:', error)
       showToast('Ошибка загрузки источников', 'error')
+    } finally {
+      setIsRefreshing(false)
     }
   }
 
@@ -107,7 +112,7 @@ export default function DataSourcesPage() {
         showToast('Источник успешно добавлен', 'success')
         setShowAddModal(false)
         setNewSource({ name: '', url: '', username: '', password: '', syncInterval: 3600, autoSync: false })
-        loadSources()
+        loadSources(true)
       } else {
         const error = await response.json()
         console.error('Ошибка от сервера:', error)
@@ -144,7 +149,7 @@ export default function DataSourcesPage() {
       if (response.ok) {
         showToast('Источник обновлен', 'success')
         setEditingSource(null)
-        loadSources()
+        loadSources(true)
       } else {
         showToast('Ошибка обновления источника', 'error')
       }
@@ -221,6 +226,8 @@ export default function DataSourcesPage() {
 
   return (
     <div>
+      <LoadingOverlay isLoading={isRefreshing} message="Обновление данных..." />
+      
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-4xl font-bold text-[var(--foreground)] mb-2">

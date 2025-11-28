@@ -11,6 +11,7 @@ interface Product {
   id: string
   name: string
   price: string | number
+  oldPrice?: string | number
   image: string
   days?: string
   route?: string
@@ -63,6 +64,7 @@ export default function FeedPreviewPage() {
   const [xmlTemplate, setXmlTemplate] = useState('')
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set())
   const [showCatalogDropdown, setShowCatalogDropdown] = useState(false)
+  const [discountFilter, setDiscountFilter] = useState<'all' | 'with_discount' | 'without_discount'>('all')
   const [xmlTemplates, setXmlTemplates] = useState<any[]>([])
   const [utmTemplates, setUtmTemplates] = useState<any[]>([])
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
@@ -478,6 +480,11 @@ export default function FeedPreviewPage() {
       p.route?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.id.toLowerCase().includes(searchQuery.toLowerCase())
     
+    // Фильтр по скидкам
+    const hasDiscount = p.oldPrice && Number(p.oldPrice) > Number(p.price)
+    if (discountFilter === 'with_discount' && !hasDiscount) return false
+    if (discountFilter === 'without_discount' && hasDiscount) return false
+    
     // If activeTab is 'all', show all products from the feed
     if (activeTab === 'all') {
       return matchesSearch
@@ -752,10 +759,16 @@ export default function FeedPreviewPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="card">
           <div className="text-sm text-[var(--foreground)] opacity-70 mb-1">Всего товаров</div>
           <div className="text-2xl font-bold text-[var(--foreground)]">{products.length}</div>
+        </div>
+        <div className="card">
+          <div className="text-sm text-[var(--foreground)] opacity-70 mb-1">Со скидкой</div>
+          <div className="text-2xl font-bold text-green-500">
+            {products.filter(p => p.oldPrice && Number(p.oldPrice) > Number(p.price)).length}
+          </div>
         </div>
         <div className="card">
           <div className="text-sm text-[var(--foreground)] opacity-70 mb-1">Последнее обновление</div>
@@ -767,7 +780,7 @@ export default function FeedPreviewPage() {
 
       {/* Search */}
       <div className="card mb-6">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <div className="relative flex-1 max-w-md">
             <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--foreground)] opacity-40" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <circle cx="11" cy="11" r="8"/>
@@ -781,6 +794,21 @@ export default function FeedPreviewPage() {
               className="w-full pl-10 pr-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
             />
           </div>
+          
+          {/* Фильтр по скидкам */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-[var(--foreground)] opacity-70">Скидки:</span>
+            <select
+              value={discountFilter}
+              onChange={(e) => setDiscountFilter(e.target.value as 'all' | 'with_discount' | 'without_discount')}
+              className="px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--button)] text-[var(--foreground)] text-sm"
+            >
+              <option value="all">Все товары</option>
+              <option value="with_discount">Со скидкой</option>
+              <option value="without_discount">Без скидки</option>
+            </select>
+          </div>
+          
           {activeTab === 'all' && selectedProducts.size > 0 && (
             <div className="flex items-center gap-3">
               <span className="text-sm text-[var(--foreground)] opacity-70">

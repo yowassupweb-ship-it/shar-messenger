@@ -15,7 +15,7 @@ interface Message {
 interface AiChatModalProps {
   currentPhrase?: string
   searchResults?: any
-  currentPage?: 'search' | 'dynamics' | 'regions' | 'settings'
+  currentPage?: 'search' | 'combo' | 'dynamics' | 'regions' | 'settings'
   selectedDevices?: Array<'all' | 'desktop' | 'phone' | 'tablet'>
   selectedRegions?: number[]
   dynamicsPeriod?: 'daily' | 'weekly' | 'monthly'
@@ -134,6 +134,7 @@ export default function AiChatModal({ currentPhrase, searchResults, currentPage,
       if (currentPage) {
         const pageNames = {
           search: 'Поиск',
+          combo: 'Комбо запрос',
           dynamics: 'Анализ динамики',
           regions: 'Анализ по регионам',
           settings: 'Настройки'

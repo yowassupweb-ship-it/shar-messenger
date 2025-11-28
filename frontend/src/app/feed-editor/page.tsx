@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { showToast } from '@/components/Toast'
 import GlassModal from '@/components/GlassModal'
 import GlassButton from '@/components/GlassButton'
+import LoadingOverlay from '@/components/LoadingOverlay'
 import { apiFetch } from '@/lib/api'
 
 interface Feed {
@@ -92,6 +93,7 @@ export default function FeedEditorPage() {
   const [selectedFeed, setSelectedFeed] = useState<Feed | null>(null)
   const [createMethod, setCreateMethod] = useState<'source' | 'file' | 'url' | 'manual' | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   
   // Drag scroll for folders slider
@@ -243,7 +245,7 @@ export default function FeedEditorPage() {
       })
 
       if (response.ok) {
-        loadFeeds()
+        loadFeeds(true)
       }
     } catch (error) {
       console.error('Ошибка обновления папки фида:', error)
@@ -262,9 +264,13 @@ export default function FeedEditorPage() {
     }
   }
 
-  const loadFeeds = async () => {
+  const loadFeeds = async (isRefresh = false) => {
     try {
-      setLoading(true)
+      if (isRefresh) {
+        setIsRefreshing(true)
+      } else {
+        setLoading(true)
+      }
       const response = await apiFetch('/api/feeds')
       if (response.ok) {
         const data = await response.json()
@@ -278,6 +284,7 @@ export default function FeedEditorPage() {
       showToast('Ошибка подключения к серверу', 'error')
     } finally {
       setLoading(false)
+      setIsRefreshing(false)
     }
   }
 
@@ -371,7 +378,7 @@ export default function FeedEditorPage() {
         setCreateMethod(null)
         setSelectedProducts([])
         resetNewFeedForm()
-        loadFeeds()
+        loadFeeds(true)
       } else {
         const errorData = await response.json()
         console.error('Ошибка создания фида:', errorData)
@@ -435,7 +442,7 @@ export default function FeedEditorPage() {
 
       if (response.ok) {
         showToast('Фид удален', 'success')
-        loadFeeds()
+        loadFeeds(true)
       } else {
         showToast('Ошибка удаления фида', 'error')
       }
@@ -503,7 +510,7 @@ export default function FeedEditorPage() {
         setShowEditModal(false)
         setSelectedFeed(null)
         resetNewFeedForm()
-        loadFeeds()
+        loadFeeds(true)
       } else {
         showToast('Ошибка обновления фида', 'error')
       }
@@ -526,7 +533,7 @@ export default function FeedEditorPage() {
 
       if (response.ok) {
         showToast(feed.isProduction ? 'Фид снят с продвижения' : 'Фид переведен в продвижение', 'success')
-        loadFeeds()
+        loadFeeds(true)
       } else {
         showToast('Ошибка обновления статуса', 'error')
       }
@@ -544,6 +551,8 @@ export default function FeedEditorPage() {
 
   return (
     <div>
+      <LoadingOverlay isLoading={isRefreshing} message="Обновление данных..." />
+      
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -850,6 +859,28 @@ export default function FeedEditorPage() {
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+                <button 
+                  onClick={async () => {
+                    try {
+                      showToast('Обновление XML фида...', 'info')
+                      // Запрос на перегенерацию XML (сервер уже генерирует XML на лету)
+                      const response = await apiFetch(`/api/feeds/${feed.id}/xml`)
+                      if (response.ok) {
+                        showToast('XML фид обновлен!', 'success')
+                      } else {
+                        throw new Error('Ошибка обновления')
+                      }
+                    } catch (error) {
+                      showToast('Ошибка обновления XML', 'error')
+                    }
+                  }}
+                  className="p-2 border border-[var(--border)] rounded-lg hover:bg-[var(--background)] transition-colors"
+                  title="Обновить XML"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                 </button>
                 <button 

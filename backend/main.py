@@ -2195,6 +2195,267 @@ async def parse_competitor_source_task(source_id: str):
     except Exception as e:
         logger.error(f"Ошибка фоновой задачи парсинга {source_id}: {str(e)}", exc_info=True)
 
+
+# ====================================================================================
+# Direct Parser API - Яндекс.Директ парсер рекламы конкурентов
+# ====================================================================================
+
+class DirectAdCreate(BaseModel):
+    platform: str = "Яндекс"
+    type: str
+    query: str
+    title: str
+    description: Optional[str] = ""
+    url: str
+    display_url: Optional[str] = ""
+    timestamp: Optional[str] = None
+    position: Optional[int] = None
+    is_premium: Optional[bool] = False
+    sitelinks: Optional[List[Dict[str, str]]] = []
+    extensions: Optional[Dict[str, Any]] = {}
+
+class DirectAdsBatchCreate(BaseModel):
+    ads: List[DirectAdCreate]
+    session_id: Optional[str] = None
+    source_info: Optional[Dict[str, Any]] = {}
+
+class DirectSearchCreate(BaseModel):
+    query: str
+    pages_parsed: int = 1
+    ads_found: int = 0
+    timestamp: Optional[str] = None
+    status: str = "completed"
+
+@app.get("/api/direct-parser/ads")
+def get_direct_ads(
+    query: Optional[str] = None,
+    platform: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None
+):
+    """Получить все рекламные объявления из Direct Parser"""
+    try:
+        ads = db.data.get('direct_ads', [])
+        
+        # Фильтрация
+        if query:
+            ads = [a for a in ads if query.lower() in a.get('query', '').lower()]
+        if platform:
+            ads = [a for a in ads if a.get('platform', '').lower() == platform.lower()]
+        if date_from:
+            ads = [a for a in ads if a.get('timestamp', '') >= date_from]
+        if date_to:
+            ads = [a for a in ads if a.get('timestamp', '') <= date_to]
+        
+        # Сортировка по времени (новые первые)
+        ads = sorted(ads, key=lambda x: x.get('timestamp', ''), reverse=True)
+        
+        total = len(ads)
+        ads = ads[offset:offset + limit]
+        
+        return {
+            "ads": ads,
+            "total": total,
+            "limit": limit,
+            "offset": offset
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/direct-parser/ads")
+def create_direct_ad(ad: DirectAdCreate):
+    """Создать одно рекламное объявление"""
+    try:
+        if 'direct_ads' not in db.data:
+            db.data['direct_ads'] = []
+        
+        ad_data = ad.dict()
+        ad_data['id'] = db._generate_id()
+        if not ad_data.get('timestamp'):
+            ad_data['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        db.data['direct_ads'].append(ad_data)
+        db._save()
+        
+        return {"success": True, "ad": ad_data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/direct-parser/ads/batch")
+def create_direct_ads_batch(batch: DirectAdsBatchCreate):
+    """Создать множество рекламных объявлений (от локального парсера)"""
+    try:
+        if 'direct_ads' not in db.data:
+            db.data['direct_ads'] = []
+        
+        created = []
+        for ad in batch.ads:
+            ad_data = ad.dict()
+            ad_data['id'] = db._generate_id()
+            if not ad_data.get('timestamp'):
+                ad_data['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            if batch.session_id:
+                ad_data['session_id'] = batch.session_id
+            
+            db.data['direct_ads'].append(ad_data)
+            created.append(ad_data)
+        
+        db._save()
+        
+        # Логируем
+        db.add_log('info', f'Direct Parser: добавлено {len(created)} объявлений', 'success')
+        
+        return {
+            "success": True,
+            "created": len(created),
+            "session_id": batch.session_id
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/direct-parser/ads/{ad_id}")
+def delete_direct_ad(ad_id: str):
+    """Удалить рекламное объявление"""
+    try:
+        ads = db.data.get('direct_ads', [])
+        db.data['direct_ads'] = [a for a in ads if a.get('id') != ad_id]
+        db._save()
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/direct-parser/ads")
+def delete_all_direct_ads(query: Optional[str] = None, date_before: Optional[str] = None):
+    """Удалить все рекламные объявления (с фильтрами)"""
+    try:
+        ads = db.data.get('direct_ads', [])
+        original_count = len(ads)
+        
+        if query:
+            db.data['direct_ads'] = [a for a in ads if a.get('query', '').lower() != query.lower()]
+        elif date_before:
+            db.data['direct_ads'] = [a for a in ads if a.get('timestamp', '') >= date_before]
+        else:
+            db.data['direct_ads'] = []
+        
+        deleted = original_count - len(db.data['direct_ads'])
+        db._save()
+        
+        return {"success": True, "deleted": deleted}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/direct-parser/searches")
+def get_direct_searches():
+    """Получить историю поисковых запросов"""
+    try:
+        searches = db.data.get('direct_searches', [])
+        searches = sorted(searches, key=lambda x: x.get('timestamp', ''), reverse=True)
+        return {"searches": searches}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/direct-parser/searches")
+def create_direct_search(search: DirectSearchCreate):
+    """Сохранить информацию о поисковом запросе"""
+    try:
+        if 'direct_searches' not in db.data:
+            db.data['direct_searches'] = []
+        
+        search_data = search.dict()
+        search_data['id'] = db._generate_id()
+        if not search_data.get('timestamp'):
+            search_data['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        db.data['direct_searches'].append(search_data)
+        db._save()
+        
+        return {"success": True, "search": search_data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/direct-parser/stats")
+def get_direct_parser_stats():
+    """Получить статистику Direct Parser"""
+    try:
+        ads = db.data.get('direct_ads', [])
+        searches = db.data.get('direct_searches', [])
+        
+        # Уникальные домены
+        domains = set()
+        for ad in ads:
+            url = ad.get('url', '')
+            if url:
+                try:
+                    from urllib.parse import urlparse
+                    domain = urlparse(url).netloc
+                    if domain:
+                        domains.add(domain)
+                except:
+                    pass
+        
+        # Статистика по запросам
+        queries = {}
+        for ad in ads:
+            q = ad.get('query', '')
+            queries[q] = queries.get(q, 0) + 1
+        
+        top_queries = sorted(queries.items(), key=lambda x: x[1], reverse=True)[:10]
+        
+        return {
+            "total_ads": len(ads),
+            "total_searches": len(searches),
+            "unique_domains": len(domains),
+            "domains_list": list(domains)[:50],
+            "top_queries": top_queries,
+            "last_update": ads[0].get('timestamp') if ads else None
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/direct-parser/domains")
+def get_direct_domains():
+    """Получить список уникальных доменов рекламодателей"""
+    try:
+        ads = db.data.get('direct_ads', [])
+        
+        domains = {}
+        for ad in ads:
+            url = ad.get('url', '')
+            if url:
+                try:
+                    from urllib.parse import urlparse
+                    domain = urlparse(url).netloc
+                    if domain:
+                        if domain not in domains:
+                            domains[domain] = {
+                                'domain': domain,
+                                'count': 0,
+                                'queries': set(),
+                                'titles': []
+                            }
+                        domains[domain]['count'] += 1
+                        domains[domain]['queries'].add(ad.get('query', ''))
+                        if len(domains[domain]['titles']) < 3:
+                            domains[domain]['titles'].append(ad.get('title', ''))
+                except:
+                    pass
+        
+        # Конвертируем sets в lists
+        result = []
+        for d in domains.values():
+            d['queries'] = list(d['queries'])
+            result.append(d)
+        
+        result = sorted(result, key=lambda x: x['count'], reverse=True)
+        
+        return {"domains": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

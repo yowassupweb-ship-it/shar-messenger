@@ -104,20 +104,9 @@ export default function TransliteratorPage() {
           </svg>
           <div>
             <p className="font-semibold text-[var(--foreground)] mb-2">Как использовать:</p>
-            <p className="text-sm text-[var(--foreground)] opacity-80 mb-2">
-              Выделяйте слова двойными слэшами для выборочной транслитерации
+            <p className="text-sm text-[var(--foreground)] opacity-80">
+              Выделяйте слова двойными слэшами <code className="bg-[var(--background)] px-1 rounded">//слово//</code> для выборочной транслитерации отдельных слов.
             </p>
-            <div className="bg-[var(--background)] rounded-lg p-3 border border-[var(--border)]">
-              <code className="text-sm text-[var(--foreground)] block mb-1">
-                //Привет// и //Мир//
-              </code>
-              <div className="flex items-center gap-2 text-sm">
-                <svg className="w-4 h-4 text-[var(--button)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                </svg>
-                <span className="text-[var(--button)] font-semibold">privet и mir</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -187,7 +176,7 @@ export default function TransliteratorPage() {
         <button
           onClick={handleDownload}
           disabled={!outputText}
-          className="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium shadow-lg hover:shadow-xl"
+          className="bg-[var(--button)] text-white px-6 py-3 rounded-lg hover:bg-[var(--button)]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium shadow-lg hover:shadow-xl"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -197,7 +186,7 @@ export default function TransliteratorPage() {
         <button
           onClick={handleClear}
           disabled={!inputText && !outputText}
-          className="bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium shadow-lg hover:shadow-xl"
+          className="bg-[var(--button)] text-white px-6 py-3 rounded-lg hover:bg-[var(--button)]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium shadow-lg hover:shadow-xl"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

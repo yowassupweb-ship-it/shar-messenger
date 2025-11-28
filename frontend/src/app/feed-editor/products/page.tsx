@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { showToast } from '@/components/Toast'
 import { formatDaysLabel } from '@/utils/formatDays'
+import LoadingOverlay from '@/components/LoadingOverlay'
 import { apiFetch } from '@/lib/api'
 
 interface Product {
@@ -37,6 +38,7 @@ export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [selectedSource, setSelectedSource] = useState('all')
   const [selectedDays, setSelectedDays] = useState('all')
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
@@ -65,9 +67,13 @@ export default function ProductsPage() {
     loadCollections()
   }, [])
 
-  const loadProducts = async () => {
+  const loadProducts = async (isRefresh = false) => {
     try {
-      setLoading(true)
+      if (isRefresh) {
+        setIsRefreshing(true)
+      } else {
+        setLoading(true)
+      }
       const response = await apiFetch('/api/products')
       if (response.ok) {
         const data = await response.json()
@@ -80,6 +86,7 @@ export default function ProductsPage() {
       showToast('Ошибка подключения к серверу', 'error')
     } finally {
       setLoading(false)
+      setIsRefreshing(false)
     }
   }
 
@@ -159,7 +166,7 @@ export default function ProductsPage() {
 
       if (response.ok) {
         showToast(product.hidden ? 'Товар показан' : 'Товар скрыт', 'success')
-        loadProducts()
+        loadProducts(true)
       } else {
         showToast('Ошибка обновления товара', 'error')
       }
@@ -182,7 +189,7 @@ export default function ProductsPage() {
 
       if (response.ok) {
         showToast(product.active === false ? 'Товар активирован' : 'Товар приостановлен', 'success')
-        loadProducts()
+        loadProducts(true)
       } else {
         showToast('Ошибка обновления товара', 'error')
       }
@@ -229,7 +236,7 @@ export default function ProductsPage() {
         showToast(isNewProduct ? 'Товар создан' : 'Товар обновлен', 'success')
         setShowEditModal(false)
         setEditingProduct(null)
-        loadProducts()
+        loadProducts(true)
       } else {
         showToast('Ошибка сохранения товара', 'error')
       }
@@ -249,7 +256,7 @@ export default function ProductsPage() {
       if (response.ok) {
         const data = await response.json()
         showToast(`Проверено ${data.checked} товаров. Приостановлено: ${data.paused}`, 'success')
-        loadProducts()
+        loadProducts(true)
       } else {
         showToast('Ошибка проверки доступности', 'error')
       }
@@ -301,6 +308,8 @@ export default function ProductsPage() {
 
   return (
     <div>
+      <LoadingOverlay isLoading={isRefreshing} message="Обновление данных..." />
+      
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>

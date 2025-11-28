@@ -56,9 +56,6 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="card">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-[var(--foreground)] mb-2">
-              Вокруг света
-            </h1>
             <p className="text-[var(--foreground)] opacity-70">
               Вход в систему
             </p>
