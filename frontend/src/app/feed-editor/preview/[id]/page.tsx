@@ -29,6 +29,7 @@ interface Feed {
   isProduction?: boolean
   settings?: {
     productIds?: string[]
+    feedTemplateId?: string
   }
 }
 
