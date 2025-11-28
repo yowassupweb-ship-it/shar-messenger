@@ -1,0 +1,2388 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+
+<yml_catalog date="2025-11-11 12:47">
+  <shop>
+    <name>Вокруг света</name>
+    <company>Туристическая компания "Вокруг света"</company>
+    <url>https://vs-travel.ru/</url>
+    <currencies>
+      <currency id="RUR" rate="1"/>
+    </currencies>
+    <categories>
+      <category id="1">Все туры</category>
+      <category id="2">Однодневные экскурсии</category>
+      <category id="3">Пешеходные экскурсии</category>
+      <category id="4">Многодневные туры</category>
+      <category id="5">Туры по Золотому кольцу</category>
+      <category id="6">Туры по Золотому кольцу</category>
+    </categories>
+    <offers>
+      <offer id="tour_0001327" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1327&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-kostroma-dlya-dushi-i-dlya-uma</url>
+        <price>14900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/03/1743063687-20230514144353-3ef5a1a0-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Кострома – для души и для ума</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Кострома (проезд ж/д экспресс)]]></description>
+      </offer>
+      <offer id="tour_000603" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=603&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-dlya-vlyublyonnih-v-kostromu</url>
+        <price>18900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/03/1741360206-20240220150056-6450c4af-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Для влюблённых в Кострому</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Кострома – Лосеферма – Терем Снегурочки (проезд ж/д экспресс)]]></description>
+      </offer>
+      <offer id="tour_0001332" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1332&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-klassicheskaya-kostroma</url>
+        <price>14900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1754646447-20240220150056-6450c4af-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Классическая Кострома</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Кострома – Лосеферма – Терем Снегурочки (проезд ж/д экспресс)]]></description>
+      </offer>
+      <offer id="tour_0001352" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1352&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-usadebnii-mir-tambovschini</url>
+        <price>22900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/06/1750429285-20240410120638-69605f7a-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Усадебный мир Тамбовщины</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Тамбов – Ивановка (усадьба С. Рахманинова) – Мичуринск]]></description>
+      </offer>
+      <offer id="tour_0001351" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1351&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-zhizn-kak-iskusstvo</url>
+        <price>17900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/06/1750433016-20240111154617-5b347d6f-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Жизнь как искусство</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Мичуринск (с посещением театра, выставки офортов и гастрономическим обедом)]]></description>
+      </offer>
+      <offer id="tour_0001353" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1353&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-talanti-tambovskoi-zemli</url>
+        <price>15990</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/06/1750428960-20240822125749-1eb51aa2-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Таланты тамбовской земли</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Тамбов – Ивановка (усадьба С. Рахманинова) – Мичуринск]]></description>
+      </offer>
+      <offer id="tour_0001321" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1321&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-4-dnya-yuzhnii-dagestan-zhdyot</url>
+        <price>42900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2024/06/1717593843-20230607141828-ea3c41d9-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 4 дня · Южный Дагестан ждёт</model>
+        <param name="Дней"><![CDATA[4]]></param>
+        <description><![CDATA[Дербент – село Хучни – село Тпиг – село Чираг – Безымянный каньон – Сулак – Чиркейское водохранилище – пещеры Нохъо]]></description>
+      </offer>
+      <offer id="tour_000984" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=984&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-na-krai-zemli</url>
+        <price>47500</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1755250196-20250110140416-6d9f1fc5-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · На край земли</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Мурманск – Териберка – Саамская деревня]]></description>
+      </offer>
+      <offer id="tour_0001789" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1789&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-4-dnya-novii-god-v-kostrome-4-dnya</url>
+        <price>39900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762625955-20250903123904-110fd84a-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 4 дня · Новый год в Костроме, 4 дня</model>
+        <param name="Дней"><![CDATA[4]]></param>
+        <description><![CDATA[Кострома – Терем Снегурочки – Лосеферма – Нерехта – Фабрика Мороза-Мастера в Лаврово]]></description>
+      </offer>
+      <offer id="tour_55535353" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1787&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-novogodnyaya-kostroma-3-dnya</url>
+        <price>26900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762626805-20240115142010-f3093c27-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Новогодняя Кострома, 3 дня</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Кострома – Терем Снегурочки – Лосеферма (проезд ж/д экспресс)]]></description>
+      </offer>
+      <offer id="tour_0001940" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1940&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-5-dnei-novii-god-pod-palmami</url>
+        <price>57200</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1757325623-20230810145727-ecf018cb-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 5 дней · Новый год под пальмами</model>
+        <param name="Дней"><![CDATA[5]]></param>
+        <description><![CDATA[Сочи – Красная поляна – сафари к Джегошским водопадам – зажигательное кавказское шоу]]></description>
+      </offer>
+      <offer id="tour_0001778745" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1788&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-novii-god-v-kostrome-3-dnya</url>
+        <price>34900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762626340-20230810150958-fded2bda-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Новый год в Костроме, 3 дня</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Кострома – Терем Снегурочки – Лосеферма – Нерехта – Фабрика Мороза-Мастера в Лаврово]]></description>
+      </offer>
+      <offer id="tour_0001079" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1079&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-4-dnya-v-sibir-po-svoei-vole</url>
+        <price>32400</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/03/1741877944-20230514180050-680a1efe-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 4 дня · В Сибирь по своей воле</model>
+        <param name="Дней"><![CDATA[4]]></param>
+        <description><![CDATA[Тюмень – Тобольск – Абалак – с. Покровское]]></description>
+      </offer>
+      <offer id="tour_0001942" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1942&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-8-dnei-znakomtes-eto-sochi</url>
+        <price>62300</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1757341287-20240226123336-9271056a-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 8 дней · Знакомьтесь – это Сочи</model>
+        <param name="Дней"><![CDATA[8]]></param>
+        <description><![CDATA[Сочи – Олимпийский парк – Дача Сталина и Агурское ущелье – Красная поляна – Сафари к Джегошским водопадам]]></description>
+      </offer>
+      <offer id="tour_0001941777" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=19419999&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-5-dnei-sochi-i-ego-okrestnosti</url>
+        <price>42900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1757337668-20240226123336-8639b1d4-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 5 дней · Сочи и его окрестности</model>
+        <param name="Дней"><![CDATA[5]]></param>
+        <description><![CDATA[Сочи – Красная поляна – Сафари к Джегошским водопадам]]></description>
+      </offer>
+      <offer id="tour_0001103" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1103&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-teni-ingermanlandii</url>
+        <price>18900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1753278367-20250317095737-03b65651-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Тени Ингерманландии</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Копорье – Вистино – Ивангород – Кингисепп – Губаницы – Скворицы]]></description>
+      </offer>
+      <offer id="tour_0001369" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1369&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-dve-ladogi-i-odin-tihvin</url>
+        <price>28600</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/03/1742393779-20240112105233-fe9b8c86-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Две Ладоги и один Тихвин</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Тихвин – Шлиссельбург – Новая Ладога – Старая Ладога – Богословка]]></description>
+      </offer>
+      <offer id="tour_0001366" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1366&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-ulyotnii-krai</url>
+        <price>24900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/03/1742395003-20240410190531-1153a0d7-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · УлЁтный край</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Ульяновск – Ундоры]]></description>
+      </offer>
+      <offer id="tour_0001976" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1976&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-5-dnei-sibirskie-vladeniya-deda-moroza</url>
+        <price>45700</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1758642904-20230930102134-a3e511f3-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 5 дней · Сибирские владения Деда Мороза</model>
+        <param name="Дней"><![CDATA[5]]></param>
+        <description><![CDATA[Омск – Большеречье – Азово]]></description>
+      </offer>
+      <offer id="tour_0001319" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1319&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-sokrovischa-donskih-stepei</url>
+        <price>24400</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2024/06/1717511304-20230517180736-b6d3eee9-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Сокровища донских степей</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Ростов-на-Дону – Азов – Старочеркасск – Новочеркасск – Таганрог]]></description>
+      </offer>
+      <offer id="tour_000740" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=740&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-4-dnya-zhivaya-voda-kavkaza</url>
+        <price>35900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/03/1741871740-20240925181643-4732e775-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 4 дня · Живая вода Кавказа</model>
+        <param name="Дней"><![CDATA[4]]></param>
+        <description><![CDATA[Железноводск – Эльбрус – Чегет – Голубое озеро – источники Аушигер – Верхняя Балкария – Медовые водопады – Кисловодск]]></description>
+      </offer>
+      <offer id="tour_0001596" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1596&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-4-dnya-ot-ladozhskih-shher-do-stolitsi-varyazhskih-zemel</url>
+        <price>42500</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/05/1747656252-20250219125716-54a77c71-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 4 дня · От ладожских шхер до столицы варяжских земель</model>
+        <param name="Дней"><![CDATA[4]]></param>
+        <description><![CDATA[Лахденпохья – Берёзово – Приозерск – Лосево – Выборг – Сваргас – Усадьба Киискиля – Зеленогорск]]></description>
+      </offer>
+      <offer id="tour_0002089" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2089&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-vozrozhdyonnoe-nasledie-sankt-peterburga</url>
+        <price>22860</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761737876-20251009122426-494e6bd3-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Возрождённое наследие Санкт-Петербурга</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Санкт-Петербург – Павловск – Рождествено]]></description>
+      </offer>
+      <offer id="tour_0001977" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1977&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-gore-ot-uma-argument-ili-fakt</url>
+        <price>2790</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1758710901-20240906114128-08cc0fc6-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Горе от ума – аргумент или факт?</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Мясницкая улица – Усадьба И. Барышникова (Издательский дом «АиФ»)]]></description>
+      </offer>
+      <offer id="tour_0001978" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1978&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-on-takoi-odin-na-vsyu-moskvu</url>
+        <price>2370</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1758718692-20230201144718-7fe21786-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Он такой один на всю Москву</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Особняк Носова – Дворец на Яузе – Электрозавод]]></description>
+      </offer>
+      <offer id="tour_0001187" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1187&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-lvovskaya-letopis-torzhka</url>
+        <price>4350</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1738334916-20241014131944-6074e861-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Львовская летопись Торжка</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Знаменское-Раёк – Торжок – Василёво]]></description>
+      </offer>
+      <offer id="tour_0001223" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1223&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-bitva-vkusov</url>
+        <price>5730</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1760369093-20251013181915-ce6c1c2d-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Битва вкусов</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Малоярославец – Производство джемов «ZUEGG» – «Обнинская сыроварня» (с дегустацией джелато, джемов и сыров)]]></description>
+      </offer>
+      <offer id="tour_0001249" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1249&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-pod-zaschitoi-nikolaya-chudotvortsa</url>
+        <price>3970</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1737973278-20240930125616-9ccd0850-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Под защитой Николая Чудотворца</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Николо-Сольбинский монастырь – Свято-Никольский монастырь – Годеново]]></description>
+      </offer>
+      <offer id="tour_0001436" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1436&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-okskaya-palitra</url>
+        <price>4390</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1737553568-20230721122744-f7c6c4ef-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Окская палитра</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Серпухов – Поленово]]></description>
+      </offer>
+      <offer id="tour_0001736" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1736&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-sokrovischa-staroi-tuli</url>
+        <price>3590</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/04/1743767540-20240426155006-51ec2237-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Сокровища старой Тулы</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Тула]]></description>
+      </offer>
+      <offer id="tour_0001979" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1979&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-mladshaya-sestra-moskovskih-visotok</url>
+        <price>1650</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1758721080-20240329160439-57601d67-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Младшая сестра московских высоток</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Гостиница «Украина»]]></description>
+      </offer>
+      <offer id="tour_0002016" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2016&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-planeta-lefortovo-dvortsovo-parkovoe-puteshestvie</url>
+        <price>980</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1759497537-20230605220214-32e16124-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Планета Лефортово. Дворцово-парковое путешествие</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Солдатская слобода – Лефортовский парк – Екатерининский дворец – Художественная галерея Альперт]]></description>
+      </offer>
+      <offer id="tour_0001217" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1217&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-bryus-vsemoguschii-i-pustin-na-vore</url>
+        <price>3800</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1738328209-20240701212056-ae1bab45-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Брюс всемогущий и пустынь на Воре</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Лосино-Петровский – Глинки – Авдотьино]]></description>
+      </offer>
+      <offer id="tour_0001815" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1815&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-zamechatelnii-sosed-kremlya</url>
+        <price>1950</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1757334409-20250908145342-2dc04d48-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Замечательный сосед Кремля</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Дом Пашкова]]></description>
+      </offer>
+      <offer id="tour_00098" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=98&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-kak-proiti-v-biblioteku</url>
+        <price>1950</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1756479789-20250829180139-0daa8285-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Как пройти в библиотеку?</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Библиотека им. Ленина (РГБ)]]></description>
+      </offer>
+      <offer id="tour_0001312" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1312&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-gremyachii-klyuch-zhivoi-vodi</url>
+        <price>3270</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1751376393-20240605182638-b9234931-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Гремячий ключ живой воды</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Гремячий ключ – Радонеж – Троице-Сергиева Лавра]]></description>
+      </offer>
+      <offer id="tour_0001186" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1186&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-pushkinskie-mesta-vdohnovenie-v-kazhdom-shage</url>
+        <price>4790</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1738335158-20230518085204-bbe4a10c-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Пушкинские места: вдохновение в каждом шаге</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Захарово – Большие Вязёмы]]></description>
+      </offer>
+      <offer id="tour_0001193" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1193&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-zvezda-po-imeni-kirzhach</url>
+        <price>4350</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1755073434-20250703133425-ed13e842-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Звезда по имени Киржач</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Киржач – Новосёлово (Мемориал Ю. Гагарина – Андреевский храм)]]></description>
+      </offer>
+      <offer id="tour_0001093" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1093&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-vozrozhdyonnie-svyatini-istrinskogo-kraya</url>
+        <price>3670</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/02/1738938040-20230606184548-af983929-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Возрождённые святыни Истринского края</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Княжье Озеро – Дарна – Павловская слобода – Новый Иерусалим]]></description>
+      </offer>
+      <offer id="tour_0001226" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1226&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-duhovnie-sozvezdiya-religii</url>
+        <price>3270</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1754912698-20241011141153-132de510-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Духовные созвездия религий</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Мировые религии в Москве]]></description>
+      </offer>
+      <offer id="tour_0001238" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1238&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-o-zvuki-polnie-bilogo</url>
+        <price>3750</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1737974106-20240708091843-ace60b7a-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · О, звуки, полные былого!</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Молоди – Садки – Лопасня-Зачатьевское]]></description>
+      </offer>
+      <offer id="tour_0001100" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1100&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-kak-rabotaet-korova</url>
+        <price>4290</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1752484465-20250714115828-488b76e1-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Как «работает» корова?</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[РОСТАГРОЭКСПОРТ – Музей истории молока и глазированного сырка с посещением производства и дегустацией]]></description>
+      </offer>
+      <offer id="tour_0002044" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2044&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-dom-arharovtsev-i-uchyonih</url>
+        <price>2390</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1760620462-20251016151008-143605ca-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Дом архаровцев и учёных</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Пречистенка – Дом учёных (усадьба Коншиной)]]></description>
+      </offer>
+      <offer id="tour_0001796" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1796&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-sovetskii-hram-gostepriimstva</url>
+        <price>1890</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/06/1750676791-20250604094417-cda5d23a-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Советский «храм» гостеприимства</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Гостиница «Ленинградская»]]></description>
+      </offer>
+      <offer id="tour_0001720" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1720&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-farfor-bashmaki-i-sirnaya-mafiya</url>
+        <price>5470</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/03/1743080578-20250324112624-90a83a78-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Фарфор, башмаки и сырная мафия</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Вербилки (Фарфоровый завод) – Талдом – Ферма «Коза Ностра»]]></description>
+      </offer>
+      <offer id="tour_0001125" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1125&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-zateryannoe-zodchestvo-podmoskovya</url>
+        <price>3800</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/02/1738849055-20240405132500-aeb85cd8-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Затерянное зодчество Подмосковья</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Глебово – Акатово – Поджигородово – Никольское-Сверчково – Юркино]]></description>
+      </offer>
+      <offer id="tour_0001185" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1185&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-zaraiskie-kuschi</url>
+        <price>5270</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/02/1738584711-20240605191107-642e75fe-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Зарайские кущи</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Зарайск – Луховицы]]></description>
+      </offer>
+      <offer id="tour_0001227" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1227&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-puteshestvie-za-mozhai</url>
+        <price>3190</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1738239649-20230918175422-1897a9e5-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Путешествие за Можай</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Можайск – Бородино – Колоцкий монастырь]]></description>
+      </offer>
+      <offer id="tour_0001431" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1431&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-skazki-volzhskoi-starini</url>
+        <price>4990</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/05/1747233853-20230713112706-c2d71bf9-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Сказки волжской старины</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Углич – Мышкин]]></description>
+      </offer>
+      <offer id="tour_0001434" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1434&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-istok-pobed-i-slavi-russkoi</url>
+        <price>3950</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1737553843-20230607150344-3f6ad828-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Исток побед и славы русской</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Переславль-Залесский – Музей Александра Невского – Музей «Ботик Петра I»]]></description>
+      </offer>
+      <offer id="tour_0001277" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1277&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-pokrov-gorodok-sladkih-lakomstv-ugolok</url>
+        <price>4790</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1752840682-20250718145238-f60a179b-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Покров-городок – сладких лакомств уголок</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Покров – Музей шоколада – Фабрика пряников]]></description>
+      </offer>
+      <offer id="tour_0001081" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1081&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-taina-zvonkogo-chuda</url>
+        <price>3370</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/02/1739171831-20240927191509-d89614bf-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Тайна звонкого чуда</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Саввино – Полтево – Ликино-Дулёво]]></description>
+      </offer>
+      <offer id="tour_0001290" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1290&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-vozrozhdyonnaya-usadba</url>
+        <price>6290</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1737643196-20230606165430-da31475d-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Возрождённая усадьба</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Степановское-Волосово (усадьба князей Куракиных) – Шаховская]]></description>
+      </offer>
+      <offer id="tour_0001936" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1936&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-nauchnie-gorizonti-podmoskovya</url>
+        <price>4390</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1757508746-20250908110713-d106f674-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Научные горизонты Подмосковья</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Наукограды: Пущино – Протвино с посещением радиоастрономической обсерватории]]></description>
+      </offer>
+      <offer id="tour_0001981" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1981&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-tri-veka-devyatnadtsat-zim</url>
+        <price>1900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762344479-20250925172347-cbac1c9f-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Три века, девятнадцать зим</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Хамовники – Музей-усадьба Льва Толстого]]></description>
+      </offer>
+      <offer id="tour_0001090" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1090&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-kuhnya-druzhbi-narodov</url>
+        <price>3850</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1758551412-20250922172545-5fdc472d-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Кухня дружбы народов</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Студенческий городок РУДН]]></description>
+      </offer>
+      <offer id="tour_0002100" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2100&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-voda-i-loft-istoriya-v-krasnom-kirpiche-14</url>
+        <price>1900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762006501-20251101105053-cf9ec301-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Вода и лофт: история в красном кирпиче (14+)</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Заводское арт-пространство «Водоприбор»]]></description>
+      </offer>
+      <offer id="tour_0001253" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1253&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-seliger-stanovitsya-blizhe</url>
+        <price>4100</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1751447018-20230920163039-f233fa3b-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Селигер становится ближе</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Осташков – Нилова Пустынь]]></description>
+      </offer>
+      <offer id="tour_0002153" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2153&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-ave-maiya</url>
+        <price>2700</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762600059-20250312153257-31d80fd2-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Аве Майя</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Окрестности Патриарших прудов – Музей-квартира Майи Плисецкой]]></description>
+      </offer>
+      <offer id="tour_0001127" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1127&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-simvol-veri-i-pobedi</url>
+        <price>3170</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1753266247-20240409170846-6e6b7d85-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Символ Веры и Победы</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Главный храм Вооружённых Сил – Музейный комплекс «Дорога Памяти»]]></description>
+      </offer>
+      <offer id="tour_0001194" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1194&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-strana-dvuh-geniev</url>
+        <price>4470</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1752070161-20230514111122-427afd05-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Страна двух гениев</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Клин – Музей П.И Чайковского – Боблово – Усадьба Д.И. Менделеева]]></description>
+      </offer>
+      <offer id="tour_0001251" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1251&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-russkii-parnas</url>
+        <price>3590</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1737972776-20230605103653-8a5d7579-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Русский Парнас</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Остафьево – Дубровицы]]></description>
+      </offer>
+      <offer id="tour_0001259" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1259&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-malenkie-istorii-pisatelskogo-posyolka</url>
+        <price>4270</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/03/1743061541-20230921114559-1a5633ec-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Маленькие истории писательского посёлка</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Переделкино]]></description>
+      </offer>
+      <offer id="tour_0001281" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1281&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-svyatie-mesta-radonezhya</url>
+        <price>3750</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1737967646-20230809132518-548fec2e-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Святые места Радонежья</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Радонеж – Хотьково – Сергиев Посад]]></description>
+      </offer>
+      <offer id="tour_0001126" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1126&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-zdes-ozhivaet-istoriya-i-rozhdaetsya-kino</url>
+        <price>3150</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1756891444-20230524213230-23b81cf2-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Здесь оживает история, и рождается кино</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Середниково (усадьба М.Ю. Лермонтова) – Братцево (усадьба Строгановых)]]></description>
+      </offer>
+      <offer id="tour_0001415" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1415&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-zimnyaya-skazka-na-gosudarevoi-doroge</url>
+        <price>4890</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/06/1749470996-20230821172302-21c047ec-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Зимняя сказка на Государевой дороге</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Клин – Музей-фабрика ёлочных игрушек «Клинское подворье»]]></description>
+      </offer>
+      <offer id="tour_0001156" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1156&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-kofeinaya-simfoniya-stolitsi</url>
+        <price>3300</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/06/1748946884-20230125133405-784964ef-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Кофейная симфония столицы</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Московские кофейни (с дегустацией)]]></description>
+      </offer>
+      <offer id="tour_0001814" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1814&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-den-v-donskom</url>
+        <price>2000</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1757340678-20250908170817-c8be1429-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · День в Донском</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Донской мужской монастырь]]></description>
+      </offer>
+      <offer id="tour_000512" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=512&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-neznakomaya-kostroma</url>
+        <price>4300</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/03/1742825042-20230514142726-f41444af-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Незнакомая Кострома</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Кострома – Закулисье театра им. Островского – Костромской ювелирный завод (проезд на ж/д экспрессе «Ласточка»)]]></description>
+      </offer>
+      <offer id="tour_0001145" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1145&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-grad-tsarskii-grad-groznii</url>
+        <price>3970</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/02/1738839651-20221013131439-b4e8074f-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Град царский, град грозный</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Александров]]></description>
+      </offer>
+      <offer id="tour_0001178" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1178&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-skvoz-vremya-i-litsa</url>
+        <price>3570</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/02/1738586035-20230821170917-e6afb31f-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Сквозь время и лица</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Горки Ленинские – Усадьба «Суханово» – Екатерининская пустынь]]></description>
+      </offer>
+      <offer id="tour_0001210" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1210&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-znakomstvo-s-kostromoi</url>
+        <price>4100</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1752063337-20230514144356-e015cbca-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Знакомство с Костромой</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Кострома (проезд на ж/д экспрессе «Ласточка»)]]></description>
+      </offer>
+      <offer id="tour_0001250" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1250&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-mezhdu-nebom-i-zemlyoi</url>
+        <price>4090</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1737973053-20241106135352-393f9299-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Между небом и землёй</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Оптина пустынь – Шамордино]]></description>
+      </offer>
+      <offer id="tour_0001094" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1094&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-grad-letopisnii</url>
+        <price>3450</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/02/1738937773-20230406173437-883123ba-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Град летописный</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Ростов Великий]]></description>
+      </offer>
+      <offer id="tour_0001291" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1291&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-zdes-tisyachi-sobitii-i-imyon</url>
+        <price>4870</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1737642664-20230518134234-9ca238b0-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Здесь тысячи событий и имён</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Суздаль]]></description>
+      </offer>
+      <offer id="tour_0001137" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1137&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-sekreti-starih-masterov</url>
+        <price>4590</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/05/1747223700-20240425180756-4241b7c9-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Секреты старых мастеров</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Тула – Музей Оружия – Музей международного пряника]]></description>
+      </offer>
+      <offer id="tour_0002018" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2018&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-moskovskii-palatstso</url>
+        <price>2790</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762335730-20251008144958-3bf523e0-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Московский палаццо</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Особняк Тарасова – ул. Спиридоновка]]></description>
+      </offer>
+      <offer id="tour_0001099" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1099&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-hleb-ikra-pavlinii-hvost</url>
+        <price>6300</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1756885727-20250903103148-6a61eafb-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Хлеб, икра, павлиний хвост</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Серпухов – Алексин]]></description>
+      </offer>
+      <offer id="tour_0001098" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1098&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-karelskie-traditsii-i-sekreti-stekloduva</url>
+        <price>6300</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1753279933-20240529175911-d8c53313-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Карельские традиции и секреты стеклодува</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Толмачи – Медное (с обедом и кулинарным мастер-классом)]]></description>
+      </offer>
+      <offer id="tour_0001114" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1114&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-ulitka-krokodil-da-babya-dolya</url>
+        <price>5100</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/05/1747032611-20250507091433-cc9ac75b-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Улитка, крокодил да бабья доля</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Ферма «Экодеревушка» – Коломна]]></description>
+      </offer>
+      <offer id="tour_0001433" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1433&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-puteshestvie-po-globusu-borovska</url>
+        <price>3870</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/06/1749461628-20250514175205-1aa888c8-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Путешествие по Глобусу Боровска</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Боровск – Свято-Пафнутьев монастырь – Арт-музей «Тюремный замок»]]></description>
+      </offer>
+      <offer id="tour_0001161" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1161&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-hmelnoe-puteshestvie</url>
+        <price>3690</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/02/1738836578-20250124171613-a0c45875-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Хмельное путешествие</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Гуслицы – Егорьевск – Пивной ресторан «Шварцкайзер»]]></description>
+      </offer>
+      <offer id="tour_0001138" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1138&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-obiteli-i-sudbi</url>
+        <price>3990</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/05/1747033642-20250507094849-1f6e9d54-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Обители и судьбы</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Звенигород – Саввино-Сторожевский монастырь – Новый Иерусалим]]></description>
+      </offer>
+      <offer id="tour_0001278" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1278&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-dushi-lyubimii-ugolok</url>
+        <price>3990</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1751446198-20230920095602-b67e2bc9-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Души любимый уголок</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Поленово – Мелихово]]></description>
+      </offer>
+      <offer id="tour_0001242" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1242&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-divnie-zvuki-royalya</url>
+        <price>3470</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture></picture>
+        <vendor></vendor>
+        <model>Экскурсия · Дивные звуки рояля</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Музей-усадьба «Семья роялей»]]></description>
+      </offer>
+      <offer id="tour_0002020" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2020&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-formi-i-vkusi-moskva-s-italyanskim-aktsentom</url>
+        <price>4300</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761743999-20251008145025-cf6df2be-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Формы и вкусы. Москва с итальянским акцентом</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Итальянская кухня в Москве]]></description>
+      </offer>
+      <offer id="tour_0002087" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2087&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-po-druguyu-storonu-sadovogo-koltsa</url>
+        <price>1250</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761576955-20241011125639-c199959f-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · По другую сторону Садового кольца</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Московские дворы от Кудрина до Маяковки]]></description>
+      </offer>
+      <offer id="tour_0001144" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1144&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-priyut-iskusstv-i-vdohnovenya</url>
+        <price>4150</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1752247130-20220516142228-b5e12fdd-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Приют искусств и вдохновенья</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Абрамцево – Мураново]]></description>
+      </offer>
+      <offer id="tour_0001428" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1428&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-izraztsovie-chudesa-stolitsi</url>
+        <price>2800</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/06/1749462246-20250514103805-d35a3df1-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Изразцовые чудеса столицы</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Гончарная слобода – Крутицкое подворье – Замоскворечье – Андреевский монастырь]]></description>
+      </offer>
+      <offer id="tour_0001459" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1459&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-svyatini-zemli-rostovskoi</url>
+        <price>4390</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/06/1750686810-20250327135838-6f5bc8fb-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Святыни земли Ростовской</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Варницы – Борисоглеб – Годеново]]></description>
+      </offer>
+      <offer id="tour_0001175" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1175&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-vorota-zolotogo-koltsa</url>
+        <price>4290</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1752235514-20240523190706-d1c0a64b-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Ворота Золотого кольца</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Владимир – Боголюбово]]></description>
+      </offer>
+      <offer id="tour_0001465" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1465&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-v-poiskah-vizantii</url>
+        <price>3250</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761319894-20251024151208-14bbaf84-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · В поисках Византии</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Дмитров – Рогачёво – Белый Раст – Марфино – Николо-Пешношский монастырь]]></description>
+      </offer>
+      <offer id="tour_0001181" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1181&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-vkusnie-traditsii-tveri</url>
+        <price>5400</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/05/1747033294-20250507095232-b838c35d-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Вкусные традиции Твери</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Завидово – Тверь – Пивоварня «Афанасий»]]></description>
+      </offer>
+      <offer id="tour_0001260" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1260&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-ugoschayut-zemli-pereslavskie-da-petrovskie</url>
+        <price>5970</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/03/1743005055-20230515114828-79ea307f-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Угощают земли переславские да петровские</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Переславль-Залесский – Петровск – «Филимоново раздолье»]]></description>
+      </offer>
+      <offer id="tour_0001282" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1282&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-letit-nad-rzhevom-zhuravlinii-klin</url>
+        <price>4590</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1754657132-20231026153727-b9b3d332-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Летит над Ржевом журавлиный клин…</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Ржев – Мемориал советскому солдату]]></description>
+      </offer>
+      <offer id="tour_0001297" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1297&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-tver-gorodok-peterburga-ugolok</url>
+        <price>4090</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/05/1747041030-20240610141742-762b7227-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Тверь-городок – Петербурга уголок</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Тверь – Императорский путевой дворец]]></description>
+      </offer>
+      <offer id="tour_0001901" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1901&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-blesk-blagorodnih-metallov</url>
+        <price>4650</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1757674964-20250912125423-8e7ed42c-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Блеск благородных металлов</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Кольчугино – Покровский ювелирный завод]]></description>
+      </offer>
+      <offer id="tour_0002154" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2154&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-sekreti-pereulka-i-zagadki-odnogo-osobnyaka</url>
+        <price>2950</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762679325-20251030130130-2d5ded23-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Секреты переулка и загадки одного особняка</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Тверская – Козицкий переулок – Особняк Лобковой]]></description>
+      </offer>
+      <offer id="tour_0001732" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1732&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-zemlya-voinov-i-veri</url>
+        <price>3970</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/04/1743691364-20240212102041-7464d4f8-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Земля Воинов и Веры</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Волоколамск – Дубосеково – Иосифо-Волоцкий монастырь]]></description>
+      </offer>
+      <offer id="tour_0001471" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1471&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-kosmicheskaya-stolitsa-rossii-poehali</url>
+        <price>3930</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1737538346-20241025171131-c59064d1-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Космическая столица России. «Поехали!»</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Королёв – Музей Ракетно-Космической Корпорации «Энергия»]]></description>
+      </offer>
+      <offer id="tour_0001476" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1476&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-paradoks-istorii-a-gorki-chi</url>
+        <price>3690</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1737538167-20230821170909-f9e4809c-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Парадокс истории: а Горки чьи?</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Музей-усадьба «Горки Ленинские»]]></description>
+      </offer>
+      <offer id="tour_0002019" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2019&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-moskva-na-hod-nogi-18</url>
+        <price>4800</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761402269-20251008152020-7acca7fc-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Москва на ход ноги (18+)</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Питейные заведения Москвы (с дегустациями)]]></description>
+      </offer>
+      <offer id="tour_0002088" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2088&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-puteshestvie-k-istoku-neglinki</url>
+        <price>1250</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761657571-20251027134853-78b484d1-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Путешествие к истоку Неглинки</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Сущёво – Вышеславцево – Палиха]]></description>
+      </offer>
+      <offer id="tour_0001305" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1305&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-ritsar-serebryanogo-veka</url>
+        <price>3890</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1737631167-20230524172234-f04e0619-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Рыцарь Серебряного века</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Шахматово – Тараканово]]></description>
+      </offer>
+      <offer id="tour_0002081" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2081&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-taina-za-semyu-pechatyami</url>
+        <price>2290</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761649325-20251028121421-23553846-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Тайна за семью печатями</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Особняк Пономарёва – Арафелова на Знаменке]]></description>
+      </offer>
+      <offer id="tour_0001564" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1564&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-progulki-po-staroi-kaluge</url>
+        <price>3670</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1754466457-20230615181227-30874ff3-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Прогулки по старой Калуге</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Калуга]]></description>
+      </offer>
+      <offer id="tour_0001911" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1911&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-i-ya-tam-bil-myod-ya-pil-18</url>
+        <price>5890</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1756114986-20240130182953-7cf1a280-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · И я там был, мёд я пил (18+)</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Сергиев Посад – П-ня «Мануфактура 1858» – Музей брендов и дизайна упаковки – Музей русских напитков «Живая история»]]></description>
+      </offer>
+      <offer id="tour_0001163" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1163&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-sinie-uzori-rossii</url>
+        <price>3650</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1752239657-20240506230449-88b0105b-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Синие узоры России</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Гжель – Фарфоровая мануфактура «Галактика и Ко»]]></description>
+      </offer>
+      <offer id="tour_0001088" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1088&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-puteshestvie-po-dmitrovskomu-knyazhestvu</url>
+        <price>3470</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1755247775-20230524132400-c6eee261-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Путешествие по Дмитровскому княжеству</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Дмитров – Ильинское]]></description>
+      </offer>
+      <offer id="tour_0001199" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1199&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-i-budet-muzika-zvuchat</url>
+        <price>4270</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1754924042-20230514111122-427afd05-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · И будет музыка звучать</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Клин – Музей П.И. Чайковского – Демьяново]]></description>
+      </offer>
+      <offer id="tour_0001430" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1430&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-haski-ne-na-alyaske</url>
+        <price>2890</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1737554401-20240909145132-3052b5c8-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Хаски не на Аляске</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Питомник хаски «Северный»]]></description>
+      </offer>
+      <offer id="tour_0002015" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2015&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-ded-moroz-snegurochka-i-sekret-idealnogo-sirka</url>
+        <price>5390</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1759403460-20240627194856-22a04d14-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Дед Мороз, Снегурочка и секрет идеального сырка</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[РОСТАГРОЭКСПОРТ – Музей истории молока и глазированного сырка с посещением производства, новогодней программой и дегустацией]]></description>
+      </offer>
+      <offer id="tour_0002090" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2090&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-doroga-k-propavshim-prudam</url>
+        <price>1250</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762507866-20240802103645-07ef53a2-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Дорога к пропавшим прудам</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Сущёвский вал – Марьина роща]]></description>
+      </offer>
+      <offer id="tour_0001209" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1209&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-ya-posetil-rodimie-mesta</url>
+        <price>4470</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1760517604-20221027161638-23229198-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Я посетил родимые места</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Константиново – Иоанно-Богословский монастырь]]></description>
+      </offer>
+      <offer id="tour_0001097" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1097&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-v-tverskuyu-oblast-po-veleniyu-dushi-na-1-den</url>
+        <price>2800</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/02/1738935054-20230920162542-0b1577e4-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · В Тверскую область по велению души на 1 день</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Нилова пустынь – озеро Селигер]]></description>
+      </offer>
+      <offer id="tour_0001841" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1841&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-novogodnii-vihod-v-svet</url>
+        <price>2390</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1755674107-20240808101538-a204b27f-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Новогодний выход в свет</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва вечерняя]]></description>
+      </offer>
+      <offer id="tour_0002082" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2082&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-muzikalnaya-shkatulka</url>
+        <price>2350</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761559669-20250523102708-5804a71c-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Музыкальная шкатулка</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Усадьба Прове-Калиш – Новая Басманная – Сад им. Н. Баумана]]></description>
+      </offer>
+      <offer id="tour_0001180" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1180&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-lakovii-kusochek-podmoskovya</url>
+        <price>3690</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1752234516-20240513132805-8e2463ab-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Лаковый кусочек Подмосковья</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Жостово – Федоскино]]></description>
+      </offer>
+      <offer id="tour_0001385" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1385&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-novogodnyaya-odisseya-chaikovskogo</url>
+        <price>5270</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1737629007-20230514140830-58b54e43-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Новогодняя одиссея Чайковского</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Клин – Музей П.И Чайковского]]></description>
+      </offer>
+      <offer id="tour_0001378" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1378&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-zimnii-volshebnik-lumi-taikuri</url>
+        <price>6800</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1754485685-20240110183808-1872d5b6-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Зимний волшебник – Луми Тайкури</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Толмачи – Медное]]></description>
+      </offer>
+      <offer id="tour_0002091" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2091&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-pyat-sekretov-tryoh-gor</url>
+        <price>1250</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762507778-20241011141153-132de510-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Пять секретов Трёх гор</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Малая Грузинская – Верхняя Пресня]]></description>
+      </offer>
+      <offer id="tour_0001958" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1958&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-rozhdestvenskoe-puteshestvie</url>
+        <price>4690</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1760712386-20240130185033-5d1412c7-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Рождественское путешествие</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Коломна – Музей Пастилы – Музей «Калачная»]]></description>
+      </offer>
+      <offer id="tour_0001982" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1982&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-12-stulev-v-grecheskom-zale</url>
+        <price>2790</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761549479-20250925171210-460c782f-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · 12 стульев в греческом зале</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Особняк Стахеева на Новой Басманной]]></description>
+      </offer>
+      <offer id="tour_0002014" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2014&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-novogodnie-aromati-kolomni-dushistie-radosti-i-medovie-pryanosti</url>
+        <price>5990</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1759325025-20240626145734-43595892-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Новогодние ароматы Коломны: душистые радости и медовые пряности</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Коломна – Музей «Душистыя радости» - Музей «Тайны Коломенской медовуши» с мастер-классами и дегустацией медовых напитков]]></description>
+      </offer>
+      <offer id="tour_0002043" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2043&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-novogodnii-kulinarnii-kaleidoskop</url>
+        <price>7390</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1760707539-20251017162243-c63d6f8d-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Новогодний кулинарный калейдоскоп</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Переславль-Залесский – Петровск – «Филимоново раздолье»]]></description>
+      </offer>
+      <offer id="tour_0001918" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1918&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-k-dedu-morozu-za-mozhai</url>
+        <price>5800</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1756205539-20240701161135-f7b38b49-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · К Деду Морозу за Можай</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Можайск – Тушков городок – Спасо-Бородинский монастырь]]></description>
+      </offer>
+      <offer id="tour_0001966" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1966&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-svyatki-kolyadki-po-kupecheski</url>
+        <price>5570</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762347186-20231027171502-372ad651-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Святки-колядки по-купечески</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Александров – Александровская слобода – Усадьба купца Первушина]]></description>
+      </offer>
+      <offer id="tour_0001968" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1968&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-novogodnie-potehi-v-mishkinom-tsarstve-i-katskom-gosudarstve</url>
+        <price>6990</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1760538866-20251015173345-b133b22c-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Новогодние потехи в Мышкином царстве и Кацком государстве</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Мышкин – Дворец мыши – Этнографический музей кацкарей с новогодним спектаклем]]></description>
+      </offer>
+      <offer id="tour_0001288" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1288&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-poeziya-vkusa</url>
+        <price>5270</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/04/1743607417-20230707130644-078ba64f-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Поэзия вкуса</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Середниково (усадьба М.Ю. Лермонтова) – Жаворонки – Музей «Еда Руси» с обедом-дегустацией в музыкальном сопровождении]]></description>
+      </offer>
+      <offer id="tour_0002075" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2075&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-v-gosti-k-tverskoi-yaguse-novogodnee-priklyuchenie-v-kalyazine</url>
+        <price>6370</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761130401-20231026162016-0042fd38-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · В гости к Тверской Ягусе: новогоднее приключение в Калязине</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Калязин – Дом-резиденция Яги Тверской с развлекательной программой]]></description>
+      </offer>
+      <offer id="tour_0001370" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1370&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-puteshestvie-v-volshebstvo</url>
+        <price>5350</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1754487383-20231027123616-ce209b83-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Путешествие в волшебство</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Павловский Посад – Фабрика ёлочных игрушек «Иней»]]></description>
+      </offer>
+      <offer id="tour_0001916" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1916&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-novogodnie-traditsii-drevnei-rusi</url>
+        <price>5400</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1757938277-20250915145635-8f1c793d-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Новогодние традиции Древней Руси</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Кашин – Матино]]></description>
+      </offer>
+      <offer id="tour_0002017" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2017&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-fonari-krasnie-da-kvartali-opasnie</url>
+        <price>980</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761746295-20251029165540-5070c847-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Фонари красные да кварталы опасные</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Переулки Сретенки]]></description>
+      </offer>
+      <offer id="tour_0001124" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1124&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-mezh-dvuh-stolits-sredi-kanalov-i-mostov</url>
+        <price>5800</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1753272208-20221027141718-713963bc-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Меж двух столиц, среди каналов и мостов</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Вышний Волочёк]]></description>
+      </offer>
+      <offer id="tour_0001980" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1980&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-taini-bankovskogo-hranilischa</url>
+        <price>2190</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762344794-20250925180002-7378f1a8-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Тайны банковского хранилища</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Банковское хранилище начала ХХ века]]></description>
+      </offer>
+      <offer id="tour_0001967" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=196&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-kalach-i-kovrizhka-da-vpechatlenii-kubishka</url>
+        <price>5690</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1758452093-20240626145536-ceedd198-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Калач и коврижка, да впечатлений кубышка</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Зарайск – Коврижечная – Коломна – Музей «Калачная» с мастер-классом, чаепитием и дегустацией]]></description>
+      </offer>
+      <offer id="tour_0002092" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2092&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-vecher-pered-rozhdestvom</url>
+        <price>1250</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761735990-20240823114055-99b69a6a-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Вечер перед Рождеством</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Рождественка – Петровка – Рождественский бульвар]]></description>
+      </offer>
+      <offer id="tour_0001091" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1091&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-selo-vsehsvyatskoe-i-ego-obitateli</url>
+        <price>950</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1755524793-20250818164159-cca1dbb6-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Село Всехсвятское и его обитатели</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Посёлок Сокол – Храм Всех Святых во Всехсвятском – Мемориальный парк]]></description>
+      </offer>
+      <offer id="tour_0002093" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2093&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-ogni-bolshogo-goroda</url>
+        <price>1250</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761727000-20240110185423-478369a8-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Огни большого города</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Площадь Европы – Ростовская набережная – Смоленская набережная]]></description>
+      </offer>
+      <offer id="tour_0001170" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1170&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-bilet-v-detstvo</url>
+        <price>4750</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1752236105-20240514104607-233b5bce-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Билет в детство</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Богородская фабрика деревянной резьбы – Сергиев Посад – Музей советского детства]]></description>
+      </offer>
+      <offer id="tour_0002094" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2094&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-zimnie-istorii-dvuh-ermitazhei</url>
+        <price>1250</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761746686-20240111112531-5c805b8e-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Зимние истории двух Эрмитажей</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Малая Дмитровка – Каретный ряд – Божедомка]]></description>
+      </offer>
+      <offer id="tour_0001117" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1117&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-istoriya-v-stile-modern</url>
+        <price>4690</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/02/1738850049-20230608103011-267d6232-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · История в стиле модерн</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Ногинск – Дом-музей А. Морозова]]></description>
+      </offer>
+      <offer id="tour_0001200" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1200&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-istoriya-so-vkusom</url>
+        <price>4690</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/05/1747042573-20230710123540-986c3f37-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · История со вкусом</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Коломна – Музей Пастилы – Музей «Калачная»]]></description>
+      </offer>
+      <offer id="tour_0002095" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2095&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-pyatnadtsat-dvorov-u-pokrovskih-vorot</url>
+        <price>1250</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761751306-20251028115058-0c14be5e-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Пятнадцать дворов у Покровских ворот</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Покровка – Бараши – Казенная слобода]]></description>
+      </offer>
+      <offer id="tour_0002110" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2110&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-drugaya-taganka-ot-krasnogo-holma-do-zemlyanki</url>
+        <price>1250</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762515402-20240823104842-59707977-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Другая Таганка – от Красного холма до Землянки</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Красный холм – Швивая горка – Котельнические переулки]]></description>
+      </offer>
+      <offer id="tour_0002079" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2079&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-postoronnim-vhod-vospreschen-no-dobro-pozhalovat</url>
+        <price>1990</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761233277-20230606114958-d3ccd7e3-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Посторонним вход воспрещен, но добро пожаловать!</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Музей истории Тимирязевской академии]]></description>
+      </offer>
+      <offer id="tour_0001235" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1235&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-za-mozhai-po-dobroi-vole</url>
+        <price>3600</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1751466295-20240701161152-79afe8a8-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · За Можай по доброй воле!</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Можайск – Верея – Тушков городок]]></description>
+      </offer>
+      <offer id="tour_0001192" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1192&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-den-ozhivshih-skazov-i-bilin</url>
+        <price>4800</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/01/1738334369-20230821162939-c704ecfe-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · День оживших сказов и былин</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Кашин – Матино]]></description>
+      </offer>
+      <offer id="tour_0001839" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1839&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-elizaveti-i-sofi-dmitrovskogo-kraya</url>
+        <price>4150</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1752498766-20230615181236-3560b744-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Елизаветы и Софьи Дмитровского края</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Дмитров – Виноградово – Марфино – Ильинское]]></description>
+      </offer>
+      <offer id="tour_0001429" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1429&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-zabavnie-vstrechi-i-katskie-rechi</url>
+        <price>6190</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/05/1747231138-20230713112650-2402b54a-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Забавные встречи и кацкие речи</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Мышкин – Мартыново]]></description>
+      </offer>
+      <offer id="tour_0001754" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1754&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-mal-mala-menshe</url>
+        <price>4100</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/04/1744289215-20250314175755-08cbcb5c-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Мал мала меньше</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Чекалин – Одоев – Спас на Угре]]></description>
+      </offer>
+      <offer id="tour_0001092" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1092&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-krai-biryuzovoi-vodi</url>
+        <price>4600</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/02/1738939597-20230615181232-df936bef-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Край бирюзовой воды</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Кондуки – Романцевские горы – Венёв]]></description>
+      </offer>
+      <offer id="tour_0002084" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2084&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-istoriya-novinok-i-kocherizhek</url>
+        <price>1250</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761564358-20240807153134-0710fb7d-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · История Новинок и Кочерыжек</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Новинская слобода – Девятинский переулок]]></description>
+      </offer>
+      <offer id="tour_0002085" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2085&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=ekskursiya-vspole-u-nikitskih-vorot</url>
+        <price>1250</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761571421-20251020151054-d5d1454b-md.jpg</picture>
+        <vendor></vendor>
+        <model>Экскурсия · Всполье у Никитских ворот</model>
+        <param name="Дней"><![CDATA[1]]></param>
+        <description><![CDATA[Москва. Всполье – Большая Никитская]]></description>
+      </offer>
+      <offer id="tour_0001648" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1648&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-ognennii-marshrut-14</url>
+        <price>23900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1754312767-20250317134004-67156b3e-md.jpg</picture>
+        <vendor>Турфирма «Турфирма «Вокруг света»»</vendor>
+        <model>Тур на 2 дня · Огненный маршрут (14+)</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Гутные промыслы Владимирского края – «железные короли» Выксы]]></description>
+      </offer>
+      <offer id="tour_000132755" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1327&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-kostroma-dlya-dushi-i-dlya-uma</url>
+        <price>14900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/03/1743063687-20230514144353-3ef5a1a0-md.jpg</picture>
+        <vendor>Турфирма «Турфирма «Вокруг света»»</vendor>
+        <model>Тур на 2 дня · Кострома – для души и для ума</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Кострома (проезд ж/д экспресс)]]></description>
+      </offer>
+      <offer id="tour_0006073" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=603&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-dlya-vlyublyonnih-v-kostromu</url>
+        <price>18900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/03/1741360206-20240220150056-6450c4af-md.jpg</picture>
+        <vendor>Турфирма «Турфирма «Вокруг света»»</vendor>
+        <model>Тур на 3 дня · Для влюблённых в Кострому</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Кострома – Лосеферма – Терем Снегурочки (проезд ж/д экспресс)]]></description>
+      </offer>
+      <offer id="tour_00013362" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1332&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-klassicheskaya-kostroma</url>
+        <price>14900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1754646447-20240220150056-6450c4af-md.jpg</picture>
+        <vendor>Турфирма «Турфирма «Вокруг света»»</vendor>
+        <model>Тур на 2 дня · Классическая Кострома</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Кострома – Лосеферма – Терем Снегурочки (проезд ж/д экспресс)]]></description>
+      </offer>
+      <offer id="tour_00013562" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1352&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-usadebnii-mir-tambovschini</url>
+        <price>22900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/06/1750429285-20240410120638-69605f7a-md.jpg</picture>
+        <vendor>Турфирма «Турфирма «Вокруг света»»</vendor>
+        <model>Тур на 3 дня · Усадебный мир Тамбовщины</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Тамбов – Ивановка (усадьба С. Рахманинова) – Мичуринск]]></description>
+      </offer>
+      <offer id="tour_0001443" type="vendor.model" available="true"> 
+        <url>https://vs-travel.ru/tour?id=1443&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-v-poiskah-otkritii</url>
+        <price>29900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/02/1739435727-20240828130954-fc55d689-md.jpg</picture>
+        <vendor>Турфирма «Турфирма «Вокруг света»»</vendor>
+        <model>Тур на 3 дня · В поисках открытий</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Липецк – Сафари в природном парке «Олений» – частная винодельня – усадьба Лосевых-Шатиловых-Сталь фон Гольштейн – Елец (14+)]]></description>
+      </offer>
+      <offer id="tour_00013221" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1321&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-4-dnya-yuzhnii-dagestan-zhdyot</url>
+        <price>42900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2024/06/1717593843-20230607141828-ea3c41d9-md.jpg</picture>
+        <vendor>Турфирма «Турфирма «Вокруг света»»</vendor>
+        <model>Тур на 4 дня · Южный Дагестан ждёт</model>
+        <param name="Дней"><![CDATA[4]]></param>
+        <description><![CDATA[Дербент – село Хучни – село Тпиг – село Чираг – Безымянный каньон – Сулак – Чиркейское водохранилище – пещеры Нохъо]]></description>
+      </offer>
+      <offer id="tour_0001315" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1315&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-vkusnie-traditsii-tveri-2-dnya</url>
+        <price>16900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1751374183-20230615121245-d09a2c17-md.jpg</picture>
+        <vendor>Турфирма «Турфирма «Вокруг света»»</vendor>
+        <model>Тур на 2 дня · Вкусные традиции Твери (2 дня)</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Завидово – Тверь – Пивоварня «Афанасий» – Императорский путевой дворец – Николо-Малицкий монастырь]]></description>
+      </offer>
+      <offer id="tour_0001391" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1391&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-spletenie-epoh</url>
+        <price>12400</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762499337-20241128110721-b4c913c5-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Сплетение эпох</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Ржев – Старица – Берново – Красное]]></description>
+      </offer>
+      <offer id="tour_0001326" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1326&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-vihodnie-na-gosudarevoi-doroge</url>
+        <price>15900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1751358492-20240610141742-762b7227-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Выходные на Государевой дороге</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Середниково – Солнечногорск – Шахматово – Клин – Тверь]]></description>
+      </offer>
+      <offer id="tour_00013451" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1351&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-zhizn-kak-iskusstvo</url>
+        <price>17900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/06/1750433016-20240111154617-5b347d6f-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Жизнь как искусство</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Мичуринск (с посещением театра, выставки офортов и гастрономическим обедом)]]></description>
+      </offer>
+      <offer id="tour_00013543" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1353&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-talanti-tambovskoi-zemli</url>
+        <price>15990</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/06/1750428960-20240822125749-1eb51aa2-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Таланты тамбовской земли</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Тамбов – Ивановка (усадьба С. Рахманинова) – Мичуринск]]></description>
+      </offer>
+      <offer id="tour_0001360" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1360&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-literaturnie-istorii</url>
+        <price>14900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/06/1750423489-20240411145638-1244ec55-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Литературные истории</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Орёл – Музей коллекционных кукол – Спасское-Лутовиново]]></description>
+      </offer>
+      <offer id="tour_0009984" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=984&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-na-krai-zemli</url>
+        <price>47500</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1755250196-20250110140416-6d9f1fc5-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · На край земли</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Мурманск – Териберка – Саамская деревня]]></description>
+      </offer>
+      <offer id="tour_0001337" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1337&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-formula-udachnih-vihodnih</url>
+        <price>14900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/06/1750686891-20230515114828-79ea307f-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Формула удачных выходных</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Ярославль – Карабиха – Филимоново Раздолье]]></description>
+      </offer>
+      <offer id="tour_0001095" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1095&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-v-tverskuyu-oblast-po-veleniyu-dushi</url>
+        <price>19900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762498871-20230615121251-bae0126b-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · В Тверскую область по велению души</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Тверь – Нилова Пустынь – Торжок – Старица]]></description>
+      </offer>
+      <offer id="tour_0001335" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1335&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-na-volzhskih-beregah</url>
+        <price>14900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/02/1739539884-20230609100845-ac4321e3-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · На Волжских берегах</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Рыбинск – Тутаев]]></description>
+      </offer>
+      <offer id="tour_00017789" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1789&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-4-dnya-novii-god-v-kostrome-4-dnya</url>
+        <price>39900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762625955-20250903123904-110fd84a-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 4 дня · Новый год в Костроме, 4 дня</model>
+        <param name="Дней"><![CDATA[4]]></param>
+        <description><![CDATA[Кострома – Терем Снегурочки – Лосеферма – Нерехта – Фабрика Мороза-Мастера в Лаврово]]></description>
+      </offer>
+      <offer id="tour_000194880" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1940&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-5-dnei-novii-god-pod-palmami</url>
+        <price>57200</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1757325623-20230810145727-ecf018cb-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 5 дней · Новый год под пальмами</model>
+        <param name="Дней"><![CDATA[5]]></param>
+        <description><![CDATA[Сочи – Красная поляна – сафари к Джегошским водопадам – зажигательное кавказское шоу]]></description>
+      </offer>
+      <offer id="tour_0001787" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1787&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-novogodnyaya-kostroma-3-dnya</url>
+        <price>26900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762626805-20240115142010-f3093c27-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Новогодняя Кострома, 3 дня</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Кострома – Терем Снегурочки – Лосеферма (проезд ж/д экспресс)]]></description>
+      </offer>
+      <offer id="tour_0001115" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1115&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-novii-god-v-dver-a-mi-v-tver</url>
+        <price>19900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1755243789-20230615121246-aee6b26c-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Новый год в дверь, а мы в Тверь</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Тверь – Пивоварня «Афанасий» – Экоферма «Ивановка»]]></description>
+      </offer>
+      <offer id="tour_0001785" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1785&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-novii-god-v-tveri</url>
+        <price>26700</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/05/1747646701-20230615121254-c1a421b4-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Новый год в Твери</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Тверь – Пивоварня «Афанасий» – Экоферма «Ивановка»]]></description>
+      </offer>
+      <offer id="tour_0001788" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1788&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-novii-god-v-kostrome-3-dnya</url>
+        <price>34900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762626340-20230810150958-fded2bda-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Новый год в Костроме, 3 дня</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Кострома – Терем Снегурочки – Лосеферма – Нерехта – Фабрика Мороза-Мастера в Лаврово]]></description>
+      </offer>
+      <offer id="tour_0001786" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1786&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-novogodnie-snezhinki-ribinska</url>
+        <price>33900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762524644-20230810175940-b42c5e80-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Новогодние снежинки Рыбинска</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Рыбинск – Тутаев – Петровск]]></description>
+      </offer>
+      <offer id="tour_0001758" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1758&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-novogodnyaya-tambovschina</url>
+        <price>31900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1754290241-20241002165647-76a2e223-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Новогодняя Тамбовщина</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Тамбов – пикник в Сосновке – Ивановка]]></description>
+      </offer>
+      <offer id="tour_0001791" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1791&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-novii-god-v-aleksandrove</url>
+        <price>18900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1760541030-20230810175940-b42c5e80-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Новый год в Александрове</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Александров – Переславль-Залесский]]></description>
+      </offer>
+      <offer id="tour_0001792" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1792&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-novii-god-v-strane-vihlyandii</url>
+        <price>29900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/05/1747912615-20241030145019-ee2b407c-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Новый год в стране Вихляндии</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Калуга – Этномир – Вихляндия]]></description>
+      </offer>
+      <offer id="tour_0001794" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1794&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-ryazan-novogodnyaya-stolitsa-rossii</url>
+        <price>35900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/08/1755867177-20240130185427-6c6535f4-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Рязань – Новогодняя столица России</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Рязань – Солотча – Парк «В некотором царстве»]]></description>
+      </offer>
+      <offer id="tour_0002028" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2028&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-novogodnie-chudesa-v-zemlyah-pridonya</url>
+        <price>29900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1760104241-20250926143649-25812235-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Новогодние чудеса в землях Придонья</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Липецк – Венёв – Елец – частная винодельня семьи Кулешовых – Лебедянь – Баловнево – Данков – сыродельня «Сыр-Бор-Масловка»]]></description>
+      </offer>
+      <offer id="tour_0002080" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2080&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-novii-god-v-kasimove-skazki-narodov-mira</url>
+        <price>31900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762354096-20241002162314-4ec17604-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Новый год в Касимове. Сказки народов мира</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Касимов – Рыбная феерия от Бабы Гали Ершистой – Татарский колорит и Русский самовар]]></description>
+      </offer>
+      <offer id="tour_0001334" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1334&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-zemlya-erzya</url>
+        <price>25400</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762537422-20240403223200-d26c4e7b-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Земля Эрзя</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Арзамас – Саранск – Выездное]]></description>
+      </offer>
+      <offer id="tour_0001349" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1349&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-istorii-pridonya</url>
+        <price>28900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/06/1750682040-20240418163116-7e62787f-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Истории Придонья</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Богородицк – Куликово поле – Воронеж – Замок принцессы Ольденбургской – Задонск – Елец]]></description>
+      </offer>
+      <offer id="tour_0001941" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1941&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-5-dnei-sochi-i-ego-okrestnosti</url>
+        <price>42900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1757337668-20240226123336-8639b1d4-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 5 дней · Сочи и его окрестности</model>
+        <param name="Дней"><![CDATA[5]]></param>
+        <description><![CDATA[Сочи – Красная поляна – Сафари к Джегошским водопадам]]></description>
+      </offer>
+      <offer id="tour_00019420000" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1942&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-8-dnei-znakomtes-eto-sochi</url>
+        <price>62300</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1757341287-20240226123336-9271056a-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 8 дней · Знакомьтесь – это Сочи</model>
+        <param name="Дней"><![CDATA[8]]></param>
+        <description><![CDATA[Сочи – Олимпийский парк – Дача Сталина и Агурское ущелье – Красная поляна – Сафари к Джегошским водопадам]]></description>
+      </offer>
+      <offer id="tour_0001944" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1944&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-tri-usadbi-tri-sudbi</url>
+        <price>29900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762347357-20250917144611-07f96033-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Три усадьбы – три судьбы</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Тамбов – Ивановка (усадьба С. Рахманинова) – Мичуринск]]></description>
+      </offer>
+      <offer id="tour_0001079555" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1079&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-4-dnya-v-sibir-po-svoei-vole</url>
+        <price>32400</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/03/1741877944-20230514180050-680a1efe-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 4 дня · В Сибирь по своей воле</model>
+        <param name="Дней"><![CDATA[4]]></param>
+        <description><![CDATA[Тюмень – Тобольск – Абалак – с. Покровское]]></description>
+      </offer>
+      <offer id="tour_0001406" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1406&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-hleb-sol-zemli-lipetskoi</url>
+        <price>29900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/06/1749477859-20240828133858-68c2e970-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Хлеб-соль земли липецкой</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Липецк – Венёв – Данков – Баловнёво – Лебедянь – усадьба Скорняково-Архангельское – частная винодельня – пекарня «Guten Tag» – станция Лев Толстой – сыродельня «Сыр-Бор-Масловка»]]></description>
+      </offer>
+      <offer id="tour_0001444" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1444&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-4-dnya-bolshoe-tverskoe-puteshestvie</url>
+        <price>38900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/02/1739435315-20230428153107-543b77d5-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 4 дня · Большое Тверское путешествие</model>
+        <param name="Дней"><![CDATA[4]]></param>
+        <description><![CDATA[Завидово – Тверь – Пивоварня «Афанасий» – Императорский путевой дворец – Николо-Малицкий монастырь – Ржев – Старица – Берново – Красное]]></description>
+      </offer>
+      <offer id="tour_000889898" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1366&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-ulyotnii-krai</url>
+        <price>24900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/03/1742395003-20240410190531-1153a0d7-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · УлЁтный край</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Ульяновск – Ундоры]]></description>
+      </offer>
+      <offer id="tour_0001371" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1371&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-pod-zvuki-parovoznogo-gudka</url>
+        <price>16800</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/06/1750412039-20240529105556-1d6035de-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Под звуки паровозного гудка</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Толмачи – Вышний Волочёк – Бологое – Куженкино – Осташков – Нилова пустынь, с переездом на ретропоезде «Селигер»]]></description>
+      </offer>
+      <offer id="tour_000109089" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1103&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-teni-ingermanlandii</url>
+        <price>18900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1753278367-20250317095737-03b65651-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Тени Ингерманландии</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Копорье – Вистино – Ивангород – Кингисепп – Губаницы – Скворицы]]></description>
+      </offer>
+      <offer id="tour_00013697787" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1369&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-dve-ladogi-i-odin-tihvin</url>
+        <price>28600</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/03/1742393779-20240112105233-fe9b8c86-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Две Ладоги и один Тихвин</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Тихвин – Шлиссельбург – Новая Ладога – Старая Ладога – Богословка]]></description>
+      </offer>
+      <offer id="tour_00019766666" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1976&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-5-dnei-sibirskie-vladeniya-deda-moroza</url>
+        <price>45700</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/09/1758642904-20230930102134-a3e511f3-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 5 дней · Сибирские владения Деда Мороза</model>
+        <param name="Дней"><![CDATA[5]]></param>
+        <description><![CDATA[Омск – Большеречье – Азово]]></description>
+      </offer>
+      <offer id="tour_0001131" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1131&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-plenitelnii-mir-russkoi-provintsii</url>
+        <price>17900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/02/1739889200-20230615181243-b017a7bd-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Пленительный мир русской провинции</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Тула – Подмоклово – Орёл – Спасское-Лутовиново]]></description>
+      </offer>
+      <offer id="tour_0001442" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1442&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-o-muromskih-bogatiryah-i-tatarskih-tsaritsah</url>
+        <price>16200</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761310797-20230727105419-97c9953f-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · О муромских богатырях и татарских царицах</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Муром – Касимов]]></description>
+      </offer>
+      <offer id="tour_0002050" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2050&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-raznoobrazie-vkusov-verhnevolzhya</url>
+        <price>18900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762327885-20230615121246-aee6b26c-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Разнообразие вкусов Верхневолжья</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Тверь – Лихославль – Конаково]]></description>
+      </offer>
+      <offer id="tour_000131989898" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1319&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-sokrovischa-donskih-stepei</url>
+        <price>24400</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2024/06/1717511304-20230517180736-b6d3eee9-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Сокровища донских степей</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Ростов-на-Дону – Азов – Старочеркасск – Новочеркасск – Таганрог]]></description>
+      </offer>
+      <offer id="tour_0001440" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1440&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-ohota-za-vpechatleniyami</url>
+        <price>28900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/05/1748445050-20240828130922-7f7c0859-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Охота за впечатлениями</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Сафари в природном парке «Олений» – курортный Липецк – частная винодельня – в гости к Нойфельдам: пекарня «Guten Tag»]]></description>
+      </offer>
+      <offer id="tour_0002042" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2042&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-skazki-zimnei-kostromi</url>
+        <price>30900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762627045-20230920203959-616d956c-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Сказки зимней Костромы</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Кострома – Щелыково – Нерехта]]></description>
+      </offer>
+      <offer id="tour_000740777" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=740&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-4-dnya-zhivaya-voda-kavkaza</url>
+        <price>35900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/03/1741871740-20240925181643-4732e775-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 4 дня · Живая вода Кавказа</model>
+        <param name="Дней"><![CDATA[4]]></param>
+        <description><![CDATA[Железноводск – Эльбрус – Чегет – Голубое озеро – источники Аушигер – Верхняя Балкария – Медовые водопады – Кисловодск]]></description>
+      </offer>
+      <offer id="tour_0001133" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1133&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-dorogoi-slavnih-del</url>
+        <price>28900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1753105955-20230710084724-3c9d4d31-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Дорогой славных дел</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Богородицк – Куликово поле – Воронеж – Дивногорье – замок принцессы Ольденбургской в Рамони – Задонск – Елец]]></description>
+      </offer>
+      <offer id="tour_0001128" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1128&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-6-dnei-gosudareva-doroga-bolshoe-puteshestvie</url>
+        <price>53900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/07/1753265493-20240320130504-09b4fd60-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 6 дней · Государева дорога. Большое путешествие</model>
+        <param name="Дней"><![CDATA[6]]></param>
+        <description><![CDATA[Шахматово – Клин – Тверь – Торжок – Знаменское-Раёк – Василёво – Валдай – Крестцы – Великий Новгород – Тосно – Гатчина]]></description>
+      </offer>
+      <offer id="tour_0001489" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1489&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-gosudareva-doroga-ot-moskvi-do-torzhka</url>
+        <price>26900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/05/1748005483-20241014131944-6074e861-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Государева дорога. От Москвы до Торжка</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Москва – Шахматово – Клин – Тверь – Знаменское-Раёк – Василёво – Торжок]]></description>
+      </offer>
+      <offer id="tour_0001447" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1447&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-gosudareva-doroga-2-dnya</url>
+        <price>15900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/02/1739271665-20230514140832-54bb9d95-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Государева дорога, 2 дня</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Шахматово – Клин – Тверь]]></description>
+      </offer>
+      <offer id="tour_0001129" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1129&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-4-dnya-gosudareva-doroga-4-dnya</url>
+        <price>35900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762534871-20230523103832-9147dbe8-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 4 дня · Государева дорога, 4 дня</model>
+        <param name="Дней"><![CDATA[4]]></param>
+        <description><![CDATA[Торжок – Знаменское-Раёк – Василёво – Вышний Волочёк – Валдай – Крестцы – Великий Новгород – Тосно – Гатчина]]></description>
+      </offer>
+      <offer id="tour_0001490" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1490&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-gosudareva-doroga-ot-volochka-do-peterburga</url>
+        <price>26400</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/05/1747991612-20230927153605-621b8777-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Государева дорога. От Волочка до Петербурга</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Вышний Волочёк – Валдай – Крестцы – Великий Новгород – Тосно – Гатчина – Санкт-Петербург]]></description>
+      </offer>
+      <offer id="tour_0001638" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1638&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-3-dnya-pro-pushkina-i-ne-tolko</url>
+        <price>25900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/03/1741356054-20250210104608-16b14bfd-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 3 дня · Про Пушкина и не только</model>
+        <param name="Дней"><![CDATA[3]]></param>
+        <description><![CDATA[Арзамас – Болдино – Дивеево]]></description>
+      </offer>
+      <offer id="tour_0001644" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1644&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-garmoniya-vodi-i-vetra</url>
+        <price>18500</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/05/1747644693-20250314143748-be86d52f-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Гармония воды и ветра</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Рыбинск – Тутаев]]></description>
+      </offer>
+      <offer id="tour_0001135" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1135&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-vladimirskoe-koltso</url>
+        <price>17900</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/11/1762517572-20221027143645-3e3e1c3a-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Владимирское кольцо</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Владимир – Муромцево (замок Храповицкого) – Дюкинский карьер – Судогодский гейзер – Орехово (музей-усадьба Н.Е. Жуковского)]]></description>
+      </offer>
+      <offer id="tour_00015968888" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=1596&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-4-dnya-ot-ladozhskih-shher-do-stolitsi-varyazhskih-zemel</url>
+        <price>42500</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/05/1747656252-20250219125716-54a77c71-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 4 дня · От ладожских шхер до столицы варяжских земель</model>
+        <param name="Дней"><![CDATA[4]]></param>
+        <description><![CDATA[Лахденпохья – Берёзово – Приозерск – Лосево – Выборг – Сваргас – Усадьба Киискиля – Зеленогорск]]></description>
+      </offer>
+      <offer id="tour_00020897878" type="vendor.model" available="true">
+        <url>https://vs-travel.ru/tour?id=2089&amp;utm_source=yandex&amp;utm_medium=yandex-biz&amp;utm_term=tur-na-2-dnya-vozrozhdyonnoe-nasledie-sankt-peterburga</url>
+        <price>22860</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://vs-travel.ru/tourimages/2025/10/1761737876-20251009122426-494e6bd3-md.jpg</picture>
+        <vendor></vendor>
+        <model>Тур на 2 дня · Возрождённое наследие Санкт-Петербурга</model>
+        <param name="Дней"><![CDATA[2]]></param>
+        <description><![CDATA[Санкт-Петербург – Павловск – Рождествено]]></description>
+      </offer>
+    </offers>
+  </shop>
+</yml_catalog>

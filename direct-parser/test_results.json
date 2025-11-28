@@ -1,0 +1,15 @@
+{
+  "query": "туры по россии",
+  "url": "https://yandex.ru/search/?text=%D1%82%D1%83%D1%80%D1%8B%20%D0%BF%D0%BE%20%D1%80%D0%BE%D1%81%D1%81%D0%B8%D0%B8&lr=213",
+  "selectors_results": {
+    "li.serp-item": 23,
+    "div.Organic": 23,
+    "div.VanillaReact": 25,
+    "[data-cid]": 23,
+    ".serp-item": 23,
+    "div[class*='Organic']": 166,
+    "div[class*='serp']": 3
+  },
+  "total_elements": 286,
+  "page_title": "туры по россии — Яндекс: нашлось 2 млн результатов"
+}
