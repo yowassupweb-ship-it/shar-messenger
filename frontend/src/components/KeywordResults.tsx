@@ -7,6 +7,7 @@ import { AIAnalysis } from './AIAnalysis'
 import DynamicsChart from './DynamicsChart'
 import { Download, X } from 'lucide-react'
 import { useBodyScrollLock } from '@/hooks'
+import { Portal } from './Portal'
 
 interface KeywordResultsProps {
   results: TopRequestsResponse | null
@@ -134,14 +135,7 @@ export function KeywordResults({ results, onExport, dynamicsPeriod }: KeywordRes
 
   return (
     <div className="space-y-6">
-      {/* Dynamics Chart */}
-      {dynamics && dynamics.length > 0 && (
-        <DynamicsChart 
-          data={dynamics} 
-          phrase={requestPhrase}
-          period={dynamicsPeriod || 'monthly'}
-        />
-      )}
+      {/* График динамики убран - он показывается на отдельной вкладке Динамика */}
 
       <div className="glass-card p-4">
       <div className="flex justify-between items-center mb-3">
@@ -225,45 +219,44 @@ export function KeywordResults({ results, onExport, dynamicsPeriod }: KeywordRes
 
       {/* Export Modal */}
       {showExportModal && (
-        <div 
-          className="fixed inset-0 z-[9999] flex items-center justify-center"
-          style={{ 
-            backgroundColor: 'rgba(0, 0, 0, 0.85)',
-            backdropFilter: 'blur(8px)'
-          }}
-          onClick={(e) => e.target === e.currentTarget && setShowExportModal(false)}
-        >
+        <Portal>
           <div 
-            className="w-full h-full md:w-[90vw] md:h-[90vh] md:max-w-4xl md:rounded-xl border overflow-hidden flex flex-col"
-            style={{
-              background: 'var(--glass-bg-card)',
-              borderColor: 'var(--glass-border)',
-              backdropFilter: 'blur(16px)',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)'
+            className="fixed inset-0 z-[9999] flex items-center justify-center"
+            style={{ 
+              backgroundColor: 'rgba(0, 0, 0, 0.85)',
+              backdropFilter: 'blur(8px)'
             }}
+            onClick={(e) => e.target === e.currentTarget && setShowExportModal(false)}
           >
-            {/* Header */}
-            <div className="flex-shrink-0 flex items-center justify-between p-6 border-b border-opacity-10">
-              <h3 className="text-lg font-semibold" style={{ color: 'var(--glass-text-primary)' }}>
-                Выберите данные для экспорта
-              </h3>
-              <button
-                onClick={() => setShowExportModal(false)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-opacity-10 transition-colors"
-                style={{ color: 'var(--glass-text-secondary)' }}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            <div 
+              className="w-full h-full md:w-[90vw] md:h-[90vh] md:max-w-4xl md:rounded-xl border overflow-hidden flex flex-col"
+              style={{
+                background: 'var(--glass-bg-card, #1a1a2e)',
+                borderColor: 'var(--glass-border, #333)',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)'
+              }}
+            >
+              {/* Header */}
+              <div className="flex-shrink-0 flex items-center justify-between p-6 border-b border-opacity-10">
+                <h3 className="text-lg font-semibold" style={{ color: 'var(--glass-text-primary)' }}>
+                  Выберите данные для экспорта
+                </h3>
+                <button
+                  onClick={() => setShowExportModal(false)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-opacity-10 transition-colors"
+                  style={{ color: 'var(--glass-text-secondary)' }}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-            {/* Controls */}
-            {/* Controls */}
-            <div className="flex-shrink-0 p-4 border-b border-opacity-10">
-              <div className="flex items-center justify-between">
-                <div className="text-sm" style={{ color: 'var(--glass-text-secondary)' }}>
-                  Выбрано: {selectedItems.size} из {allItems.length}
-                </div>
-                <div className="flex gap-2">
+              {/* Controls */}
+              <div className="flex-shrink-0 p-4 border-b border-opacity-10">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm" style={{ color: 'var(--glass-text-secondary)' }}>
+                    Выбрано: {selectedItems.size} из {allItems.length}
+                  </div>
+                  <div className="flex gap-2">
                   <button
                     onClick={selectAll}
                     className="glass-button px-3 py-1 text-sm"
@@ -383,8 +376,9 @@ export function KeywordResults({ results, onExport, dynamicsPeriod }: KeywordRes
                 </button>
               </div>
             </div>
+            </div>
           </div>
-        </div>
+        </Portal>
       )}
       </div>
     </div>

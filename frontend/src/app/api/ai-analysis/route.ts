@@ -10,12 +10,24 @@ interface Message {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { message, context, history } = body
+    // Поддерживаем оба формата: {message, context, history} и {keywords, prompt}
+    const { message, context, history, keywords, prompt } = body
 
     // Получаем API ключ из database.json
     const dbPath = getDbPath()
-    const dbContent = fs.readFileSync(dbPath, 'utf-8')
-    const data = JSON.parse(dbContent)
+    let dbContent: string
+    let data: any
+    
+    try {
+      dbContent = fs.readFileSync(dbPath, 'utf-8')
+      data = JSON.parse(dbContent)
+    } catch (err) {
+      console.error('Error reading database:', err, 'Path:', dbPath)
+      return NextResponse.json(
+        { error: 'Не удалось прочитать настройки' },
+        { status: 500 }
+      )
+    }
 
     const apiKey = process.env.DEEPSEEK_API_KEY || data.settings?.deepseekApiKey
     
@@ -39,29 +51,42 @@ export async function POST(request: Request) {
       }
     ]
 
-    // Добавляем контекст если есть
-    if (context) {
+    // Если передан keywords+prompt формат (из AIAnalysis компонента)
+    if (keywords && prompt) {
+      const keywordsList = Array.isArray(keywords) ? keywords.join(', ') : keywords
       messages.push({
-        role: 'system',
-        content: `Контекст текущей сессии: ${context}`
+        role: 'user',
+        content: `${prompt}\n\nКлючевые слова для анализа:\n${keywordsList}`
       })
-    }
-
-    // Добавляем историю сообщений
-    if (Array.isArray(history) && history.length > 0) {
-      history.forEach((msg: Message) => {
+    } else {
+      // Стандартный формат с message, context, history
+      
+      // Добавляем контекст если есть
+      if (context) {
         messages.push({
-          role: msg.role,
-          content: msg.content
+          role: 'system',
+          content: `Контекст текущей сессии: ${context}`
         })
-      })
-    }
+      }
 
-    // Добавляем новое сообщение пользователя
-    messages.push({
-      role: 'user',
-      content: message
-    })
+      // Добавляем историю сообщений
+      if (Array.isArray(history) && history.length > 0) {
+        history.forEach((msg: Message) => {
+          messages.push({
+            role: msg.role,
+            content: msg.content
+          })
+        })
+      }
+
+      // Добавляем новое сообщение пользователя
+      if (message) {
+        messages.push({
+          role: 'user',
+          content: message
+        })
+      }
+    }
 
     // Вызываем Deepseek API
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
@@ -90,8 +115,10 @@ export async function POST(request: Request) {
     const result = await response.json()
     const aiResponse = result.choices?.[0]?.message?.content || 'Не удалось получить ответ'
 
+    // Возвращаем в обоих форматах для совместимости
     return NextResponse.json({
-      response: aiResponse
+      response: aiResponse,
+      analysis: aiResponse
     })
   } catch (error) {
     console.error('Error in AI analysis:', error)
