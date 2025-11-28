@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { KeywordSearch, SearchOptions } from '@/components/KeywordSearch'
@@ -20,7 +20,7 @@ import '../slovolov-styles.css'
 
 type Tab = 'search' | 'dynamics' | 'regions' | 'settings'
 
-export default function WordcatcherPage() {
+function WordcatcherContent() {
   const searchParams = useSearchParams()
   const tabParam = searchParams.get('tab') as Tab | null
   const [activeTab, setActiveTab] = useState<Tab>(tabParam || 'search')
@@ -284,5 +284,13 @@ export default function WordcatcherPage() {
       </footer>
       </div>
     </div>
+  )
+}
+
+export default function WordcatcherPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Загрузка...</div>}>
+      <WordcatcherContent />
+    </Suspense>
   )
 }
