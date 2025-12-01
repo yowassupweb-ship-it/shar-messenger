@@ -50,10 +50,11 @@ class YandexMetricaClient:
             date_to = datetime.now().strftime("%Y-%m-%d")
         
         if not metrics:
-            metrics = ["ym:s:visits", "ym:s:users", "ym:s:pageviews", "ym:s:bounceRate"]
+            metrics = ["ym:s:visits", "ym:s:users", "ym:s:pageviews", "ym:s:bounceRate", "ym:s:avgVisitDurationSeconds"]
         
         if not dimensions:
-            dimensions = ["ym:s:UTMTerm", "ym:s:date"]
+            # Добавляем все UTM параметры для полной картины
+            dimensions = ["ym:s:UTMSource", "ym:s:UTMMedium", "ym:s:UTMCampaign", "ym:s:UTMTerm"]
         
         params = {
             "id": self.counter_id,
@@ -139,7 +140,7 @@ class YandexMetricaClient:
         Парсинг ответа API в удобный формат
         
         Returns:
-            Список записей с utm_term, date, visits, users, pageviews, bounceRate
+            Список записей с полными UTM данными: utm_source, utm_medium, utm_campaign, utm_term
         """
         result = []
         data = api_response.get("data", [])
@@ -148,17 +149,40 @@ class YandexMetricaClient:
             dimensions = row.get("dimensions", [])
             metrics = row.get("metrics", [])
             
-            if len(dimensions) >= 2 and len(metrics) >= 4:
-                utm_term = dimensions[0].get("name", "")
-                date = dimensions[1].get("name", "")
+            # Новый формат: UTMSource, UTMMedium, UTMCampaign, UTMTerm
+            if len(dimensions) >= 4 and len(metrics) >= 4:
+                utm_source = dimensions[0].get("name", "") or ""
+                utm_medium = dimensions[1].get("name", "") or ""
+                utm_campaign = dimensions[2].get("name", "") or ""
+                utm_term = dimensions[3].get("name", "") or ""
                 
                 record = {
+                    "utm_source": utm_source,
+                    "utm_medium": utm_medium,
+                    "utm_campaign": utm_campaign,
+                    "utm_term": utm_term,
+                    "visits": int(metrics[0]) if len(metrics) > 0 else 0,
+                    "users": int(metrics[1]) if len(metrics) > 1 else 0,
+                    "pageviews": int(metrics[2]) if len(metrics) > 2 else 0,
+                    "bounceRate": round(float(metrics[3]), 1) if len(metrics) > 3 else 0,
+                    "avgTime": round(float(metrics[4]) / 60, 2) if len(metrics) > 4 else 0  # В минутах
+                }
+                result.append(record)
+            # Обратная совместимость: старый формат UTMTerm, date
+            elif len(dimensions) >= 2 and len(metrics) >= 4:
+                utm_term = dimensions[0].get("name", "") or ""
+                date = dimensions[1].get("name", "") if len(dimensions) > 1 else ""
+                
+                record = {
+                    "utm_source": "",
+                    "utm_medium": "",
+                    "utm_campaign": "",
                     "utm_term": utm_term,
                     "date": date,
-                    "visits": metrics[0] if len(metrics) > 0 else 0,
-                    "users": metrics[1] if len(metrics) > 1 else 0,
-                    "pageviews": metrics[2] if len(metrics) > 2 else 0,
-                    "bounceRate": metrics[3] if len(metrics) > 3 else 0
+                    "visits": int(metrics[0]) if len(metrics) > 0 else 0,
+                    "users": int(metrics[1]) if len(metrics) > 1 else 0,
+                    "pageviews": int(metrics[2]) if len(metrics) > 2 else 0,
+                    "bounceRate": round(float(metrics[3]), 1) if len(metrics) > 3 else 0
                 }
                 result.append(record)
         
