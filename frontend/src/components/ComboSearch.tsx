@@ -217,9 +217,24 @@ export function ComboSearch({ onBatchSearch, loading }: ComboSearchProps) {
               Прогресс
             </h3>
             <div className="flex items-center gap-4 text-sm">
-              <span className="text-green-500">✓ {successCount}</span>
-              <span className="text-red-500">✗ {errorCount}</span>
-              <span className="text-[var(--foreground)] opacity-60">⏳ {pendingCount}</span>
+              <span className="flex items-center gap-1 text-green-500">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                {successCount}
+              </span>
+              <span className="flex items-center gap-1 text-red-500">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                {errorCount}
+              </span>
+              <span className="flex items-center gap-1 text-[var(--foreground)] opacity-60">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {pendingCount}
+              </span>
             </div>
           </div>
 
@@ -249,8 +264,16 @@ export function ComboSearch({ onBatchSearch, loading }: ComboSearchProps) {
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
                   )}
-                  {result.status === 'success' && <span className="text-green-500">✓</span>}
-                  {result.status === 'error' && <span className="text-red-500">✗</span>}
+                  {result.status === 'success' && (
+                    <svg className="w-3 h-3 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                  {result.status === 'error' && (
+                    <svg className="w-3 h-3 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  )}
                   {result.keyword}
                 </button>
               ))}

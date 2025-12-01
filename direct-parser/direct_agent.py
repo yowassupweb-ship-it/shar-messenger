@@ -31,11 +31,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Добавляем директорию скрипта в путь импорта
+script_dir = os.path.dirname(os.path.abspath(__file__))
+if script_dir not in sys.path:
+    sys.path.insert(0, script_dir)
+
 # Импортируем парсер из существующего файла
 try:
     from ad_parser import YandexAdParser
-except ImportError:
-    logger.error("Не найден модуль ad_parser. Убедитесь что файл ad_parser.py существует")
+except ImportError as e:
+    logger.error(f"Не найден модуль ad_parser. Убедитесь что файл ad_parser.py существует в папке {script_dir}")
+    logger.error(f"Детали ошибки: {e}")
+    logger.error(f"sys.path: {sys.path}")
     sys.exit(1)
 
 

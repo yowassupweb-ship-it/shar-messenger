@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { apiFetch } from '@/lib/api'
 import { showToast } from '@/components/Toast'
-import { Copy, ExternalLink, Link2, Check, RotateCcw, TrendingUp, History, Layers, Trash2, RefreshCw } from 'lucide-react'
+import { Copy, ExternalLink, Link2, Check, RotateCcw, TrendingUp, Layers } from 'lucide-react'
 
 interface Preset {
   id: string
@@ -12,18 +12,6 @@ interface Preset {
   medium: string
   color: string
   description: string
-}
-
-interface TrackedPost {
-  id: string
-  platform: string
-  postUrl: string
-  title: string
-  utmUrl: string
-  createdAt: string
-  clicks: number
-  views: number
-  conversions: number
 }
 
 const PRESETS: Preset[] = [
@@ -47,7 +35,7 @@ const PLATFORMS = [
   { id: 'other', name: 'Другое' },
 ]
 
-type TabType = 'single' | 'bulk' | 'history'
+type TabType = 'single' | 'bulk'
 
 export default function UTMGeneratorPage() {
   const [activeTab, setActiveTab] = useState<TabType>('single')
@@ -74,34 +62,6 @@ export default function UTMGeneratorPage() {
   const [bulkUrls, setBulkUrls] = useState('')
   const [bulkResults, setBulkResults] = useState<string[]>([])
   const [bulkCopied, setBulkCopied] = useState(false)
-
-  // История
-  const [history, setHistory] = useState<TrackedPost[]>([])
-  const [historyLoading, setHistoryLoading] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-
-  // Загрузка истории при переключении на вкладку
-  useEffect(() => {
-    if (activeTab === 'history') {
-      loadHistory()
-    }
-  }, [activeTab])
-
-  const loadHistory = async () => {
-    setHistoryLoading(true)
-    try {
-      const response = await apiFetch('/api/tracked-posts')
-      if (response.ok) {
-        const data = await response.json()
-        setHistory(Array.isArray(data) ? data : [])
-      }
-    } catch (error) {
-      console.error('Ошибка загрузки истории:', error)
-      setHistory([])
-    } finally {
-      setHistoryLoading(false)
-    }
-  }
 
   // Live генерация URL
   const generatedUrl = useMemo(() => {
@@ -233,27 +193,6 @@ export default function UTMGeneratorPage() {
     }
   }
 
-  // Удаление из истории
-  const deleteFromHistory = async (id: string) => {
-    if (!confirm('Удалить эту запись?')) return
-    
-    try {
-      const response = await apiFetch(`/api/tracked-posts/${id}`, { method: 'DELETE' })
-      if (response.ok) {
-        setHistory(prev => prev.filter(p => p.id !== id))
-        showToast('Запись удалена', 'success')
-      }
-    } catch {
-      showToast('Ошибка удаления', 'error')
-    }
-  }
-
-  // Фильтрованная история
-  const filteredHistory = history.filter(post => 
-    post.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    post.utmUrl?.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-
   return (
     <div className="min-h-screen p-6">
       <div className="mb-6">
@@ -284,20 +223,6 @@ export default function UTMGeneratorPage() {
         >
           <Layers className="w-4 h-4" />
           Массовая
-        </button>
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            activeTab === 'history' 
-              ? 'bg-[var(--button)] text-[#1b1b2b]' 
-              : 'hover:bg-[var(--border)]'
-          }`}
-        >
-          <History className="w-4 h-4" />
-          История
-          {history.length > 0 && (
-            <span className="text-xs bg-[var(--background)] px-1.5 py-0.5 rounded">{history.length}</span>
-          )}
         </button>
       </div>
 
@@ -688,123 +613,6 @@ export default function UTMGeneratorPage() {
         </div>
       )}
 
-      {/* История */}
-      {activeTab === 'history' && (
-        <div className="space-y-4">
-          {/* Поиск и обновление */}
-          <div className="flex gap-4 items-center">
-            <div className="flex-1">
-              <input
-                type="text"
-                placeholder="Поиск по названию или ссылке..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="input-field w-full"
-              />
-            </div>
-            <button 
-              onClick={loadHistory}
-              disabled={historyLoading}
-              className="btn-secondary flex items-center gap-2"
-            >
-              <RefreshCw className={`w-4 h-4 ${historyLoading ? 'animate-spin' : ''}`} />
-              Обновить
-            </button>
-          </div>
-
-          {/* Таблица */}
-          {historyLoading ? (
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-8 text-center">
-              <div className="animate-spin w-8 h-8 border-2 border-[var(--button)] border-t-transparent rounded-full mx-auto mb-2"></div>
-              <p className="text-sm opacity-60">Загрузка...</p>
-            </div>
-          ) : filteredHistory.length === 0 ? (
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-12 text-center">
-              <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p className="text-sm opacity-60">
-                {searchQuery ? 'Ничего не найдено' : 'История пуста'}
-              </p>
-              <p className="text-xs opacity-40 mt-1">
-                {searchQuery ? 'Попробуйте другой запрос' : 'Создайте ссылку и сохраните её в историю'}
-              </p>
-            </div>
-          ) : (
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-[var(--background)]">
-                  <tr>
-                    <th className="text-left p-3 font-medium opacity-70">Название</th>
-                    <th className="text-left p-3 font-medium opacity-70">Платформа</th>
-                    <th className="text-left p-3 font-medium opacity-70">Ссылка</th>
-                    <th className="text-center p-3 font-medium opacity-70">Визиты</th>
-                    <th className="text-center p-3 font-medium opacity-70">Дата</th>
-                    <th className="text-right p-3 font-medium opacity-70">Действия</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredHistory.map((post) => (
-                    <tr key={post.id} className="border-t border-[var(--border)] hover:bg-[var(--background)]/50">
-                      <td className="p-3">
-                        <div className="font-medium">{post.title || 'Без названия'}</div>
-                      </td>
-                      <td className="p-3">
-                        <span className="px-2 py-1 rounded bg-[var(--border)] text-xs">
-                          {PLATFORMS.find(p => p.id === post.platform)?.name || post.platform || 'Другое'}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <div className="text-xs opacity-60 truncate max-w-xs font-mono" title={post.utmUrl}>
-                          {post.utmUrl}
-                        </div>
-                      </td>
-                      <td className="p-3 text-center">
-                        <span className="text-xs">{post.views || 0}</span>
-                      </td>
-                      <td className="p-3 text-center">
-                        <span className="text-xs opacity-60">
-                          {post.createdAt ? new Date(post.createdAt).toLocaleDateString('ru-RU') : '-'}
-                        </span>
-                      </td>
-                      <td className="p-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(post.utmUrl)
-                              showToast('Скопировано!', 'success')
-                            }}
-                            className="btn-secondary p-1.5 text-xs"
-                            title="Копировать ссылку"
-                          >
-                            <Copy className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => window.open(post.utmUrl, '_blank')}
-                            className="btn-secondary p-1.5 text-xs"
-                            title="Открыть"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => deleteFromHistory(post.id)}
-                            className="btn-secondary p-1.5 text-xs text-red-400 hover:text-red-300"
-                            title="Удалить"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          
-          <p className="text-xs opacity-40">
-            💡 Для получения данных из Яндекс.Метрики настройте токен и ID счётчика в Настройках
-          </p>
-        </div>
-      )}
     </div>
   )
 }

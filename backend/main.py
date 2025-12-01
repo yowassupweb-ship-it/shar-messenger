@@ -1154,10 +1154,19 @@ def get_templates(type: Optional[str] = None):
     """Получить все шаблоны или по типу (feed/utm)"""
     templates = db.get_templates()
     
-    # Миграция старого формата content: {template: "..."} -> content: "..."
+    # Преобразуем в формат который ожидает фронтенд
     for template in templates:
-        if isinstance(template.get('content'), dict):
-            template['content'] = template['content'].get('template', '')
+        # Если content - строка, преобразуем в объект {template, variables}
+        if isinstance(template.get('content'), str):
+            template['content'] = {
+                'template': template.get('content', ''),
+                'variables': template.get('variables', [])
+            }
+        # Если content уже объект, оставляем как есть
+        elif isinstance(template.get('content'), dict):
+            # Убедимся что есть variables
+            if 'variables' not in template['content']:
+                template['content']['variables'] = template.get('variables', [])
     
     if type:
         templates = [t for t in templates if t.get('type') == type]
@@ -2037,8 +2046,7 @@ def delete_tracked_post(post_id: str):
 def get_tracked_folders():
     """Получить список папок для ссылок"""
     try:
-        data = db._load_data()
-        folders = data.get('trackedFolders', [])
+        folders = db.data.get('trackedFolders', [])
         return folders
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -2048,9 +2056,8 @@ def create_tracked_folder(folder: dict):
     """Создать новую папку"""
     import uuid
     try:
-        data = db._load_data()
-        if 'trackedFolders' not in data:
-            data['trackedFolders'] = []
+        if 'trackedFolders' not in db.data:
+            db.data['trackedFolders'] = []
         
         new_folder = {
             "id": str(uuid.uuid4()),
@@ -2059,8 +2066,8 @@ def create_tracked_folder(folder: dict):
             "createdAt": datetime.now().isoformat()
         }
         
-        data['trackedFolders'].append(new_folder)
-        db._save_data(data)
+        db.data['trackedFolders'].append(new_folder)
+        db._save()
         return new_folder
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -2069,17 +2076,16 @@ def create_tracked_folder(folder: dict):
 def delete_tracked_folder(folder_id: str):
     """Удалить папку"""
     try:
-        data = db._load_data()
-        folders = data.get('trackedFolders', [])
-        data['trackedFolders'] = [f for f in folders if f['id'] != folder_id]
+        folders = db.data.get('trackedFolders', [])
+        db.data['trackedFolders'] = [f for f in folders if f['id'] != folder_id]
         
         # Убираем folderId у постов в этой папке
-        posts = data.get('trackedPosts', [])
+        posts = db.data.get('trackedPosts', [])
         for post in posts:
             if post.get('folderId') == folder_id:
                 post['folderId'] = None
         
-        db._save_data(data)
+        db._save()
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

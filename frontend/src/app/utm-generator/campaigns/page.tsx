@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { apiFetch } from '@/lib/api'
 import { showToast } from '@/components/Toast'
 import { 
-  RefreshCw, Calendar, TrendingUp, Users, Eye, 
+  RefreshCw, TrendingUp, Users, Eye, 
   ChevronDown, ChevronRight, ExternalLink, Target
 } from 'lucide-react'
 
@@ -17,6 +17,7 @@ interface Campaign {
   pageviews: number
   bounceRate: number
   avgDuration: number
+  conversions?: number
 }
 
 interface SourceData {
@@ -33,6 +34,7 @@ interface CampaignsData {
     visits: number
     users: number
     pageviews: number
+    conversions?: number
   }
 }
 
@@ -157,27 +159,21 @@ export default function CampaignsPage() {
         <div className="grid grid-cols-4 gap-4">
           <div>
             <label className="block text-xs font-medium mb-1 opacity-70">Дата с</label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" />
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="input-field w-full pl-10 text-sm"
-              />
-            </div>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="input-field w-full text-sm"
+            />
           </div>
           <div>
             <label className="block text-xs font-medium mb-1 opacity-70">Дата по</label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" />
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="input-field w-full pl-10 text-sm"
-              />
-            </div>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="input-field w-full text-sm"
+            />
           </div>
           <div>
             <label className="block text-xs font-medium mb-1 opacity-70">Источник</label>
@@ -290,8 +286,8 @@ export default function CampaignsPage() {
         </div>
       ) : (
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
-          {/* Table Header */}
-          <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-[var(--background)]/50 text-xs font-medium opacity-70 border-b border-[var(--border)]">
+          {/* Table Header - Sticky */}
+          <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-[var(--card)] text-xs font-medium opacity-70 border-b border-[var(--border)] sticky top-0 z-10">
             <div className="col-span-4">Источник / Кампания</div>
             <div className="col-span-2">Medium</div>
             <div className="text-right">Визиты</div>
@@ -301,7 +297,8 @@ export default function CampaignsPage() {
             <div className="text-right">Время</div>
           </div>
 
-          {/* Sources & Campaigns */}
+          {/* Sources & Campaigns - Scrollable */}
+          <div className="max-h-[600px] overflow-y-auto">
           {Object.entries(campaignsBySource).map(([source, campaigns]) => {
             const isExpanded = expandedSources.has(source)
             const sourceData = data?.sources[source]
@@ -346,7 +343,15 @@ export default function CampaignsPage() {
                     key={`${campaign.source}-${campaign.medium}-${campaign.campaign}-${idx}`}
                     className="grid grid-cols-12 gap-4 px-4 py-2 bg-[var(--background)]/20 border-t border-[var(--border)]/50 items-center"
                   >
-                    <div className="col-span-4 pl-6 text-sm">
+                    <div className="col-span-4 pl-6 text-sm flex items-center gap-2">
+                      {(campaign.conversions || 0) > 0 && (
+                        <span 
+                          className="w-5 h-5 flex items-center justify-center text-[10px] font-bold bg-green-500/20 text-green-400 rounded-full cursor-help"
+                          title={`Конверсий: ${campaign.conversions}`}
+                        >
+                          {campaign.conversions}
+                        </span>
+                      )}
                       <span className="opacity-80">{campaign.campaign || '(не задано)'}</span>
                     </div>
                     <div className="col-span-2 text-xs">
@@ -364,6 +369,7 @@ export default function CampaignsPage() {
               </div>
             )
           })}
+          </div>
         </div>
       )}
     </div>
