@@ -29,10 +29,17 @@ interface Stats {
   last_update: string | null
 }
 
+interface AgentStatus {
+  agents: { agent_id: string; last_seen: string; seconds_ago: number; online: boolean }[]
+  any_online: boolean
+  running_tasks: number
+}
+
 export default function DirectParserPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [tasks, setTasks] = useState<ParsingTask[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
+  const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null)
   
   // Форма создания задачи
   const [newTaskQueries, setNewTaskQueries] = useState('')
@@ -49,6 +56,18 @@ export default function DirectParserPage() {
       }
     } catch (error) {
       console.error('Ошибка загрузки статистики:', error)
+    }
+  }, [])
+
+  const loadAgentStatus = useCallback(async () => {
+    try {
+      const response = await apiFetch('/api/direct-parser/agent/status')
+      if (response.ok) {
+        const data = await response.json()
+        setAgentStatus(data)
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки статуса агента:', error)
     }
   }, [])
 
@@ -118,14 +137,16 @@ export default function DirectParserPage() {
   useEffect(() => {
     loadTasks()
     loadStats()
+    loadAgentStatus()
     
     // Автообновление каждые 10 секунд
     const interval = setInterval(() => {
       loadTasks()
+      loadAgentStatus()
     }, 10000)
     
     return () => clearInterval(interval)
-  }, [loadTasks, loadStats])
+  }, [loadTasks, loadStats, loadAgentStatus])
 
   const formatDate = (dateStr: string) => {
     try {
@@ -178,15 +199,28 @@ export default function DirectParserPage() {
           <h1 className="text-2xl font-bold">Задачи на парсинг</h1>
           <p className="text-sm opacity-60 mt-1">Создавайте задачи для сбора рекламных объявлений</p>
         </div>
-        <button
-          onClick={loadTasks}
-          className="px-4 py-2 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-[var(--button)] transition-colors flex items-center gap-2 text-sm"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          Обновить
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Индикатор агента */}
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${
+            agentStatus?.any_online 
+              ? 'bg-green-500/10 border-green-500/30 text-green-400' 
+              : 'bg-red-500/10 border-red-500/30 text-red-400'
+          }`}>
+            <span className={`w-2 h-2 rounded-full ${agentStatus?.any_online ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+            <span className="text-sm font-medium">
+              {agentStatus?.any_online ? 'Агент онлайн' : 'Агент оффлайн'}
+            </span>
+          </div>
+          <button
+            onClick={loadTasks}
+            className="px-4 py-2 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-[var(--button)] transition-colors flex items-center gap-2 text-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Обновить
+          </button>
+        </div>
       </div>
 
       {/* Статистика */}

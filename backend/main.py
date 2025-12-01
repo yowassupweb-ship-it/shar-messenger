@@ -2345,6 +2345,7 @@ class DirectSearchCreate(BaseModel):
 def get_direct_ads(
     query: Optional[str] = None,
     platform: Optional[str] = None,
+    domain: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
     date_from: Optional[str] = None,
@@ -2359,6 +2360,8 @@ def get_direct_ads(
             ads = [a for a in ads if query.lower() in a.get('query', '').lower()]
         if platform:
             ads = [a for a in ads if a.get('platform', '').lower() == platform.lower()]
+        if domain:
+            ads = [a for a in ads if domain.lower() in a.get('display_url', '').lower()]
         if date_from:
             ads = [a for a in ads if a.get('timestamp', '') >= date_from]
         if date_to:
@@ -2462,6 +2465,31 @@ def delete_all_direct_ads(query: Optional[str] = None, date_before: Optional[str
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/direct-parser/ads/remove-duplicates")
+def remove_duplicate_ads():
+    """Удалить дубликаты объявлений по URL"""
+    try:
+        ads = db.data.get('direct_ads', [])
+        original_count = len(ads)
+        
+        seen_urls = set()
+        unique_ads = []
+        for ad in ads:
+            url = ad.get('url', '')
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                unique_ads.append(ad)
+            elif not url:
+                unique_ads.append(ad)
+        
+        db.data['direct_ads'] = unique_ads
+        db._save()
+        
+        removed = original_count - len(unique_ads)
+        return {"success": True, "removed": removed, "remaining": len(unique_ads)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/direct-parser/searches")
 def get_direct_searches():
     """Получить историю поисковых запросов"""
@@ -2529,6 +2557,40 @@ def get_direct_parser_stats():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Словарь для хранения последней активности агентов
+agent_last_activity = {}
+
+@app.post("/api/direct-parser/agent/heartbeat")
+def agent_heartbeat(agent_id: str = "default"):
+    """Агент сообщает о своей активности"""
+    agent_last_activity[agent_id] = datetime.now()
+    return {"success": True}
+
+@app.get("/api/direct-parser/agent/status")
+def get_agent_status():
+    """Проверить статус агентов"""
+    now = datetime.now()
+    agents = []
+    
+    for agent_id, last_seen in agent_last_activity.items():
+        seconds_ago = (now - last_seen).total_seconds()
+        agents.append({
+            "agent_id": agent_id,
+            "last_seen": last_seen.strftime("%Y-%m-%d %H:%M:%S"),
+            "seconds_ago": int(seconds_ago),
+            "online": seconds_ago < 30
+        })
+    
+    # Также проверяем активные задачи
+    tasks = db.data.get('direct_parser_tasks', [])
+    running_tasks = [t for t in tasks if t.get('status') in ('running', 'assigned')]
+    
+    return {
+        "agents": agents,
+        "any_online": any(a["online"] for a in agents),
+        "running_tasks": len(running_tasks)
+    }
 
 @app.get("/api/direct-parser/domains")
 def get_direct_domains():

@@ -48,49 +48,417 @@ class AdParser:
             print("Убедитесь, что установлен ChromeDriver")
             return False
     
+    def _close_popups(self):
+        """Закрытие всплывающих окон Яндекса (расширение, куки и т.д.)"""
+        popup_close_selectors = [
+            # Popup "Сделать Яндекс основным поиском"
+            "button.Modal-Close",
+            ".modal__close",
+            ".popup__close",
+            ".dialog__close",
+            "[aria-label='Закрыть']",
+            "[aria-label='Close']",
+            ".CloseButton",
+            # Баннер про куки
+            ".gdpr-popup__button",
+            ".cookie-warning__button",
+            # Другие popup
+            ".Popup-CloseButton",
+            ".Modal_visible .Modal-Close",
+            ".Modal_visible button[class*='close']",
+            "button[class*='Close']",
+            ".Drawer-Closer",
+            # Крестик в правом углу
+            "svg[class*='Close']",
+            "[class*='close-button']",
+            "[class*='closeButton']",
+        ]
+        
+        for selector in popup_close_selectors:
+            try:
+                elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
+                for elem in elements:
+                    if elem.is_displayed():
+                        elem.click()
+                        print(f"  [DEBUG] Закрыт popup: {selector}")
+                        time.sleep(0.5)
+            except:
+                continue
+        
+        # Также пробуем закрыть по Escape
+        try:
+            from selenium.webdriver.common.keys import Keys
+            self.driver.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
+        except:
+            pass
+    
     def parse_yandex_ads(self, query, max_pages=3):
         """
         Парсинг рекламы из Яндекса
         :param query: поисковый запрос
         :param max_pages: количество страниц для парсинга
+        :return: список найденных объявлений
         """
         print(f"\n=== Парсинг Яндекс по запросу: '{query}' ===")
         
         try:
-            # Открываем Яндекс
-            self.driver.get("https://yandex.ru")
-            time.sleep(2)
+            # Открываем поиск Яндекса напрямую с запросом
+            encoded_query = query.replace(' ', '+')
+            self.driver.get(f"https://yandex.ru/search/?text={encoded_query}")
             
-            # Ищем поисковую строку и вводим запрос
-            search_box = self.driver.find_element(By.NAME, "text")
-            search_box.send_keys(query)
-            search_box.send_keys(Keys.RETURN)
+            # Ожидание загрузки страницы
             time.sleep(3)
+            
+            # Закрываем всплывающие окна (расширение Яндекса и т.д.)
+            self._close_popups()
+            time.sleep(1)
+            
+            # Скроллим для загрузки всех объявлений
+            self.driver.execute_script("window.scrollTo(0, 1000)")
+            time.sleep(1)
+            self.driver.execute_script("window.scrollTo(0, 0)")
+            time.sleep(1)
+            
+            # Ещё раз пробуем закрыть popup (могут появиться после скролла)
+            self._close_popups()
+            
+            # Сохраняем HTML для отладки
+            debug_html_path = f"debug_page_{query[:20].replace(' ', '_')}.html"
+            with open(debug_html_path, 'w', encoding='utf-8') as f:
+                f.write(self.driver.page_source)
+            print(f"  [DEBUG] HTML сохранен в {debug_html_path}")
             
             for page in range(max_pages):
                 print(f"Обработка страницы {page + 1}...")
                 
-                # Парсим рекламу справа (контекстная реклама)
-                self._parse_yandex_right_ads(query)
-                
-                # Парсим рекламу сверху (поисковая реклама)
-                self._parse_yandex_top_ads(query)
+                # Парсим рекламу (все типы) с номером страницы
+                self._parse_yandex_all_ads(query, page_num=page + 1)
                 
                 # Переход на следующую страницу
                 if page < max_pages - 1:
                     try:
-                        next_button = self.driver.find_element(By.CSS_SELECTOR, "a.Pager-Item_type_next")
+                        next_button = self.driver.find_element(By.CSS_SELECTOR, "a.Pager-Item_type_next, a[aria-label='Следующая страница'], .pager__item_kind_next a")
                         next_button.click()
-                        time.sleep(3)
+                        time.sleep(4)
+                        # Закрываем popup если появятся
+                        self._close_popups()
+                        # Скролл после перехода
+                        self.driver.execute_script("window.scrollTo(0, 500)")
+                        time.sleep(1)
                     except:
                         print("Больше нет страниц для парсинга")
                         break
             
-            print(f"Найдено объявлений: {len([r for r in self.results if r['query'] == query])}")
+            results = [r for r in self.results if r['query'] == query]
+            print(f"Найдено объявлений: {len(results)}")
+            return results
             
         except Exception as e:
             print(f"Ошибка при парсинге Яндекса: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
     
+    def _parse_yandex_all_ads(self, query, page_num=1):
+        """
+        Парсинг рекламных блоков в Яндексе комбинированным методом:
+        1. По HTML атрибутам (outerHTML содержит withAdvLabel или AdvLabel)
+        2. По текстовым признакам (слово "промо", "реклама")
+        3. По формату URL: domain.ru›путь... (со знаком ›)
+        
+        :param query: поисковый запрос
+        :param page_num: номер страницы (для указания позиции)
+        """
+        import re
+        
+        try:
+            # Ждём загрузки результатов поиска
+            try:
+                WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "li.serp-item, .serp-list"))
+                )
+                time.sleep(2)  # Дополнительное ожидание для рендера
+            except:
+                print("  [DEBUG] Таймаут ожидания результатов поиска")
+            
+            # Получаем все элементы результатов поиска
+            serp_items = self.driver.find_elements(By.CSS_SELECTOR, "li.serp-item")
+            print(f"  [DEBUG] Всего результатов поиска (serp-item): {len(serp_items)}")
+            
+            ads_found = []
+            
+            for idx, item in enumerate(serp_items):
+                try:
+                    # МЕТОД 1: Проверка по HTML атрибутам (самый надёжный)
+                    # innerHTML содержит все внутренние классы элемента
+                    inner_html = item.get_attribute('innerHTML')[:5000] or ''
+                    outer_html = item.get_attribute('outerHTML')[:2000] or ''
+                    combined_html = outer_html + inner_html
+                    
+                    has_adv_class = ('withAdvLabel' in combined_html or 
+                                    'AdvLabel' in combined_html or 
+                                    'Organic_adv' in combined_html or
+                                    'organic_adv' in combined_html)
+                    
+                    # МЕТОД 2: Проверка по тексту
+                    item_text = item.text.lower()
+                    has_promo_text = 'промо' in item_text or 'реклама' in item_text
+                    
+                    # МЕТОД 3: URL со знаком › (как дополнительный признак)
+                    # Но только если есть другой признак рекламы
+                    has_special_url = '›' in item.text
+                    
+                    # Объявление если:
+                    # - есть класс рекламы в HTML
+                    # - ИЛИ есть текст "промо"/"реклама"  
+                    # - ИЛИ есть специальный URL (но это слабый признак, используем для фильтрации)
+                    is_ad = has_adv_class or has_promo_text
+                    
+                    if is_ad:
+                        # Сохраняем позицию в списке serp-item (1-indexed)
+                        ads_found.append((item, idx + 1))
+                        
+                except Exception as e:
+                    continue
+            
+            print(f"  [DEBUG] Найдено рекламных блоков: {len(ads_found)}")
+            
+            # Счётчик позиций рекламы на текущей странице
+            ad_position_on_page = 0
+            
+            # Обрабатываем найденные объявления
+            for ad_elem, serp_position in ads_found:
+                try:
+                    ad_position_on_page += 1
+                    
+                    ad_data = {
+                        'platform': 'Яндекс',
+                        'type': 'Контекстная реклама',
+                        'query': query,
+                        'title': '',
+                        'description': '',
+                        'url': '',
+                        'display_url': '',
+                        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        'page': page_num,
+                        'position': ad_position_on_page,  # Позиция среди рекламных блоков на странице
+                        'serp_position': serp_position  # Позиция в общем списке результатов поиска
+                    }
+                    
+                    # Получаем весь текст блока и разбиваем на строки
+                    full_text = ad_elem.text.strip()
+                    lines = [l.strip() for l in full_text.split('\n') if l.strip()]
+                    
+                    # Ищем display_url (строка со знаком ›)
+                    for line in lines:
+                        if '›' in line:
+                            ad_data['display_url'] = line
+                            break
+                    
+                    # Заголовок - обычно первая значимая строка
+                    for line in lines:
+                        # Пропускаем служебные строки
+                        if '›' in line or line.lower() in ['промо', 'реклама']:
+                            continue
+                        if len(line) > 10:  # Заголовок обычно длиннее 10 символов
+                            ad_data['title'] = line[:200]
+                            break
+                    
+                    # Пробуем извлечь реальный URL из ссылки
+                    try:
+                        links = ad_elem.find_elements(By.TAG_NAME, "a")
+                        for link in links:
+                            href = link.get_attribute('href') or ''
+                            data_vnl = link.get_attribute('data-vnl')
+                            if data_vnl:
+                                try:
+                                    vnl_data = json.loads(data_vnl)
+                                    real_url = vnl_data.get('noRedirectUrl', '')
+                                    if real_url:
+                                        ad_data['url'] = real_url
+                                        break
+                                except:
+                                    match = re.search(r'"noRedirectUrl":"([^"]+)"', data_vnl)
+                                    if match:
+                                        ad_data['url'] = match.group(1).replace('&amp;', '&')
+                                        break
+                            if href and 'yabs.yandex' in href and not ad_data['url']:
+                                ad_data['url'] = href
+                    except:
+                        pass
+                    
+                    # Если URL не найден, пытаемся извлечь домен из display_url
+                    if not ad_data['url'] and ad_data['display_url']:
+                        domain = ad_data['display_url'].split('›')[0].strip()
+                        if domain:
+                            ad_data['url'] = f"https://{domain}"
+                    
+                    # Описание - остальной текст после заголовка
+                    desc_lines = []
+                    found_title = False
+                    for line in lines:
+                        if line == ad_data['title']:
+                            found_title = True
+                            continue
+                        if found_title and '›' not in line and line.lower() not in ['промо', 'реклама']:
+                            desc_lines.append(line)
+                    if desc_lines:
+                        ad_data['description'] = ' '.join(desc_lines)[:500]
+                    
+                    # Проверяем дубликаты по display_url или title
+                    existing_urls = {r.get('display_url', '') for r in self.results if r.get('query') == query}
+                    existing_titles = {r.get('title', '') for r in self.results if r.get('query') == query}
+                    
+                    if ad_data['display_url'] in existing_urls and ad_data['display_url']:
+                        continue
+                    if ad_data['title'] in existing_titles and ad_data['title']:
+                        continue
+                    
+                    # Сохраняем если есть хотя бы заголовок или display_url
+                    if ad_data['title'] or ad_data['display_url']:
+                        self.results.append(ad_data)
+                        preview = ad_data['title'][:40] or ad_data['display_url'][:40]
+                        print(f"  ✓ Найдено: {preview}...")
+                
+                except Exception as e:
+                    continue
+                    
+        except Exception as e:
+            print(f"Ошибка при парсинге рекламы: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        # Парсим боковые баннеры (изображения рекламы)
+        self._parse_sidebar_banners(query, page_num)
+
+    def _parse_sidebar_banners(self, query, page_num=1):
+        """Парсинг боковых рекламных баннеров (изображения справа)"""
+        import re
+        
+        try:
+            # Селекторы для боковых баннеров
+            banner_selectors = [
+                ".Adv",  # Рекламный блок
+                ".AdvBanner",
+                ".serp-adv",
+                ".serp-adv__found", 
+                "[class*='Banner']",
+                ".sidebar__adv",
+                ".content__right [class*='adv']",
+                ".content__right [class*='Adv']",
+                ".RelatedBottom",
+                ".Composite [class*='adv']",
+                # Изображения с рекламой
+                "img[src*='yabs.yandex']",
+                "a[href*='yabs.yandex'] img",
+            ]
+            
+            banners_found = []
+            
+            for selector in banner_selectors:
+                try:
+                    elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
+                    for elem in elements:
+                        if elem not in banners_found and elem.is_displayed():
+                            banners_found.append(elem)
+                except:
+                    continue
+            
+            # Также ищем все элементы с рекламными ссылками yabs.yandex
+            try:
+                yabs_links = self.driver.find_elements(By.CSS_SELECTOR, "a[href*='yabs.yandex']")
+                for link in yabs_links:
+                    try:
+                        # Проверяем, есть ли изображение внутри
+                        imgs = link.find_elements(By.TAG_NAME, "img")
+                        if imgs:
+                            parent = link
+                            # Пробуем найти родительский контейнер баннера
+                            for _ in range(3):
+                                try:
+                                    parent = parent.find_element(By.XPATH, "..")
+                                except:
+                                    break
+                            if parent not in banners_found:
+                                banners_found.append(parent)
+                    except:
+                        continue
+            except:
+                pass
+            
+            if banners_found:
+                print(f"  [DEBUG] Найдено боковых баннеров: {len(banners_found)}")
+            
+            for idx, banner in enumerate(banners_found):
+                try:
+                    ad_data = {
+                        'platform': 'Яндекс',
+                        'type': 'Баннерная реклама',
+                        'query': query,
+                        'title': '',
+                        'description': '',
+                        'url': '',
+                        'page': page_num,
+                        'position': idx + 1,  # Позиция среди баннеров
+                        'serp_position': 0,  # Баннеры не в SERP
+                        'display_url': '',
+                        'image_url': '',
+                        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    
+                    # Ищем изображение
+                    try:
+                        img = banner.find_element(By.TAG_NAME, "img")
+                        ad_data['image_url'] = img.get_attribute('src') or ''
+                    except:
+                        pass
+                    
+                    # Ищем ссылку и URL
+                    try:
+                        links = banner.find_elements(By.TAG_NAME, "a")
+                        for link in links:
+                            href = link.get_attribute('href') or ''
+                            if href:
+                                ad_data['url'] = href
+                                # Пробуем извлечь реальный URL
+                                data_vnl = link.get_attribute('data-vnl')
+                                if data_vnl:
+                                    match = re.search(r'"noRedirectUrl":"([^"]+)"', data_vnl)
+                                    if match:
+                                        ad_data['url'] = match.group(1).replace('&amp;', '&')
+                                break
+                    except:
+                        pass
+                    
+                    # Заголовок - текст баннера
+                    banner_text = banner.text.strip()
+                    if banner_text:
+                        lines = banner_text.split('\n')
+                        ad_data['title'] = lines[0][:200] if lines else ''
+                        if len(lines) > 1:
+                            ad_data['description'] = ' '.join(lines[1:])[:300]
+                    
+                    # Пропускаем "Люди ищут" - это не баннер рекламы
+                    if ad_data['title'] and 'люди ищут' in ad_data['title'].lower():
+                        continue
+                    
+                    # Проверяем дубликаты
+                    existing_urls = {r.get('url', '') for r in self.results if r.get('query') == query}
+                    if ad_data['url'] in existing_urls and ad_data['url']:
+                        continue
+                    
+                    # Сохраняем если есть URL или изображение
+                    if ad_data['url'] or ad_data['image_url']:
+                        self.results.append(ad_data)
+                        preview = ad_data['title'][:30] or ad_data['image_url'][:30] or 'Баннер'
+                        print(f"  ✓ Баннер: {preview}...")
+                        
+                except Exception as e:
+                    continue
+                    
+        except Exception as e:
+            print(f"  [DEBUG] Ошибка парсинга баннеров: {e}")
+
     def _parse_yandex_right_ads(self, query):
         """Парсинг правой колонки с рекламой в Яндексе"""
         try:

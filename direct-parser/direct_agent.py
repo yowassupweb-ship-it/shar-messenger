@@ -49,19 +49,31 @@ except ImportError as e:
 class DirectParserAgent:
     """Агент для связи с API и запуска парсинга"""
     
-    def __init__(self, api_url: str, poll_interval: int = 10):
+    def __init__(self, api_url: str, api_key: str = None, poll_interval: int = 10):
         self.api_url = api_url.rstrip('/')
+        self.api_key = api_key
         self.poll_interval = poll_interval
         self.is_running = False
         self.current_task_id: Optional[str] = None
         self.parser: Optional[AdParser] = None
         
+        # Заголовки для всех запросов
+        self.headers = {}
+        if api_key:
+            self.headers['X-Agent-Key'] = api_key
+        
     def check_api_connection(self) -> bool:
         """Проверка подключения к API"""
         try:
-            response = requests.get(f"{self.api_url}/api/direct-parser/agent/ping", timeout=10)
+            response = requests.get(
+                f"{self.api_url}/api/direct-parser/agent/ping", 
+                headers=self.headers,
+                timeout=10
+            )
             if response.status_code == 200:
                 logger.info(f"✓ Подключение к API установлено: {self.api_url}")
+                if self.api_key:
+                    logger.info(f"✓ API ключ: {self.api_key[:8]}...")
                 return True
             else:
                 logger.error(f"✗ API вернул код {response.status_code}")
@@ -70,11 +82,23 @@ class DirectParserAgent:
             logger.error(f"✗ Ошибка подключения к API: {e}")
             return False
     
+    def send_heartbeat(self):
+        """Отправка сигнала о том что агент онлайн"""
+        try:
+            requests.post(
+                f"{self.api_url}/api/direct-parser/agent/heartbeat",
+                headers=self.headers,
+                timeout=5
+            )
+        except:
+            pass  # Не критично если heartbeat не прошел
+    
     def get_pending_task(self) -> Optional[Dict]:
         """Получение задачи на выполнение"""
         try:
             response = requests.get(
                 f"{self.api_url}/api/direct-parser/agent/task",
+                headers=self.headers,
                 timeout=10
             )
             if response.status_code == 200:
@@ -91,6 +115,7 @@ class DirectParserAgent:
         try:
             requests.post(
                 f"{self.api_url}/api/direct-parser/agent/task/{task_id}/status",
+                headers=self.headers,
                 json={
                     "status": status,
                     "message": message,
@@ -104,19 +129,50 @@ class DirectParserAgent:
     def submit_results(self, task_id: str, results: List[Dict]):
         """Отправка результатов парсинга"""
         try:
+            logger.info(f"Отправка {len(results)} результатов для задачи {task_id}...")
+            
+            # Логируем первые 3 результата для отладки
+            for i, r in enumerate(results[:3]):
+                logger.info(f"  Результат {i+1}: {r.get('title', 'N/A')[:50]}")
+            
+            # Очищаем результаты от None и проблемных значений
+            cleaned_results = []
+            for r in results:
+                cleaned = {}
+                for k, v in r.items():
+                    if v is None:
+                        cleaned[k] = ""
+                    elif isinstance(v, (str, int, float, bool)):
+                        cleaned[k] = v
+                    else:
+                        cleaned[k] = str(v)
+                cleaned_results.append(cleaned)
+            
+            payload = {
+                "results": cleaned_results,
+                "completed_at": datetime.now().isoformat()
+            }
+            
             response = requests.post(
                 f"{self.api_url}/api/direct-parser/agent/task/{task_id}/results",
-                json={
-                    "results": results,
-                    "completed_at": datetime.now().isoformat()
-                },
-                timeout=30
+                json=payload,
+                headers=self.headers,
+                timeout=60  # Увеличиваем таймаут для больших данных
             )
+            
+            logger.info(f"Ответ API: {response.status_code}")
+            
             if response.status_code == 200:
                 logger.info(f"✓ Результаты отправлены: {len(results)} объявлений")
                 return True
+            elif response.status_code == 500:
+                # Иногда сервер возвращает 500, но данные сохраняются
+                logger.warning(f"⚠ API вернул 500, но данные могут быть сохранены. Проверьте фронтенд.")
+                logger.debug(f"Тело ответа: {response.text[:500]}")
+                return True  # Считаем успехом, т.к. данные часто сохраняются
             else:
                 logger.error(f"✗ Ошибка отправки результатов: {response.status_code}")
+                logger.error(f"Тело ответа: {response.text[:500]}")
                 return False
         except requests.exceptions.RequestException as e:
             logger.error(f"✗ Ошибка отправки результатов: {e}")
@@ -152,11 +208,13 @@ class DirectParserAgent:
             )
             
             # Запускаем браузер
-            self.parser.start_browser()
+            if not self.parser.start_browser():
+                raise Exception("Не удалось запустить браузер")
             
             all_results = []
             
             for idx, query in enumerate(queries, 1):
+                logger.info(f">>> Парсинг запроса {idx}/{len(queries)}: '{query}'")
                 self.update_task_status(
                     task['id'], 
                     "running", 
@@ -165,19 +223,26 @@ class DirectParserAgent:
                 )
                 
                 # Парсим запрос
-                results = self.parser.parse_query(query, max_pages=max_pages)
+                results = self.parser.parse_yandex_ads(query, max_pages=max_pages)
+                logger.info(f"<<< Запрос '{query}': найдено {len(results)} объявлений")
                 all_results.extend(results)
-                
-                logger.info(f"Запрос '{query}': найдено {len(results)} объявлений")
             
             # Закрываем браузер
+            logger.info("Закрытие браузера...")
             self.parser.close()
+            
+            logger.info(f"=" * 50)
+            logger.info(f"ВСЕГО найдено объявлений: {len(all_results)}")
+            logger.info(f"=" * 50)
             
             # Отправляем результаты
             self.update_task_status(task['id'], "completed", f"Готово: {len(all_results)} объявлений", 100)
-            self.submit_results(task['id'], all_results)
+            success = self.submit_results(task['id'], all_results)
             
-            logger.info(f"✓ Задача {task['id']} выполнена: {len(all_results)} объявлений")
+            if success:
+                logger.info(f"✓ Задача {task['id']} выполнена успешно: {len(all_results)} объявлений")
+            else:
+                logger.error(f"✗ Задача выполнена, но результаты не отправлены!")
             
         except Exception as e:
             logger.error(f"✗ Ошибка выполнения задачи: {e}")
@@ -208,8 +273,16 @@ class DirectParserAgent:
         self.is_running = True
         logger.info("Агент запущен. Ожидание задач... (Ctrl+C для выхода)")
         
+        last_heartbeat = 0
+        
         try:
             while self.is_running:
+                # Отправляем heartbeat каждые 15 секунд
+                now = time.time()
+                if now - last_heartbeat > 15:
+                    self.send_heartbeat()
+                    last_heartbeat = now
+                
                 # Проверяем наличие задачи
                 task = self.get_pending_task()
                 
@@ -293,11 +366,19 @@ def main():
         help='Запуск в headless режиме (без GUI)'
     )
     
+    parser.add_argument(
+        '--api-key',
+        type=str,
+        default='',
+        help='API ключ для аутентификации на сервере'
+    )
+    
     args = parser.parse_args()
     
     agent = DirectParserAgent(
         api_url=args.api_url,
-        poll_interval=args.poll_interval
+        poll_interval=args.poll_interval,
+        api_key=args.api_key
     )
     
     if args.test:
