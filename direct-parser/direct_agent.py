@@ -38,7 +38,7 @@ if script_dir not in sys.path:
 
 # Импортируем парсер из существующего файла
 try:
-    from ad_parser import YandexAdParser
+    from ad_parser import AdParser
 except ImportError as e:
     logger.error(f"Не найден модуль ad_parser. Убедитесь что файл ad_parser.py существует в папке {script_dir}")
     logger.error(f"Детали ошибки: {e}")
@@ -54,7 +54,7 @@ class DirectParserAgent:
         self.poll_interval = poll_interval
         self.is_running = False
         self.current_task_id: Optional[str] = None
-        self.parser: Optional[YandexAdParser] = None
+        self.parser: Optional[AdParser] = None
         
     def check_api_connection(self) -> bool:
         """Проверка подключения к API"""
@@ -146,7 +146,7 @@ class DirectParserAgent:
         
         try:
             # Создаём парсер
-            self.parser = YandexAdParser(
+            self.parser = AdParser(
                 headless=headless,
                 status_callback=self.status_callback
             )

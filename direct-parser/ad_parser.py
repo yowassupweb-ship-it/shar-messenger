@@ -16,11 +16,13 @@ from datetime import datetime
 
 
 class AdParser:
-    def __init__(self, headless=False):
+    def __init__(self, headless=False, status_callback=None):
         """
         Инициализация парсера
         :param headless: запуск браузера в фоновом режиме (без GUI)
+        :param status_callback: функция для отправки статуса (опционально)
         """
+        self.status_callback = status_callback
         self.chrome_options = Options()
         if headless:
             self.chrome_options.add_argument("--headless")

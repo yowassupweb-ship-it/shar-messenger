@@ -163,7 +163,7 @@ export default function CampaignsPage() {
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="input-field w-full text-sm"
+              className="input-field w-full text-sm [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
             />
           </div>
           <div>
@@ -172,7 +172,7 @@ export default function CampaignsPage() {
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="input-field w-full text-sm"
+              className="input-field w-full text-sm [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
             />
           </div>
           <div>

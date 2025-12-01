@@ -104,32 +104,66 @@ export default function TrackerPage() {
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [dateFrom, dateTo])
 
   useEffect(() => {
-    if (activeTab === 'metrika' && metrikaLinks.length === 0) {
+    if (activeTab === 'metrika') {
       loadMetrikaData()
     }
-  }, [activeTab])
+  }, [activeTab, dateFrom, dateTo])
 
   const loadData = async () => {
     setLoading(true)
     try {
-      const [postsRes, foldersRes] = await Promise.all([
+      const [postsRes, foldersRes, metrikaRes] = await Promise.all([
         apiFetch('/api/tracked-posts'),
-        apiFetch('/api/tracked-folders')
+        apiFetch('/api/tracked-folders'),
+        apiFetch(`/api/analytics/metrica?date_from=${dateFrom}&date_to=${dateTo}`)
       ])
       
+      let postsData: TrackedPost[] = []
+      let metrikaData: MetrikaLink[] = []
+      
       if (postsRes.ok) {
-        const data = await postsRes.json()
-        setPosts(Array.isArray(data) ? data : [])
-        const tracked = new Set<string>()
-        data.forEach((p: TrackedPost) => {
-          const utm = parseUTM(p.utmUrl)
-          if (utm.term) tracked.add(utm.term)
-        })
-        setTrackedUtmTerms(tracked)
+        postsData = await postsRes.json()
+        postsData = Array.isArray(postsData) ? postsData : []
       }
+      
+      if (metrikaRes.ok) {
+        metrikaData = await metrikaRes.json()
+        metrikaData = Array.isArray(metrikaData) ? metrikaData : []
+      }
+      
+      // Обогащаем посты данными из Метрики
+      const enrichedPosts = postsData.map(post => {
+        const utm = parseUTM(post.utmUrl)
+        const metrikaMatch = metrikaData.find(m => 
+          (utm.term && m.utm_term === utm.term) ||
+          (utm.campaign && m.utm_campaign === utm.campaign) ||
+          (utm.source && utm.medium && m.utm_source === utm.source && m.utm_medium === utm.medium)
+        )
+        
+        if (metrikaMatch) {
+          return {
+            ...post,
+            views: metrikaMatch.visits || post.views || 0,
+            users: metrikaMatch.users || post.users || 0,
+            bounceRate: metrikaMatch.bounceRate || post.bounceRate || 0,
+            avgTime: 0 // TODO: добавить из метрики если доступно
+          }
+        }
+        return post
+      })
+      
+      setPosts(enrichedPosts)
+      setMetrikaLinks(metrikaData)
+      
+      const tracked = new Set<string>()
+      enrichedPosts.forEach((p: TrackedPost) => {
+        const utm = parseUTM(p.utmUrl)
+        if (utm.term) tracked.add(utm.term)
+      })
+      setTrackedUtmTerms(tracked)
       
       if (foldersRes.ok) {
         const data = await foldersRes.json()
