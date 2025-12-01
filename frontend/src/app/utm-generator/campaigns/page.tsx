@@ -12,10 +12,13 @@ interface Campaign {
   source: string
   medium: string
   campaign: string
+  term?: string
+  content?: string
   visits: number
   users: number
   pageviews: number
   bounceRate: number
+  revenue?: number
   avgDuration: number
   conversions?: number
 }
@@ -287,14 +290,17 @@ export default function CampaignsPage() {
       ) : (
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
           {/* Table Header - Sticky */}
-          <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-[var(--card)] text-xs font-medium opacity-70 border-b border-[var(--border)] sticky top-0 z-10">
-            <div className="col-span-4">Источник / Кампания</div>
+          <div className="grid grid-cols-17 gap-3 px-4 py-3 bg-[var(--card)] text-xs font-medium opacity-70 border-b border-[var(--border)] sticky top-0 z-10">
+            <div className="col-span-3">Источник / Кампания</div>
             <div className="col-span-2">Medium</div>
+            <div className="col-span-2">Term</div>
+            <div className="col-span-2">Content</div>
             <div className="text-right">Визиты</div>
             <div className="text-right">Посетители</div>
             <div className="text-right">Просмотры</div>
             <div className="text-right">Отказы</div>
             <div className="text-right">Время</div>
+            <div className="text-right">Доход</div>
           </div>
 
           {/* Sources & Campaigns - Scrollable */}
@@ -306,19 +312,20 @@ export default function CampaignsPage() {
               (acc, c) => ({
                 visits: acc.visits + c.visits,
                 users: acc.users + c.users,
-                pageviews: acc.pageviews + c.pageviews
+                pageviews: acc.pageviews + c.pageviews,
+                revenue: acc.revenue + (c.revenue || 0)
               }),
-              { visits: 0, users: 0, pageviews: 0 }
+              { visits: 0, users: 0, pageviews: 0, revenue: 0 }
             )
 
             return (
               <div key={source} className="border-b border-[var(--border)] last:border-b-0">
                 {/* Source Row */}
                 <div 
-                  className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-[var(--background)]/30 cursor-pointer items-center"
+                  className="grid grid-cols-17 gap-3 px-4 py-3 hover:bg-[var(--background)]/30 cursor-pointer items-center"
                   onClick={() => toggleSource(source)}
                 >
-                  <div className="col-span-4 flex items-center gap-2">
+                  <div className="col-span-3 flex items-center gap-2">
                     {isExpanded ? (
                       <ChevronDown className="w-4 h-4 opacity-50" />
                     ) : (
@@ -330,20 +337,23 @@ export default function CampaignsPage() {
                     </span>
                   </div>
                   <div className="col-span-2 text-sm opacity-60">—</div>
+                  <div className="col-span-2 text-sm opacity-60">—</div>
+                  <div className="col-span-2 text-sm opacity-60">—</div>
                   <div className="text-right font-medium">{sourceTotals.visits.toLocaleString()}</div>
                   <div className="text-right text-sm">{sourceTotals.users.toLocaleString()}</div>
                   <div className="text-right text-sm">{sourceTotals.pageviews.toLocaleString()}</div>
                   <div className="text-right text-sm">—</div>
                   <div className="text-right text-sm">—</div>
+                  <div className="text-right text-sm font-medium text-green-400">{sourceTotals.revenue > 0 ? sourceTotals.revenue.toLocaleString() + ' ₽' : '—'}</div>
                 </div>
 
                 {/* Campaign Rows */}
                 {isExpanded && campaigns.map((campaign, idx) => (
                   <div 
-                    key={`${campaign.source}-${campaign.medium}-${campaign.campaign}-${idx}`}
-                    className="grid grid-cols-12 gap-4 px-4 py-2 bg-[var(--background)]/20 border-t border-[var(--border)]/50 items-center"
+                    key={`${campaign.source}-${campaign.medium}-${campaign.campaign}-${campaign.term}-${campaign.content}-${idx}`}
+                    className="grid grid-cols-17 gap-3 px-4 py-2 bg-[var(--background)]/20 border-t border-[var(--border)]/50 items-center"
                   >
-                    <div className="col-span-4 pl-6 text-sm flex items-center gap-2">
+                    <div className="col-span-3 pl-6 text-sm flex items-center gap-2">
                       {(campaign.conversions || 0) > 0 && (
                         <span 
                           className="w-5 h-5 flex items-center justify-center text-[10px] font-bold bg-green-500/20 text-green-400 rounded-full cursor-help"
@@ -352,11 +362,21 @@ export default function CampaignsPage() {
                           {campaign.conversions}
                         </span>
                       )}
-                      <span className="opacity-80">{campaign.campaign || '(не задано)'}</span>
+                      <span className="opacity-80 truncate" title={campaign.campaign}>{campaign.campaign || '(не задано)'}</span>
                     </div>
                     <div className="col-span-2 text-xs">
-                      <span className="px-2 py-0.5 bg-[var(--background)] rounded opacity-70">
+                      <span className="px-2 py-0.5 bg-[var(--background)] rounded opacity-70 truncate block" title={campaign.medium}>
                         {campaign.medium || '(none)'}
+                      </span>
+                    </div>
+                    <div className="col-span-2 text-xs">
+                      <span className="px-2 py-0.5 bg-[var(--background)] rounded opacity-60 truncate block" title={campaign.term}>
+                        {campaign.term || '—'}
+                      </span>
+                    </div>
+                    <div className="col-span-2 text-xs">
+                      <span className="px-2 py-0.5 bg-[var(--background)] rounded opacity-60 truncate block" title={campaign.content}>
+                        {campaign.content || '—'}
                       </span>
                     </div>
                     <div className="text-right text-sm">{campaign.visits.toLocaleString()}</div>
@@ -364,6 +384,7 @@ export default function CampaignsPage() {
                     <div className="text-right text-sm opacity-70">{campaign.pageviews.toLocaleString()}</div>
                     <div className="text-right text-sm opacity-70">{campaign.bounceRate}%</div>
                     <div className="text-right text-sm opacity-70">{formatDuration(campaign.avgDuration)}</div>
+                    <div className="text-right text-sm text-green-400">{(campaign.revenue || 0) > 0 ? campaign.revenue?.toLocaleString() + ' ₽' : '—'}</div>
                   </div>
                 ))}
               </div>

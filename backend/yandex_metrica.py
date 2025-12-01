@@ -212,8 +212,8 @@ class YandexMetricaClient:
             "id": self.counter_id,
             "date1": date_from,
             "date2": date_to,
-            "metrics": "ym:s:visits,ym:s:users,ym:s:pageviews,ym:s:bounceRate,ym:s:avgVisitDurationSeconds",
-            "dimensions": "ym:s:UTMSource,ym:s:UTMMedium,ym:s:UTMCampaign",
+            "metrics": "ym:s:visits,ym:s:users,ym:s:pageviews,ym:s:bounceRate,ym:s:avgVisitDurationSeconds,ym:s:ecommerceRUBRevenue",
+            "dimensions": "ym:s:UTMSource,ym:s:UTMMedium,ym:s:UTMCampaign,ym:s:UTMTerm,ym:s:UTMContent",
             "limit": 100000,
             "accuracy": "full"
         }
@@ -241,7 +241,8 @@ class YandexMetricaClient:
             "totals": {
                 "visits": 0,
                 "users": 0,
-                "pageviews": 0
+                "pageviews": 0,
+                "revenue": 0
             }
         }
         
@@ -256,25 +257,31 @@ class YandexMetricaClient:
                 source = dimensions[0].get("name", "") or "(not set)"
                 medium = dimensions[1].get("name", "") or "(not set)"
                 campaign = dimensions[2].get("name", "") or "(not set)"
+                term = dimensions[3].get("name", "") if len(dimensions) > 3 else ""
+                content = dimensions[4].get("name", "") if len(dimensions) > 4 else ""
                 
                 visits = int(metrics[0]) if len(metrics) > 0 else 0
                 users = int(metrics[1]) if len(metrics) > 1 else 0
                 pageviews = int(metrics[2]) if len(metrics) > 2 else 0
                 bounce_rate = float(metrics[3]) if len(metrics) > 3 else 0
                 avg_duration = float(metrics[4]) if len(metrics) > 4 else 0
+                revenue = float(metrics[5]) if len(metrics) > 5 else 0
                 
                 # Агрегация по кампаниям
-                campaign_key = f"{source}|{medium}|{campaign}"
+                campaign_key = f"{source}|{medium}|{campaign}|{term}|{content}"
                 if campaign_key not in campaigns_map:
                     campaigns_map[campaign_key] = {
                         "source": source,
                         "medium": medium,
                         "campaign": campaign,
+                        "term": term,
+                        "content": content,
                         "visits": 0,
                         "users": 0,
                         "pageviews": 0,
                         "bounceRate": 0,
                         "avgDuration": 0,
+                        "revenue": 0,
                         "_bounce_sum": 0,
                         "_duration_sum": 0,
                         "_count": 0
@@ -283,6 +290,7 @@ class YandexMetricaClient:
                 campaigns_map[campaign_key]["visits"] += visits
                 campaigns_map[campaign_key]["users"] += users
                 campaigns_map[campaign_key]["pageviews"] += pageviews
+                campaigns_map[campaign_key]["revenue"] += revenue
                 campaigns_map[campaign_key]["_bounce_sum"] += bounce_rate * visits
                 campaigns_map[campaign_key]["_duration_sum"] += avg_duration * visits
                 campaigns_map[campaign_key]["_count"] += 1
@@ -302,6 +310,7 @@ class YandexMetricaClient:
                 result["totals"]["visits"] += visits
                 result["totals"]["users"] += users
                 result["totals"]["pageviews"] += pageviews
+                result["totals"]["revenue"] += revenue
         
         # Финализация данных
         for key, data in campaigns_map.items():
