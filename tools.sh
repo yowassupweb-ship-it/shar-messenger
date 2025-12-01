@@ -15,11 +15,8 @@ FRONTEND_PID="$ROOT/frontend.pid"
 
 kill_port() {
     local port=$1
-    local pid=$(lsof -t -i:$port 2>/dev/null)
-    if [ -n "$pid" ]; then
-        echo -e "${YELLOW}Killing process on port $port (PID: $pid)${NC}"
-        kill -9 $pid 2>/dev/null
-    fi
+    echo -e "${YELLOW}Killing process on port $port...${NC}"
+    fuser -k $port/tcp 2>/dev/null || true
 }
 
 case "$1" in
