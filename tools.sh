@@ -1,6 +1,6 @@
 #!/bin/bash
 # VS-Tools Management Script for Linux
-# Usage: ./tools.sh [update|restart|status|logs]
+# Usage: ./tools.sh [update|restart|stop|status|logs]
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 CYAN='\033[0;36m'
@@ -8,6 +8,19 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
+
+# PID files
+BACKEND_PID="$ROOT/backend.pid"
+FRONTEND_PID="$ROOT/frontend.pid"
+
+kill_port() {
+    local port=$1
+    local pid=$(lsof -t -i:$port 2>/dev/null)
+    if [ -n "$pid" ]; then
+        echo -e "${YELLOW}Killing process on port $port (PID: $pid)${NC}"
+        kill -9 $pid 2>/dev/null
+    fi
+}
 
 case "$1" in
     update)
@@ -22,40 +35,58 @@ case "$1" in
         echo -e "${CYAN}Run: ./tools.sh restart${NC}"
         ;;
     
+    stop)
+        echo -e "${CYAN}=== STOP ===${NC}"
+        
+        # Kill by PID files
+        if [ -f "$BACKEND_PID" ]; then
+            kill $(cat "$BACKEND_PID") 2>/dev/null
+            rm -f "$BACKEND_PID"
+            echo -e "${YELLOW}Backend stopped${NC}"
+        fi
+        
+        if [ -f "$FRONTEND_PID" ]; then
+            kill $(cat "$FRONTEND_PID") 2>/dev/null
+            rm -f "$FRONTEND_PID"
+            echo -e "${YELLOW}Frontend stopped${NC}"
+        fi
+        
+        # Kill by ports (backup)
+        kill_port 3000
+        kill_port 8000
+        
+        sleep 1
+        echo -e "${GREEN}Services stopped${NC}"
+        ;;
+    
     restart)
         echo -e "${CYAN}=== RESTART ===${NC}"
         
-        # Kill processes on ports first
-        echo -e "${YELLOW}Killing processes on ports 3000 and 8000...${NC}"
-        kill $(lsof -t -i:3000) 2>/dev/null || true
-        kill $(lsof -t -i:8000) 2>/dev/null || true
+        # Stop first
+        $0 stop
         sleep 2
         
-        echo -e "${YELLOW}Restarting via PM2...${NC}"
-        pm2 restart all 2>/dev/null || {
-            echo -e "${YELLOW}PM2 processes not found, starting fresh...${NC}"
-            cd "$ROOT/backend"
-            source venv/bin/activate 2>/dev/null || true
-            pm2 start "python -m uvicorn main:app --host 0.0.0.0 --port 8000" --name backend --cwd "$ROOT/backend"
-            pm2 start "npm start" --name frontend --cwd "$ROOT/frontend"
-            pm2 save
-        }
+        # Start backend
+        echo -e "${YELLOW}Starting backend (port 8000)...${NC}"
+        cd "$ROOT/backend"
+        source venv/bin/activate 2>/dev/null || true
+        nohup python -m uvicorn main:app --host 0.0.0.0 --port 8000 > "$ROOT/backend.log" 2>&1 &
+        echo $! > "$BACKEND_PID"
+        echo -e "${GREEN}Backend started (PID: $(cat $BACKEND_PID))${NC}"
         
-        pm2 status
-        echo -e "${GREEN}Services restarted!${NC}"
+        # Start frontend
+        echo -e "${YELLOW}Starting frontend (port 3000)...${NC}"
+        cd "$ROOT/frontend"
+        nohup npm start > "$ROOT/frontend.log" 2>&1 &
+        echo $! > "$FRONTEND_PID"
+        echo -e "${GREEN}Frontend started (PID: $(cat $FRONTEND_PID))${NC}"
+        
+        sleep 3
+        $0 status
         ;;
     
     status)
         echo -e "${CYAN}=== STATUS ===${NC}"
-        
-        # PM2 status
-        if command -v pm2 &> /dev/null; then
-            echo -e "${CYAN}PM2:${NC}"
-            pm2 status
-        fi
-        
-        echo ""
-        echo -e "${CYAN}Ports:${NC}"
         
         # Backend check
         echo -n "Backend (8000): "
@@ -77,8 +108,19 @@ case "$1" in
     logs)
         echo -e "${CYAN}=== LOGS ===${NC}"
         
-        echo -e "${YELLOW}PM2 Logs (last 50 lines):${NC}"
-        pm2 logs --lines 50 --nostream
+        if [ "$2" = "backend" ]; then
+            echo -e "${YELLOW}Backend logs:${NC}"
+            tail -100 "$ROOT/backend.log" 2>/dev/null || echo "No logs"
+        elif [ "$2" = "frontend" ]; then
+            echo -e "${YELLOW}Frontend logs:${NC}"
+            tail -100 "$ROOT/frontend.log" 2>/dev/null || echo "No logs"
+        else
+            echo -e "${YELLOW}Backend logs (last 20):${NC}"
+            tail -20 "$ROOT/backend.log" 2>/dev/null || echo "No logs"
+            echo ""
+            echo -e "${YELLOW}Frontend logs (last 20):${NC}"
+            tail -20 "$ROOT/frontend.log" 2>/dev/null || echo "No logs"
+        fi
         ;;
     
     deploy)
@@ -103,9 +145,10 @@ case "$1" in
         echo ""
         echo "Commands:"
         echo "  update   - Rebuild frontend after git pull"
-        echo "  restart  - Restart services via PM2"
+        echo "  restart  - Stop and start all services"
+        echo "  stop     - Stop all services"
         echo "  status   - Check services"
-        echo "  logs     - Show PM2 logs"
+        echo "  logs [backend|frontend] - Show logs"
         echo "  deploy   - Full deploy (pull + update + restart)"
         echo ""
         echo "Example:"
