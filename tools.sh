@@ -25,10 +25,23 @@ case "$1" in
     restart)
         echo -e "${CYAN}=== RESTART ===${NC}"
         
-        echo -e "${YELLOW}Restarting via PM2...${NC}"
-        pm2 restart all
-        pm2 status
+        # Kill processes on ports first
+        echo -e "${YELLOW}Killing processes on ports 3000 and 8000...${NC}"
+        kill $(lsof -t -i:3000) 2>/dev/null || true
+        kill $(lsof -t -i:8000) 2>/dev/null || true
+        sleep 2
         
+        echo -e "${YELLOW}Restarting via PM2...${NC}"
+        pm2 restart all 2>/dev/null || {
+            echo -e "${YELLOW}PM2 processes not found, starting fresh...${NC}"
+            cd "$ROOT/backend"
+            source venv/bin/activate 2>/dev/null || true
+            pm2 start "python -m uvicorn main:app --host 0.0.0.0 --port 8000" --name backend --cwd "$ROOT/backend"
+            pm2 start "npm start" --name frontend --cwd "$ROOT/frontend"
+            pm2 save
+        }
+        
+        pm2 status
         echo -e "${GREEN}Services restarted!${NC}"
         ;;
     
