@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { apiFetch } from '@/lib/api'
 
 interface ApiKey {
   id: string
@@ -20,15 +21,13 @@ export default function ApiKeysPage() {
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
-  const API_URL = 'http://localhost:8000'
-
   useEffect(() => {
     loadApiKeys()
   }, [])
 
   const loadApiKeys = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/direct-parser/api-keys`)
+      const res = await apiFetch('/api/direct-parser/api-keys')
       if (res.ok) {
         const data = await res.json()
         setApiKeys(data)
@@ -45,7 +44,7 @@ export default function ApiKeysPage() {
     setCreating(true)
     
     try {
-      const res = await fetch(`${API_URL}/api/direct-parser/api-keys`, {
+      const res = await apiFetch('/api/direct-parser/api-keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newKeyName })
@@ -69,7 +68,7 @@ export default function ApiKeysPage() {
     if (!confirm('Удалить этот API ключ? Все агенты с этим ключом перестанут работать.')) return
     
     try {
-      const res = await fetch(`${API_URL}/api/direct-parser/api-keys/${id}`, {
+      const res = await apiFetch(`/api/direct-parser/api-keys/${id}`, {
         method: 'DELETE'
       })
       

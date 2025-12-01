@@ -10,9 +10,14 @@ import sys
 import os
 import secrets
 import asyncio
+import logging
 from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -222,12 +227,18 @@ class TrackedPostCreate(BaseModel):
     clicks: int = 0
     views: int = 0
     conversions: int = 0
+    users: int = 0
+    frequency: float = 0
+    avgTime: float = 0
 
 class TrackedPostUpdate(BaseModel):
     title: Optional[str] = None
     clicks: Optional[int] = None
     views: Optional[int] = None
     conversions: Optional[int] = None
+    users: Optional[int] = None
+    frequency: Optional[float] = None
+    avgTime: Optional[float] = None
 
 class UTMHistoryItem(BaseModel):
     url: str
@@ -1805,6 +1816,34 @@ def get_metrica_analytics(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/analytics/campaigns")
+def get_campaigns_analytics(
+    date_from: str = None,
+    date_to: str = None
+):
+    """Получить статистику по кампаниям с разбивкой по источникам из Яндекс.Метрики"""
+    try:
+        settings = db.get_settings()
+        counter_id = settings.get("metricaCounterId")
+        token = settings.get("metricaToken")
+        
+        if not counter_id or not token:
+            raise HTTPException(
+                status_code=400,
+                detail="Настройте Яндекс.Метрику (ID счетчика и токен)"
+            )
+        
+        client = YandexMetricaClient(counter_id=counter_id, token=token)
+        data = client.get_campaigns_by_source(
+            date_from=date_from,
+            date_to=date_to
+        )
+        
+        return data
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/analytics/history")
 def get_analytics_history():
     """Получить историю аналитических данных"""
@@ -1955,6 +1994,9 @@ def create_tracked_post(post: TrackedPostCreate):
             "clicks": post.clicks,
             "views": post.views,
             "conversions": post.conversions,
+            "users": post.users,
+            "frequency": post.frequency,
+            "avgTime": post.avgTime,
             "createdAt": datetime.utcnow().isoformat()
         })
         return new_post
@@ -2724,16 +2766,33 @@ def download_archive():
     """Скачать архив с файлами парсера"""
     files_to_include = ['direct_agent.py', 'ad_parser.py', 'requirements.txt']
     
+    # Проверяем наличие директории
+    if not os.path.exists(DIRECT_PARSER_PATH):
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Директория direct-parser не найдена: {DIRECT_PARSER_PATH}"
+        )
+    
+    # Проверяем наличие хотя бы одного файла
+    found_files = []
+    for filename in files_to_include:
+        file_path = os.path.join(DIRECT_PARSER_PATH, filename)
+        if os.path.exists(file_path):
+            found_files.append((filename, file_path))
+        else:
+            print(f"File not found: {file_path}")
+    
+    if not found_files:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Файлы парсера не найдены в {DIRECT_PARSER_PATH}"
+        )
+    
     # Создаём ZIP в памяти
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-        for filename in files_to_include:
-            file_path = os.path.join(DIRECT_PARSER_PATH, filename)
-            if os.path.exists(file_path):
-                zip_file.write(file_path, filename)
-            else:
-                # Если файл не найден, логируем
-                print(f"File not found: {file_path}")
+        for filename, file_path in found_files:
+            zip_file.write(file_path, filename)
     
     zip_buffer.seek(0)
     

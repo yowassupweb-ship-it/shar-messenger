@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { apiFetch } from '@/lib/api'
+import { showToast } from '@/components/Toast'
 
 interface Settings {
   general: {
@@ -53,12 +55,54 @@ export default function SettingsPage() {
 
   const [activeTab, setActiveTab] = useState<'general' | 'api' | 'feeds' | 'export'>('general')
   const [isSaving, setIsSaving] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    loadSettings()
+  }, [])
+
+  const loadSettings = async () => {
+    try {
+      setIsLoading(true)
+      const response = await apiFetch('/api/settings')
+      if (response.ok) {
+        const data = await response.json()
+        // Merge server settings with defaults
+        setSettings(prev => ({
+          general: { ...prev.general, ...data.general },
+          api: { ...prev.api, ...data.api },
+          feeds: { ...prev.feeds, ...data.feeds },
+          export: { ...prev.export, ...data.export }
+        }))
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки настроек:', error)
+      showToast('Ошибка загрузки настроек', 'error')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleSave = async () => {
     setIsSaving(true)
-    // Имитация сохранения
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    setIsSaving(false)
+    try {
+      const response = await apiFetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      })
+      
+      if (response.ok) {
+        showToast('Настройки сохранены', 'success')
+      } else {
+        showToast('Ошибка сохранения', 'error')
+      }
+    } catch (error) {
+      console.error('Ошибка сохранения настроек:', error)
+      showToast('Ошибка сохранения', 'error')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const updateSetting = (section: keyof Settings, key: string, value: any) => {

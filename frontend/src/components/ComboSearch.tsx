@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { TopRequestsResponse } from '@/types/yandex-wordstat'
+import * as XLSX from 'xlsx'
 
 interface ComboSearchProps {
   onBatchSearch: (keywords: string[], options: any) => Promise<Map<string, TopRequestsResponse>>
@@ -73,13 +74,13 @@ export function ComboSearch({ onBatchSearch, loading }: ComboSearchProps) {
     const successResults = results.filter(r => r.status === 'success' && r.results)
     if (successResults.length === 0) return
 
-    // Создаем данные для экспорта - каждый ключ на отдельный лист
-    const worksheets: { name: string, data: any[] }[] = []
+    // Создаем новую книгу Excel
+    const workbook = XLSX.utils.book_new()
 
     for (const result of successResults) {
       if (!result.results) continue
 
-      const rows: any[] = []
+      const rows: any[][] = []
       
       // Заголовок
       rows.push(['Фраза', 'Показы'])
@@ -100,29 +101,27 @@ export function ComboSearch({ onBatchSearch, loading }: ComboSearchProps) {
         }
       }
 
-      worksheets.push({
-        name: result.keyword.slice(0, 31), // Excel ограничивает имя листа
-        data: rows
-      })
+      // Создаем лист из данных
+      const worksheet = XLSX.utils.aoa_to_sheet(rows)
+      
+      // Устанавливаем ширину колонок
+      worksheet['!cols'] = [
+        { wch: 50 }, // Фраза
+        { wch: 15 }  // Показы
+      ]
+      
+      // Очищаем имя листа от недопустимых символов и ограничиваем длину
+      const sheetName = result.keyword
+        .replace(/[\\/*?:\[\]]/g, '')
+        .slice(0, 31)
+      
+      // Добавляем лист в книгу
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)
     }
 
-    // Экспорт в CSV с разделителями для листов
-    let csvContent = ''
-    for (const sheet of worksheets) {
-      csvContent += `=== ${sheet.name} ===\n`
-      for (const row of sheet.data) {
-        csvContent += row.map((cell: any) => `"${cell || ''}"`).join(';') + '\n'
-      }
-      csvContent += '\n'
-    }
-
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `combo_search_${new Date().toISOString().split('T')[0]}.csv`
-    link.click()
-    URL.revokeObjectURL(url)
+    // Генерируем файл и скачиваем
+    const filename = `combo_search_${new Date().toISOString().split('T')[0]}.xlsx`
+    XLSX.writeFile(workbook, filename)
   }
 
   const successCount = results.filter(r => r.status === 'success').length

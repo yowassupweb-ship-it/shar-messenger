@@ -1,8 +1,16 @@
 'use client'
 
 import Link from 'next/link'
+import { useState, useEffect } from 'react'
+import { getApiUrl } from '@/lib/api'
 
 export default function DocsPage() {
+  const [apiUrl, setApiUrl] = useState('')
+  
+  useEffect(() => {
+    getApiUrl().then(setApiUrl)
+  }, [])
+
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
@@ -18,7 +26,7 @@ export default function DocsPage() {
         </h3>
         <div className="flex flex-wrap gap-3">
           <a
-            href="/api/direct-parser/download/archive"
+            href={`${apiUrl}/api/direct-parser/download/archive`}
             className="px-4 py-2.5 bg-[var(--button)] text-[#1b1b2b] rounded-lg hover:opacity-90 flex items-center gap-2 font-medium"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

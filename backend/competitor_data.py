@@ -97,8 +97,8 @@ class CompetitorDataManager:
                 "message": "Получение данных с Magput..."
             })
             
-            # Парсим туры
-            tours = parser.fetch_tours(sub_type=sub_type)
+            # Парсим туры (используем asyncio.to_thread для синхронного кода)
+            tours = await asyncio.to_thread(parser.fetch_tours, sub_type=sub_type)
             
             # Обновляем состояние
             db_manager.set_parsing_state(source_id, {

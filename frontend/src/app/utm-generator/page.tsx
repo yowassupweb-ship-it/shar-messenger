@@ -31,6 +31,7 @@ const PRESETS: Preset[] = [
   { id: 'google', name: 'Google', source: 'google', medium: 'cpc', color: 'bg-blue-500/20 border-blue-500/50 text-blue-300', description: 'Google Ads' },
   { id: 'vk', name: 'VK', source: 'vk', medium: 'social', color: 'bg-sky-500/20 border-sky-500/50 text-sky-300', description: 'ВКонтакте' },
   { id: 'tg', name: 'Telegram', source: 'telegram', medium: 'social', color: 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300', description: 'Telegram' },
+  { id: 'dzen', name: 'Дзен', source: 'dzen', medium: 'social', color: 'bg-orange-500/20 border-orange-500/50 text-orange-300', description: 'Яндекс.Дзен' },
   { id: 'email', name: 'Email', source: 'email', medium: 'email', color: 'bg-purple-500/20 border-purple-500/50 text-purple-300', description: 'Email-рассылка' },
   { id: 'qr', name: 'QR', source: 'qr', medium: 'offline', color: 'bg-green-500/20 border-green-500/50 text-green-300', description: 'Оффлайн (QR-код)' },
 ]
@@ -38,6 +39,7 @@ const PRESETS: Preset[] = [
 const PLATFORMS = [
   { id: 'vk', name: 'ВКонтакте' },
   { id: 'telegram', name: 'Telegram' },
+  { id: 'dzen', name: 'Дзен' },
   { id: 'instagram', name: 'Instagram' },
   { id: 'yandex', name: 'Яндекс.Директ' },
   { id: 'google', name: 'Google Ads' },

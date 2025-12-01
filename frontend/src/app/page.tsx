@@ -59,18 +59,10 @@ const tools: Tool[] = [
   {
     id: 'utm-creator',
     name: 'Генератор UTM',
-    description: 'Создание UTM меток для рекламных кампаний',
+    description: 'Создание и отслеживание UTM меток через Я.Метрику',
     href: '/utm-generator',
     icon: <Tag className="w-6 h-6" />,
     color: 'bg-purple-500'
-  },
-  {
-    id: 'link-tracker',
-    name: 'Трекер ссылок',
-    description: 'Отслеживание эффективности UTM меток через Я.Метрику',
-    href: '/utm-generator/tracker',
-    icon: <TrendingUp className="w-6 h-6" />,
-    color: 'bg-pink-500'
   },
   // В разработке
   {

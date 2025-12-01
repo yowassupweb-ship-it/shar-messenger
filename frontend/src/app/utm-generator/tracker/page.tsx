@@ -6,7 +6,7 @@ import { showToast } from '@/components/Toast'
 import { 
   Plus, Search, RefreshCw, Copy, ExternalLink, Trash2, 
   FolderPlus, Folder, FolderOpen, ChevronRight, ChevronDown,
-  BarChart3, Eye, MousePointer, TrendingUp, X
+  BarChart3, Eye, MousePointer, TrendingUp, X, Users, Clock, Repeat
 } from 'lucide-react'
 
 interface TrackedPost {
@@ -19,6 +19,9 @@ interface TrackedPost {
   clicks: number
   views: number
   conversions: number
+  users: number
+  frequency: number
+  avgTime: number
   folderId?: string
 }
 
@@ -58,6 +61,11 @@ export default function TrackerPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
+  
+  // UTM Filters
+  const [filterSource, setFilterSource] = useState<string>('')
+  const [filterMedium, setFilterMedium] = useState<string>('')
+  const [filterCampaign, setFilterCampaign] = useState<string>('')
   
   // Modals
   const [showAddLink, setShowAddLink] = useState(false)
@@ -226,13 +234,44 @@ export default function TrackerPage() {
   const getPlatform = (id: string) => PLATFORMS.find(p => p.id === id) || PLATFORMS[PLATFORMS.length - 1]
   const getFolderColor = (colorId: string) => FOLDER_COLORS.find(c => c.id === colorId)?.color || FOLDER_COLORS[0].color
 
+  // Извлечение UTM из URL
+  const parseUTM = (url: string) => {
+    try {
+      const urlObj = new URL(url)
+      return {
+        source: urlObj.searchParams.get('utm_source') || '',
+        medium: urlObj.searchParams.get('utm_medium') || '',
+        campaign: urlObj.searchParams.get('utm_campaign') || '',
+      }
+    } catch {
+      return { source: '', medium: '', campaign: '' }
+    }
+  }
+
+  // Уникальные значения для фильтров
+  const uniqueSources = [...new Set(posts.map(p => parseUTM(p.utmUrl).source).filter(Boolean))].sort()
+  const uniqueMediums = [...new Set(posts.map(p => parseUTM(p.utmUrl).medium).filter(Boolean))].sort()
+  const uniqueCampaigns = [...new Set(posts.map(p => parseUTM(p.utmUrl).campaign).filter(Boolean))].sort()
+
+  const hasUTMFilters = filterSource || filterMedium || filterCampaign
+
+  const clearUTMFilters = () => {
+    setFilterSource('')
+    setFilterMedium('')
+    setFilterCampaign('')
+  }
+
   // Фильтрация
   const filteredPosts = posts.filter(post => {
+    const utm = parseUTM(post.utmUrl)
     const matchesSearch = !searchQuery || 
       post.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       post.utmUrl?.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesFolder = !selectedFolder || post.folderId === selectedFolder
-    return matchesSearch && matchesFolder
+    const matchesSource = !filterSource || utm.source === filterSource
+    const matchesMedium = !filterMedium || utm.medium === filterMedium
+    const matchesCampaign = !filterCampaign || utm.campaign === filterCampaign
+    return matchesSearch && matchesFolder && matchesSource && matchesMedium && matchesCampaign
   })
 
   // Группировка по папкам
@@ -246,6 +285,20 @@ export default function TrackerPage() {
   const totalViews = posts.reduce((sum, p) => sum + (p.views || 0), 0)
   const totalClicks = posts.reduce((sum, p) => sum + (p.clicks || 0), 0)
   const totalConversions = posts.reduce((sum, p) => sum + (p.conversions || 0), 0)
+  const totalUsers = posts.reduce((sum, p) => sum + (p.users || 0), 0)
+  const avgFrequency = posts.length > 0 
+    ? posts.reduce((sum, p) => sum + (p.frequency || 0), 0) / posts.length 
+    : 0
+  const avgTime = posts.length > 0 
+    ? posts.reduce((sum, p) => sum + (p.avgTime || 0), 0) / posts.length 
+    : 0
+  
+  // Форматирование времени в минутах:секундах
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.round(seconds % 60)
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
 
   return (
     <div className="min-h-screen p-6">
@@ -282,65 +335,170 @@ export default function TrackerPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-500/20 rounded-lg">
-              <BarChart3 className="w-5 h-5 text-blue-400" />
+      <div className="grid grid-cols-7 gap-3 mb-6">
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-blue-500/20 rounded-lg">
+              <BarChart3 className="w-4 h-4 text-blue-400" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{posts.length}</p>
-              <p className="text-xs opacity-60">Ссылок</p>
+              <p className="text-lg font-bold">{posts.length}</p>
+              <p className="text-[10px] opacity-60">Ссылок</p>
             </div>
           </div>
         </div>
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-500/20 rounded-lg">
-              <Eye className="w-5 h-5 text-green-400" />
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-cyan-500/20 rounded-lg">
+              <Users className="w-4 h-4 text-cyan-400" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{totalViews.toLocaleString()}</p>
-              <p className="text-xs opacity-60">Визитов</p>
+              <p className="text-lg font-bold">{totalUsers.toLocaleString()}</p>
+              <p className="text-[10px] opacity-60">Посетителей</p>
             </div>
           </div>
         </div>
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-500/20 rounded-lg">
-              <MousePointer className="w-5 h-5 text-purple-400" />
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-green-500/20 rounded-lg">
+              <Eye className="w-4 h-4 text-green-400" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{totalClicks.toLocaleString()}</p>
-              <p className="text-xs opacity-60">Кликов</p>
+              <p className="text-lg font-bold">{totalViews.toLocaleString()}</p>
+              <p className="text-[10px] opacity-60">Визитов</p>
             </div>
           </div>
         </div>
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-500/20 rounded-lg">
-              <TrendingUp className="w-5 h-5 text-orange-400" />
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-purple-500/20 rounded-lg">
+              <MousePointer className="w-4 h-4 text-purple-400" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{totalConversions}</p>
-              <p className="text-xs opacity-60">Конверсий</p>
+              <p className="text-lg font-bold">{totalClicks.toLocaleString()}</p>
+              <p className="text-[10px] opacity-60">Кликов</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3 group relative">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-orange-500/20 rounded-lg">
+              <TrendingUp className="w-4 h-4 text-orange-400" />
+            </div>
+            <div>
+              <p className="text-lg font-bold">{totalConversions}</p>
+              <p className="text-[10px] opacity-60">Конверсий</p>
+            </div>
+          </div>
+          {/* Hover tooltip */}
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10 shadow-lg">
+            <p className="font-medium mb-1">Конверсии по типам:</p>
+            <p className="opacity-70">• Заявки: —</p>
+            <p className="opacity-70">• Звонки: —</p>
+            <p className="opacity-70">• Чаты: —</p>
+          </div>
+        </div>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-yellow-500/20 rounded-lg">
+              <Repeat className="w-4 h-4 text-yellow-400" />
+            </div>
+            <div>
+              <p className="text-lg font-bold">{avgFrequency.toFixed(1)}</p>
+              <p className="text-[10px] opacity-60">Частота</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-pink-500/20 rounded-lg">
+              <Clock className="w-4 h-4 text-pink-400" />
+            </div>
+            <div>
+              <p className="text-lg font-bold">{formatTime(avgTime)}</p>
+              <p className="text-[10px] opacity-60">Ср. время</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Search */}
-      <div className="mb-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" />
-          <input
-            type="text"
-            placeholder="Поиск по названию или ссылке..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="input-field w-full pl-10"
-          />
+      {/* Search and UTM Filters */}
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 mb-4">
+        <div className="grid grid-cols-5 gap-3">
+          {/* Поиск */}
+          <div className="col-span-2">
+            <label className="block text-xs font-medium mb-1 opacity-70">Поиск</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" />
+              <input
+                type="text"
+                placeholder="По названию или ссылке..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="input-field w-full pl-10 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* UTM Source */}
+          <div>
+            <label className="block text-xs font-medium mb-1 opacity-70">utm_source</label>
+            <select
+              value={filterSource}
+              onChange={(e) => setFilterSource(e.target.value)}
+              className="input-field w-full text-sm"
+            >
+              <option value="">Все источники</option>
+              {uniqueSources.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* UTM Medium */}
+          <div>
+            <label className="block text-xs font-medium mb-1 opacity-70">utm_medium</label>
+            <select
+              value={filterMedium}
+              onChange={(e) => setFilterMedium(e.target.value)}
+              className="input-field w-full text-sm"
+            >
+              <option value="">Все типы</option>
+              {uniqueMediums.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* UTM Campaign */}
+          <div>
+            <label className="block text-xs font-medium mb-1 opacity-70">utm_campaign</label>
+            <select
+              value={filterCampaign}
+              onChange={(e) => setFilterCampaign(e.target.value)}
+              className="input-field w-full text-sm"
+            >
+              <option value="">Все кампании</option>
+              {uniqueCampaigns.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
         </div>
+        
+        {hasUTMFilters && (
+          <div className="mt-3 pt-3 border-t border-[var(--border)] flex items-center justify-between">
+            <span className="text-xs opacity-60">
+              Найдено: {filteredPosts.length} из {posts.length}
+            </span>
+            <button
+              onClick={clearUTMFilters}
+              className="text-xs text-[var(--button)] hover:underline"
+            >
+              Сбросить фильтры
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -547,6 +705,13 @@ function LinkRow({
 }) {
   const platform = getPlatform(post.platform)
   
+  // Форматирование времени в минутах:секундах
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.round(seconds % 60)
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+  
   return (
     <div className="flex items-center gap-4 p-3 border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--background)]/50 group">
       <span className={`px-2 py-1 text-xs rounded ${platform.color}`}>
@@ -558,14 +723,29 @@ function LinkRow({
         <p className="text-xs opacity-50 truncate font-mono">{post.utmUrl}</p>
       </div>
       
-      <div className="flex items-center gap-4 text-xs">
-        <div className="text-center">
+      <div className="flex items-center gap-3 text-xs">
+        <div className="text-center" title="Уникальные посетители">
+          <p className="font-medium">{post.users || 0}</p>
+          <p className="opacity-50">польз.</p>
+        </div>
+        <div className="text-center" title="Всего визитов">
           <p className="font-medium">{post.views || 0}</p>
           <p className="opacity-50">визитов</p>
         </div>
-        <div className="text-center">
-          <p className="font-medium">{post.clicks || 0}</p>
-          <p className="opacity-50">кликов</p>
+        <div className="text-center relative group/conv" title="Конверсии">
+          <p className="font-medium">{post.conversions || 0}</p>
+          <p className="opacity-50">конв.</p>
+          {/* Hover с деталями конверсий */}
+          {(post.conversions || 0) > 0 && (
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1.5 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[10px] opacity-0 group-hover/conv:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10 shadow-lg">
+              <p className="opacity-70">Заявки: —</p>
+              <p className="opacity-70">Звонки: —</p>
+            </div>
+          )}
+        </div>
+        <div className="text-center" title="Среднее время на сайте">
+          <p className="font-medium">{formatTime(post.avgTime || 0)}</p>
+          <p className="opacity-50">время</p>
         </div>
       </div>
       
