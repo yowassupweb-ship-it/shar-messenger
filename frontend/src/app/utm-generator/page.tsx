@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { apiFetch } from '@/lib/api'
 import { showToast } from '@/components/Toast'
-import { Copy, ExternalLink, Link2, Check, RotateCcw, TrendingUp, Layers } from 'lucide-react'
+import { Copy, ExternalLink, Link2, Check, RotateCcw, TrendingUp, Layers, Settings, Plus, Pencil, Trash2, X, Save } from 'lucide-react'
 
 interface Preset {
   id: string
@@ -14,14 +14,27 @@ interface Preset {
   description: string
 }
 
-const PRESETS: Preset[] = [
-  { id: 'yandex', name: 'Яндекс', source: 'yandex', medium: 'cpc', color: 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300', description: 'Яндекс.Директ' },
-  { id: 'google', name: 'Google', source: 'google', medium: 'cpc', color: 'bg-blue-500/20 border-blue-500/50 text-blue-300', description: 'Google Ads' },
-  { id: 'vk', name: 'VK', source: 'vk', medium: 'social', color: 'bg-sky-500/20 border-sky-500/50 text-sky-300', description: 'ВКонтакте' },
-  { id: 'tg', name: 'Telegram', source: 'telegram', medium: 'social', color: 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300', description: 'Telegram' },
-  { id: 'dzen', name: 'Дзен', source: 'dzen', medium: 'social', color: 'bg-orange-500/20 border-orange-500/50 text-orange-300', description: 'Яндекс.Дзен' },
-  { id: 'email', name: 'Email', source: 'email', medium: 'email', color: 'bg-purple-500/20 border-purple-500/50 text-purple-300', description: 'Email-рассылка' },
-  { id: 'qr', name: 'QR', source: 'qr', medium: 'offline', color: 'bg-green-500/20 border-green-500/50 text-green-300', description: 'Оффлайн (QR-код)' },
+const DEFAULT_PRESETS: Preset[] = [
+  { id: 'yandex', name: 'Яндекс', source: 'yandex', medium: 'cpc', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', description: 'Яндекс.Директ' },
+  { id: 'google', name: 'Google', source: 'google', medium: 'cpc', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30', description: 'Google Ads' },
+  { id: 'vk', name: 'VK', source: 'vk', medium: 'social', color: 'bg-sky-500/20 text-sky-400 border-sky-500/30', description: 'ВКонтакте' },
+  { id: 'tg', name: 'Telegram', source: 'telegram', medium: 'social', color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30', description: 'Telegram' },
+  { id: 'dzen', name: 'Дзен', source: 'dzen', medium: 'social', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30', description: 'Яндекс.Дзен' },
+  { id: 'email', name: 'Email', source: 'email', medium: 'email', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30', description: 'Email-рассылка' },
+  { id: 'qr', name: 'QR', source: 'qr', medium: 'offline', color: 'bg-green-500/20 text-green-400 border-green-500/30', description: 'Оффлайн (QR-код)' },
+]
+
+const PRESET_COLORS = [
+  { id: 'yellow', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
+  { id: 'blue', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+  { id: 'sky', color: 'bg-sky-500/20 text-sky-400 border-sky-500/30' },
+  { id: 'cyan', color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' },
+  { id: 'orange', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' },
+  { id: 'purple', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
+  { id: 'green', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
+  { id: 'red', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
+  { id: 'pink', color: 'bg-pink-500/20 text-pink-400 border-pink-500/30' },
+  { id: 'indigo', color: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' },
 ]
 
 const PLATFORMS = [
@@ -35,12 +48,20 @@ const PLATFORMS = [
   { id: 'other', name: 'Другое' },
 ]
 
-type TabType = 'single' | 'bulk'
+const panelStyle = {
+  background: '#1a1a1a',
+  boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.3), 0 0 0 0.5px rgba(255, 255, 255, 0.1) inset, 0 1px 0 0 rgba(255, 255, 255, 0.15) inset'
+}
+
+const buttonStyle = {
+  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.1) inset'
+}
+
+type TabType = 'single' | 'bulk' | 'settings'
 
 export default function UTMGeneratorPage() {
   const [activeTab, setActiveTab] = useState<TabType>('single')
   
-  // Состояния формы (одиночная генерация)
   const [baseUrl, setBaseUrl] = useState('')
   const [source, setSource] = useState('')
   const [medium, setMedium] = useState('')
@@ -49,21 +70,118 @@ export default function UTMGeneratorPage() {
   const [content, setContent] = useState('')
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null)
   
-  // Отслеживание
   const [enableTracking, setEnableTracking] = useState(false)
   const [trackingTitle, setTrackingTitle] = useState('')
   const [trackingPlatform, setTrackingPlatform] = useState('vk')
   
-  // UI
   const [isCopied, setIsCopied] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
 
-  // Массовая генерация
   const [bulkUrls, setBulkUrls] = useState('')
   const [bulkResults, setBulkResults] = useState<string[]>([])
   const [bulkCopied, setBulkCopied] = useState(false)
 
-  // Live генерация URL
+  // Presets management
+  const [presets, setPresets] = useState<Preset[]>([])
+  const [editingPreset, setEditingPreset] = useState<Preset | null>(null)
+  const [isAddingPreset, setIsAddingPreset] = useState(false)
+  const [presetsLoading, setPresetsLoading] = useState(true)
+  const [newPreset, setNewPreset] = useState<Partial<Preset>>({
+    name: '',
+    source: '',
+    medium: '',
+    description: '',
+    color: PRESET_COLORS[0].color
+  })
+
+  // Load presets from server
+  useEffect(() => {
+    const loadPresets = async () => {
+      try {
+        const response = await fetch('/api/utm-presets')
+        if (response.ok) {
+          const data = await response.json()
+          setPresets(data)
+        } else {
+          setPresets(DEFAULT_PRESETS)
+        }
+      } catch (error) {
+        console.error('Error loading presets:', error)
+        setPresets(DEFAULT_PRESETS)
+      } finally {
+        setPresetsLoading(false)
+      }
+    }
+    loadPresets()
+  }, [])
+
+  // Save presets to server
+  const savePresets = useCallback(async (newPresets: Preset[]) => {
+    setPresets(newPresets)
+    try {
+      await fetch('/api/utm-presets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newPresets)
+      })
+    } catch (error) {
+      console.error('Error saving presets:', error)
+    }
+  }, [])
+
+  const handleAddPreset = useCallback(() => {
+    if (!newPreset.name || !newPreset.source || !newPreset.medium) {
+      showToast('Заполните обязательные поля', 'error')
+      return
+    }
+    
+    const preset: Preset = {
+      id: `custom-${Date.now()}`,
+      name: newPreset.name,
+      source: newPreset.source,
+      medium: newPreset.medium,
+      description: newPreset.description || '',
+      color: newPreset.color || PRESET_COLORS[0].color
+    }
+    
+    savePresets([...presets, preset])
+    setNewPreset({ name: '', source: '', medium: '', description: '', color: PRESET_COLORS[0].color })
+    setIsAddingPreset(false)
+    showToast('Пресет добавлен', 'success')
+  }, [newPreset, presets, savePresets])
+
+  const handleUpdatePreset = useCallback(() => {
+    if (!editingPreset) return
+    
+    const updated = presets.map(p => p.id === editingPreset.id ? editingPreset : p)
+    savePresets(updated)
+    setEditingPreset(null)
+    showToast('Пресет обновлён', 'success')
+  }, [editingPreset, presets, savePresets])
+
+  const handleDeletePreset = useCallback((id: string) => {
+    if (!confirm('Удалить этот пресет?')) return
+    savePresets(presets.filter(p => p.id !== id))
+    showToast('Пресет удалён', 'success')
+  }, [presets, savePresets])
+
+  const resetToDefaults = useCallback(async () => {
+    if (!confirm('Сбросить все пресеты к значениям по умолчанию?')) return
+    try {
+      const response = await fetch('/api/utm-presets', { method: 'DELETE' })
+      if (response.ok) {
+        const data = await response.json()
+        setPresets(data.presets)
+        showToast('Пресеты сброшены', 'success')
+      } else {
+        showToast('Ошибка сброса', 'error')
+      }
+    } catch (error) {
+      setPresets(DEFAULT_PRESETS)
+      showToast('Пресеты сброшены', 'success')
+    }
+  }, [])
+
   const generatedUrl = useMemo(() => {
     if (!baseUrl) return ''
     
@@ -80,16 +198,14 @@ export default function UTMGeneratorPage() {
     return `${baseUrl}${separator}${params.toString()}`
   }, [baseUrl, source, medium, campaign, term, content])
 
-  // Применение пресета
   const applyPreset = useCallback((preset: Preset) => {
     setSource(preset.source)
     setMedium(preset.medium)
     setSelectedPreset(preset.id)
-    setTrackingPlatform(preset.id === 'tg' ? 'telegram' : preset.id)
+    setTrackingPlatform(preset.id === 'tg' ? 'telegram' : preset.source)
     showToast(`Применён: ${preset.name}`, 'success')
   }, [])
 
-  // Копирование и создание поста
   const copyAndTrack = useCallback(async () => {
     if (!generatedUrl) {
       showToast('Нет URL для копирования', 'error')
@@ -101,7 +217,6 @@ export default function UTMGeneratorPage() {
       setIsCopied(true)
       setTimeout(() => setIsCopied(false), 2000)
       
-      // Если включено отслеживание - создаём пост
       if (enableTracking && trackingTitle) {
         setIsCreating(true)
         try {
@@ -138,7 +253,6 @@ export default function UTMGeneratorPage() {
     }
   }, [generatedUrl, enableTracking, trackingTitle, trackingPlatform, baseUrl])
 
-  // Очистка формы
   const clearForm = useCallback(() => {
     setBaseUrl('')
     setSource('')
@@ -150,7 +264,6 @@ export default function UTMGeneratorPage() {
     setTrackingTitle('')
   }, [])
 
-  // Массовая генерация
   const generateBulkUrls = useCallback(() => {
     const urls = bulkUrls.split('\n').filter(url => url.trim())
     if (urls.length === 0) {
@@ -194,163 +307,353 @@ export default function UTMGeneratorPage() {
   }
 
   return (
-    <div className="min-h-screen p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">UTM Генератор</h1>
-        <p className="text-sm opacity-60 mt-1">Создавайте UTM-ссылки для рекламных кампаний</p>
-      </div>
+    <div className="h-full flex p-4 gap-4">
+      {/* Левая панель - Форма */}
+      <div 
+        className="w-96 rounded-2xl border border-white/10 overflow-hidden flex flex-col"
+        style={panelStyle}
+      >
+        <div className="p-3 border-b border-white/10">
+          <div className="flex items-center gap-2 mb-3">
+            <Link2 className="w-4 h-4 text-[#4a9eff]" />
+            <span className="text-xs font-medium text-white/60">UTM Генератор</span>
+          </div>
 
-      {/* Вкладки */}
-      <div className="flex gap-1 mb-6 bg-[var(--card)] border border-[var(--border)] rounded-xl p-1 w-fit">
-        <button
-          onClick={() => setActiveTab('single')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            activeTab === 'single' 
-              ? 'bg-[var(--button)] text-[#1b1b2b]' 
-              : 'hover:bg-[var(--border)]'
-          }`}
-        >
-          <Link2 className="w-4 h-4" />
-          Генератор
-        </button>
-        <button
-          onClick={() => setActiveTab('bulk')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            activeTab === 'bulk' 
-              ? 'bg-[var(--button)] text-[#1b1b2b]' 
-              : 'hover:bg-[var(--border)]'
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          Массовая
-        </button>
-      </div>
+          {/* Табы */}
+          <div className="flex gap-1 p-1 bg-white/5 rounded-lg">
+            <button
+              onClick={() => setActiveTab('single')}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                activeTab === 'single' 
+                  ? 'bg-white/10 text-white border border-white/10' 
+                  : 'text-white/50 hover:text-white/70'
+              }`}
+            >
+              <Link2 className="w-3 h-3" />
+              Одна
+            </button>
+            <button
+              onClick={() => setActiveTab('bulk')}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                activeTab === 'bulk' 
+                  ? 'bg-white/10 text-white border border-white/10' 
+                  : 'text-white/50 hover:text-white/70'
+              }`}
+            >
+              <Layers className="w-3 h-3" />
+              Много
+            </button>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                activeTab === 'settings' 
+                  ? 'bg-white/10 text-white border border-white/10' 
+                  : 'text-white/50 hover:text-white/70'
+              }`}
+            >
+              <Settings className="w-3 h-3" />
+              Пресеты
+            </button>
+          </div>
+        </div>
 
-      {/* Одиночная генерация */}
-      {activeTab === 'single' && (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* Left: Form */}
-          <div className="xl:col-span-2 space-y-4">
-            {/* Presets */}
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
-              <div className="flex gap-2 flex-wrap">
-                {PRESETS.map(preset => (
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          {activeTab === 'settings' ? (
+            /* Вкладка настроек пресетов */
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-medium text-white/70">Управление пресетами</h4>
+                <div className="flex gap-2">
                   <button
-                    key={preset.id}
-                    onClick={() => applyPreset(preset)}
-                    className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
-                      selectedPreset === preset.id 
-                        ? preset.color + ' ring-1 ring-offset-1 ring-offset-[var(--background)]'
-                        : 'border-[var(--border)] hover:border-[var(--button)] hover:bg-[var(--border)]/30'
-                    }`}
-                    title={preset.description}
+                    onClick={resetToDefaults}
+                    className="px-2 py-1 text-[10px] text-white/40 hover:text-white/60 transition-colors"
                   >
-                    {preset.name}
+                    Сбросить
                   </button>
+                  <button
+                    onClick={() => setIsAddingPreset(true)}
+                    className="flex items-center gap-1 px-2 py-1 bg-cyan-500/20 text-cyan-400 rounded-lg text-[10px] font-medium hover:bg-cyan-500/30 transition-colors"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Добавить
+                  </button>
+                </div>
+              </div>
+
+              {/* Форма добавления пресета */}
+              {isAddingPreset && (
+                <div className="p-3 bg-white/5 rounded-xl border border-white/10 space-y-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium">Новый пресет</span>
+                    <button onClick={() => setIsAddingPreset(false)} className="text-white/40 hover:text-white/60">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={newPreset.name || ''}
+                    onChange={(e) => setNewPreset({ ...newPreset, name: e.target.value })}
+                    placeholder="Название *"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500/50 placeholder:text-white/30"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={newPreset.source || ''}
+                      onChange={(e) => setNewPreset({ ...newPreset, source: e.target.value })}
+                      placeholder="source *"
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500/50 placeholder:text-white/30"
+                    />
+                    <input
+                      type="text"
+                      value={newPreset.medium || ''}
+                      onChange={(e) => setNewPreset({ ...newPreset, medium: e.target.value })}
+                      placeholder="medium *"
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500/50 placeholder:text-white/30"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={newPreset.description || ''}
+                    onChange={(e) => setNewPreset({ ...newPreset, description: e.target.value })}
+                    placeholder="Описание"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500/50 placeholder:text-white/30"
+                  />
+                  <div>
+                    <label className="block text-[10px] text-white/40 mb-1">Цвет</label>
+                    <div className="flex flex-wrap gap-1">
+                      {PRESET_COLORS.map(c => (
+                        <button
+                          key={c.id}
+                          onClick={() => setNewPreset({ ...newPreset, color: c.color })}
+                          className={`w-6 h-6 rounded-lg border ${c.color} ${newPreset.color === c.color ? 'ring-2 ring-white/50' : ''}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleAddPreset}
+                    className="w-full px-3 py-1.5 bg-cyan-500/20 text-cyan-400 rounded-lg text-xs font-medium hover:bg-cyan-500/30 transition-colors"
+                  >
+                    Добавить пресет
+                  </button>
+                </div>
+              )}
+
+              {/* Список пресетов */}
+              <div className="space-y-2">
+                {presets.map(preset => (
+                  <div key={preset.id} className="flex items-center gap-2 p-2 bg-white/5 rounded-xl border border-white/10">
+                    {editingPreset?.id === preset.id ? (
+                      /* Режим редактирования */
+                      <div className="flex-1 space-y-2">
+                        <input
+                          type="text"
+                          value={editingPreset.name}
+                          onChange={(e) => setEditingPreset({ ...editingPreset, name: e.target.value })}
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+                        />
+                        <div className="grid grid-cols-2 gap-1">
+                          <input
+                            type="text"
+                            value={editingPreset.source}
+                            onChange={(e) => setEditingPreset({ ...editingPreset, source: e.target.value })}
+                            placeholder="source"
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+                          />
+                          <input
+                            type="text"
+                            value={editingPreset.medium}
+                            onChange={(e) => setEditingPreset({ ...editingPreset, medium: e.target.value })}
+                            placeholder="medium"
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          value={editingPreset.description}
+                          onChange={(e) => setEditingPreset({ ...editingPreset, description: e.target.value })}
+                          placeholder="Описание"
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+                        />
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {PRESET_COLORS.map(c => (
+                            <button
+                              key={c.id}
+                              onClick={() => setEditingPreset({ ...editingPreset, color: c.color })}
+                              className={`w-5 h-5 rounded border ${c.color} ${editingPreset.color === c.color ? 'ring-2 ring-white/50' : ''}`}
+                            />
+                          ))}
+                        </div>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => setEditingPreset(null)}
+                            className="flex-1 px-2 py-1 bg-white/5 text-white/60 rounded-lg text-[10px] hover:bg-white/10"
+                          >
+                            Отмена
+                          </button>
+                          <button
+                            onClick={handleUpdatePreset}
+                            className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-cyan-500/20 text-cyan-400 rounded-lg text-[10px] hover:bg-cyan-500/30"
+                          >
+                            <Save className="w-3 h-3" />
+                            Сохранить
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Режим просмотра */
+                      <>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${preset.color}`}>
+                          {preset.name}
+                        </span>
+                        <span className="flex-1 text-[10px] text-white/40 truncate">
+                          {preset.source} / {preset.medium}
+                        </span>
+                        <button
+                          onClick={() => setEditingPreset(preset)}
+                          className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/10 rounded-lg transition-colors"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => handleDeletePreset(preset.id)}
+                          className="p-1.5 text-red-400/60 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
+          ) : (
+          <>
+          {/* Пресеты */}
+          <div>
+            <label className="block text-[10px] text-white/40 mb-2">Быстрые пресеты</label>
+            <div className="flex flex-wrap gap-1">
+              {presets.map(preset => (
+                <button
+                  key={preset.id}
+                  onClick={() => applyPreset(preset)}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-all ${
+                    selectedPreset === preset.id 
+                      ? preset.color
+                      : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'
+                  }`}
+                  title={preset.description}
+                >
+                  {preset.name}
+                </button>
+              ))}
+            </div>
+          </div>
 
-            {/* Form Fields */}
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+          {activeTab === 'single' && (
+            <>
+              {/* URL */}
               <div>
-                <label className="block text-xs font-medium mb-1 opacity-70">URL страницы</label>
+                <label className="block text-[10px] text-white/40 mb-1">URL страницы</label>
                 <input
                   type="url"
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
                   placeholder="https://vs-travel.ru/tour/123"
-                  className="input-field w-full text-sm"
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              {/* UTM параметры */}
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-medium mb-1 opacity-70">source *</label>
+                  <label className="block text-[10px] text-white/40 mb-1">source *</label>
                   <input
                     type="text"
                     value={source}
                     onChange={(e) => { setSource(e.target.value); setSelectedPreset(null) }}
                     placeholder="yandex"
-                    className="input-field w-full text-sm"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium mb-1 opacity-70">medium *</label>
+                  <label className="block text-[10px] text-white/40 mb-1">medium *</label>
                   <input
                     type="text"
                     value={medium}
                     onChange={(e) => { setMedium(e.target.value); setSelectedPreset(null) }}
                     placeholder="cpc"
-                    className="input-field w-full text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1 opacity-70">campaign *</label>
-                  <input
-                    type="text"
-                    value={campaign}
-                    onChange={(e) => setCampaign(e.target.value)}
-                    placeholder="summer_sale"
-                    className="input-field w-full text-sm"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] text-white/40 mb-1">campaign *</label>
+                <input
+                  type="text"
+                  value={campaign}
+                  onChange={(e) => setCampaign(e.target.value)}
+                  placeholder="summer_sale"
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-medium mb-1 opacity-50">term</label>
+                  <label className="block text-[10px] text-white/30 mb-1">term</label>
                   <input
                     type="text"
                     value={term}
                     onChange={(e) => setTerm(e.target.value)}
                     placeholder="keyword"
-                    className="input-field w-full text-sm"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium mb-1 opacity-50">content</label>
+                  <label className="block text-[10px] text-white/30 mb-1">content</label>
                   <input
                     type="text"
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
                     placeholder="banner_1"
-                    className="input-field w-full text-sm"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
                   />
                 </div>
               </div>
 
               {/* Отслеживание */}
-              <div className="pt-3 border-t border-[var(--border)]">
+              <div className="pt-3 border-t border-white/10">
                 <label className="flex items-center gap-2 cursor-pointer mb-3">
                   <input
                     type="checkbox"
                     checked={enableTracking}
                     onChange={(e) => setEnableTracking(e.target.checked)}
-                    className="w-4 h-4 rounded border-[var(--border)] bg-[var(--background)] text-[var(--button)] focus:ring-[var(--button)]"
+                    className="w-4 h-4 rounded accent-[#22D3EE]"
                   />
-                  <span className="text-sm font-medium">Сохранить в историю</span>
-                  <TrendingUp className="w-4 h-4 opacity-50" />
+                  <span className="text-xs font-medium">Отслеживать</span>
+                  <TrendingUp className="w-3.5 h-3.5 text-[#22D3EE]" />
                 </label>
                 
                 {enableTracking && (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
                     <div>
-                      <label className="block text-xs font-medium mb-1 opacity-70">Название публикации</label>
+                      <label className="block text-[10px] text-white/40 mb-1">Название</label>
                       <input
                         type="text"
                         value={trackingTitle}
                         onChange={(e) => setTrackingTitle(e.target.value)}
                         placeholder="Пост про летние туры"
-                        className="input-field w-full text-sm"
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium mb-1 opacity-70">Платформа</label>
+                      <label className="block text-[10px] text-white/40 mb-1">Платформа</label>
                       <select
                         value={trackingPlatform}
                         onChange={(e) => setTrackingPlatform(e.target.value)}
-                        className="input-field w-full text-sm"
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50"
                       >
                         {PLATFORMS.map(p => (
                           <option key={p.id} value={p.id}>{p.name}</option>
@@ -360,28 +663,111 @@ export default function UTMGeneratorPage() {
                   </div>
                 )}
               </div>
-
-              <div className="flex gap-2 pt-1">
-                <button onClick={clearForm} className="btn-secondary flex items-center gap-2">
-                  <RotateCcw className="w-4 h-4" />
-                  Очистить
-                </button>
+            </>
+          )}
+          
+          {activeTab === 'bulk' && (
+            <>
+              {/* Массовая генерация */}
+              <div>
+                <label className="block text-[10px] text-white/40 mb-1">URL страниц (по одному на строку)</label>
+                <textarea
+                  value={bulkUrls}
+                  onChange={(e) => setBulkUrls(e.target.value)}
+                  placeholder={`https://vs-travel.ru/tour/123\nhttps://vs-travel.ru/tour/456\nhttps://vs-travel.ru/tour/789`}
+                  rows={6}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30 resize-none"
+                />
               </div>
-            </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] text-white/40 mb-1">source *</label>
+                  <input
+                    type="text"
+                    value={source}
+                    onChange={(e) => setSource(e.target.value)}
+                    placeholder="yandex"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-white/40 mb-1">medium *</label>
+                  <input
+                    type="text"
+                    value={medium}
+                    onChange={(e) => setMedium(e.target.value)}
+                    placeholder="cpc"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-white/40 mb-1">campaign</label>
+                <input
+                  type="text"
+                  value={campaign}
+                  onChange={(e) => setCampaign(e.target.value)}
+                  placeholder="summer_sale"
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
+                />
+              </div>
+
+              <button
+                onClick={generateBulkUrls}
+                className="w-full px-4 py-2 rounded-lg bg-white/10 text-white border border-white/10 text-sm font-medium hover:bg-white/15 transition-colors"
+                style={buttonStyle}
+              >
+                Сгенерировать
+              </button>
+            </>
+          )}
+
+          {(activeTab === 'single' || activeTab === 'bulk') && (
+          <button
+            onClick={clearForm}
+            className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg bg-white/5 text-white/60 text-xs hover:bg-white/10 transition-colors"
+            style={buttonStyle}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Очистить
+          </button>
+          )}
+          </>
+          )}
+        </div>
+      </div>
+
+      {/* Правая панель - Результат */}
+      <div className="flex-1 flex flex-col gap-4">
+        <div 
+          className="rounded-2xl border border-white/10 overflow-hidden flex flex-col"
+          style={{ ...panelStyle, maxHeight: activeTab === 'single' ? '320px' : undefined, flex: activeTab === 'single' ? '0 0 auto' : '1' }}
+        >
+          <div className="p-3 border-b border-white/10">
+            <h3 className="flex items-center gap-2 text-sm font-medium">
+              <Link2 className="w-4 h-4 text-[#22D3EE]" />
+              {activeTab === 'single' ? 'Сгенерированная ссылка' : activeTab === 'bulk' ? 'Результат массовой генерации' : 'Настройки пресетов'}
+            </h3>
           </div>
 
-          {/* Right: Preview */}
-          <div className="space-y-4">
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 sticky top-4">
-              <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
-                <Link2 className="w-4 h-4 text-[var(--button)]" />
-                Сгенерированная ссылка
-              </h3>
-              
-              {generatedUrl ? (
-                <>
-                  <div className="bg-[var(--background)] rounded-lg p-3 mb-3 border border-[var(--border)]">
-                    <p className="text-sm font-mono break-all text-[var(--button)]">
+          <div className="flex-1 p-4 flex flex-col overflow-hidden">
+            {activeTab === 'settings' ? (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <Settings className="w-16 h-16 mx-auto mb-4 text-white/10" />
+                  <h3 className="text-lg font-medium text-white/50 mb-2">Настройки пресетов</h3>
+                  <p className="text-sm text-white/30 max-w-md">
+                    Управляйте пресетами в панели слева
+                  </p>
+                </div>
+              </div>
+            ) : activeTab === 'single' ? (
+              generatedUrl ? (
+                <div className="flex flex-col">
+                  <div className="rounded-xl p-3 bg-black/30 border border-white/5 mb-3 overflow-auto max-h-32">
+                    <p className="text-sm font-mono break-all text-[#22D3EE]">
                       {generatedUrl}
                     </p>
                   </div>
@@ -390,229 +776,76 @@ export default function UTMGeneratorPage() {
                     <button 
                       onClick={copyAndTrack}
                       disabled={isCreating || (enableTracking && !trackingTitle)}
-                      className={`btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-50 ${isCopied ? 'bg-green-600' : ''}`}
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                        isCopied 
+                          ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                          : 'bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10'
+                      }`}
+                      style={buttonStyle}
                     >
                       {isCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                       {isCreating ? 'Сохранение...' : isCopied ? 'Скопировано!' : enableTracking ? 'Копировать и сохранить' : 'Копировать'}
                     </button>
                     <button 
                       onClick={() => window.open(generatedUrl, '_blank')}
-                      className="btn-secondary p-2"
+                      className="px-4 py-2 rounded-lg bg-white/5 text-white/70 hover:bg-white/10 transition-colors"
+                      style={buttonStyle}
                       title="Открыть в новой вкладке"
                     >
                       <ExternalLink className="w-4 h-4" />
                     </button>
                   </div>
-
-                  {enableTracking && !trackingTitle && (
-                    <p className="text-xs text-yellow-400 mt-2">
-                      Укажите название публикации для сохранения
-                    </p>
-                  )}
-
-                  {/* UTM Breakdown */}
-                  <div className="mt-4 pt-4 border-t border-[var(--border)]">
-                    <h4 className="text-xs font-medium mb-2 opacity-60">Параметры:</h4>
-                    <div className="space-y-1 text-xs">
-                      {source && (
-                        <div className="flex justify-between">
-                          <span className="opacity-60">utm_source</span>
-                          <span className="font-mono text-yellow-400">{source}</span>
-                        </div>
-                      )}
-                      {medium && (
-                        <div className="flex justify-between">
-                          <span className="opacity-60">utm_medium</span>
-                          <span className="font-mono text-blue-400">{medium}</span>
-                        </div>
-                      )}
-                      {campaign && (
-                        <div className="flex justify-between">
-                          <span className="opacity-60">utm_campaign</span>
-                          <span className="font-mono text-green-400">{campaign}</span>
-                        </div>
-                      )}
-                      {term && (
-                        <div className="flex justify-between">
-                          <span className="opacity-60">utm_term</span>
-                          <span className="font-mono text-purple-400">{term}</span>
-                        </div>
-                      )}
-                      {content && (
-                        <div className="flex justify-between">
-                          <span className="opacity-60">utm_content</span>
-                          <span className="font-mono text-pink-400">{content}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </>
+                </div>
               ) : (
-                <div className="text-center py-6 text-sm opacity-50">
-                  Введите URL и UTM параметры
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-center">
+                    <Link2 className="w-12 h-12 mx-auto mb-3 text-white/10" />
+                    <h3 className="text-sm font-medium text-white/50 mb-1">Введите URL</h3>
+                    <p className="text-xs text-white/30 max-w-xs">
+                      Заполните URL и UTM-параметры слева
+                    </p>
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Массовая генерация */}
-      {activeTab === 'bulk' && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {/* Left: Input */}
-          <div className="space-y-4">
-            {/* Presets */}
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
-              <div className="flex gap-2 flex-wrap">
-                {PRESETS.map(preset => (
-                  <button
-                    key={preset.id}
-                    onClick={() => applyPreset(preset)}
-                    className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
-                      selectedPreset === preset.id 
-                        ? preset.color + ' ring-1 ring-offset-1 ring-offset-[var(--background)]'
-                        : 'border-[var(--border)] hover:border-[var(--button)] hover:bg-[var(--border)]/30'
-                    }`}
-                    title={preset.description}
-                  >
-                    {preset.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* UTM параметры */}
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-3">
-              <h3 className="font-medium text-sm">UTM параметры (для всех ссылок)</h3>
-              
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-medium mb-1 opacity-70">source *</label>
-                  <input
-                    type="text"
-                    value={source}
-                    onChange={(e) => { setSource(e.target.value); setSelectedPreset(null) }}
-                    placeholder="yandex"
-                    className="input-field w-full text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1 opacity-70">medium *</label>
-                  <input
-                    type="text"
-                    value={medium}
-                    onChange={(e) => { setMedium(e.target.value); setSelectedPreset(null) }}
-                    placeholder="cpc"
-                    className="input-field w-full text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1 opacity-70">campaign *</label>
-                  <input
-                    type="text"
-                    value={campaign}
-                    onChange={(e) => setCampaign(e.target.value)}
-                    placeholder="summer_sale"
-                    className="input-field w-full text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium mb-1 opacity-50">term</label>
-                  <input
-                    type="text"
-                    value={term}
-                    onChange={(e) => setTerm(e.target.value)}
-                    placeholder="keyword"
-                    className="input-field w-full text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1 opacity-50">content</label>
-                  <input
-                    type="text"
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    placeholder="banner_1"
-                    className="input-field w-full text-sm"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Список ссылок */}
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-3">
-              <h3 className="font-medium text-sm">Ссылки (по одной на строку)</h3>
-              <textarea
-                value={bulkUrls}
-                onChange={(e) => setBulkUrls(e.target.value)}
-                placeholder="https://vs-travel.ru/tour/1&#10;https://vs-travel.ru/tour/2&#10;https://vs-travel.ru/tour/3"
-                className="input-field w-full text-sm font-mono h-48 resize-none"
-              />
-              <div className="flex items-center justify-between">
-                <span className="text-xs opacity-50">
-                  {bulkUrls.split('\n').filter(u => u.trim()).length} ссылок
-                </span>
-                <button 
-                  onClick={generateBulkUrls}
-                  className="btn-primary flex items-center gap-2"
-                >
-                  <Layers className="w-4 h-4" />
-                  Сгенерировать
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Results */}
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-medium text-sm">Результат</h3>
-              {bulkResults.length > 0 && (
-                <button 
-                  onClick={copyBulkResults}
-                  className={`btn-primary flex items-center gap-2 text-sm ${bulkCopied ? 'bg-green-600' : ''}`}
-                >
-                  {bulkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  {bulkCopied ? 'Скопировано!' : 'Копировать все'}
-                </button>
-              )}
-            </div>
-            
-            {bulkResults.length > 0 ? (
-              <div className="bg-[var(--background)] rounded-lg p-3 border border-[var(--border)] max-h-[500px] overflow-auto">
-                <div className="space-y-2">
-                  {bulkResults.map((url, i) => (
-                    <div key={i} className="flex items-start gap-2 group">
-                      <span className="text-xs opacity-30 mt-1 w-6">{i + 1}.</span>
-                      <p className="text-sm font-mono break-all text-[var(--button)] flex-1">{url}</p>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(url)
-                          showToast('Скопировано!', 'success')
-                        }}
-                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-[var(--border)] rounded transition-all"
-                        title="Копировать"
-                      >
-                        <Copy className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              )
             ) : (
-              <div className="text-center py-12 text-sm opacity-50">
-                <Layers className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p>Введите ссылки и нажмите &quot;Сгенерировать&quot;</p>
-              </div>
+              bulkResults.length > 0 ? (
+                <div className="flex-1 flex flex-col">
+                  <div className="flex-1 rounded-xl p-4 bg-black/30 border border-white/5 mb-4 overflow-auto">
+                    {bulkResults.map((url, idx) => (
+                      <p key={idx} className="text-xs font-mono break-all text-[#22D3EE] mb-1">
+                        {url}
+                      </p>
+                    ))}
+                  </div>
+                  
+                  <button 
+                    onClick={copyBulkResults}
+                    className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                      bulkCopied 
+                        ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                        : 'bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10'
+                    }`}
+                    style={buttonStyle}
+                  >
+                    {bulkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    {bulkCopied ? 'Скопировано!' : `Копировать все (${bulkResults.length})`}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center">
+                    <Layers className="w-16 h-16 mx-auto mb-4 text-white/10" />
+                    <h3 className="text-lg font-medium text-white/50 mb-2">Массовая генерация</h3>
+                    <p className="text-sm text-white/30 max-w-md">
+                      Введите несколько URL и UTM-параметры, затем нажмите "Сгенерировать"
+                    </p>
+                  </div>
+                </div>
+              )
             )}
           </div>
         </div>
-      )}
-
+      </div>
     </div>
   )
 }

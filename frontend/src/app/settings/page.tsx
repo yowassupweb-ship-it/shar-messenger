@@ -26,6 +26,26 @@ interface Settings {
     includeImages: boolean
     compression: boolean
   }
+  analytics: {
+    selectedGoalIds: string[]
+  }
+}
+
+// Доступные цели для отслеживания конверсий
+const AVAILABLE_GOALS: Record<string, string> = {
+  "301950976": "ЗАКАЗ (страница успеха)",
+  "485406426": "Ecommerce: покупка",
+  "484029889": "CRM: заявка получена",
+  "484029963": "CRM: Внесена предоплата",
+  "484009486": "CRM: Заказ создан",
+  "484009487": "CRM: Заказ оплачен",
+  "260679148": "Купить - в карточке",
+  "260679473": "Купить - из прочих мест",
+  "222378141": "On-line заявка: ОДН",
+  "222378195": "On-line заявка: МНОГ",
+  "222378242": "On-line заявка: ЖД",
+  "484037544": "Нажал купить на странице тура",
+  "484037649": "Перешел на создание заказа"
 }
 
 export default function SettingsPage() {
@@ -50,10 +70,13 @@ export default function SettingsPage() {
       defaultFormat: 'xlsx',
       includeImages: true,
       compression: true
+    },
+    analytics: {
+      selectedGoalIds: []
     }
   })
 
-  const [activeTab, setActiveTab] = useState<'general' | 'api' | 'feeds' | 'export'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'api' | 'feeds' | 'export' | 'analytics'>('general')
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -72,7 +95,8 @@ export default function SettingsPage() {
           general: { ...prev.general, ...data.general },
           api: { ...prev.api, ...data.api },
           feeds: { ...prev.feeds, ...data.feeds },
-          export: { ...prev.export, ...data.export }
+          export: { ...prev.export, ...data.export },
+          analytics: { selectedGoalIds: data.selectedGoalIds || [] }
         }))
       }
     } catch (error) {
@@ -86,10 +110,16 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setIsSaving(true)
     try {
+      // Подготавливаем данные для сохранения (selectedGoalIds на верхнем уровне)
+      const dataToSave = {
+        ...settings,
+        selectedGoalIds: settings.analytics.selectedGoalIds
+      }
+      
       const response = await apiFetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings)
+        body: JSON.stringify(dataToSave)
       })
       
       if (response.ok) {
@@ -142,6 +172,13 @@ export default function SettingsPage() {
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
         <polyline points="7,10 12,15 17,10"/>
         <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+    )},
+    { key: 'analytics', label: 'Аналитика', icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
     )}
   ]
@@ -384,6 +421,90 @@ export default function SettingsPage() {
                     onChange={(e) => updateSetting('export', 'compression', e.target.checked)}
                     className="w-4 h-4 text-[var(--primary)] bg-[var(--background)] border-[var(--border)] rounded focus:ring-[var(--primary)]"
                   />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'analytics' && (
+              <div className="space-y-6">
+                <h2 className="text-xl font-semibold text-[var(--foreground)] mb-4">
+                  Настройки аналитики
+                </h2>
+
+                <div>
+                  <div className="mb-4">
+                    <div className="font-medium text-[var(--foreground)]">Цели для подсчёта конверсий</div>
+                    <div className="text-sm text-[var(--muted)]">
+                      Выберите цели для расчёта итоговых конверсий. Если ни одна цель не выбрана, используется общий счётчик достижений целей.
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                    {Object.entries(AVAILABLE_GOALS).map(([goalId, goalName]) => (
+                      <label 
+                        key={goalId} 
+                        className="flex items-start space-x-3 p-3 rounded-lg border border-[var(--border)] hover:bg-[var(--muted)] hover:bg-opacity-10 cursor-pointer transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={settings.analytics.selectedGoalIds.includes(goalId)}
+                          onChange={(e) => {
+                            const newSelected = e.target.checked
+                              ? [...settings.analytics.selectedGoalIds, goalId]
+                              : settings.analytics.selectedGoalIds.filter(id => id !== goalId)
+                            setSettings(prev => ({
+                              ...prev,
+                              analytics: { ...prev.analytics, selectedGoalIds: newSelected }
+                            }))
+                          }}
+                          className="w-4 h-4 mt-0.5 text-[var(--primary)] bg-[var(--background)] border-[var(--border)] rounded focus:ring-[var(--primary)]"
+                        />
+                        <div>
+                          <div className="font-medium text-[var(--foreground)]">{goalName}</div>
+                          <div className="text-xs text-[var(--muted)]">ID: {goalId}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 flex items-center space-x-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSettings(prev => ({
+                          ...prev,
+                          analytics: { ...prev.analytics, selectedGoalIds: Object.keys(AVAILABLE_GOALS) }
+                        }))
+                      }}
+                      className="text-sm text-[var(--primary)] hover:underline"
+                    >
+                      Выбрать все
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSettings(prev => ({
+                          ...prev,
+                          analytics: { ...prev.analytics, selectedGoalIds: [] }
+                        }))
+                      }}
+                      className="text-sm text-[var(--muted)] hover:underline"
+                    >
+                      Сбросить выбор
+                    </button>
+                  </div>
+
+                  <div className="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                    <div className="text-sm text-blue-400">
+                      <strong>Выбрано целей:</strong> {settings.analytics.selectedGoalIds.length} из {Object.keys(AVAILABLE_GOALS).length}
+                    </div>
+                    <div className="text-xs text-[var(--muted)] mt-1">
+                      {settings.analytics.selectedGoalIds.length === 0 
+                        ? 'Используется общий счётчик достижений (sumGoalReachesAny)'
+                        : 'Конверсии считаются как сумма выбранных целей'
+                      }
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

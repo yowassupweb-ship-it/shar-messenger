@@ -235,29 +235,29 @@ export default function TemplatesPage() {
     <div>
       {/* Навигация */}
       <div className="flex items-center gap-2 mb-6 text-sm">
-        <Link href="/" className="text-[var(--button)] hover:underline">
+        <Link href="/" className="text-cyan-400 hover:underline">
           Инструменты
         </Link>
-        <span className="text-[var(--foreground)] opacity-50">/</span>
-        <Link href="/feed-editor" className="text-[var(--button)] hover:underline">
+        <span className="text-white/50">/</span>
+        <Link href="/feed-editor" className="text-cyan-400 hover:underline">
           Редактор фидов
         </Link>
-        <span className="text-[var(--foreground)] opacity-50">/</span>
-        <span className="text-[var(--foreground)]">Шаблоны</span>
+        <span className="text-white/50">/</span>
+        <span className="text-white">Шаблоны</span>
       </div>
 
       <div className="flex justify-between items-center mb-4">
         <div>
-          <h1 className="text-3xl font-bold text-[var(--foreground)] mb-2">
+          <h1 className="text-3xl font-bold text-white mb-2">
             Шаблоны фидов
           </h1>
-          <p className="text-[var(--foreground)] opacity-70">
+          <p className="text-white/50">
             Управление шаблонами для генерации фидов туров в разных форматах
           </p>
         </div>
         <div className="flex gap-3">
           <button 
-            className="p-3 bg-[var(--hover)] hover:bg-[var(--button)]/20 text-[var(--foreground)] rounded-lg transition-colors"
+            className="p-3 bg-white/5 hover:bg-cyan-500/20 text-white rounded-lg transition-colors border border-white/10"
             onClick={() => setShowHelpModal(true)}
             title="Справка по требованиям Яндекса"
           >
@@ -268,7 +268,7 @@ export default function TemplatesPage() {
             </svg>
           </button>
           <button 
-            className="bg-[var(--button)] text-white px-6 py-2 rounded-lg hover:bg-[var(--button)]/90 transition-colors whitespace-nowrap flex items-center gap-2"
+            className="bg-cyan-500/20 text-cyan-400 px-6 py-2 rounded-lg hover:bg-cyan-500/30 transition-colors whitespace-nowrap flex items-center gap-2 border border-cyan-500/30"
             onClick={() => setShowCreateModal(true)}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -282,7 +282,7 @@ export default function TemplatesPage() {
 
       {/* Горизонтальная галерея шаблонов */}
       <div className="mb-6">
-        <h2 className="text-xl font-bold text-[var(--foreground)] mb-4">
+        <h2 className="text-xl font-bold text-white mb-4">
           Шаблоны ({(templates?.length || 0) + 1})
         </h2>
         <div className="overflow-x-auto pb-4">
@@ -290,21 +290,21 @@ export default function TemplatesPage() {
             {/* Yandex Direct Default Template */}
             <div 
               onClick={() => setSelectedTemplate(yandexDirectTemplate as any)}
-              className={`flex-shrink-0 w-80 p-6 rounded-lg cursor-pointer transition-all ${
+              className={`flex-shrink-0 w-80 p-6 rounded-lg cursor-pointer transition-all bg-[#1a1a1a] ${
                 selectedTemplate?.id === yandexDirectTemplate.id 
-                  ? 'border-2 border-[var(--button)] bg-[var(--button)]/10' 
-                  : 'border-2 border-[var(--border)] hover:border-[var(--button)]/50'
+                  ? 'border-2 border-cyan-500/50 bg-cyan-500/10' 
+                  : 'border-2 border-white/10 hover:border-cyan-500/30'
               }`}
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-[var(--foreground)] truncate mb-1">{yandexDirectTemplate.name}</h3>
-                  <p className="text-sm text-[var(--foreground)] opacity-70 mb-2 line-clamp-2">{yandexDirectTemplate.description}</p>
+                  <h3 className="font-semibold text-white truncate mb-1">{yandexDirectTemplate.name}</h3>
+                  <p className="text-sm text-white/50 mb-2 line-clamp-2">{yandexDirectTemplate.description}</p>
                 </div>
               </div>
-              <div className="flex items-center justify-between text-xs text-[var(--foreground)] opacity-60">
+              <div className="flex items-center justify-between text-xs text-white/40">
                 <span>Базовый шаблон</span>
-                <span className="px-2 py-1 bg-[var(--background)] rounded">YML</span>
+                <span className="px-2 py-1 bg-[#0d0d0d] rounded">YML</span>
               </div>
             </div>
 
@@ -312,16 +312,16 @@ export default function TemplatesPage() {
               <div 
                 key={template.id}
                 onClick={() => setSelectedTemplate(template)}
-                className={`flex-shrink-0 w-80 p-6 rounded-lg cursor-pointer transition-all ${
+                className={`flex-shrink-0 w-80 p-6 rounded-lg cursor-pointer transition-all bg-[#1a1a1a] ${
                   selectedTemplate?.id === template.id 
-                    ? 'border-2 border-[var(--button)] bg-[var(--button)]/10' 
-                    : 'border-2 border-[var(--border)] hover:border-[var(--button)]/50'
+                    ? 'border-2 border-cyan-500/50 bg-cyan-500/10' 
+                    : 'border-2 border-white/10 hover:border-cyan-500/30'
                 }`}
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-[var(--foreground)] mb-1 truncate">{template.name}</h3>
-                    <p className="text-sm text-[var(--foreground)] opacity-70 mb-2 line-clamp-2">{template.description}</p>
+                    <h3 className="font-semibold text-white mb-1 truncate">{template.name}</h3>
+                    <p className="text-sm text-white/50 mb-2 line-clamp-2">{template.description}</p>
                   </div>
                   <div className="flex gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
                     <button
@@ -329,7 +329,7 @@ export default function TemplatesPage() {
                         setSelectedTemplate(template)
                         setShowEditModal(true)
                       }}
-                      className="p-1 hover:bg-[var(--hover)] rounded"
+                      className="p-1 hover:bg-white/10 rounded"
                       title="Редактировать"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -354,10 +354,10 @@ export default function TemplatesPage() {
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="px-2 py-1 text-xs bg-[var(--button)]/20 text-[var(--button)] rounded">
+                  <span className="px-2 py-1 text-xs bg-cyan-500/20 text-cyan-400 rounded">
                     {template.type}
                   </span>
-                  <span className="text-xs text-[var(--foreground)] opacity-50">
+                  <span className="text-xs text-white/40">
                     {template.updatedAt ? new Date(template.updatedAt).toLocaleDateString('ru-RU') : ''}
                   </span>
                 </div>
@@ -369,19 +369,19 @@ export default function TemplatesPage() {
 
       {/* Редактор шаблона */}
       {selectedTemplate ? (
-        <div className="card">
+        <div className="bg-[#1a1a1a] border border-white/10 rounded-lg p-6">
           <div className="flex justify-between items-start mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-[var(--foreground)]">{selectedTemplate.name}</h2>
-              <p className="text-[var(--foreground)] opacity-70">{selectedTemplate.description}</p>
+              <h2 className="text-2xl font-bold text-white">{selectedTemplate.name}</h2>
+              <p className="text-white/50">{selectedTemplate.description}</p>
             </div>
             <div className="flex gap-2">
-              <span className="px-3 py-1 text-sm bg-[var(--button)]/20 text-[var(--button)] rounded">
+              <span className="px-3 py-1 text-sm bg-cyan-500/20 text-cyan-400 rounded">
                 {selectedTemplate.type}
               </span>
               <button
                 onClick={() => setShowEditModal(true)}
-                className="btn-secondary text-sm"
+                className="px-3 py-1 text-sm bg-white/5 hover:bg-white/10 text-white rounded border border-white/10 transition-colors"
               >
                 Редактировать
               </button>
@@ -391,18 +391,18 @@ export default function TemplatesPage() {
           {/* Доступные поля */}
           {selectedTemplate.fields && selectedTemplate.fields.length > 0 && (
           <div className="mb-6">
-            <h3 className="text-lg font-semibold mb-3">Доступные поля</h3>
+            <h3 className="text-lg font-semibold mb-3 text-white">Доступные поля</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {selectedTemplate.fields.map((field) => (
-                <div key={field.name} className="p-3 bg-[var(--hover)] rounded-lg">
+                <div key={field.name} className="p-3 bg-[#0d0d0d] rounded-lg border border-white/10">
                   <div className="flex items-center gap-2 mb-1">
-                    <code className="text-sm font-mono text-[var(--button)]">&#123;&#123;{field.name}&#125;&#125;</code>
+                    <code className="text-sm font-mono text-cyan-400">&#123;&#123;{field.name}&#125;&#125;</code>
                     {field.required && (
                       <span className="text-xs text-red-500">*</span>
                     )}
                   </div>
-                  <p className="text-sm font-medium">{field.label}</p>
-                  <p className="text-xs text-[var(--foreground)] opacity-70">{field.description}</p>
+                  <p className="text-sm font-medium text-white">{field.label}</p>
+                  <p className="text-xs text-white/50">{field.description}</p>
                 </div>
               ))}
             </div>
@@ -411,9 +411,9 @@ export default function TemplatesPage() {
 
           {/* Содержимое шаблона */}
           <div>
-            <h3 className="text-lg font-semibold mb-3">Содержимое шаблона</h3>
-            <div className="bg-[var(--hover)] p-4 rounded-lg">
-              <pre className="text-sm font-mono whitespace-pre-wrap overflow-auto">
+            <h3 className="text-lg font-semibold mb-3 text-white">Содержимое шаблона</h3>
+            <div className="bg-[#0d0d0d] p-4 rounded-lg border border-white/10">
+              <pre className="text-sm font-mono whitespace-pre-wrap overflow-auto text-white/70">
                 {typeof selectedTemplate.content === 'string' 
                   ? selectedTemplate.content 
                   : selectedTemplate.content?.template || ''}
@@ -421,7 +421,7 @@ export default function TemplatesPage() {
             </div>
             <div className="flex gap-2 mt-3">
               <button 
-                className="btn-secondary text-sm"
+                className="px-3 py-2 text-sm bg-white/5 hover:bg-white/10 text-white rounded border border-white/10 transition-colors"
                 onClick={() => {
                   const contentText = typeof selectedTemplate.content === 'string' 
                     ? selectedTemplate.content 
@@ -432,7 +432,7 @@ export default function TemplatesPage() {
                 Скопировать
               </button>
               <button 
-                className="btn-secondary text-sm"
+                className="px-3 py-2 text-sm bg-white/5 hover:bg-white/10 text-white rounded border border-white/10 transition-colors"
                 onClick={() => {
                   const contentText = typeof selectedTemplate.content === 'string' 
                     ? selectedTemplate.content 
@@ -452,15 +452,15 @@ export default function TemplatesPage() {
           </div>
         </div>
       ) : (
-        <div className="card">
+        <div className="bg-[#1a1a1a] border border-white/10 rounded-lg p-6">
           <div className="text-center py-12">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mx-auto mb-4 opacity-50">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mx-auto mb-4 text-white/30">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
               <polyline points="14,2 14,8 20,8"/>
               <line x1="16" y1="13" x2="8" y2="13"/>
               <line x1="16" y1="17" x2="8" y2="17"/>
             </svg>
-            <p className="text-[var(--foreground)] opacity-70">
+            <p className="text-white/50">
               Выберите шаблон для просмотра
             </p>
           </div>
@@ -469,13 +469,13 @@ export default function TemplatesPage() {
 
       {/* Модальное окно создания шаблона */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="card max-w-4xl w-full max-h-[90vh] overflow-auto">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-auto">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold">Создать шаблон</h2>
+              <h2 className="text-xl font-bold text-white">Создать шаблон</h2>
               <button 
                 onClick={() => setShowCreateModal(false)}
-                className="btn-secondary"
+                className="p-2 hover:bg-white/10 text-white/50 hover:text-white rounded transition-colors"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="18" y1="6" x2="6" y2="18"/>
@@ -487,10 +487,10 @@ export default function TemplatesPage() {
             <form onSubmit={(e) => { e.preventDefault(); handleCreateTemplate(); }} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Название шаблона *</label>
+                  <label className="block text-sm font-medium mb-2 text-white">Название шаблона *</label>
                   <input 
                     type="text" 
-                    className="input-field w-full"
+                    className="w-full px-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 outline-none transition-all"
                     value={newTemplate.name}
                     onChange={(e) => setNewTemplate({...newTemplate, name: e.target.value})}
                     placeholder="Название шаблона"
@@ -500,9 +500,9 @@ export default function TemplatesPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Описание</label>
+                <label className="block text-sm font-medium mb-2 text-white">Описание</label>
                 <textarea 
-                  className="input-field w-full h-20"
+                  className="w-full h-20 px-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 outline-none transition-all"
                   value={newTemplate.description}
                   onChange={(e) => setNewTemplate({...newTemplate, description: e.target.value})}
                   placeholder="Описание шаблона"
@@ -510,17 +510,17 @@ export default function TemplatesPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Содержимое шаблона *</label>
+                <label className="block text-sm font-medium mb-2 text-white">Содержимое шаблона *</label>
                 <textarea 
-                  className="input-field w-full h-64 font-mono text-sm"
+                  className="w-full h-64 px-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white font-mono text-sm focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 outline-none transition-all"
                   value={newTemplate.content}
                   onChange={(e) => setNewTemplate({...newTemplate, content: e.target.value})}
                   placeholder="Введите содержимое шаблона..."
                   required
                 />
-                <div className="mt-2 p-3 bg-[var(--background)] border border-[var(--border)] rounded-lg">
-                  <p className="text-xs font-medium text-[var(--foreground)] mb-2">Доступные переменные:</p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-[var(--foreground)] opacity-70">
+                <div className="mt-2 p-3 bg-[#0d0d0d] border border-white/10 rounded-lg">
+                  <p className="text-xs font-medium text-white mb-2">Доступные переменные:</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-white/50">
                     <code>{'{{id}}'}</code>
                     <code>{'{{name}}'}</code>
                     <code>{'{{price}}'}</code>
@@ -538,12 +538,12 @@ export default function TemplatesPage() {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <button type="submit" className="btn-primary">
+                <button type="submit" className="px-6 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg hover:bg-cyan-500/30 transition-colors border border-cyan-500/30">
                   Создать шаблон
                 </button>
                 <button 
                   type="button" 
-                  className="btn-secondary"
+                  className="px-6 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg border border-white/10 transition-colors"
                   onClick={() => setShowCreateModal(false)}
                 >
                   Отмена
@@ -556,13 +556,13 @@ export default function TemplatesPage() {
 
       {/* Модальное окно редактирования */}
       {showEditModal && selectedTemplate && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="card max-w-4xl w-full max-h-[90vh] overflow-auto">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-auto">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold">Редактировать шаблон</h2>
+              <h2 className="text-xl font-bold text-white">Редактировать шаблон</h2>
               <button 
                 onClick={() => setShowEditModal(false)}
-                className="btn-secondary"
+                className="p-2 hover:bg-white/10 text-white/50 hover:text-white rounded transition-colors"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="18" y1="6" x2="6" y2="18"/>
@@ -574,10 +574,10 @@ export default function TemplatesPage() {
             <form onSubmit={(e) => { e.preventDefault(); handleEditTemplate(); }} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Название шаблона *</label>
+                  <label className="block text-sm font-medium mb-2 text-white">Название шаблона *</label>
                   <input 
                     type="text" 
-                    className="input-field w-full"
+                    className="w-full px-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 outline-none transition-all"
                     value={selectedTemplate.name}
                     onChange={(e) => setSelectedTemplate({...selectedTemplate, name: e.target.value})}
                     placeholder="Название шаблона"
@@ -587,9 +587,9 @@ export default function TemplatesPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Описание</label>
+                <label className="block text-sm font-medium mb-2 text-white">Описание</label>
                 <textarea 
-                  className="input-field w-full h-20"
+                  className="w-full h-20 px-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 outline-none transition-all"
                   value={selectedTemplate.description}
                   onChange={(e) => setSelectedTemplate({...selectedTemplate, description: e.target.value})}
                   placeholder="Описание шаблона"
@@ -597,9 +597,9 @@ export default function TemplatesPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Содержимое шаблона *</label>
+                <label className="block text-sm font-medium mb-2 text-white">Содержимое шаблона *</label>
                 <textarea 
-                  className="input-field w-full h-64 font-mono text-sm"
+                  className="w-full h-64 px-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white font-mono text-sm focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 outline-none transition-all"
                   value={typeof selectedTemplate.content === 'string' 
                     ? selectedTemplate.content 
                     : selectedTemplate.content?.template || ''}
@@ -622,12 +622,12 @@ export default function TemplatesPage() {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <button type="submit" className="btn-primary">
+                <button type="submit" className="px-6 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg hover:bg-cyan-500/30 transition-colors border border-cyan-500/30">
                   Сохранить изменения
                 </button>
                 <button 
                   type="button" 
-                  className="btn-secondary"
+                  className="px-6 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg border border-white/10 transition-colors"
                   onClick={() => setShowEditModal(false)}
                 >
                   Отмена
@@ -640,13 +640,13 @@ export default function TemplatesPage() {
 
       {/* Help Modal */}
       {showHelpModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="card max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Справка по YML фидам для Яндекс.Директ</h2>
+              <h2 className="text-2xl font-bold text-white">Справка по YML фидам для Яндекс.Директ</h2>
               <button 
                 onClick={() => setShowHelpModal(false)}
-                className="btn-secondary"
+                className="p-2 hover:bg-white/10 text-white/50 hover:text-white rounded transition-colors"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="18" y1="6" x2="6" y2="18"/>
@@ -658,81 +658,81 @@ export default function TemplatesPage() {
             <div className="space-y-6">
               {/* Основная информация */}
               <div>
-                <h3 className="text-xl font-semibold mb-3 text-[var(--button)]">Основные требования</h3>
-                <ul className="list-disc list-inside space-y-2 text-[var(--foreground)] opacity-80">
+                <h3 className="text-xl font-semibold mb-3 text-cyan-400">Основные требования</h3>
+                <ul className="list-disc list-inside space-y-2 text-white/70">
                   <li>Каждый товар должен иметь уникальный ID</li>
                   <li>ID товаров должны совпадать во всех фидах (YML, Google Shopping и т.д.)</li>
                   <li>Дата генерации фида должна быть в формате YYYY-MM-DD hh:mm</li>
-                  <li>Корневой элемент: <code className="bg-[var(--hover)] px-2 py-1 rounded">&lt;yml_catalog&gt;</code></li>
+                  <li>Корневой элемент: <code className="bg-[#0d0d0d] px-2 py-1 rounded">&lt;yml_catalog&gt;</code></li>
                 </ul>
               </div>
 
               {/* Типы описания */}
               <div>
-                <h3 className="text-xl font-semibold mb-3 text-[var(--button)]">Типы описания товара</h3>
+                <h3 className="text-xl font-semibold mb-3 text-cyan-400">Типы описания товара</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="card bg-[var(--hover)]">
-                    <h4 className="font-semibold mb-2">Упрощенный</h4>
-                    <code className="text-sm">&lt;name&gt;</code>
-                    <p className="text-xs mt-2 opacity-70">Только название товара</p>
+                  <div className="bg-[#0d0d0d] border border-white/10 rounded-lg p-4">
+                    <h4 className="font-semibold mb-2 text-white">Упрощенный</h4>
+                    <code className="text-sm text-cyan-400">&lt;name&gt;</code>
+                    <p className="text-xs mt-2 text-white/50">Только название товара</p>
                   </div>
-                  <div className="card bg-[var(--hover)]">
-                    <h4 className="font-semibold mb-2">Произвольный</h4>
-                    <code className="text-sm">&lt;vendor&gt; + &lt;model&gt;</code>
-                    <p className="text-xs mt-2 opacity-70">Производитель и модель</p>
+                  <div className="bg-[#0d0d0d] border border-white/10 rounded-lg p-4">
+                    <h4 className="font-semibold mb-2 text-white">Произвольный</h4>
+                    <code className="text-sm text-cyan-400">&lt;vendor&gt; + &lt;model&gt;</code>
+                    <p className="text-xs mt-2 text-white/50">Производитель и модель</p>
                   </div>
-                  <div className="card bg-[var(--hover)]">
-                    <h4 className="font-semibold mb-2">Комбинированный ⭐</h4>
-                    <code className="text-sm">name + vendor + model</code>
-                    <p className="text-xs mt-2 opacity-70">Рекомендуется для лучшей релевантности</p>
+                  <div className="bg-[#0d0d0d] border border-white/10 rounded-lg p-4">
+                    <h4 className="font-semibold mb-2 text-white">Комбинированный ⭐</h4>
+                    <code className="text-sm text-cyan-400">name + vendor + model</code>
+                    <p className="text-xs mt-2 text-white/50">Рекомендуется для лучшей релевантности</p>
                   </div>
                 </div>
               </div>
 
               {/* Обязательные элементы */}
               <div>
-                <h3 className="text-xl font-semibold mb-3 text-[var(--button)]">Обязательные элементы offer</h3>
+                <h3 className="text-xl font-semibold mb-3 text-cyan-400">Обязательные элементы offer</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="flex items-start gap-2">
                     <span className="text-green-400">✓</span>
                     <div>
-                      <code className="text-sm">id</code>
-                      <p className="text-xs opacity-70">Уникальный идентификатор (до 100 символов)</p>
+                      <code className="text-sm text-cyan-400">id</code>
+                      <p className="text-xs text-white/50">Уникальный идентификатор (до 100 символов)</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
                     <span className="text-green-400">✓</span>
                     <div>
-                      <code className="text-sm">url</code>
-                      <p className="text-xs opacity-70">Ссылка на страницу товара (до 2048 символов)</p>
+                      <code className="text-sm text-cyan-400">url</code>
+                      <p className="text-xs text-white/50">Ссылка на страницу товара (до 2048 символов)</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
                     <span className="text-green-400">✓</span>
                     <div>
-                      <code className="text-sm">price</code>
-                      <p className="text-xs opacity-70">Цена товара</p>
+                      <code className="text-sm text-cyan-400">price</code>
+                      <p className="text-xs text-white/50">Цена товара</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
                     <span className="text-green-400">✓</span>
                     <div>
-                      <code className="text-sm">currencyId</code>
-                      <p className="text-xs opacity-70">Валюта (RUB, USD, EUR и т.д.)</p>
+                      <code className="text-sm text-cyan-400">currencyId</code>
+                      <p className="text-xs text-white/50">Валюта (RUB, USD, EUR и т.д.)</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
                     <span className="text-green-400">✓</span>
                     <div>
-                      <code className="text-sm">categoryId</code>
-                      <p className="text-xs opacity-70">ID категории товара</p>
+                      <code className="text-sm text-cyan-400">categoryId</code>
+                      <p className="text-xs text-white/50">ID категории товара</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
                     <span className="text-green-400">✓</span>
                     <div>
-                      <code className="text-sm">picture</code>
-                      <p className="text-xs opacity-70">Изображение (от 450px, до 5 шт)</p>
+                      <code className="text-sm text-cyan-400">picture</code>
+                      <p className="text-xs text-white/50">Изображение (от 450px, до 5 шт)</p>
                     </div>
                   </div>
                 </div>
@@ -740,34 +740,34 @@ export default function TemplatesPage() {
 
               {/* Рекомендуемые элементы */}
               <div>
-                <h3 className="text-xl font-semibold mb-3 text-[var(--button)]">Рекомендуемые элементы</h3>
+                <h3 className="text-xl font-semibold mb-3 text-cyan-400">Рекомендуемые элементы</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="flex items-start gap-2">
                     <span className="text-yellow-400">★</span>
                     <div>
-                      <code className="text-sm">oldprice</code>
-                      <p className="text-xs opacity-70">Старая цена (для показа скидки от 5%)</p>
+                      <code className="text-sm text-cyan-400">oldprice</code>
+                      <p className="text-xs text-white/50">Старая цена (для показа скидки от 5%)</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
                     <span className="text-yellow-400">★</span>
                     <div>
-                      <code className="text-sm">description</code>
-                      <p className="text-xs opacity-70">Описание товара (до 512 символов)</p>
+                      <code className="text-sm text-cyan-400">description</code>
+                      <p className="text-xs text-white/50">Описание товара (до 512 символов)</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
                     <span className="text-yellow-400">★</span>
                     <div>
-                      <code className="text-sm">vendorCode</code>
-                      <p className="text-xs opacity-70">Код производителя/артикул</p>
+                      <code className="text-sm text-cyan-400">vendorCode</code>
+                      <p className="text-xs text-white/50">Код производителя/артикул</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
                     <span className="text-yellow-400">★</span>
                     <div>
-                      <code className="text-sm">param</code>
-                      <p className="text-xs opacity-70">Параметры: материал, цвет, пол, размер</p>
+                      <code className="text-sm text-cyan-400">param</code>
+                      <p className="text-xs text-white/50">Параметры: материал, цвет, пол, размер</p>
                     </div>
                   </div>
                 </div>
@@ -775,11 +775,11 @@ export default function TemplatesPage() {
 
               {/* Коллекции */}
               <div>
-                <h3 className="text-xl font-semibold mb-3 text-[var(--button)]">Коллекции (Collections)</h3>
-                <p className="text-sm opacity-80 mb-3">
+                <h3 className="text-xl font-semibold mb-3 text-cyan-400">Коллекции (Collections)</h3>
+                <p className="text-sm text-white/70 mb-3">
                   Используются для комбинированного формата объявлений в Единой перфоманс-кампании
                 </p>
-                <div className="bg-[var(--hover)] p-4 rounded-lg">
+                <div className="bg-[#0d0d0d] border border-white/10 p-4 rounded-lg">
                   <code className="text-sm block whitespace-pre">{`<collections>
   <collection id="catalog_001">
     <url>https://site.ru/catalog/tours</url>
@@ -798,14 +798,14 @@ export default function TemplatesPage() {
               </div>
 
               {/* Полезные ссылки */}
-              <div className="border-t border-[var(--border)] pt-4">
-                <h3 className="text-lg font-semibold mb-3">Полезные ссылки</h3>
+              <div className="border-t border-white/10 pt-4">
+                <h3 className="text-lg font-semibold mb-3 text-white">Полезные ссылки</h3>
                 <div className="space-y-2">
                   <a 
                     href="https://yandex.ru/support/direct/feeds/requirements.html" 
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block text-[var(--button)] hover:underline"
+                    className="block text-cyan-400 hover:underline"
                   >
                     📖 Официальная документация Яндекс.Директ по YML
                   </a>
@@ -813,7 +813,7 @@ export default function TemplatesPage() {
                     href="https://yandex.ru/support/partnermarket/export/yml.html" 
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block text-[var(--button)] hover:underline"
+                    className="block text-cyan-400 hover:underline"
                   >
                     📖 Формат YML на Яндекс.Маркет
                   </a>
@@ -821,9 +821,9 @@ export default function TemplatesPage() {
               </div>
             </div>
 
-            <div className="mt-6 pt-4 border-t border-[var(--border)]">
+            <div className="mt-6 pt-4 border-t border-white/10">
               <button 
-                className="btn-primary w-full"
+                className="w-full px-6 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg hover:bg-cyan-500/30 transition-colors border border-cyan-500/30"
                 onClick={() => setShowHelpModal(false)}
               >
                 Понятно, спасибо!

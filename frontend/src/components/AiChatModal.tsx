@@ -260,9 +260,8 @@ export default function AiChatModal({ currentPhrase, searchResults, currentPage,
           <div 
             className="relative w-full md:w-96 h-[75vh] md:h-[500px] rounded-lg shadow-2xl flex flex-col transition-all duration-300 ease-out"
             style={{
-              background: 'var(--glass-bg-card)',
-              border: '1px solid var(--glass-border)',
-              backdropFilter: 'blur(16px)',
+              background: '#1a1a1a',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
               animation: 'slideInUp 0.3s ease-out'
             }}
           >

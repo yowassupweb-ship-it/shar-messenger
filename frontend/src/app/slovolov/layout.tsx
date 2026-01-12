@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useState, Suspense } from 'react'
+import '../slovolov-styles.css'
 
 function SlovolovLayoutContent({
   children,
@@ -158,8 +159,10 @@ export default function SlovolovLayout({
   children: React.ReactNode
 }) {
   return (
-    <Suspense fallback={<div className="flex h-screen items-center justify-center">Загрузка...</div>}>
-      <SlovolovLayoutContent>{children}</SlovolovLayoutContent>
-    </Suspense>
+    <div className="slovolov-page">
+      <Suspense fallback={<div className="flex h-screen items-center justify-center">Загрузка...</div>}>
+        <SlovolovLayoutContent>{children}</SlovolovLayoutContent>
+      </Suspense>
+    </div>
   )
 }

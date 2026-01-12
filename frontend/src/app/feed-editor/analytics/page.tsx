@@ -231,31 +231,31 @@ export default function AnalyticsPage() {
     <div>
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 mb-4 text-sm">
-        <Link href="/" className="text-[var(--button)] hover:underline">
+        <Link href="/" className="text-cyan-400 hover:underline">
           Инструменты
         </Link>
-        <span className="text-[var(--foreground)] opacity-50">/</span>
-        <Link href="/feed-editor" className="text-[var(--button)] hover:underline">
+        <span className="text-white/50">/</span>
+        <Link href="/feed-editor" className="text-cyan-400 hover:underline">
           Редактор фидов
         </Link>
-        <span className="text-[var(--foreground)] opacity-50">/</span>
-        <span className="text-[var(--foreground)]">Аналитика</span>
+        <span className="text-white/50">/</span>
+        <span className="text-white">Аналитика</span>
       </div>
 
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-4xl font-bold text-[var(--foreground)] mb-2">
+          <h1 className="text-4xl font-bold text-white mb-2">
             Аналитика фидов
           </h1>
-          <p className="text-[var(--foreground)] opacity-70">
+          <p className="text-white/50">
             Статистика переходов и конверсий из Яндекс.Метрики
           </p>
         </div>
         
         <button
           onClick={() => setShowSettings(true)}
-          className="bg-[var(--card)] border-2 border-[var(--border)] text-[var(--foreground)] px-4 py-2 rounded-lg hover:border-[var(--button)] transition-colors flex items-center gap-2"
+          className="bg-[#1a1a1a] border-2 border-white/10 text-white px-4 py-2 rounded-lg hover:border-cyan-500/50 transition-colors flex items-center gap-2"
         >
           <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -272,8 +272,8 @@ export default function AnalyticsPage() {
             onClick={() => setSelectedFeed('all')}
             className={`px-4 py-2 rounded-lg whitespace-nowrap transition-all ${
               selectedFeed === 'all'
-                ? 'bg-[var(--button)] text-white'
-                : 'bg-[var(--card)] border-2 border-[var(--border)] text-[var(--foreground)] hover:border-[var(--button)]'
+                ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                : 'bg-[#1a1a1a] border-2 border-white/10 text-white hover:border-cyan-500/30'
             }`}
           >
             Все фиды
@@ -284,8 +284,8 @@ export default function AnalyticsPage() {
               onClick={() => setSelectedFeed(feed.slug || feed.id)}
               className={`px-4 py-2 rounded-lg whitespace-nowrap transition-all ${
                 selectedFeed === (feed.slug || feed.id)
-                  ? 'bg-[var(--button)] text-white'
-                  : 'bg-[var(--card)] border-2 border-[var(--border)] text-[var(--foreground)] hover:border-[var(--button)]'
+                  ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                  : 'bg-[#1a1a1a] border-2 border-white/10 text-white hover:border-cyan-500/30'
               }`}
             >
               {feed.name}
@@ -295,29 +295,29 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Filters */}
-      <div className="card mb-6">
+      <div className="bg-[#1a1a1a] border border-white/10 rounded-lg p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+            <label className="block text-sm font-medium text-white mb-2">
               Дата начала
             </label>
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)]"
+              className="w-full px-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 outline-none"
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+            <label className="block text-sm font-medium text-white mb-2">
               Дата окончания
             </label>
             <input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)]"
+              className="w-full px-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 outline-none"
             />
           </div>
 
@@ -325,7 +325,7 @@ export default function AnalyticsPage() {
             <button
               onClick={loadAnalytics}
               disabled={loading}
-              className="w-full bg-[var(--button)] text-white px-4 py-2 rounded-lg hover:bg-[var(--button)]/90 transition-colors disabled:opacity-50"
+              className="w-full bg-cyan-500/20 text-cyan-400 px-4 py-2 rounded-lg hover:bg-cyan-500/30 transition-colors disabled:opacity-50 border border-cyan-500/30"
             >
               {loading ? 'Загрузка...' : 'Обновить данные'}
             </button>
@@ -336,30 +336,30 @@ export default function AnalyticsPage() {
       {/* Statistics Cards */}
       {aggregatedData.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <div className="card">
-            <div className="text-sm text-[var(--foreground)] opacity-70 mb-1">Визиты</div>
-            <div className="text-3xl font-bold text-[var(--foreground)]">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-lg p-6">
+            <div className="text-sm text-white/50 mb-1">Визиты</div>
+            <div className="text-3xl font-bold text-white">
               {aggregatedData.reduce((sum, item) => sum + item.visits, 0).toLocaleString()}
             </div>
           </div>
           
-          <div className="card">
-            <div className="text-sm text-[var(--foreground)] opacity-70 mb-1">Посетители</div>
-            <div className="text-3xl font-bold text-[var(--foreground)]">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-lg p-6">
+            <div className="text-sm text-white/50 mb-1">Посетители</div>
+            <div className="text-3xl font-bold text-white">
               {aggregatedData.reduce((sum, item) => sum + item.users, 0).toLocaleString()}
             </div>
           </div>
           
-          <div className="card">
-            <div className="text-sm text-[var(--foreground)] opacity-70 mb-1">Просмотры</div>
-            <div className="text-3xl font-bold text-[var(--foreground)]">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-lg p-6">
+            <div className="text-sm text-white/50 mb-1">Просмотры</div>
+            <div className="text-3xl font-bold text-white">
               {aggregatedData.reduce((sum, item) => sum + item.pageviews, 0).toLocaleString()}
             </div>
           </div>
           
-          <div className="card">
-            <div className="text-sm text-[var(--foreground)] opacity-70 mb-1">Отказы</div>
-            <div className="text-3xl font-bold text-[var(--foreground)]">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-lg p-6">
+            <div className="text-sm text-white/50 mb-1">Отказы</div>
+            <div className="text-3xl font-bold text-white">
               {(aggregatedData.reduce((sum, item) => sum + item.bounceRate, 0) / aggregatedData.length).toFixed(1)}%
             </div>
           </div>
@@ -367,16 +367,16 @@ export default function AnalyticsPage() {
       )}
 
       {/* Data Table */}
-      <div className="card">
+      <div className="bg-[#1a1a1a] border border-white/10 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-[var(--foreground)]">
+          <h2 className="text-xl font-bold text-white">
             Статистика по UTM меткам
           </h2>
           
-          <div className="flex gap-1 bg-[var(--background)] border border-[var(--border)] rounded-lg p-1">
+          <div className="flex gap-1 bg-[#0d0d0d] border border-white/10 rounded-lg p-1">
             <button
               onClick={() => setViewMode('chart')}
-              className={`px-3 py-2 rounded transition-colors flex items-center gap-2 ${viewMode === 'chart' ? 'bg-[var(--button)] text-white' : 'text-[var(--foreground)] hover:bg-[var(--hover)]'}`}
+              className={`px-3 py-2 rounded transition-colors flex items-center gap-2 ${viewMode === 'chart' ? 'bg-cyan-500/20 text-cyan-400' : 'text-white hover:bg-white/5'}`}
             >
               <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -385,7 +385,7 @@ export default function AnalyticsPage() {
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className={`px-3 py-2 rounded transition-colors flex items-center gap-2 ${viewMode === 'table' ? 'bg-[var(--button)] text-white' : 'text-[var(--foreground)] hover:bg-[var(--hover)]'}`}
+              className={`px-3 py-2 rounded transition-colors flex items-center gap-2 ${viewMode === 'table' ? 'bg-cyan-500/20 text-cyan-400' : 'text-white hover:bg-white/5'}`}
             >
               <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
@@ -401,10 +401,10 @@ export default function AnalyticsPage() {
         
         {aggregatedData.length === 0 ? (
           <div className="text-center py-12">
-            <svg className="mx-auto mb-4 opacity-50" width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="mx-auto mb-4 text-white/30" width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
-            <p className="text-[var(--foreground)] opacity-70">
+            <p className="text-white/50">
               {!settings.metricaCounterId || !settings.metricaToken
                 ? 'Настройте Яндекс.Метрику для просмотра аналитики'
                 : 'Нажмите "Обновить данные" для загрузки статистики'}
@@ -419,12 +419,12 @@ export default function AnalyticsPage() {
               return (
                 <div key={index} className="space-y-1">
                   <div className="flex justify-between text-sm">
-                    <span className="text-[var(--foreground)] font-medium">{item.utm_term}</span>
-                    <span className="text-[var(--foreground)] opacity-70">{item.visits.toLocaleString()} визитов</span>
+                    <span className="text-white font-medium">{item.utm_term}</span>
+                    <span className="text-white/50">{item.visits.toLocaleString()} визитов</span>
                   </div>
-                  <div className="w-full bg-[var(--background)] rounded-full h-8 overflow-hidden">
+                  <div className="w-full bg-[#0d0d0d] rounded-full h-8 overflow-hidden">
                     <div 
-                      className="bg-[var(--button)] h-full rounded-full transition-all duration-500 flex items-center justify-end px-3"
+                      className="bg-cyan-500/50 h-full rounded-full transition-all duration-500 flex items-center justify-end px-3"
                       style={{ width: `${width}%` }}
                     >
                       <span className="text-white text-xs font-medium">
@@ -440,22 +440,22 @@ export default function AnalyticsPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-[var(--border)]">
-                  <th className="text-left py-3 px-4 font-medium text-[var(--foreground)]">UTM Term</th>
-                  <th className="text-right py-3 px-4 font-medium text-[var(--foreground)]">Визиты</th>
-                  <th className="text-right py-3 px-4 font-medium text-[var(--foreground)]">Посетители</th>
-                  <th className="text-right py-3 px-4 font-medium text-[var(--foreground)]">Просмотры</th>
-                  <th className="text-right py-3 px-4 font-medium text-[var(--foreground)]">Отказы %</th>
+                <tr className="border-b border-white/10">
+                  <th className="text-left py-3 px-4 font-medium text-white">UTM Term</th>
+                  <th className="text-right py-3 px-4 font-medium text-white">Визиты</th>
+                  <th className="text-right py-3 px-4 font-medium text-white">Посетители</th>
+                  <th className="text-right py-3 px-4 font-medium text-white">Просмотры</th>
+                  <th className="text-right py-3 px-4 font-medium text-white">Отказы %</th>
                 </tr>
               </thead>
               <tbody>
                 {aggregatedData.map((item, index) => (
-                  <tr key={index} className="border-b border-[var(--border)] hover:bg-[var(--background)] transition-colors">
-                    <td className="py-3 px-4 text-[var(--foreground)]">{item.utm_term}</td>
-                    <td className="py-3 px-4 text-right text-[var(--foreground)]">{item.visits.toLocaleString()}</td>
-                    <td className="py-3 px-4 text-right text-[var(--foreground)]">{item.users.toLocaleString()}</td>
-                    <td className="py-3 px-4 text-right text-[var(--foreground)]">{item.pageviews.toLocaleString()}</td>
-                    <td className="py-3 px-4 text-right text-[var(--foreground)]">{item.bounceRate.toFixed(1)}%</td>
+                  <tr key={index} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                    <td className="py-3 px-4 text-white">{item.utm_term}</td>
+                    <td className="py-3 px-4 text-right text-white/70">{item.visits.toLocaleString()}</td>
+                    <td className="py-3 px-4 text-right text-white/70">{item.users.toLocaleString()}</td>
+                    <td className="py-3 px-4 text-right text-white/70">{item.pageviews.toLocaleString()}</td>
+                    <td className="py-3 px-4 text-right text-white/70">{item.bounceRate.toFixed(1)}%</td>
                   </tr>
                 ))}
               </tbody>
@@ -466,15 +466,15 @@ export default function AnalyticsPage() {
 
       {/* Settings Modal */}
       {showSettings && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowSettings(false)}>
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-6 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-2xl font-bold text-[var(--foreground)] mb-6">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowSettings(false)}>
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-lg p-6 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-2xl font-bold text-white mb-6">
               Настройки Яндекс.Метрики
             </h2>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   ID счетчика
                 </label>
                 <input
@@ -482,12 +482,12 @@ export default function AnalyticsPage() {
                   value={settings.metricaCounterId || ''}
                   onChange={(e) => setSettings({ ...settings, metricaCounterId: e.target.value })}
                   placeholder="12345678"
-                  className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)]"
+                  className="w-full px-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   OAuth токен
                 </label>
                 <input
@@ -495,12 +495,12 @@ export default function AnalyticsPage() {
                   value={settings.metricaToken || ''}
                   onChange={(e) => setSettings({ ...settings, metricaToken: e.target.value })}
                   placeholder="y0_AgA..."
-                  className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)]"
+                  className="w-full px-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   Цели (для отслеживания конверсий)
                 </label>
                 <div className="space-y-2 mb-2">
@@ -515,7 +515,7 @@ export default function AnalyticsPage() {
                           setSettings({ ...settings, goals: newGoals })
                         }}
                         placeholder="ID цели"
-                        className="w-32 px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] text-sm"
+                        className="w-32 px-3 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white text-sm focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 outline-none"
                       />
                       <input
                         type="text"
@@ -526,7 +526,7 @@ export default function AnalyticsPage() {
                           setSettings({ ...settings, goals: newGoals })
                         }}
                         placeholder="Название"
-                        className="flex-1 px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] text-sm"
+                        className="flex-1 px-3 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white text-sm focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 outline-none"
                       />
                       <button
                         onClick={() => {
@@ -547,14 +547,14 @@ export default function AnalyticsPage() {
                     const newGoals = [...(settings.goals || []), { id: '', name: '' }]
                     setSettings({ ...settings, goals: newGoals })
                   }}
-                  className="w-full px-3 py-2 bg-[var(--background)] border-2 border-dashed border-[var(--border)] rounded-lg text-[var(--foreground)] hover:border-[var(--button)] transition-colors text-sm"
+                  className="w-full px-3 py-2 bg-[#0d0d0d] border-2 border-dashed border-white/10 rounded-lg text-white/50 hover:border-cyan-500/30 hover:text-cyan-400 transition-colors text-sm"
                 >
                   + Добавить цель
                 </button>
               </div>
 
-              <div className="bg-[var(--background)] p-3 rounded-lg border border-[var(--border)]">
-                <p className="text-xs text-[var(--foreground)] opacity-70">
+              <div className="bg-[#0d0d0d] p-3 rounded-lg border border-white/10">
+                <p className="text-xs text-white/50">
                   Получите OAuth токен в настройках Яндекс.Метрики. 
                   Цели используются для отслеживания конверсий (звонки, заявки, покупки).
                 </p>
@@ -564,13 +564,13 @@ export default function AnalyticsPage() {
             <div className="flex gap-4 mt-6">
               <button
                 onClick={saveSettings}
-                className="flex-1 bg-[var(--button)] text-white py-2 rounded-lg hover:bg-[var(--button)]/90 transition-colors"
+                className="flex-1 bg-cyan-500/20 text-cyan-400 py-2 rounded-lg hover:bg-cyan-500/30 transition-colors border border-cyan-500/30"
               >
                 Сохранить
               </button>
               <button
                 onClick={() => setShowSettings(false)}
-                className="flex-1 bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)] py-2 rounded-lg hover:bg-[var(--hover)] transition-colors"
+                className="flex-1 bg-white/5 border border-white/10 text-white py-2 rounded-lg hover:bg-white/10 transition-colors"
               >
                 Отмена
               </button>

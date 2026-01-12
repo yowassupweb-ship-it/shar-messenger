@@ -95,6 +95,7 @@ export default function FeedEditorPage() {
   const [loading, setLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null)
   
   // Drag scroll for folders slider
   const sliderRef = useRef<HTMLDivElement>(null)
@@ -138,6 +139,15 @@ export default function FeedEditorPage() {
     loadUtmTemplates()
     loadFeedTemplates()
   }, [])
+
+  // Закрытие dropdown при клике вне
+  useEffect(() => {
+    const handleClickOutside = () => setOpenDropdownId(null)
+    if (openDropdownId) {
+      document.addEventListener('click', handleClickOutside)
+      return () => document.removeEventListener('click', handleClickOutside)
+    }
+  }, [openDropdownId])
 
   const loadFeedTemplates = async () => {
     try {
@@ -556,10 +566,10 @@ export default function FeedEditorPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-4xl font-bold text-[var(--foreground)] mb-2">
+          <h1 className="text-4xl font-bold text-white mb-2">
             Фиды
           </h1>
-          <p className="text-[var(--foreground)] opacity-70">
+          <p className="text-white/50">
             Управление фидами для Яндекс.Директ
           </p>
         </div>
@@ -567,31 +577,31 @@ export default function FeedEditorPage() {
         <div className="flex gap-2">
           <button 
             onClick={() => setShowFolderModal(true)}
-            className="bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)] px-6 py-2 rounded-lg hover:bg-[var(--hover)] transition-colors flex items-center gap-2"
+            className="bg-white/5 border border-white/10 text-white px-4 py-2 rounded-lg hover:bg-white/10 transition-colors flex items-center gap-2 text-sm"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
-            Создать папку
+            Папка
           </button>
           <button 
             onClick={() => alert('AI генерация фида - в разработке')}
-            className="bg-[var(--button)] text-white px-6 py-2 rounded-lg hover:bg-[var(--button)]/90 transition-colors flex items-center gap-2"
+            className="bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 px-4 py-2 rounded-lg hover:bg-cyan-500/30 transition-colors flex items-center gap-2 text-sm"
             title="AI генерация фида"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
-            AI Генерация
+            AI
           </button>
           <button 
             onClick={() => setShowAddModal(true)}
-            className="bg-[var(--button)] text-white px-6 py-2 rounded-lg hover:bg-[var(--button)]/90 transition-colors flex items-center gap-2"
+            className="bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 px-4 py-2 rounded-lg hover:bg-cyan-500/30 transition-colors flex items-center gap-2 text-sm"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Добавить фид
+            Добавить
           </button>
         </div>
       </div>
@@ -599,7 +609,7 @@ export default function FeedEditorPage() {
       {/* Folders Gallery */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">
+          <h2 className="text-lg font-semibold text-white">
             Папки ({folders.length})
           </h2>
         </div>
@@ -619,19 +629,19 @@ export default function FeedEditorPage() {
             {/* Все папки */}
             <div
               onClick={() => setSelectedFolder('all')}
-              className={`flex-shrink-0 w-64 p-4 rounded-lg cursor-pointer transition-all ${
+              className={`flex-shrink-0 w-56 p-3 rounded-lg cursor-pointer transition-all ${
                 selectedFolder === 'all'
-                  ? 'border-2 border-[var(--button)] bg-[var(--button)]/10'
-                  : 'border-2 border-[var(--border)] hover:border-[var(--button)]/50'
+                  ? 'border-2 border-cyan-500/50 bg-cyan-500/10'
+                  : 'border-2 border-white/10 hover:border-cyan-500/30'
               }`}
             >
               <div className="flex items-center gap-3">
-                <svg className="w-8 h-8 text-[var(--button)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                 </svg>
                 <div>
-                  <div className="font-semibold text-[var(--foreground)]">Все папки</div>
-                  <div className="text-sm text-[var(--foreground)] opacity-60">
+                  <div className="font-medium text-white text-sm">Все папки</div>
+                  <div className="text-xs text-white/50">
                     {feeds.length} {feeds.length === 1 ? 'фид' : 'фидов'}
                   </div>
                 </div>
@@ -642,19 +652,19 @@ export default function FeedEditorPage() {
             {folders.length > 0 && (
               <div
                 onClick={() => setSelectedFolder('')}
-                className={`flex-shrink-0 w-64 p-4 rounded-lg cursor-pointer transition-all ${
+                className={`flex-shrink-0 w-56 p-3 rounded-lg cursor-pointer transition-all ${
                   selectedFolder === ''
-                    ? 'border-2 border-[var(--button)] bg-[var(--button)]/10'
-                    : 'border-2 border-[var(--border)] hover:border-[var(--button)]/50'
+                    ? 'border-2 border-cyan-500/50 bg-cyan-500/10'
+                    : 'border-2 border-white/10 hover:border-cyan-500/30'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <svg className="w-8 h-8 text-[var(--foreground)] opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                   </svg>
                   <div>
-                    <div className="font-semibold text-[var(--foreground)]">Без папки</div>
-                    <div className="text-sm text-[var(--foreground)] opacity-60">
+                    <div className="font-medium text-white text-sm">Без папки</div>
+                    <div className="text-xs text-white/50">
                       {feeds.filter(f => !f.folderId).length} {feeds.filter(f => !f.folderId).length === 1 ? 'фид' : 'фидов'}
                     </div>
                   </div>
@@ -669,19 +679,19 @@ export default function FeedEditorPage() {
                 <div
                   key={folder.id}
                   onClick={() => setSelectedFolder(folder.id)}
-                  className={`flex-shrink-0 w-64 p-4 rounded-lg cursor-pointer transition-all relative ${
+                  className={`flex-shrink-0 w-56 p-3 rounded-lg cursor-pointer transition-all relative ${
                     selectedFolder === folder.id
-                      ? 'border-2 border-[var(--button)] bg-[var(--button)]/10'
-                      : 'border-2 border-[var(--border)] hover:border-[var(--button)]/50'
+                      ? 'border-2 border-cyan-500/50 bg-cyan-500/10'
+                      : 'border-2 border-white/10 hover:border-cyan-500/30'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <svg className="w-8 h-8 text-[var(--button)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                     </svg>
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-[var(--foreground)] truncate">{folder.name}</div>
-                      <div className="text-sm text-[var(--foreground)] opacity-60">
+                      <div className="font-medium text-white truncate text-sm">{folder.name}</div>
+                      <div className="text-xs text-white/50">
                         {folderFeedsCount} {folderFeedsCount === 1 ? 'фид' : 'фидов'}
                       </div>
                     </div>
@@ -693,10 +703,10 @@ export default function FeedEditorPage() {
                         setRenameFolderInput(folder.name)
                         setShowRenameFolderModal(true)
                       }}
-                      className="p-1 rounded hover:bg-[var(--background)] transition-colors"
+                      className="p-1 rounded hover:bg-white/10 transition-colors"
                       title="Переименовать"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
                     </button>
@@ -705,10 +715,10 @@ export default function FeedEditorPage() {
                         setFolderToDelete(folder)
                         setShowDeleteFolderModal(true)
                       }}
-                      className="p-1 rounded hover:bg-red-600/10 text-red-600 transition-colors"
+                      className="p-1 rounded hover:bg-red-500/20 text-red-400 transition-colors"
                       title="Удалить"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                     </button>
@@ -721,9 +731,9 @@ export default function FeedEditorPage() {
       </div>
 
       {/* Search */}
-      <div className="card mb-6">
+      <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-4 mb-6">
         <div className="relative max-w-md">
-          <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--foreground)] opacity-40" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/40" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <circle cx="11" cy="11" r="8"/>
             <path d="M21 21l-4.35-4.35"/>
           </svg>
@@ -732,7 +742,7 @@ export default function FeedEditorPage() {
             placeholder="Поиск фидов..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
+            className="w-full pl-10 pr-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500/50 text-white placeholder:text-white/30"
           />
         </div>
       </div>
@@ -740,16 +750,16 @@ export default function FeedEditorPage() {
       {/* Feeds Grid */}
       {loading ? (
         <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--button)]"></div>
-          <p className="mt-4 text-[var(--foreground)] opacity-70">Загрузка фидов...</p>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
+          <p className="mt-4 text-white/50">Загрузка фидов...</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredFeeds.map((feed) => (
-            <div key={feed.id} className="card hover:border-[var(--button)] transition-colors relative w-full">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1 min-w-0 pr-6">
-                  <h3 className="font-semibold text-[var(--foreground)] mb-1 line-clamp-2 min-h-[2.5rem]">
+            <div key={feed.id} className="bg-[#1a1a1a] border border-white/10 rounded-xl p-4 hover:border-cyan-500/30 transition-colors relative">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex-1 min-w-0 pr-4">
+                  <h3 className="font-medium text-white mb-1 text-sm line-clamp-2">
                     <span className="inline-flex items-center gap-2">
                       {feed.name}
                       {feed.isProduction && (
@@ -757,7 +767,7 @@ export default function FeedEditorPage() {
                       )}
                     </span>
                   </h3>
-                  <div className="flex items-center gap-2 text-sm text-[var(--foreground)] opacity-60">
+                  <div className="flex items-center gap-2 text-xs text-white/50">
                     <span className="truncate">
                       {sources.find(s => s.id === feed.sourceId)?.name || 'Ручной'}
                     </span>
@@ -767,7 +777,7 @@ export default function FeedEditorPage() {
                         <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                         </svg>
-                        <span className="truncate text-xs">
+                        <span className="truncate">
                           {folders.find(f => f.id === feed.folderId)?.name}
                         </span>
                       </>
@@ -798,10 +808,10 @@ export default function FeedEditorPage() {
                   
                   const hasItems = itemsCount > 0
                   return (
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                       hasItems
-                        ? 'text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400'
-                        : 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-400'
+                        ? 'text-green-400 bg-green-500/20'
+                        : 'text-yellow-400 bg-yellow-500/20'
                     }`}>
                       {hasItems ? 'Активен' : 'Пустой'}
                     </span>
@@ -809,173 +819,159 @@ export default function FeedEditorPage() {
                 })()}
               </div>
 
-              <div className="space-y-2 text-sm text-[var(--foreground)] opacity-70 mb-4">
-                <div className="flex justify-between">
-                  <span>Товаров:</span>
-                  <span className="font-medium">
-                    {(() => {
-                      // Если manual фид с выбранными продуктами
-                      if (feed.settings?.productIds?.length) {
-                        return feed.settings.productIds.length
-                      }
-                      
-                      // Если multi-source фид
-                      if (feed.sourceIds && feed.sourceIds.length > 0) {
-                        return feed.sourceIds.reduce((total, srcId) => {
-                          const source = sources.find(s => s.id === srcId)
-                          return total + (source?.itemsCount || 0)
-                        }, 0)
-                      }
-                      
-                      // Fallback для legacy single-source фидов
-                      const source = sources.find(s => s.id === feed.sourceId)
-                      if (source && source.itemsCount !== undefined) {
-                        return source.itemsCount
-                      }
-                      
-                      return feed.itemsCount || 0
-                    })()}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Формат:</span>
-                  <span className="font-medium uppercase">{feed.format}</span>
-                </div>
-                {feed.lastUpdate && (
-                  <div className="flex justify-between">
-                    <span>Обновлено:</span>
-                    <span className="font-medium text-xs">
-                      {new Date(feed.lastUpdate).toLocaleString('ru-RU')}
-                    </span>
-                  </div>
-                )}
+              <div className="flex items-center justify-between text-xs text-white/50 mb-3">
+                <span>{(() => {
+                  if (feed.settings?.productIds?.length) return feed.settings.productIds.length
+                  if (feed.sourceIds && feed.sourceIds.length > 0) {
+                    return feed.sourceIds.reduce((total, srcId) => {
+                      const source = sources.find(s => s.id === srcId)
+                      return total + (source?.itemsCount || 0)
+                    }, 0)
+                  }
+                  const source = sources.find(s => s.id === feed.sourceId)
+                  if (source && source.itemsCount !== undefined) return source.itemsCount
+                  return feed.itemsCount || 0
+                })()} товаров</span>
+                <span className="uppercase">{feed.format}</span>
               </div>
 
-              <div className="flex gap-2 justify-center">
+              <div className="flex gap-1.5 items-center">
                 <button 
                   onClick={() => window.location.href = `/feed-editor/preview/${feed.id}`}
-                  className="p-2 bg-[var(--button)] text-white rounded-lg hover:bg-[var(--button)]/90 transition-colors"
+                  className="flex-1 px-3 py-1.5 bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 rounded-lg hover:bg-cyan-500/30 transition-colors text-xs font-medium"
                   title="Редактировать"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </button>
-                <button 
-                  onClick={async () => {
-                    try {
-                      showToast('Обновление XML фида...', 'info')
-                      // Запрос на перегенерацию XML (сервер уже генерирует XML на лету)
-                      const response = await apiFetch(`/api/feeds/${feed.id}/xml`)
-                      if (response.ok) {
-                        showToast('XML фид обновлен!', 'success')
-                      } else {
-                        throw new Error('Ошибка обновления')
-                      }
-                    } catch (error) {
-                      showToast('Ошибка обновления XML', 'error')
-                    }
-                  }}
-                  className="p-2 border border-[var(--border)] rounded-lg hover:bg-[var(--background)] transition-colors"
-                  title="Обновить XML"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                </button>
-                <button 
-                  onClick={async () => {
-                    try {
-                      const response = await apiFetch(`/api/feeds/${feed.id}/xml`)
-                      if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`)
-                      }
-                      const contentType = response.headers.get('content-type')
-                      let data
-                      if (contentType && contentType.includes('application/json')) {
-                        const json = await response.json()
-                        data = JSON.stringify(json, null, 2)
-                      } else {
-                        data = await response.text()
-                      }
-                      console.log('Loaded XML data:', data)
-                      setXmlEditorContent(data)
-                      setEditingFeedId(feed.id)
-                      setShowXmlEditorModal(true)
-                    } catch (error) {
-                      console.error('Error loading XML:', error)
-                      showToast('Ошибка загрузки XML: ' + (error as Error).message, 'error')
-                    }
-                  }}
-                  className="p-2 border border-[var(--border)] rounded-lg hover:bg-[var(--background)] transition-colors"
-                  title="Редактировать XML"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                  </svg>
-                </button>
-                <button 
-                  onClick={() => toggleProduction(feed.id)}
-                  className={`p-2 border rounded-lg transition-colors ${
-                    feed.isProduction 
-                      ? 'border-green-500 bg-green-500/10 hover:bg-green-500/20' 
-                      : 'border-[var(--border)] hover:bg-[var(--background)]'
-                  }`}
-                  title={feed.isProduction ? 'Снять с продвижения' : 'Перевести в продвижение'}
-                >
-                  <svg className={`w-4 h-4 ${feed.isProduction ? 'text-green-500' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
+                  Редактор
                 </button>
                 <button 
                   onClick={() => copyFeedUrl(feed.id)}
-                  className="p-2 border border-[var(--border)] rounded-lg hover:bg-[var(--background)] transition-colors"
+                  className="p-1.5 border border-white/10 rounded-lg hover:bg-white/5 transition-colors"
                   title="Скопировать ссылку"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                 </button>
                 <button 
-                  onClick={() => handleEditFeed(feed)}
-                  className="p-2 border border-[var(--border)] rounded-lg hover:bg-[var(--background)] transition-colors"
-                  title="Настройки"
+                  onClick={() => toggleProduction(feed.id)}
+                  className={`p-1.5 border rounded-lg transition-colors ${
+                    feed.isProduction 
+                      ? 'border-green-500/50 bg-green-500/20 hover:bg-green-500/30' 
+                      : 'border-white/10 hover:bg-white/5'
+                  }`}
+                  title={feed.isProduction ? 'Снять с продвижения' : 'Перевести в продвижение'}
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <svg className={`w-3.5 h-3.5 ${feed.isProduction ? 'text-green-400' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
                 </button>
-                <button 
-                  onClick={() => handleDeleteFeed(feed.id)}
-                  className="p-2 border border-red-600/50 text-red-600 rounded-lg hover:bg-red-600/10 transition-colors flex-shrink-0"
-                  title="Удалить"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
+                {/* Dropdown для остальных действий */}
+                <div className="relative">
+                  <button 
+                    onClick={() => setOpenDropdownId(openDropdownId === feed.id ? null : feed.id)}
+                    className="p-1.5 border border-white/10 rounded-lg hover:bg-white/5 transition-colors"
+                    title="Ещё"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                    </svg>
+                  </button>
+                  {openDropdownId === feed.id && (
+                    <div className="absolute right-0 top-full mt-1 w-44 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl z-10 py-1">
+                      <button 
+                        onClick={async () => {
+                          setOpenDropdownId(null)
+                          try {
+                            showToast('Обновление XML фида...', 'info')
+                            const response = await apiFetch(`/api/feeds/${feed.id}/xml`)
+                            if (response.ok) {
+                              showToast('XML фид обновлен!', 'success')
+                            } else {
+                              throw new Error('Ошибка обновления')
+                            }
+                          } catch (error) {
+                            showToast('Ошибка обновления XML', 'error')
+                          }
+                        }}
+                        className="w-full px-3 py-2 text-left text-xs text-white/70 hover:bg-white/5 flex items-center gap-2"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Обновить XML
+                      </button>
+                      <button 
+                        onClick={async () => {
+                          setOpenDropdownId(null)
+                          try {
+                            const response = await apiFetch(`/api/feeds/${feed.id}/xml`)
+                            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+                            const contentType = response.headers.get('content-type')
+                            let data
+                            if (contentType && contentType.includes('application/json')) {
+                              const json = await response.json()
+                              data = JSON.stringify(json, null, 2)
+                            } else {
+                              data = await response.text()
+                            }
+                            setXmlEditorContent(data)
+                            setEditingFeedId(feed.id)
+                            setShowXmlEditorModal(true)
+                          } catch (error) {
+                            showToast('Ошибка загрузки XML: ' + (error as Error).message, 'error')
+                          }
+                        }}
+                        className="w-full px-3 py-2 text-left text-xs text-white/70 hover:bg-white/5 flex items-center gap-2"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                        </svg>
+                        Просмотр XML
+                      </button>
+                      <button 
+                        onClick={() => { setOpenDropdownId(null); handleEditFeed(feed) }}
+                        className="w-full px-3 py-2 text-left text-xs text-white/70 hover:bg-white/5 flex items-center gap-2"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Настройки
+                      </button>
+                      <div className="border-t border-white/10 my-1"></div>
+                      <button 
+                        onClick={() => { setOpenDropdownId(null); handleDeleteFeed(feed.id) }}
+                        className="w-full px-3 py-2 text-left text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        Удалить
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}
 
           {filteredFeeds.length === 0 && !loading && (
-            <div className="col-span-full card text-center py-12">
-              <svg className="w-16 h-16 mx-auto mb-4 text-[var(--foreground)] opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="col-span-full bg-[#1a1a1a] border border-white/10 rounded-xl text-center py-12">
+              <svg className="w-16 h-16 mx-auto mb-4 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
               </svg>
-              <h3 className="text-xl font-semibold text-[var(--foreground)] mb-2">
+              <h3 className="text-xl font-semibold text-white mb-2">
                 {feeds.length === 0 ? 'Фидов пока нет' : 'Фиды не найдены'}
               </h3>
-              <p className="text-[var(--foreground)] opacity-70 mb-4">
+              <p className="text-white/50 mb-4">
                 {feeds.length === 0 ? 'Создайте первый фид для начала работы' : ''}
               </p>
               {feeds.length === 0 && (
                 <button
                   onClick={() => setShowAddModal(true)}
-                  className="bg-[var(--button)] text-white px-6 py-2 rounded-lg hover:bg-[var(--button)]/90 transition-colors inline-flex items-center gap-2"
+                  className="bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 px-4 py-2 rounded-lg hover:bg-cyan-500/30 transition-colors inline-flex items-center gap-2 text-sm"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                   Создать фид
@@ -989,9 +985,9 @@ export default function FeedEditorPage() {
       {/* Add Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg max-w-lg w-full shadow-2xl max-h-[90vh] flex flex-col">
-            <div className="p-6 border-b border-[var(--border)]">
-              <h2 className="text-2xl font-bold text-[var(--foreground)]">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-lg max-w-lg w-full shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-white/10">
+              <h2 className="text-2xl font-bold text-white">
                 {createMethod ? 'Создать фид' : 'Выберите способ создания'}
               </h2>
             </div>
@@ -1002,73 +998,73 @@ export default function FeedEditorPage() {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => setCreateMethod('source')}
-                  className="p-4 border-2 border-[var(--border)] rounded-lg hover:border-[var(--button)] transition-colors text-center"
+                  className="p-4 border-2 border-white/10 rounded-lg hover:border-cyan-500/30 transition-colors text-center"
                 >
-                  <svg className="w-8 h-8 mx-auto mb-2 text-[var(--button)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-8 h-8 mx-auto mb-2 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
                   </svg>
-                  <div className="font-medium text-[var(--foreground)]">Источник данных</div>
-                  <div className="text-xs text-[var(--foreground)] opacity-60 mt-1">Данные с сайта</div>
+                  <div className="font-medium text-white">Источник данных</div>
+                  <div className="text-xs text-white/50 mt-1">Данные с сайта</div>
                 </button>
 
                 <button
                   onClick={() => setCreateMethod('file')}
-                  className="p-4 border-2 border-[var(--border)] rounded-lg hover:border-[var(--button)] transition-colors text-center"
+                  className="p-4 border-2 border-white/10 rounded-lg hover:border-cyan-500/30 transition-colors text-center"
                 >
-                  <svg className="w-8 h-8 mx-auto mb-2 text-[var(--button)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-8 h-8 mx-auto mb-2 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
-                  <div className="font-medium text-[var(--foreground)]">Импорт файла</div>
-                  <div className="text-xs text-[var(--foreground)] opacity-60 mt-1">Загрузить XML/CSV файл</div>
+                  <div className="font-medium text-white">Импорт файла</div>
+                  <div className="text-xs text-white/50 mt-1">Загрузить XML/CSV файл</div>
                 </button>
 
                 <button
                   onClick={() => setCreateMethod('url')}
-                  className="p-4 border-2 border-[var(--border)] rounded-lg hover:border-[var(--button)] transition-colors text-center"
+                  className="p-4 border-2 border-white/10 rounded-lg hover:border-cyan-500/30 transition-colors text-center"
                 >
-                  <svg className="w-8 h-8 mx-auto mb-2 text-[var(--button)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-8 h-8 mx-auto mb-2 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                   </svg>
-                  <div className="font-medium text-[var(--foreground)]">По ссылке</div>
-                  <div className="text-xs text-[var(--foreground)] opacity-60 mt-1">Подключить внешний фид</div>
+                  <div className="font-medium text-white">По ссылке</div>
+                  <div className="text-xs text-white/50 mt-1">Подключить внешний фид</div>
                 </button>
 
                 <button
                   onClick={() => setCreateMethod('manual')}
-                  className="p-4 border-2 border-[var(--border)] rounded-lg hover:border-[var(--button)] transition-colors text-center"
+                  className="p-4 border-2 border-white/10 rounded-lg hover:border-cyan-500/30 transition-colors text-center"
                 >
-                  <svg className="w-8 h-8 mx-auto mb-2 text-[var(--button)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-8 h-8 mx-auto mb-2 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
-                  <div className="font-medium text-[var(--foreground)]">Вручную</div>
-                  <div className="text-xs text-[var(--foreground)] opacity-60 mt-1">Создать пустой фид</div>
+                  <div className="font-medium text-white">Вручную</div>
+                  <div className="text-xs text-white/50 mt-1">Создать пустой фид</div>
                 </button>
               </div>
             ) : (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                  <label className="block text-sm font-medium text-white mb-2">
                     Название фида
                   </label>
                   <input
                     type="text"
                     value={newFeed.name}
                     onChange={(e) => setNewFeed({...newFeed, name: e.target.value})}
-                    className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
+                    className="w-full px-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
                     placeholder="Название фида"
                   />
                 </div>
 
                 {createMethod === 'source' && (
                   <div>
-                    <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                    <label className="block text-sm font-medium text-white mb-2">
                       Источники данных ({newFeed.sourceIds.length} выбрано)
                     </label>
-                    <div className="max-h-60 overflow-y-auto border border-[var(--border)] rounded-lg">
+                    <div className="max-h-60 overflow-y-auto border border-white/10 rounded-lg">
                       {sources.map(source => (
                         <label 
                           key={source.id}
-                          className="flex items-center gap-3 p-3 hover:bg-[var(--background)] cursor-pointer border-b border-[var(--border)] last:border-b-0"
+                          className="flex items-center gap-3 p-3 hover:bg-white/5 cursor-pointer border-b border-white/10 last:border-b-0"
                         >
                           <input
                             type="checkbox"

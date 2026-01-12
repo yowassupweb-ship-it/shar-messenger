@@ -54,8 +54,7 @@ export default function GlassModal({
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ 
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
-        backdropFilter: 'blur(8px)'
+        backgroundColor: 'rgba(0, 0, 0, 0.75)'
       }}
       onClick={onClose}
     >
@@ -63,29 +62,28 @@ export default function GlassModal({
         className={`w-full ${maxWidthClass} relative`}
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: 'rgba(17, 25, 40, 0.85)',
-          backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(137, 180, 250, 0.2)',
+          background: '#1a1a1a',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
           borderRadius: '12px',
-          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.5)',
           animation: 'modalFadeIn 0.2s ease-out'
         }}
       >
         {/* Header */}
         <div 
           className="flex items-center justify-between p-6 pb-4"
-          style={{ borderBottom: '1px solid rgba(137, 180, 250, 0.1)' }}
+          style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}
         >
           <h2 
             className="text-xl font-semibold"
-            style={{ color: 'var(--glass-text-primary, #cdd6f4)' }}
+            style={{ color: '#e0e0e0' }}
           >
             {title}
           </h2>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg transition-all hover:bg-[rgba(137,180,250,0.1)]"
-            style={{ color: 'var(--glass-text-secondary, #bac2de)' }}
+            className="p-2 rounded-lg transition-all hover:bg-white/10"
+            style={{ color: '#888888' }}
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -102,7 +100,7 @@ export default function GlassModal({
         {footer && (
           <div 
             className="flex items-center justify-end gap-3 p-6 pt-4"
-            style={{ borderTop: '1px solid rgba(137, 180, 250, 0.1)' }}
+            style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}
           >
             {footer}
           </div>

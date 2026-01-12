@@ -94,25 +94,29 @@ export default function FeedEditorLayout({
   ]
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen bg-[#0d0d0d]">
       {/* Feed Editor Sidebar */}
       <aside
-        className={`bg-[var(--card)] border-r border-[var(--border)] transition-all duration-300 flex flex-col ${
+        className={`transition-all duration-300 flex flex-col ${
           isCollapsed ? 'w-16' : 'w-64'
         }`}
+        style={{
+          background: '#1a1a1a',
+          borderRight: '1px solid rgba(255, 255, 255, 0.05)'
+        }}
       >
         {/* Header */}
-        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
+        <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
           {!isCollapsed && (
             <div>
-              <h2 className="text-lg font-bold text-[var(--foreground)] whitespace-nowrap">
+              <h2 className="text-lg font-bold text-[#e0e0e0] whitespace-nowrap">
                 Редактор фидов
               </h2>
             </div>
           )}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1.5 rounded-lg text-[var(--foreground)] hover:bg-[var(--background)] transition-all hover:scale-110"
+            className="p-1.5 rounded-lg text-[#888] hover:text-[#e0e0e0] hover:bg-white/5 transition-all"
             title={isCollapsed ? 'Развернуть' : 'Свернуть'}
           >
             {isCollapsed ? (
@@ -128,8 +132,8 @@ export default function FeedEditorLayout({
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4">
-          <ul className="space-y-2">
+        <nav className="flex-1 p-4 overflow-y-auto">
+          <ul className="space-y-1">
             {menuItems.map((item) => {
               const isActive = item.path === '/feed-editor' 
                 ? (pathname === '/feed-editor' || pathname.startsWith('/feed-editor/preview/'))
@@ -138,15 +142,19 @@ export default function FeedEditorLayout({
                 <li key={item.path}>
                   <Link
                     href={item.path}
-                    className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2 rounded-lg transition-colors ${
+                    className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2 rounded-xl transition-all ${
                       isActive
-                        ? 'bg-[var(--button)] text-[#1b1b2b] font-semibold'
-                        : 'text-[var(--foreground)] hover:bg-[var(--background)]'
+                        ? 'text-cyan-400'
+                        : 'text-[#888] hover:text-[#e0e0e0] hover:bg-white/5'
                     }`}
+                    style={isActive ? {
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)'
+                    } : {}}
                     title={isCollapsed ? item.name : ''}
                   >
                     {item.icon}
-                    {!isCollapsed && <span className="whitespace-nowrap">{item.name}</span>}
+                    {!isCollapsed && <span className="whitespace-nowrap text-sm">{item.name}</span>}
                   </Link>
                 </li>
               )
@@ -155,23 +163,23 @@ export default function FeedEditorLayout({
         </nav>
 
         {/* Back to Main */}
-        <div className="p-4 border-t border-[var(--border)]">
+        <div className="p-4" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
           <Link
             href="/"
-            className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2 rounded-lg text-[var(--foreground)] hover:bg-[var(--background)] transition-colors`}
+            className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2 rounded-xl text-[#888] hover:text-[#e0e0e0] hover:bg-white/5 transition-all`}
             title={isCollapsed ? 'Все инструменты' : ''}
           >
             <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
             </svg>
-            {!isCollapsed && <span className="whitespace-nowrap">Все инструменты</span>}
+            {!isCollapsed && <span className="whitespace-nowrap text-sm">Все инструменты</span>}
           </Link>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto">
-        <div className="container mx-auto p-8">{children}</div>
+      <main className="flex-1 overflow-auto bg-[#0d0d0d]">
+        <div className="p-6">{children}</div>
       </main>
     </div>
   )

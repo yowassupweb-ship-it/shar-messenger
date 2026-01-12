@@ -223,8 +223,7 @@ export function KeywordResults({ results, onExport, dynamicsPeriod }: KeywordRes
           <div 
             className="fixed inset-0 z-[9999] flex items-center justify-center"
             style={{ 
-              backgroundColor: 'rgba(0, 0, 0, 0.85)',
-              backdropFilter: 'blur(8px)'
+              backgroundColor: 'rgba(0, 0, 0, 0.85)'
             }}
             onClick={(e) => e.target === e.currentTarget && setShowExportModal(false)}
           >

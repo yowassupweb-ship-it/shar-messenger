@@ -162,29 +162,29 @@ export default function UTMBuilderPage() {
     <div>
       {/* Навигация */}
       <div className="flex items-center gap-2 mb-6 text-sm">
-        <Link href="/" className="text-[var(--button)] hover:underline">
+        <Link href="/" className="text-cyan-400 hover:underline">
           Инструменты
         </Link>
-        <span className="text-[var(--foreground)] opacity-50">/</span>
-        <Link href="/feed-editor" className="text-[var(--button)] hover:underline">
+        <span className="text-white/50">/</span>
+        <Link href="/feed-editor" className="text-cyan-400 hover:underline">
           Редактор фидов
         </Link>
-        <span className="text-[var(--foreground)] opacity-50">/</span>
-        <span className="text-[var(--foreground)]">UTM шаблоны</span>
+        <span className="text-white/50">/</span>
+        <span className="text-white">UTM шаблоны</span>
       </div>
 
       <div className="flex justify-between items-center mb-4">
         <div>
-          <h1 className="text-3xl font-bold text-[var(--foreground)] mb-2">
+          <h1 className="text-3xl font-bold text-white mb-2">
             UTM шаблоны
           </h1>
-          <p className="text-[var(--foreground)] opacity-70">
+          <p className="text-white/70">
             Управление UTM шаблонами для автоматического добавления меток к ссылкам в фидах
           </p>
         </div>
         <div className="flex gap-3">
           <button 
-            className="bg-[var(--button)] text-white px-6 py-2 rounded-lg hover:bg-[var(--button)]/90 transition-colors whitespace-nowrap flex items-center gap-2"
+            className="bg-cyan-500 text-white px-6 py-2 rounded-lg hover:bg-cyan-500/90 transition-colors whitespace-nowrap flex items-center gap-2"
             onClick={() => setShowCreateModal(true)}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -198,28 +198,28 @@ export default function UTMBuilderPage() {
 
       {/* Горизонтальная галерея шаблонов */}
       <div className="mb-6">
-        <h2 className="text-xl font-bold text-[var(--foreground)] mb-4">
+        <h2 className="text-xl font-bold text-white mb-4">
           Шаблоны ({templates?.length || 0})
         </h2>
       {isLoading ? (
         <div className="flex justify-center items-center py-20">
-          <div className="text-[var(--foreground)] opacity-70">Загрузка шаблонов...</div>
+          <div className="text-white/70">Загрузка шаблонов...</div>
         </div>
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {templates.map((template) => (
           <div 
             key={template.id}
-            className="card hover:border-[var(--button)] transition-colors relative"
+            className="bg-[#1a1a1a] border border-white/10 rounded-lg p-6 hover:border-cyan-500 transition-colors relative"
           >
             <div className="flex items-start justify-between mb-3">
-              <h3 className="font-semibold text-[var(--foreground)] text-lg flex-1 pr-2">
+              <h3 className="font-semibold text-white text-lg flex-1 pr-2">
                 {template.name}
               </h3>
               <div className="flex gap-1">
                 <button
                   onClick={() => openEditModal(template)}
-                  className="p-1 hover:bg-[var(--background)] rounded transition-colors"
+                  className="p-1 hover:bg-[#0d0d0d] rounded transition-colors"
                   title="Редактировать"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -238,24 +238,24 @@ export default function UTMBuilderPage() {
               </div>
             </div>
             
-            <p className="text-sm text-[var(--foreground)] opacity-70 mb-3 line-clamp-1" title={template.description}>
+            <p className="text-sm text-white/70 mb-3 line-clamp-1" title={template.description}>
               {template.description}
             </p>
             
             <div className="mb-3">
-              <div className="text-xs font-medium text-[var(--foreground)] opacity-60 mb-1">Шаблон:</div>
-              <code className="text-xs bg-[var(--hover)] px-2 py-1 rounded block break-all">
+              <div className="text-xs font-medium text-white/60 mb-1">Шаблон:</div>
+              <code className="text-xs bg-white/5 px-2 py-1 rounded block break-all">
                 {template.content?.template || ''}
               </code>
             </div>
             
             <div>
-              <div className="text-xs font-medium text-[var(--foreground)] opacity-60 mb-1">Переменные:</div>
+              <div className="text-xs font-medium text-white/60 mb-1">Переменные:</div>
               <div className="flex flex-wrap gap-1">
                 {(template.content?.variables || []).map((variable: string) => (
                   <span 
                     key={variable}
-                    className="text-xs px-2 py-0.5 bg-[var(--button)]/20 text-[var(--button)] rounded"
+                    className="text-xs px-2 py-0.5 bg-cyan-500/20 text-cyan-400 rounded"
                   >
                     {variable}
                   </span>
@@ -271,12 +271,12 @@ export default function UTMBuilderPage() {
       {/* Модальное окно создания шаблона */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="card max-w-2xl w-full">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-lg p-6 max-w-2xl w-full">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold">Создать шаблон UTM</h2>
               <button 
                 onClick={() => setShowCreateModal(false)}
-                className="btn-secondary"
+                className="px-3 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg border border-white/10"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="18" y1="6" x2="6" y2="18"/>
@@ -290,7 +290,7 @@ export default function UTMBuilderPage() {
                 <label className="block text-sm font-medium mb-2">Название шаблона *</label>
                 <input 
                   type="text" 
-                  className="input-field w-full"
+                  className="w-full px-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-cyan-500/50 focus:outline-none"
                   value={newTemplate.name}
                   onChange={(e) => setNewTemplate({...newTemplate, name: e.target.value})}
                   placeholder="Название шаблона"
@@ -301,7 +301,7 @@ export default function UTMBuilderPage() {
               <div>
                 <label className="block text-sm font-medium mb-2">Описание</label>
                 <textarea 
-                  className="input-field w-full h-20"
+                  className="w-full px-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-cyan-500/50 focus:outline-none h-20"
                   value={newTemplate.description}
                   onChange={(e) => setNewTemplate({...newTemplate, description: e.target.value})}
                   placeholder="Описание шаблона UTM"
@@ -315,13 +315,13 @@ export default function UTMBuilderPage() {
                   </label>
                   <input 
                     type="text" 
-                    className="input-field w-full"
+                    className="w-full px-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-cyan-500/50 focus:outline-none"
                     value={newTemplate.utm_source}
                     onChange={(e) => setNewTemplate({...newTemplate, utm_source: e.target.value})}
                     placeholder="google, yandex, facebook..."
                     required
                   />
-                  <p className="text-xs text-[var(--foreground)] opacity-60 mt-1">
+                  <p className="text-xs text-white/60 mt-1">
                     Источник трафика
                   </p>
                 </div>
@@ -332,13 +332,13 @@ export default function UTMBuilderPage() {
                   </label>
                   <input 
                     type="text" 
-                    className="input-field w-full"
+                    className="w-full px-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-cyan-500/50 focus:outline-none"
                     value={newTemplate.utm_medium}
                     onChange={(e) => setNewTemplate({...newTemplate, utm_medium: e.target.value})}
                     placeholder="cpc, banner, email..."
                     required
                   />
-                  <p className="text-xs text-[var(--foreground)] opacity-60 mt-1">
+                  <p className="text-xs text-white/60 mt-1">
                     Канал трафика
                   </p>
                 </div>
@@ -349,13 +349,13 @@ export default function UTMBuilderPage() {
                   </label>
                   <input 
                     type="text" 
-                    className="input-field w-full"
+                    className="w-full px-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-cyan-500/50 focus:outline-none"
                     value={newTemplate.utm_campaign}
                     onChange={(e) => setNewTemplate({...newTemplate, utm_campaign: e.target.value})}
                     placeholder="{{campaign_name}}, summer_sale..."
                     required
                   />
-                  <p className="text-xs text-[var(--foreground)] opacity-60 mt-1">
+                  <p className="text-xs text-white/60 mt-1">
                     Название кампании
                   </p>
                 </div>
@@ -366,12 +366,12 @@ export default function UTMBuilderPage() {
                   </label>
                   <input 
                     type="text" 
-                    className="input-field w-full"
+                    className="w-full px-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-cyan-500/50 focus:outline-none"
                     value={newTemplate.utm_term}
                     onChange={(e) => setNewTemplate({...newTemplate, utm_term: e.target.value})}
                     placeholder="{{keyword}}, купить обувь..."
                   />
-                  <p className="text-xs text-[var(--foreground)] opacity-60 mt-1">
+                  <p className="text-xs text-white/60 mt-1">
                     Ключевое слово
                   </p>
                 </div>
@@ -382,20 +382,20 @@ export default function UTMBuilderPage() {
                   </label>
                   <input 
                     type="text" 
-                    className="input-field w-full"
+                    className="w-full px-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-cyan-500/50 focus:outline-none"
                     value={newTemplate.utm_content}
                     onChange={(e) => setNewTemplate({...newTemplate, utm_content: e.target.value})}
                     placeholder="{{product_id}}, banner1, link2..."
                   />
-                  <p className="text-xs text-[var(--foreground)] opacity-60 mt-1">
+                  <p className="text-xs text-white/60 mt-1">
                     Идентификатор объявления/контента
                   </p>
                 </div>
               </div>
 
-              <div className="bg-[var(--background)] p-4 rounded-lg border border-[var(--border)]">
+              <div className="bg-[#0d0d0d] p-4 rounded-lg border border-white/10">
                 <p className="text-sm font-medium mb-2">Предпросмотр:</p>
-                <code className="text-xs text-[var(--button)] break-all">
+                <code className="text-xs text-cyan-400 break-all">
                   {[
                     newTemplate.utm_source && `utm_source=${newTemplate.utm_source}`,
                     newTemplate.utm_medium && `utm_medium=${newTemplate.utm_medium}`,
@@ -404,18 +404,18 @@ export default function UTMBuilderPage() {
                     newTemplate.utm_content && `utm_content=${newTemplate.utm_content}`
                   ].filter(Boolean).join('&') || 'Заполните поля выше'}
                 </code>
-                <p className="text-xs text-[var(--foreground)] opacity-60 mt-2">
+                <p className="text-xs text-white/60 mt-2">
                   💡 Используйте &#123;&#123;переменная&#125;&#125; для динамических значений
                 </p>
               </div>
 
               <div className="flex gap-3 pt-4">
-                <button type="submit" className="btn-primary">
+                <button type="submit" className="px-6 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg hover:bg-cyan-500/30 border border-cyan-500/30">
                   Создать шаблон
                 </button>
                 <button 
                   type="button" 
-                  className="btn-secondary"
+                  className="px-6 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg border border-white/10"
                   onClick={() => setShowCreateModal(false)}
                 >
                   Отмена
@@ -429,12 +429,12 @@ export default function UTMBuilderPage() {
       {/* Модальное окно редактирования шаблона */}
       {showEditModal && editingTemplate && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="card max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold">Редактировать шаблон UTM</h2>
               <button 
                 onClick={() => setShowEditModal(false)}
-                className="btn-secondary"
+                className="px-3 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg border border-white/10"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="18" y1="6" x2="6" y2="18"/>
@@ -475,7 +475,7 @@ export default function UTMBuilderPage() {
                   placeholder="utm_source=source&utm_medium=medium&utm_campaign={{campaign_name}}"
                   required
                 />
-                <p className="text-xs text-[var(--foreground)] opacity-70 mt-1">
+                <p className="text-xs text-white/70 mt-1">
                   Используйте &#123;&#123;variable_name&#125;&#125; для переменных
                 </p>
               </div>

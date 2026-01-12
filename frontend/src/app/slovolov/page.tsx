@@ -17,7 +17,6 @@ import ComboSearch from '@/components/ComboSearch'
 import { exportTopRequestsToCSV } from '@/lib/export'
 import { TopRequestsResponse, KeywordData } from '@/types/yandex-wordstat'
 import { loadRegionsTree, getRegionNameById } from '@/lib/regions-utils'
-import '../slovolov-styles.css'
 
 type Tab = 'search' | 'combo' | 'dynamics' | 'regions' | 'settings'
 

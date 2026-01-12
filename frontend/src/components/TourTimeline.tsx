@@ -162,42 +162,52 @@ export default function TourTimeline({}: TourTimelineProps) {
   if (loadingMode.type === null && !allTours.length) {
     return (
       <div className="max-w-md mx-auto p-6">
-        <div className="space-y-3">
+        <div className="space-y-4">
           {/* Date Range Option */}
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-            <h3 className="font-semibold text-[var(--foreground)] mb-3">Загрузить ведомости за период</h3>
-            <div className="space-y-2 mb-3">
-              <label className="text-xs text-[var(--muted-foreground)]">От:</label>
-              <input
-                type="date"
-                value={loadingMode.dateFrom || ''}
-                onChange={(e) => setLoadingMode(prev => ({ ...prev, dateFrom: e.target.value }))}
-                className="w-full px-3 py-2 bg-[var(--card)] border border-[var(--border)] rounded text-[var(--foreground)] text-sm"
-              />
-              <label className="text-xs text-[var(--muted-foreground)] mt-2">До:</label>
-              <input
-                type="date"
-                value={loadingMode.dateTo || ''}
-                onChange={(e) => setLoadingMode(prev => ({ ...prev, dateTo: e.target.value }))}
-                className="w-full px-3 py-2 bg-[var(--card)] border border-[var(--border)] rounded text-[var(--foreground)] text-sm"
-              />
+          <div className="card">
+            <h3 className="font-semibold text-[var(--foreground)] mb-4 flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-[var(--button)]" />
+              Загрузить ведомости за период
+            </h3>
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-xs text-[var(--muted)] mb-1">Дата начала</label>
+                <input
+                  type="date"
+                  value={loadingMode.dateFrom || ''}
+                  onChange={(e) => setLoadingMode(prev => ({ ...prev, dateFrom: e.target.value }))}
+                  className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--muted)] mb-1">Дата окончания</label>
+                <input
+                  type="date"
+                  value={loadingMode.dateTo || ''}
+                  onChange={(e) => setLoadingMode(prev => ({ ...prev, dateTo: e.target.value }))}
+                  className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
+                />
+              </div>
             </div>
             <button
               onClick={() => handleLoadMode('range', loadingMode.dateFrom, loadingMode.dateTo)}
               disabled={!loadingMode.dateFrom || !loadingMode.dateTo}
-              className="w-full bg-[var(--primary)] text-[#252538] py-2.5 rounded-lg font-medium hover:opacity-90 disabled:opacity-50 transition-all"
+              className="w-full bg-[var(--button)] text-[var(--button-text)] py-2.5 rounded-lg font-medium hover:opacity-90 disabled:opacity-50 transition-all"
             >
               Загрузить за период
             </button>
           </div>
           
           {/* All Data Option */}
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-            <h3 className="font-semibold text-[var(--foreground)] mb-2">Загрузить все ведомости</h3>
-            <p className="text-sm text-[var(--muted-foreground)] mb-3">Может занять время</p>
+          <div className="card">
+            <h3 className="font-semibold text-[var(--foreground)] mb-2 flex items-center gap-2">
+              <Download className="w-5 h-5 text-[var(--button)]" />
+              Загрузить все ведомости
+            </h3>
+            <p className="text-sm text-[var(--muted)] mb-4">Загрузка всех данных может занять некоторое время</p>
             <button
               onClick={() => handleLoadMode('all')}
-              className="w-full bg-[var(--primary)] text-[#252538] py-2.5 rounded-lg font-medium hover:opacity-90 transition-all"
+              className="w-full border border-[var(--button)] text-[var(--button)] py-2.5 rounded-lg font-medium hover:bg-[var(--button)] hover:text-[var(--button-text)] transition-all"
             >
               Загрузить все
             </button>
@@ -210,9 +220,10 @@ export default function TourTimeline({}: TourTimelineProps) {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-[var(--primary)] mb-4" />
+        <Loader2 className="w-8 h-8 animate-spin text-[var(--button)] mb-4" />
         <div className="text-center">
           <div className="font-semibold text-[var(--foreground)]">Загружаем ведомости...</div>
+          <div className="text-sm text-[var(--muted)] mt-1">Пожалуйста, подождите</div>
         </div>
       </div>
     );
@@ -220,11 +231,11 @@ export default function TourTimeline({}: TourTimelineProps) {
 
   if (error) {
     return (
-      <div className="text-center text-red-500 p-8">
-        <p className="mb-4">{error}</p>
+      <div className="text-center p-8">
+        <div className="text-red-500 mb-4">{error}</div>
         <button 
           onClick={() => setLoadingMode({ type: null })}
-          className="px-6 py-2 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg hover:opacity-80"
+          className="px-6 py-2 bg-[var(--button)] text-[var(--button-text)] rounded-lg hover:opacity-80 transition-all"
         >
           Попробовать снова
         </button>
@@ -262,7 +273,7 @@ export default function TourTimeline({}: TourTimelineProps) {
           <div className="text-lg font-semibold text-[var(--foreground)]">
             {tours.length} ведомостей
             {allTours.length > tours.length && (
-              <span className="text-sm text-gray-500 ml-2">
+              <span className="text-sm text-[var(--muted)] ml-2">
                 из {allTours.length}
               </span>
             )}
@@ -272,8 +283,8 @@ export default function TourTimeline({}: TourTimelineProps) {
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors ${
               showFilters 
-                ? 'bg-[var(--primary)] text-[var(--primary-foreground)] border-[var(--primary)]' 
-                : 'border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)]'
+                ? 'bg-[var(--button)] text-[var(--button-text)] border-[var(--button)]' 
+                : 'border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--hover)]'
             }`}
           >
             <Filter className="w-4 h-4" />
@@ -283,7 +294,7 @@ export default function TourTimeline({}: TourTimelineProps) {
         
         <button
           onClick={() => setLoadingMode({ type: null })}
-          className="text-sm text-[var(--primary)] hover:text-[var(--foreground)] transition-colors"
+          className="text-sm text-[var(--button)] hover:text-[var(--foreground)] transition-colors"
         >
           Изменить период
         </button>
@@ -291,30 +302,30 @@ export default function TourTimeline({}: TourTimelineProps) {
 
       {/* Filters Panel */}
       {showFilters && (
-        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4 mb-6">
+        <div className="card mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* Search */}
             <div className="lg:col-span-2">
-              <label className="block text-xs text-gray-500 mb-1">Поиск по названию</label>
+              <label className="block text-xs text-[var(--muted)] mb-1">Поиск по названию</label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--muted)]" />
                 <input
                   type="text"
                   placeholder="Название тура или город..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded text-[var(--foreground)] text-sm"
+                  className="w-full pl-10 pr-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
                 />
               </div>
             </div>
 
             {/* Source filter */}
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Источник</label>
+              <label className="block text-xs text-[var(--muted)] mb-1">Источник</label>
               <select
                 value={sourceFilter}
                 onChange={(e) => setSourceFilter(e.target.value)}
-                className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded text-[var(--foreground)] text-sm"
+                className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
               >
                 <option value="all">Все источники</option>
                 {uniqueSources.map(source => (
@@ -329,11 +340,11 @@ export default function TourTimeline({}: TourTimelineProps) {
 
             {/* Days filter */}
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Дни</label>
+              <label className="block text-xs text-[var(--muted)] mb-1">Дни</label>
               <select
                 value={daysFilter}
                 onChange={(e) => setDaysFilter(e.target.value)}
-                className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded text-[var(--foreground)] text-sm"
+                className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
               >
                 <option value="all">Все дни</option>
                 {uniqueDays.map(days => (
@@ -348,7 +359,7 @@ export default function TourTimeline({}: TourTimelineProps) {
             <div className="flex items-end">
               <button
                 onClick={clearFilters}
-                className="w-full flex items-center justify-center gap-1 px-3 py-2 text-sm text-gray-500 hover:text-[var(--foreground)] border border-[var(--border)] rounded hover:bg-[var(--background)] transition-colors"
+                className="w-full flex items-center justify-center gap-1 px-3 py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)] rounded-lg hover:bg-[var(--hover)] transition-colors"
               >
                 <X className="w-3 h-3" />
                 Сбросить
@@ -359,21 +370,21 @@ export default function TourTimeline({}: TourTimelineProps) {
           {/* Date range filter */}
           <div className="grid grid-cols-2 gap-4 mt-4">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Фильтр: с даты</label>
+              <label className="block text-xs text-[var(--muted)] mb-1">Фильтр: с даты</label>
               <input
                 type="date"
                 value={dateFromFilter}
                 onChange={(e) => setDateFromFilter(e.target.value)}
-                className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded text-[var(--foreground)] text-sm"
+                className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Фильтр: по дату</label>
+              <label className="block text-xs text-[var(--muted)] mb-1">Фильтр: по дату</label>
               <input
                 type="date"
                 value={dateToFilter}
                 onChange={(e) => setDateToFilter(e.target.value)}
-                className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded text-[var(--foreground)] text-sm"
+                className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
               />
             </div>
           </div>
@@ -393,14 +404,14 @@ export default function TourTimeline({}: TourTimelineProps) {
             <div key={dateKey} className="mb-8 relative">
               {/* Modern date marker */}
               <div className="flex items-center mb-4 relative">
-                <div className="relative z-10 w-2 h-2 rounded-full bg-[var(--primary)]">
+                <div className="relative z-10 w-3 h-3 rounded-full bg-[var(--button)] ring-4 ring-[var(--background)]">
                 </div>
                 
                 <div className="ml-4 flex-1">
                   <h3 className="text-lg font-semibold text-[var(--foreground)] mb-1">
                     {dateDisplay}
                   </h3>
-                  <div className="flex items-center gap-3 text-sm text-[var(--muted-foreground)]">
+                  <div className="flex items-center gap-3 text-sm text-[var(--muted)]">
                     <span>{toursOnDate.length} {toursOnDate.length === 1 ? 'ведомость' : toursOnDate.length < 5 ? 'ведомости' : 'ведомостей'}</span>
                     <span>•</span>
                     <span>от {Math.min(...toursOnDate.map((t: TimelineTour) => t.price)).toLocaleString('ru-RU')} ₽</span>
@@ -415,12 +426,12 @@ export default function TourTimeline({}: TourTimelineProps) {
                 {toursOnDate.map((tour: TimelineTour, tourIndex: number) => (
                   <div
                     key={`${tour.tourId}-${tourIndex}`}
-                    className="relative bg-[var(--card)] rounded border border-[var(--border)] cursor-pointer p-1.5 hover:shadow-sm transition-shadow"
+                    className="relative card cursor-pointer p-2 hover:border-[var(--button)] transition-all"
                     onClick={() => setSelectedTour(tour)}
                   >
-                    <div className="grid grid-cols-[50px_80px_0.9fr_1fr_100px] gap-1 text-xs items-center">
+                    <div className="grid grid-cols-[50px_80px_0.9fr_1fr_100px] gap-2 text-xs items-center">
                       {/* Days */}
-                      <div className="flex items-center gap-1 text-[var(--primary)] font-medium">
+                      <div className="flex items-center gap-1 text-[var(--button)] font-medium">
                         <Clock className="w-3 h-3" />
                         <span>{tour.days}д</span>
                       </div>
@@ -436,7 +447,7 @@ export default function TourTimeline({}: TourTimelineProps) {
                       </div>
 
                       {/* Route */}
-                      <div className="flex items-center gap-1 text-[var(--muted-foreground)]">
+                      <div className="flex items-center gap-1 text-[var(--muted)]">
                         {tour.route && tour.route.length > 0 && (
                           <>
                             <MapPin className="w-3 h-3 flex-shrink-0" />
@@ -448,7 +459,7 @@ export default function TourTimeline({}: TourTimelineProps) {
                       </div>
 
                       {/* Price */}
-                      <div className="text-[var(--primary)] font-semibold text-right">
+                      <div className="text-[var(--button)] font-semibold text-right">
                         {tour.price.toLocaleString('ru-RU')} ₽
                       </div>
                     </div>
@@ -466,7 +477,7 @@ export default function TourTimeline({}: TourTimelineProps) {
           <button
             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
             disabled={currentPage === 1}
-            className="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Назад
           </button>
@@ -490,8 +501,8 @@ export default function TourTimeline({}: TourTimelineProps) {
                   onClick={() => setCurrentPage(pageNum)}
                   className={`w-10 h-10 rounded-lg border transition-colors ${
                     currentPage === pageNum
-                      ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
-                      : 'border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)]'
+                      ? 'bg-[var(--button)] text-[var(--button-text)] border-[var(--button)]'
+                      : 'border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--hover)]'
                   }`}
                 >
                   {pageNum}
@@ -503,12 +514,12 @@ export default function TourTimeline({}: TourTimelineProps) {
           <button
             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
             disabled={currentPage === totalPages}
-            className="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Вперёд
           </button>
           
-          <span className="ml-4 text-sm text-[var(--muted-foreground)]">
+          <span className="ml-4 text-sm text-[var(--muted)]">
             Страница {currentPage} из {totalPages}
           </span>
         </div>
@@ -517,12 +528,12 @@ export default function TourTimeline({}: TourTimelineProps) {
       {/* Tour Detail Modal */}
       {selectedTour && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setSelectedTour(null)}>
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="card max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
               <h2 className="text-xl font-bold text-[var(--foreground)]">{selectedTour.tourName}</h2>
               <button
                 onClick={() => setSelectedTour(null)}
-                className="text-gray-500 hover:text-[var(--foreground)] transition-colors"
+                className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -532,27 +543,27 @@ export default function TourTimeline({}: TourTimelineProps) {
               {/* Basic Info */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-[var(--primary)]" />
-                  <span className="text-sm text-[var(--muted-foreground)]">Длительность:</span>
+                  <Clock className="w-4 h-4 text-[var(--button)]" />
+                  <span className="text-sm text-[var(--muted)]">Длительность:</span>
                   <span className="font-semibold">{selectedTour.days} {selectedTour.days === 1 ? 'день' : selectedTour.days < 5 ? 'дня' : 'дней'}</span>
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-[var(--primary)]" />
-                  <span className="text-sm text-[var(--muted-foreground)]">Цена:</span>
-                  <span className="font-semibold text-lg">{selectedTour.price.toLocaleString('ru-RU')} ₽</span>
+                  <DollarSign className="w-4 h-4 text-[var(--button)]" />
+                  <span className="text-sm text-[var(--muted)]">Цена:</span>
+                  <span className="font-semibold text-lg text-[var(--button)]">{selectedTour.price.toLocaleString('ru-RU')} ₽</span>
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-[var(--muted-foreground)]">Источник:</span>
+                  <span className="text-sm text-[var(--muted)]">Источник:</span>
                   <div className={`px-2 py-1 rounded text-sm font-medium ${getSourceBadge(selectedTour.source).color}`}>
                     {getSourceBadge(selectedTour.source).label}
                   </div>
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-[var(--primary)]" />
-                  <span className="text-sm text-[var(--muted-foreground)]">Дата:</span>
+                  <Calendar className="w-4 h-4 text-[var(--button)]" />
+                  <span className="text-sm text-[var(--muted)]">Дата:</span>
                   <span className="font-semibold">{selectedTour.dateFormatted}</span>
                 </div>
               </div>
@@ -560,14 +571,14 @@ export default function TourTimeline({}: TourTimelineProps) {
               {/* Route Info */}
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <MapPin className="w-4 h-4 text-[var(--primary)]" />
-                  <span className="text-sm text-[var(--muted-foreground)]">Маршрут:</span>
+                  <MapPin className="w-4 h-4 text-[var(--button)]" />
+                  <span className="text-sm text-[var(--muted)]">Маршрут:</span>
                 </div>
                 {selectedTour.route && selectedTour.route.length > 0 ? (
                   <div className="space-y-1">
                     {selectedTour.route.map((city, index) => (
                       <div key={index} className="flex items-center gap-2 text-sm">
-                        <span className="w-6 h-6 bg-[#252538] text-white rounded-full flex items-center justify-center text-xs font-bold">
+                        <span className="w-6 h-6 bg-[var(--button)] text-[var(--button-text)] rounded-full flex items-center justify-center text-xs font-bold">
                           {index + 1}
                         </span>
                         <span>{city}</span>
@@ -575,7 +586,7 @@ export default function TourTimeline({}: TourTimelineProps) {
                     ))}
                   </div>
                 ) : (
-                  <span className="text-[var(--muted-foreground)] text-sm">Маршрут не указан</span>
+                  <span className="text-[var(--muted)] text-sm">Маршрут не указан</span>
                 )}
               </div>
             </div>
@@ -584,11 +595,11 @@ export default function TourTimeline({}: TourTimelineProps) {
             <div className="mt-6 pt-4 border-t border-[var(--border)]">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-[var(--muted-foreground)]">ID тура:</span>
+                  <span className="text-[var(--muted)]">ID тура:</span>
                   <span className="ml-2 font-mono">{selectedTour.tourId}</span>
                 </div>
                 <div>
-                  <span className="text-[var(--muted-foreground)]">Валюта:</span>
+                  <span className="text-[var(--muted)]">Валюта:</span>
                   <span className="ml-2">{selectedTour.currency}</span>
                 </div>
               </div>
@@ -597,7 +608,7 @@ export default function TourTimeline({}: TourTimelineProps) {
             <div className="mt-6 flex justify-end">
               <button
                 onClick={() => setSelectedTour(null)}
-                className="px-4 py-2 bg-[#252538] text-white rounded-lg hover:opacity-80 transition-opacity"
+                className="px-4 py-2 bg-[var(--button)] text-[var(--button-text)] rounded-lg hover:opacity-80 transition-opacity"
               >
                 Закрыть
               </button>

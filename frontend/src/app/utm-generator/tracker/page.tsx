@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import { apiFetch } from '@/lib/api'
@@ -6,8 +6,7 @@ import { showToast } from '@/components/Toast'
 import { 
   Plus, RefreshCw, Copy, ExternalLink, Trash2, 
   FolderPlus, Folder, FolderOpen, ChevronRight, ChevronDown,
-  BarChart3, Eye, TrendingUp, X, Users,
-  Check, Star, Filter
+  BarChart3, Eye, TrendingUp, X, Users, Check, Star, Calendar, Search, Target, DollarSign
 } from 'lucide-react'
 
 interface TrackedPost {
@@ -21,9 +20,10 @@ interface TrackedPost {
   views: number
   conversions: number
   users: number
-  frequency: number
   avgTime: number
   bounceRate?: number
+  revenue?: number
+  goalsBreakdown?: Record<string, number>
   folderId?: string
 }
 
@@ -43,6 +43,27 @@ interface MetrikaLink {
   users: number
   pageviews: number
   bounceRate: number
+  avgTime?: number
+  revenue?: number
+  conversions?: number
+  goalsBreakdown?: Record<string, number>
+}
+
+// Основные конверсионные цели для отображения
+const GOAL_NAMES: Record<string, string> = {
+  "301950976": "ЗАКАЗ (страница успеха)",
+  "485406426": "Ecommerce: покупка",
+  "484029889": "CRM: заявка получена",
+  "484029963": "CRM: Внесена предоплата",
+  "484009486": "CRM: Заказ создан",
+  "484009487": "CRM: Заказ оплачен",
+  "260679148": "Купить - в карточке",
+  "260679473": "Купить - из прочих мест",
+  "222378141": "On-line заявка: ОДН",
+  "222378195": "On-line заявка: МНОГ",
+  "222378242": "On-line заявка: ЖД",
+  "484037544": "Нажал купить на странице тура",
+  "484037649": "Перешел на создание заказа"
 }
 
 const PLATFORMS = [
@@ -64,25 +85,57 @@ const FOLDER_COLORS = [
   { id: 'cyan', color: 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' },
 ]
 
+const QUICK_PERIODS = [
+  { id: 'today', label: 'Сегодня', days: 0 },
+  { id: 'yesterday', label: 'Вчера', days: 1, isYesterday: true },
+  { id: '7d', label: '7 дней', days: 7 },
+  { id: '14d', label: '14 дней', days: 14 },
+  { id: '30d', label: '30 дней', days: 30 },
+]
+
+const parseUTM = (url: string) => {
+  try {
+    const urlObj = new URL(url)
+    return {
+      source: urlObj.searchParams.get('utm_source') || '',
+      medium: urlObj.searchParams.get('utm_medium') || '',
+      campaign: urlObj.searchParams.get('utm_campaign') || '',
+      term: urlObj.searchParams.get('utm_term') || '',
+      content: urlObj.searchParams.get('utm_content') || '',
+    }
+  } catch {
+    return { source: '', medium: '', campaign: '', term: '', content: '' }
+  }
+}
+
+const panelStyle = {
+  background: '#1a1a1a',
+  boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.3), 0 0 0 0.5px rgba(255, 255, 255, 0.1) inset, 0 1px 0 0 rgba(255, 255, 255, 0.15) inset'
+}
+
+const buttonStyle = {
+  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.1) inset'
+}
+
 export default function TrackerPage() {
   const [activeTab, setActiveTab] = useState<'tracked' | 'metrika'>('tracked')
   
   const [posts, setPosts] = useState<TrackedPost[]>([])
   const [folders, setFolders] = useState<TrackedFolder[]>([])
   const [metrikaLinks, setMetrikaLinks] = useState<MetrikaLink[]>([])
-  const [prevPeriodLinks, setPrevPeriodLinks] = useState<MetrikaLink[]>([])
   const [trackedUtmTerms, setTrackedUtmTerms] = useState<Set<string>>(new Set())
+  const [trackedUtmCampaigns, setTrackedUtmCampaigns] = useState<Set<string>>(new Set())
   
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [loadingMetrika, setLoadingMetrika] = useState(false)
-  const [compareEnabled, setCompareEnabled] = useState(false)
   
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
+  const [selectedPeriod, setSelectedPeriod] = useState('7d')
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date()
-    d.setDate(d.getDate() - 30)
+    d.setDate(d.getDate() - 7)
     return d.toISOString().split('T')[0]
   })
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().split('T')[0])
@@ -90,17 +143,8 @@ export default function TrackerPage() {
   const [showAddLink, setShowAddLink] = useState(false)
   const [showAddFolder, setShowAddFolder] = useState(false)
   
-  const [newLink, setNewLink] = useState({
-    title: '',
-    utmUrl: '',
-    platform: 'vk',
-    folderId: ''
-  })
-  
-  const [newFolder, setNewFolder] = useState({
-    name: '',
-    color: 'blue'
-  })
+  const [newLink, setNewLink] = useState({ title: '', utmUrl: '', platform: 'vk', folderId: '' })
+  const [newFolder, setNewFolder] = useState({ name: '', color: 'blue' })
 
   useEffect(() => {
     loadData()
@@ -112,35 +156,70 @@ export default function TrackerPage() {
     }
   }, [activeTab, dateFrom, dateTo])
 
+  const applyPeriod = (periodId: string) => {
+    const period = QUICK_PERIODS.find(p => p.id === periodId)
+    if (!period) return
+    
+    const now = new Date()
+    const from = new Date()
+    const to = new Date()
+    
+    if (period.isYesterday) {
+      from.setDate(now.getDate() - 1)
+      to.setDate(now.getDate() - 1)
+    } else if (period.days === 0) {
+      // Сегодня
+    } else {
+      from.setDate(now.getDate() - period.days)
+    }
+    
+    setDateFrom(from.toISOString().split('T')[0])
+    setDateTo(to.toISOString().split('T')[0])
+    setSelectedPeriod(periodId)
+  }
+
   const loadData = async () => {
     setLoading(true)
     try {
-      const [postsRes, foldersRes, metrikaRes] = await Promise.all([
+      let postsData: TrackedPost[] = []
+      let metrikaData: MetrikaLink[] = []
+      let foldersData: TrackedFolder[] = []
+      
+      const results = await Promise.allSettled([
         apiFetch('/api/tracked-posts'),
         apiFetch('/api/tracked-folders'),
         apiFetch(`/api/analytics/metrica?date_from=${dateFrom}&date_to=${dateTo}`)
       ])
       
-      let postsData: TrackedPost[] = []
-      let metrikaData: MetrikaLink[] = []
-      
-      if (postsRes.ok) {
-        postsData = await postsRes.json()
-        postsData = Array.isArray(postsData) ? postsData : []
+      if (results[0].status === 'fulfilled') {
+        const postsRes = results[0].value
+        if (postsRes.ok) {
+          postsData = await postsRes.json()
+          postsData = Array.isArray(postsData) ? postsData : []
+        }
       }
       
-      if (metrikaRes.ok) {
-        metrikaData = await metrikaRes.json()
-        metrikaData = Array.isArray(metrikaData) ? metrikaData : []
+      if (results[1].status === 'fulfilled') {
+        const foldersRes = results[1].value
+        if (foldersRes.ok) {
+          foldersData = await foldersRes.json()
+          foldersData = Array.isArray(foldersData) ? foldersData : []
+        }
       }
       
-      // Обогащаем посты данными из Метрики
+      if (results[2].status === 'fulfilled') {
+        const metrikaRes = results[2].value
+        if (metrikaRes.ok) {
+          metrikaData = await metrikaRes.json()
+          metrikaData = Array.isArray(metrikaData) ? metrikaData : []
+        }
+      }
+      
       const enrichedPosts = postsData.map(post => {
         const utm = parseUTM(post.utmUrl)
         const metrikaMatch = metrikaData.find(m => 
           (utm.term && m.utm_term === utm.term) ||
-          (utm.campaign && m.utm_campaign === utm.campaign) ||
-          (utm.source && utm.medium && m.utm_source === utm.source && m.utm_medium === utm.medium)
+          (utm.campaign && m.utm_campaign === utm.campaign)
         )
         
         if (metrikaMatch) {
@@ -149,7 +228,6 @@ export default function TrackerPage() {
             views: metrikaMatch.visits || post.views || 0,
             users: metrikaMatch.users || post.users || 0,
             bounceRate: metrikaMatch.bounceRate || post.bounceRate || 0,
-            avgTime: 0 // TODO: добавить из метрики если доступно
           }
         }
         return post
@@ -157,18 +235,17 @@ export default function TrackerPage() {
       
       setPosts(enrichedPosts)
       setMetrikaLinks(metrikaData)
+      setFolders(foldersData)
       
       const tracked = new Set<string>()
+      const trackedCampaigns = new Set<string>()
       enrichedPosts.forEach((p: TrackedPost) => {
         const utm = parseUTM(p.utmUrl)
         if (utm.term) tracked.add(utm.term)
+        if (utm.campaign) trackedCampaigns.add(utm.campaign)
       })
       setTrackedUtmTerms(tracked)
-      
-      if (foldersRes.ok) {
-        const data = await foldersRes.json()
-        setFolders(Array.isArray(data) ? data : [])
-      }
+      setTrackedUtmCampaigns(trackedCampaigns)
     } catch (error) {
       console.error('Ошибка загрузки:', error)
     } finally {
@@ -180,56 +257,15 @@ export default function TrackerPage() {
     setLoadingMetrika(true)
     try {
       const res = await apiFetch(`/api/analytics/metrica?date_from=${dateFrom}&date_to=${dateTo}`)
-      if (res.ok) {
+      if (res && res.ok) {
         const data = await res.json()
         setMetrikaLinks(Array.isArray(data) ? data : [])
-        
-        // Загрузка предыдущего периода для сравнения
-        if (compareEnabled) {
-          const from1 = new Date(dateFrom)
-          const to1 = new Date(dateTo)
-          const days = Math.ceil((to1.getTime() - from1.getTime()) / (1000 * 60 * 60 * 24))
-          const prevTo = new Date(from1)
-          prevTo.setDate(prevTo.getDate() - 1)
-          const prevFrom = new Date(prevTo)
-          prevFrom.setDate(prevFrom.getDate() - days)
-          
-          const prevRes = await apiFetch(`/api/analytics/metrica?date_from=${prevFrom.toISOString().split('T')[0]}&date_to=${prevTo.toISOString().split('T')[0]}`)
-          if (prevRes.ok) {
-            const prevData = await prevRes.json()
-            setPrevPeriodLinks(Array.isArray(prevData) ? prevData : [])
-          }
-        } else {
-          setPrevPeriodLinks([])
-        }
-      } else {
-        showToast('Ошибка загрузки данных Метрики', 'error')
       }
     } catch (error) {
       console.error('Ошибка Метрики:', error)
-      showToast('Настройте Яндекс.Метрику в настройках', 'error')
     } finally {
       setLoadingMetrika(false)
     }
-  }
-
-  // Функция расчёта изменения между периодами
-  const getComparison = (current: MetrikaLink) => {
-    if (!compareEnabled || prevPeriodLinks.length === 0) return null
-    
-    const prev = prevPeriodLinks.find(p => 
-      p.utm_term === current.utm_term && 
-      p.utm_source === current.utm_source
-    )
-    
-    if (!prev) return { visits: current.visits, users: current.users, isNew: true }
-    
-    const visitsDiff = current.visits - prev.visits
-    const usersDiff = current.users - prev.users
-    const visitsPercent = prev.visits > 0 ? Math.round((visitsDiff / prev.visits) * 100) : 0
-    const usersPercent = prev.users > 0 ? Math.round((usersDiff / prev.users) * 100) : 0
-    
-    return { visitsDiff, usersDiff, visitsPercent, usersPercent, isNew: false }
   }
 
   const refreshStats = async () => {
@@ -263,7 +299,6 @@ export default function TrackerPage() {
           views: link.visits || 0,
           users: link.users || 0,
           conversions: 0,
-          frequency: 0,
           avgTime: 0
         })
       })
@@ -312,14 +347,11 @@ export default function TrackerPage() {
           title: newLink.title,
           utmUrl: newLink.utmUrl,
           platform: newLink.platform,
-          folderId: newLink.folderId || null,
           postUrl: newLink.utmUrl,
+          folderId: newLink.folderId || undefined,
           clicks: 0,
           views: 0,
-          conversions: 0,
-          users: 0,
-          frequency: 0,
-          avgTime: 0
+          conversions: 0
         })
       })
 
@@ -344,10 +376,7 @@ export default function TrackerPage() {
       const response = await apiFetch('/api/tracked-folders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newFolder.name,
-          color: newFolder.color
-        })
+        body: JSON.stringify(newFolder)
       })
 
       if (response.ok) {
@@ -357,542 +386,569 @@ export default function TrackerPage() {
         showToast('Папка создана', 'success')
       }
     } catch {
-      showToast('Ошибка создания папки', 'error')
+      showToast('Ошибка создания', 'error')
     }
   }
 
-  const deleteLink = async (id: string) => {
+  const deletePost = async (id: string) => {
     if (!confirm('Удалить ссылку?')) return
+    
     try {
-      await apiFetch(`/api/tracked-posts/${id}`, { method: 'DELETE' })
-      setPosts(prev => prev.filter(p => p.id !== id))
-      showToast('Удалено', 'success')
-    } catch {
-      showToast('Ошибка удаления', 'error')
-    }
-  }
-
-  const deleteFolder = async (id: string) => {
-    if (!confirm('Удалить папку?')) return
-    try {
-      await apiFetch(`/api/tracked-folders/${id}`, { method: 'DELETE' })
-      setFolders(prev => prev.filter(f => f.id !== id))
-      setPosts(prev => prev.map(p => p.folderId === id ? { ...p, folderId: undefined } : p))
-      showToast('Папка удалена', 'success')
-    } catch {
-      showToast('Ошибка удаления', 'error')
-    }
-  }
-
-  const toggleFolder = (folderId: string) => {
-    setExpandedFolders(prev => {
-      const next = new Set(prev)
-      if (next.has(folderId)) next.delete(folderId)
-      else next.add(folderId)
-      return next
-    })
-  }
-
-  const copyLink = (url: string) => {
-    navigator.clipboard.writeText(url)
-    showToast('Скопировано!', 'success')
-  }
-
-  const getPlatform = (id: string) => PLATFORMS.find(p => p.id === id) || PLATFORMS[PLATFORMS.length - 1]
-  const getFolderColor = (colorId: string) => FOLDER_COLORS.find(c => c.id === colorId)?.color || FOLDER_COLORS[0].color
-
-  const parseUTM = (url: string) => {
-    try {
-      const urlObj = new URL(url)
-      return {
-        source: urlObj.searchParams.get('utm_source') || '',
-        medium: urlObj.searchParams.get('utm_medium') || '',
-        campaign: urlObj.searchParams.get('utm_campaign') || '',
-        term: urlObj.searchParams.get('utm_term') || '',
+      const response = await apiFetch(`/api/tracked-posts/${id}`, { method: 'DELETE' })
+      if (response.ok) {
+        setPosts(prev => prev.filter(p => p.id !== id))
+        showToast('Удалено', 'success')
       }
     } catch {
-      return { source: '', medium: '', campaign: '', term: '' }
+      showToast('Ошибка удаления', 'error')
     }
+  }
+
+  const copyUrl = async (url: string) => {
+    await navigator.clipboard.writeText(url)
+    showToast('Скопировано', 'success')
   }
 
   const filteredPosts = posts.filter(post => {
-    const matchesSearch = !searchQuery || 
-      post.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      post.utmUrl?.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesSearch
+    if (!searchQuery) return true
+    const q = searchQuery.toLowerCase()
+    return post.title?.toLowerCase().includes(q) || post.utmUrl?.toLowerCase().includes(q)
   })
 
-  const filteredMetrikaLinks = metrikaLinks.filter(link => {
-    const matchesSearch = !searchQuery || 
-      link.utm_term?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      link.utm_campaign?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      link.utm_source?.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesSearch
+  // Фильтрация для левой панели (все ссылки из метрики для выбора)
+  const allMetrikaFiltered = metrikaLinks.filter(link => {
+    if (!searchQuery) return true
+    const q = searchQuery.toLowerCase()
+    return link.utm_term?.toLowerCase().includes(q) || 
+           link.utm_campaign?.toLowerCase().includes(q) ||
+           link.utm_source?.toLowerCase().includes(q)
   })
 
-  const rootPosts = filteredPosts.filter(p => !p.folderId)
-  const postsByFolder = folders.reduce((acc, folder) => {
-    acc[folder.id] = filteredPosts.filter(p => p.folderId === folder.id)
-    return acc
-  }, {} as Record<string, TrackedPost[]>)
+  // Фильтрация для правой таблицы (только отслеживаемые)
+  const filteredMetrika = metrikaLinks.filter(link => {
+    // Фильтруем только отслеживаемые ссылки (по utm_term или utm_campaign)
+    const isTracked = trackedUtmTerms.has(link.utm_term) || 
+      trackedUtmCampaigns.has(link.utm_campaign)
+    
+    if (!isTracked) return false
+    
+    if (!searchQuery) return true
+    const q = searchQuery.toLowerCase()
+    return link.utm_term?.toLowerCase().includes(q) || 
+           link.utm_campaign?.toLowerCase().includes(q) ||
+           link.utm_source?.toLowerCase().includes(q)
+  })
 
-  const totalViews = posts.reduce((sum, p) => sum + (p.views || 0), 0)
-  const totalConversions = posts.reduce((sum, p) => sum + (p.conversions || 0), 0)
-  const totalUsers = posts.reduce((sum, p) => sum + (p.users || 0), 0)
-
-  // Форматирование времени в MM:SS
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.round(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
-
-  // Умный индикатор состояния: оцениваем по совокупности метрик
-  const getHealthIndicator = (post: TrackedPost) => {
-    const bounceRate = post.bounceRate || 0
-    const users = post.users || 0
-    const views = post.views || 0
-    const conversions = post.conversions || 0
-    const avgTime = post.avgTime || 0
-    
-    // Нет данных - серый
-    if (users === 0 && views === 0) return { color: 'bg-gray-400', title: 'Нет данных' }
-    
-    // Оценка: отказы < 30% хорошо, > 60% плохо
-    // Время на сайте > 60с хорошо, < 20с плохо
-    // Конверсии > 0 хорошо
-    let score = 0
-    
-    if (bounceRate < 30) score += 2
-    else if (bounceRate < 50) score += 1
-    else if (bounceRate > 60) score -= 1
-    
-    if (avgTime > 60) score += 2
-    else if (avgTime > 30) score += 1
-    else if (avgTime < 20 && avgTime > 0) score -= 1
-    
-    if (conversions > 0) score += 2
-    if (users > 10) score += 1
-    
-    if (score >= 3) return { color: 'bg-green-500', title: 'Хорошие показатели' }
-    if (score >= 1) return { color: 'bg-yellow-500', title: 'Средние показатели' }
-    return { color: 'bg-red-500', title: 'Требует внимания' }
-  }
-
-  const renderPostCard = (post: TrackedPost) => {
-    const platform = getPlatform(post.platform)
-    const health = getHealthIndicator(post)
-    
-    return (
-      <div key={post.id} className="flex items-center gap-2 p-2.5 hover:bg-[var(--background)]/50 border-b border-[var(--border)] last:border-b-0">
-        {/* Умный индикатор */}
-        <div 
-          className={`w-2 h-2 rounded-full ${health.color} flex-shrink-0`} 
-          title={health.title}
-        />
-        
-        <div className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${platform.color}`}>
-          {platform.name}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm truncate">{post.title}</p>
-          <p className="text-[10px] opacity-50 truncate">{post.utmUrl}</p>
-        </div>
-        <div className="flex items-center gap-2 text-[10px]">
-          <div className="text-center min-w-[40px]">
-            <p className="font-bold text-sm">{post.users || 0}</p>
-            <p className="opacity-50">польз.</p>
-          </div>
-          <div className="text-center min-w-[45px]">
-            <p className="font-bold text-sm">{post.views || 0}</p>
-            <p className="opacity-50">визитов</p>
-          </div>
-          <div className="text-center min-w-[35px]">
-            <p className="font-bold text-sm">{post.conversions || 0}</p>
-            <p className="opacity-50">конв.</p>
-          </div>
-          <div className="text-center min-w-[35px]">
-            <p className="font-bold text-sm">{formatTime(post.avgTime || 0)}</p>
-            <p className="opacity-50">время</p>
-          </div>
-          <div className="text-center min-w-[35px]">
-            <p className="font-bold text-sm">{post.bounceRate?.toFixed(0) || 0}%</p>
-            <p className="opacity-50">отказы</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-0.5">
-          <button onClick={() => copyLink(post.utmUrl)} className="p-1 hover:bg-[var(--border)] rounded" title="Копировать">
-            <Copy className="w-3.5 h-3.5 opacity-50" />
-          </button>
-          <a href={post.utmUrl} target="_blank" rel="noopener noreferrer" className="p-1 hover:bg-[var(--border)] rounded" title="Открыть">
-            <ExternalLink className="w-3.5 h-3.5 opacity-50" />
-          </a>
-          <button onClick={() => deleteLink(post.id)} className="p-1 hover:bg-red-500/20 rounded text-red-400" title="Удалить">
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-    )
-  }
+  // Статистика только по отслеживаемым ссылкам
+  const totalVisits = filteredMetrika.reduce((sum, l) => sum + (l.visits || 0), 0)
+  const totalUsers = filteredMetrika.reduce((sum, l) => sum + (l.users || 0), 0)
+  const totalRevenue = filteredMetrika.reduce((sum, l) => sum + (l.revenue || 0), 0)
+  const totalConversions = filteredMetrika.reduce((sum, l) => sum + (l.conversions || 0), 0)
 
   return (
-    <div className="min-h-screen p-4">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <div>
-          <h1 className="text-lg font-bold">Трекер ссылок</h1>
-          <p className="text-[10px] opacity-60">Отслеживание UTM-ссылок</p>
-        </div>
-        <div className="flex gap-1.5">
-          <button 
-            onClick={refreshStats}
-            disabled={refreshing}
-            className="btn-secondary flex items-center gap-1 text-xs px-2 py-1.5"
-          >
-            <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
-          </button>
-          <button 
-            onClick={() => setShowAddFolder(true)}
-            className="btn-secondary flex items-center gap-1 text-xs px-2 py-1.5"
-          >
-            <FolderPlus className="w-3 h-3" />
-          </button>
-          <button 
-            onClick={() => setShowAddLink(true)}
-            className="btn-primary flex items-center gap-1 text-xs px-2.5 py-1.5"
-          >
-            <Plus className="w-3 h-3" />
-            Добавить
-          </button>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-2 mb-3">
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-2 flex items-center gap-2">
-          <div className="p-1 bg-blue-500/20 rounded">
-            <BarChart3 className="w-3 h-3 text-blue-400" />
-          </div>
-          <div>
-            <p className="text-sm font-bold">{posts.length}</p>
-            <p className="text-[9px] opacity-60">Ссылок</p>
-          </div>
-        </div>
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-2 flex items-center gap-2">
-          <div className="p-1 bg-cyan-500/20 rounded">
-            <Users className="w-3 h-3 text-cyan-400" />
-          </div>
-          <div>
-            <p className="text-sm font-bold">{totalUsers.toLocaleString()}</p>
-            <p className="text-[9px] opacity-60">Польз.</p>
-          </div>
-        </div>
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-2 flex items-center gap-2">
-          <div className="p-1 bg-green-500/20 rounded">
-            <Eye className="w-3 h-3 text-green-400" />
-          </div>
-          <div>
-            <p className="text-sm font-bold">{totalViews.toLocaleString()}</p>
-            <p className="text-[9px] opacity-60">Визитов</p>
-          </div>
-        </div>
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-2 flex items-center gap-2">
-          <div className="p-1 bg-orange-500/20 rounded">
-            <TrendingUp className="w-3 h-3 text-orange-400" />
-          </div>
-          <div>
-            <p className="text-sm font-bold">{totalConversions}</p>
-            <p className="text-[9px] opacity-60">Конв.</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-0.5 p-0.5 bg-[var(--card)] border border-[var(--border)] rounded-lg mb-3 w-fit">
-        <button
-          onClick={() => setActiveTab('tracked')}
-          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-            activeTab === 'tracked' ? 'bg-[var(--button)] text-white' : 'hover:bg-[var(--border)]'
-          }`}
-        >
-          Мои ({posts.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('metrika')}
-          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-            activeTab === 'metrika' ? 'bg-[var(--button)] text-white' : 'hover:bg-[var(--border)]'
-          }`}
-        >
-          Метрика ({metrikaLinks.length})
-        </button>
-      </div>
-
-      {/* Search */}
-      <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-2 mb-3">
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <input
-              type="text"
-              placeholder="Поиск..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="input-field w-full py-1.5 text-sm"
-            />
+    <div className="h-full flex p-4 gap-4">
+      {/* Левая панель - Список */}
+      <div 
+        className="w-80 rounded-2xl border border-white/10 overflow-hidden flex flex-col"
+        style={panelStyle}
+      >
+        {/* Заголовок */}
+        <div className="p-3 border-b border-white/10">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-medium text-white/60">Отслеживание</span>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setShowAddFolder(true)}
+                className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white/80 transition-colors"
+                style={buttonStyle}
+                title="Создать папку"
+              >
+                <FolderPlus className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setShowAddLink(true)}
+                className="w-7 h-7 rounded-lg bg-green-500/20 hover:bg-green-500/30 flex items-center justify-center text-green-400 transition-colors"
+                style={buttonStyle}
+                title="Добавить ссылку"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
           
-          {activeTab === 'metrika' && (
-            <>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="input-field py-1.5 text-xs w-[120px]"
-              />
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="input-field py-1.5 text-xs w-[120px]"
-              />
-              <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={compareEnabled}
-                  onChange={(e) => setCompareEnabled(e.target.checked)}
-                  className="w-3.5 h-3.5 rounded"
-                />
-                <span className="opacity-70">Сравнить</span>
-              </label>
-              <button
-                onClick={loadMetrikaData}
-                disabled={loadingMetrika}
-                className="btn-secondary px-2 py-1.5"
-              >
-                {loadingMetrika ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Filter className="w-3.5 h-3.5" />}
-              </button>
-            </>
+          {/* Табы */}
+          <div className="flex gap-1 p-1 bg-white/5 rounded-lg mb-3">
+            <button
+              onClick={() => setActiveTab('tracked')}
+              className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                activeTab === 'tracked' 
+                  ? 'bg-white/10 text-white border border-white/10' 
+                  : 'text-white/50 hover:text-white/70'
+              }`}
+            >
+              Мои ссылки
+            </button>
+            <button
+              onClick={() => setActiveTab('metrika')}
+              className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                activeTab === 'metrika' 
+                  ? 'bg-white/10 text-white border border-white/10' 
+                  : 'text-white/50 hover:text-white/70'
+              }`}
+            >
+              Из Метрики
+            </button>
+          </div>
+
+          {/* Поиск */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Поиск..."
+              className="w-full bg-white/5 border border-white/10 rounded-lg pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
+            />
+          </div>
+        </div>
+
+        {/* Периоды */}
+        <div className="px-3 py-2 border-b border-white/10 flex gap-1 overflow-x-auto">
+          {QUICK_PERIODS.map(period => (
+            <button
+              key={period.id}
+              onClick={() => applyPeriod(period.id)}
+              className={`px-2 py-1 rounded text-[10px] whitespace-nowrap transition-colors ${
+                selectedPeriod === period.id
+                  ? 'bg-white/10 text-white border border-white/10'
+                  : 'text-white/40 hover:text-white/60 hover:bg-white/5'
+              }`}
+            >
+              {period.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Список */}
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="w-6 h-6 border-2 border-[#4a9eff] border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : activeTab === 'tracked' ? (
+            filteredPosts.length === 0 ? (
+              <div className="px-4 py-12 text-center">
+                <BarChart3 className="w-10 h-10 mx-auto mb-3 text-white/20" />
+                <p className="text-white/40 text-xs">Нет отслеживаемых ссылок</p>
+                <p className="text-white/30 text-[10px] mt-1">Добавьте ссылку или импортируйте из Метрики</p>
+              </div>
+            ) : (
+              filteredPosts.map(post => {
+                const platform = PLATFORMS.find(p => p.id === post.platform)
+                return (
+                  <div
+                    key={post.id}
+                    className="px-3 py-2.5 border-b border-white/5 hover:bg-white/5 transition-colors group"
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium border ${platform?.color || 'bg-gray-500/20 text-gray-400'}`}>
+                        {platform?.name || 'Другое'}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-white/90 truncate">{post.title}</p>
+                        <p className="text-[10px] text-white/40 truncate mt-0.5">{post.utmUrl}</p>
+                      </div>
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => copyUrl(post.utmUrl)}
+                          className="w-6 h-6 rounded flex items-center justify-center text-white/40 hover:text-white/70 hover:bg-white/10"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => deletePost(post.id)}
+                          className="w-6 h-6 rounded flex items-center justify-center text-red-400/60 hover:text-red-400 hover:bg-red-500/10"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 mt-2 text-[10px]">
+                      <span className="flex items-center gap-1 text-white/40">
+                        <Eye className="w-3 h-3" /> {post.views || 0}
+                      </span>
+                      <span className="flex items-center gap-1 text-white/40">
+                        <Users className="w-3 h-3" /> {post.users || 0}
+                      </span>
+                      {post.bounceRate !== undefined && (
+                        <span className="flex items-center gap-1 text-white/40">
+                          <TrendingUp className="w-3 h-3" /> {post.bounceRate.toFixed(1)}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })
+            )
+          ) : (
+            loadingMetrika ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-6 h-6 border-2 border-[#4a9eff] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : allMetrikaFiltered.length === 0 ? (
+              <div className="px-4 py-12 text-center">
+                <BarChart3 className="w-10 h-10 mx-auto mb-3 text-white/20" />
+                <p className="text-white/40 text-xs">Нет данных из Метрики</p>
+              </div>
+            ) : (
+              allMetrikaFiltered.map((link, idx) => {
+                const isTracked = trackedUtmTerms.has(link.utm_term) || trackedUtmCampaigns.has(link.utm_campaign)
+                return (
+                  <div
+                    key={idx}
+                    className="px-3 py-2.5 border-b border-white/5 hover:bg-white/5 transition-colors"
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-white/90 truncate">
+                          {link.utm_term || link.utm_campaign || 'Без метки'}
+                        </p>
+                        <p className="text-[10px] text-white/40 mt-0.5">
+                          {link.utm_source} / {link.utm_medium}
+                        </p>
+                      </div>
+                      {isTracked ? (
+                        <span className="px-2 py-0.5 rounded bg-green-500/20 text-green-400 text-[9px]">
+                          <Check className="w-3 h-3 inline" /> Отслеживается
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => trackFromMetrika(link)}
+                          className="px-2 py-0.5 rounded bg-white/10 text-white/70 text-[9px] hover:bg-white/15 transition-colors border border-white/10"
+                        >
+                          <Plus className="w-3 h-3 inline" /> Отслеживать
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex gap-3 mt-2 text-[10px]">
+                      <span className="flex items-center gap-1 text-white/40">
+                        <Eye className="w-3 h-3" /> {link.visits}
+                      </span>
+                      <span className="flex items-center gap-1 text-white/40">
+                        <Users className="w-3 h-3" /> {link.users}
+                      </span>
+                      <span className="flex items-center gap-1 text-white/40">
+                        <TrendingUp className="w-3 h-3" /> {link.bounceRate.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                )
+              })
+            )
           )}
         </div>
       </div>
 
-      {/* Content */}
-      {activeTab === 'tracked' ? (
-        loading ? (
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-6 text-center">
-            <div className="animate-spin w-5 h-5 border-2 border-[var(--button)] border-t-transparent rounded-full mx-auto mb-2"></div>
-            <p className="text-xs opacity-60">Загрузка...</p>
-          </div>
-        ) : posts.length === 0 ? (
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-6 text-center">
-            <BarChart3 className="w-8 h-8 mx-auto mb-2 opacity-30" />
-            <h3 className="font-medium text-sm mb-1">Нет ссылок</h3>
-            <p className="text-xs opacity-60 mb-2">Добавьте вручную или выберите из Метрики</p>
-            <div className="flex gap-2 justify-center">
-              <button onClick={() => setShowAddLink(true)} className="btn-primary text-xs px-3 py-1.5">
-                Добавить
-              </button>
-              <button onClick={() => setActiveTab('metrika')} className="btn-secondary text-xs px-3 py-1.5">
-                Из Метрики
-              </button>
+      {/* Правая панель - Статистика */}
+      <div className="flex-1 flex flex-col gap-4">
+        {/* Верхняя строка - Статистика */}
+        <div className="grid grid-cols-5 gap-3">
+          <div 
+            className="rounded-2xl border border-white/10 p-4"
+            style={panelStyle}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                <BarChart3 className="w-5 h-5 text-blue-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{posts.length}</p>
+                <p className="text-[10px] text-white/50">Отслеживается</p>
+              </div>
             </div>
           </div>
-        ) : (
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
-            {folders.map(folder => {
-              const folderPosts = postsByFolder[folder.id] || []
-              const isExpanded = expandedFolders.has(folder.id)
-              
-              return (
-                <div key={folder.id} className="border-b border-[var(--border)] last:border-b-0">
-                  <div 
-                    className="flex items-center gap-2 p-2 hover:bg-[var(--background)]/50 cursor-pointer group"
-                    onClick={() => toggleFolder(folder.id)}
-                  >
-                    {isExpanded ? <ChevronDown className="w-3.5 h-3.5 opacity-50" /> : <ChevronRight className="w-3.5 h-3.5 opacity-50" />}
-                    <div className={`p-1 rounded ${getFolderColor(folder.color)}`}>
-                      {isExpanded ? <FolderOpen className="w-3 h-3" /> : <Folder className="w-3 h-3" />}
-                    </div>
-                    <span className="font-medium text-sm flex-1">{folder.name}</span>
-                    <span className="text-[10px] opacity-50">{folderPosts.length}</span>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); deleteFolder(folder.id) }}
-                      className="p-0.5 opacity-0 group-hover:opacity-100 hover:text-red-400"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                  
-                  {isExpanded && folderPosts.length > 0 && (
-                    <div className="border-t border-[var(--border)] bg-[var(--background)]/30">
-                      {folderPosts.map(renderPostCard)}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-            {rootPosts.map(renderPostCard)}
+          <div 
+            className="rounded-2xl border border-white/10 p-4"
+            style={panelStyle}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
+                <Eye className="w-5 h-5 text-green-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{totalVisits.toLocaleString()}</p>
+                <p className="text-[10px] text-white/50">Визитов</p>
+              </div>
+            </div>
           </div>
-        )
-      ) : (
-        loadingMetrika ? (
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-6 text-center">
-            <div className="animate-spin w-5 h-5 border-2 border-[var(--button)] border-t-transparent rounded-full mx-auto mb-2"></div>
-            <p className="text-xs opacity-60">Загрузка из Метрики...</p>
+          <div 
+            className="rounded-2xl border border-white/10 p-4"
+            style={panelStyle}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center">
+                <Users className="w-5 h-5 text-cyan-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{totalUsers.toLocaleString()}</p>
+                <p className="text-[10px] text-white/50">Посетителей</p>
+              </div>
+            </div>
           </div>
-        ) : metrikaLinks.length === 0 ? (
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-6 text-center">
-            <BarChart3 className="w-8 h-8 mx-auto mb-2 opacity-30" />
-            <h3 className="font-medium text-sm mb-1">Нет данных</h3>
-            <p className="text-xs opacity-60 mb-2">Проверьте настройки Метрики</p>
-            <button onClick={loadMetrikaData} className="btn-primary text-xs px-3 py-1.5">
-              Загрузить
+          <div 
+            className="rounded-2xl border border-white/10 p-4"
+            style={panelStyle}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                <Target className="w-5 h-5 text-purple-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{totalConversions.toLocaleString()}</p>
+                <p className="text-[10px] text-white/50">Конверсий</p>
+              </div>
+            </div>
+          </div>
+          <div 
+            className="rounded-2xl border border-white/10 p-4"
+            style={panelStyle}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-yellow-500/20 flex items-center justify-center">
+                <DollarSign className="w-5 h-5 text-yellow-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{totalRevenue.toLocaleString()} ₽</p>
+                <p className="text-[10px] text-white/50">Доход</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Основная панель */}
+        <div 
+          className="flex-1 rounded-2xl border border-white/10 overflow-hidden flex flex-col"
+          style={panelStyle}
+        >
+          <div className="p-3 border-b border-white/10 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-white/40" />
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50"
+              />
+              <span className="text-white/30 text-xs">—</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50"
+              />
+            </div>
+            <button
+              onClick={refreshStats}
+              disabled={refreshing}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 text-xs border border-white/10 transition-colors disabled:opacity-50"
+              style={buttonStyle}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              Обновить
             </button>
           </div>
-        ) : (
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
-            <div className="p-2 border-b border-[var(--border)] bg-[var(--background)]/50">
-              <p className="text-[10px] opacity-60">
-                Найдено {filteredMetrikaLinks.length} ссылок. Нажмите ⭐ для добавления.
-              </p>
-            </div>
-            <div className="max-h-[400px] overflow-y-auto">
-              {filteredMetrikaLinks.map((link, idx) => {
-                const isTracked = trackedUtmTerms.has(link.utm_term)
-                const platform = detectPlatform(link.utm_source || '')
-                const platformInfo = getPlatform(platform)
-                const comparison = getComparison(link)
+          
+          <div className="flex-1 overflow-auto">
+            {filteredMetrika.length === 0 ? (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center">
+                  <BarChart3 className="w-16 h-16 mx-auto mb-4 text-white/10" />
+                  <h3 className="text-lg font-medium text-white/60 mb-2">
+                    {posts.length === 0 ? 'Начните отслеживание' : 'Нет данных по отслеживаемым ссылкам'}
+                  </h3>
+                  <p className="text-sm text-white/40 max-w-md">
+                    {posts.length === 0 
+                      ? 'Добавьте ссылки с UTM-метками для отслеживания их эффективности. Статистика будет загружена из Яндекс.Метрики.'
+                      : 'Добавьте UTM-ссылки в отслеживание через вкладку "Из Метрики" или создайте новую ссылку.'
+                    }
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Заголовок таблицы */}
+                <div className="grid grid-cols-12 gap-2 px-4 py-2 border-b border-white/10 text-[10px] text-white/40 uppercase tracking-wider sticky top-0 bg-[#1a1a1a] z-20">
+                  <div className="col-span-2">Source / Medium</div>
+                  <div className="col-span-2">Campaign / Term</div>
+                  <div className="text-right">Визиты</div>
+                  <div className="text-right">Юзеры</div>
+                  <div className="text-right">Отказы</div>
+                  <div className="text-right">Время</div>
+                  <div className="text-right">Конверсии</div>
+                  <div className="text-right">Доход</div>
+                  <div className="col-span-2"></div>
+                </div>
                 
-                return (
-                  <div 
-                    key={idx} 
-                    className={`flex items-center gap-2 p-2 border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--background)]/50 ${
-                      isTracked ? 'bg-green-500/5' : ''
-                    }`}
-                  >
-                    <button
-                      onClick={() => !isTracked && trackFromMetrika(link)}
-                      disabled={isTracked}
-                      className={`p-1 rounded transition-colors ${
-                        isTracked ? 'bg-green-500/20 text-green-400' : 'hover:bg-yellow-500/20 text-yellow-400'
-                      }`}
-                    >
-                      {isTracked ? <Check className="w-3.5 h-3.5" /> : <Star className="w-3.5 h-3.5" />}
-                    </button>
-                    
-                    <div className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${platformInfo.color}`}>
-                      {platformInfo.name}
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{link.utm_term || link.utm_campaign || '—'}</p>
-                      <p className="text-[10px] opacity-50 truncate">
-                        {link.utm_source} / {link.utm_medium}
-                      </p>
-                    </div>
-                    
-                    <div className="flex items-center gap-3 text-[10px]">
-                      <div className="text-center">
-                        <div className="flex items-center gap-1">
-                          <p className="font-bold text-sm">{link.users?.toLocaleString() || 0}</p>
-                          {comparison && !comparison.isNew && typeof comparison.usersPercent === 'number' && comparison.usersPercent !== 0 && (
-                            <span className={`text-[9px] ${comparison.usersPercent > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {comparison.usersPercent > 0 ? '↑' : '↓'}{Math.abs(comparison.usersPercent)}%
-                            </span>
-                          )}
-                          {comparison?.isNew && <span className="text-[9px] text-blue-400">new</span>}
+                {/* Данные */}
+                <div className="divide-y divide-white/5">
+                  {filteredMetrika.map((link, idx) => {
+                    const isTracked = trackedUtmTerms.has(link.utm_term) || trackedUtmCampaigns.has(link.utm_campaign)
+                    return (
+                      <div
+                        key={idx}
+                        className="grid grid-cols-12 gap-2 px-4 py-2.5 text-xs hover:bg-white/5 transition-colors"
+                      >
+                        <div className="col-span-2">
+                          <p className="text-white/90 font-medium truncate">{link.utm_source || '(not set)'}</p>
+                          <p className="text-[10px] text-white/40 truncate">{link.utm_medium || '-'}</p>
                         </div>
-                        <p className="opacity-50">польз.</p>
-                      </div>
-                      <div className="text-center">
-                        <div className="flex items-center gap-1">
-                          <p className="font-bold text-sm">{link.visits?.toLocaleString() || 0}</p>
-                          {comparison && !comparison.isNew && typeof comparison.visitsPercent === 'number' && comparison.visitsPercent !== 0 && (
-                            <span className={`text-[9px] ${comparison.visitsPercent > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {comparison.visitsPercent > 0 ? '↑' : '↓'}{Math.abs(comparison.visitsPercent)}%
+                        <div className="col-span-2">
+                          <p className="text-white/70 truncate">{link.utm_campaign || '(not set)'}</p>
+                          <p className="text-[10px] text-white/40 truncate">{link.utm_term || '-'}</p>
+                        </div>
+                        <div className="text-right text-white/70">{link.visits.toLocaleString()}</div>
+                        <div className="text-right text-white/70">{link.users.toLocaleString()}</div>
+                        <div className="text-right">
+                          <span className={link.bounceRate > 50 ? 'text-orange-400' : 'text-green-400'}>
+                            {link.bounceRate.toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="text-right text-white/50">
+                          {link.avgTime ? `${link.avgTime.toFixed(1)} мин` : '-'}
+                        </div>
+                        <div className="text-right flex justify-end">
+                          {(() => {
+                            const goalsBreakdown = link.goalsBreakdown || {};
+                            const displayedGoals = Object.entries(goalsBreakdown).filter(([goalId, count]) => GOAL_NAMES[goalId] && (count as number) > 0);
+                            const totalDisplayed = displayedGoals.reduce((s, [, count]) => s + (count as number), 0);
+                            return totalDisplayed > 0 ? (
+                              <div 
+                                className="w-5 h-5 rounded-full bg-green-500/20 border border-green-500/50 flex items-center justify-center cursor-help group relative"
+                              >
+                                <span className="text-[9px] text-green-400 font-bold">
+                                  {totalDisplayed > 99 ? '99+' : totalDisplayed}
+                                </span>
+                                <div className="absolute top-full right-0 mt-2 px-3 py-2 bg-[#1a1a1a] border border-white/20 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[200] whitespace-nowrap max-h-[400px] overflow-y-auto" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                                  <p className="text-xs font-medium text-white mb-2">Конверсии по целям</p>
+                                  {displayedGoals.map(([goalId, count]) => {
+                                    const goalName = GOAL_NAMES[goalId];
+                                    return (
+                                      <p key={goalId} className="text-[11px] text-white/70">
+                                        {goalName}: <span className="text-green-400 font-medium">{(count as number).toLocaleString()}</span>
+                                      </p>
+                                    );
+                                  })}
+                                  <div className="border-t border-white/10 mt-2 pt-2">
+                                    <p className="text-[11px] text-white/70">Всего: <span className="text-green-400 font-medium">{totalDisplayed.toLocaleString()}</span></p>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : null;
+                          })()}
+                        </div>
+                        <div className="text-right">
+                          {link.revenue !== undefined && link.revenue > 0 ? (
+                            <span className="text-yellow-400 font-medium">
+                              {link.revenue.toLocaleString()} ₽
                             </span>
+                          ) : (
+                            <span className="text-white/30">-</span>
                           )}
                         </div>
-                        <p className="opacity-50">визиты</p>
+                        <div className="col-span-2 flex justify-end gap-1">
+                          {isTracked ? (
+                            <span className="px-2 py-0.5 rounded bg-green-500/20 text-green-400 text-[9px]">
+                              <Check className="w-3 h-3 inline" />
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => trackFromMetrika(link)}
+                              className="px-2 py-0.5 rounded bg-white/10 text-white/70 text-[9px] hover:bg-white/15 transition-colors border border-white/10"
+                            >
+                              <Plus className="w-3 h-3 inline" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-center">
-                        <p className="font-bold text-sm">{link.bounceRate?.toFixed(0) || 0}%</p>
-                        <p className="opacity-50">отказы</p>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+                    )
+                  })}
+                </div>
+              </>
+            )}
           </div>
-        )
-      )}
+        </div>
+      </div>
 
-      {/* Add Link Modal */}
+      {/* Модал добавления ссылки */}
       {showAddLink && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] w-full max-w-sm">
-            <div className="flex items-center justify-between p-3 border-b border-[var(--border)]">
-              <h3 className="font-semibold text-sm">Добавить ссылку</h3>
-              <button onClick={() => setShowAddLink(false)} className="p-1 hover:bg-[var(--border)] rounded">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div 
+            className="w-full max-w-md rounded-2xl border border-white/10 p-5"
+            style={panelStyle}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium">Добавить ссылку</h3>
+              <button
+                onClick={() => setShowAddLink(false)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-white/40 hover:text-white/70 hover:bg-white/10"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-3 space-y-3">
+            
+            <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium mb-1">Название</label>
+                <label className="block text-xs text-white/50 mb-1">Название</label>
                 <input
                   type="text"
-                  placeholder="Пост VK о турах"
                   value={newLink.title}
                   onChange={(e) => setNewLink(prev => ({ ...prev, title: e.target.value }))}
-                  className="input-field w-full text-sm"
+                  placeholder="Название ссылки..."
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1">URL с UTM</label>
+                <label className="block text-xs text-white/50 mb-1">UTM-ссылка</label>
                 <input
-                  type="url"
-                  placeholder="https://..."
+                  type="text"
                   value={newLink.utmUrl}
                   onChange={(e) => setNewLink(prev => ({ ...prev, utmUrl: e.target.value }))}
-                  className="input-field w-full text-sm"
+                  placeholder="https://site.ru/?utm_source=..."
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-medium mb-1">Платформа</label>
-                  <select
-                    value={newLink.platform}
-                    onChange={(e) => setNewLink(prev => ({ ...prev, platform: e.target.value }))}
-                    className="input-field w-full text-sm"
-                  >
-                    {PLATFORMS.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-                {folders.length > 0 && (
-                  <div>
-                    <label className="block text-xs font-medium mb-1">Папка</label>
-                    <select
-                      value={newLink.folderId}
-                      onChange={(e) => setNewLink(prev => ({ ...prev, folderId: e.target.value }))}
-                      className="input-field w-full text-sm"
+              <div>
+                <label className="block text-xs text-white/50 mb-1">Платформа</label>
+                <div className="flex flex-wrap gap-1">
+                  {PLATFORMS.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => setNewLink(prev => ({ ...prev, platform: p.id }))}
+                      className={`px-2 py-1 rounded text-xs border transition-colors ${
+                        newLink.platform === p.id ? p.color : 'bg-white/5 border-white/10 text-white/50'
+                      }`}
                     >
-                      <option value="">—</option>
-                      {folders.map(f => (
-                        <option key={f.id} value={f.id}>{f.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-            <div className="flex gap-2 p-3 border-t border-[var(--border)]">
-              <button onClick={() => setShowAddLink(false)} className="btn-secondary flex-1 text-sm">
+            
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => setShowAddLink(false)}
+                className="flex-1 px-4 py-2 rounded-lg bg-white/5 text-white/70 text-sm hover:bg-white/10 transition-colors"
+                style={buttonStyle}
+              >
                 Отмена
               </button>
-              <button onClick={addLink} className="btn-primary flex-1 text-sm">
+              <button
+                onClick={addLink}
+                className="flex-1 px-4 py-2 rounded-lg bg-white/10 text-white text-sm hover:bg-white/15 transition-colors border border-white/10"
+                style={buttonStyle}
+              >
                 Добавить
               </button>
             </div>
@@ -900,60 +956,71 @@ export default function TrackerPage() {
         </div>
       )}
 
-      {/* Add Folder Modal */}
+      {/* Модал создания папки */}
       {showAddFolder && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] w-full max-w-xs">
-            <div className="flex items-center justify-between p-3 border-b border-[var(--border)]">
-              <h3 className="font-semibold text-sm">Создать папку</h3>
-              <button onClick={() => setShowAddFolder(false)} className="p-1 hover:bg-[var(--border)] rounded">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div 
+            className="w-full max-w-sm rounded-2xl border border-white/10 p-5"
+            style={panelStyle}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium">Создать папку</h3>
+              <button
+                onClick={() => setShowAddFolder(false)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-white/40 hover:text-white/70 hover:bg-white/10"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-3 space-y-3">
+            
+            <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium mb-1">Название</label>
+                <label className="block text-xs text-white/50 mb-1">Название</label>
                 <input
                   type="text"
-                  placeholder="Название папки"
                   value={newFolder.name}
                   onChange={(e) => setNewFolder(prev => ({ ...prev, name: e.target.value }))}
-                  className="input-field w-full text-sm"
+                  placeholder="Название папки..."
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1">Цвет</label>
-                <div className="flex gap-1.5">
+                <label className="block text-xs text-white/50 mb-1">Цвет</label>
+                <div className="flex gap-2">
                   {FOLDER_COLORS.map(c => (
                     <button
                       key={c.id}
                       onClick={() => setNewFolder(prev => ({ ...prev, color: c.id }))}
-                      className={`w-6 h-6 rounded border-2 ${c.color} ${
-                        newFolder.color === c.id ? 'ring-2 ring-offset-1 ring-offset-[var(--card)]' : ''
+                      className={`w-8 h-8 rounded-lg border-2 transition-all ${c.color} ${
+                        newFolder.color === c.id ? 'scale-110 ring-2 ring-white/30' : ''
                       }`}
                     />
                   ))}
                 </div>
               </div>
             </div>
-            <div className="flex gap-2 p-3 border-t border-[var(--border)]">
-              <button onClick={() => setShowAddFolder(false)} className="btn-secondary flex-1 text-sm">
+            
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => setShowAddFolder(false)}
+                className="flex-1 px-4 py-2 rounded-lg bg-white/5 text-white/70 text-sm hover:bg-white/10 transition-colors"
+                style={buttonStyle}
+              >
                 Отмена
               </button>
-              <button onClick={addFolder} className="btn-primary flex-1 text-sm">
+              <button
+                onClick={addFolder}
+                className="flex-1 px-4 py-2 rounded-lg bg-white/10 text-white text-sm hover:bg-white/15 transition-colors border border-white/10"
+                style={buttonStyle}
+              >
                 Создать
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* Hint */}
-      <div className="mt-3 p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-        <p className="text-[10px] text-blue-400">
-          💡 Настройте токен Яндекс.Метрики в Настройках для загрузки данных
-        </p>
-      </div>
     </div>
   )
 }
+
+

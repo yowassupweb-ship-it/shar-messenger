@@ -151,9 +151,13 @@ export default function Sidebar() {
 
   return (
     <div
-      className={`bg-[var(--background)] border-r border-[var(--border)] transition-all duration-300 ${
+      className={`border-r transition-all duration-300 ${
         isCollapsed ? 'w-16' : 'w-64'
       } flex flex-col`}
+      style={{
+        background: '#1a1a1a',
+        borderColor: 'rgba(255, 255, 255, 0.05)'
+      }}
     >
       {/* Navigation */}
       <nav className="flex-1 p-4 overflow-y-auto">
@@ -165,11 +169,16 @@ export default function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`group flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
                   isActive
-                    ? 'bg-[var(--button)] text-white'
-                    : 'text-[var(--foreground)] hover:bg-[var(--hover)]'
+                    ? 'text-cyan-400'
+                    : 'text-[#888] hover:text-[#e0e0e0] hover:bg-white/5'
                 }`}
+                style={isActive ? {
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
+                } : {}}
                 title={isCollapsed ? item.label : undefined}
               >
                 <div className="flex-shrink-0">
@@ -181,7 +190,11 @@ export default function Sidebar() {
                   </span>
                 )}
                 {isCollapsed && (
-                  <div className="absolute left-16 bg-[var(--card)] border border-[var(--border)] px-2 py-1 rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                  <div className="absolute left-16 px-2 py-1 rounded-lg text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50"
+                    style={{
+                      background: 'rgba(26, 26, 26, 0.95)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)'
+                    }}>
                     {item.label}
                   </div>
                 )}

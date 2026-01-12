@@ -1,13 +1,22 @@
 'use client'
 
-import Link from 'next/link'
 import { useState, useEffect } from 'react'
+import { Copy, Download, Trash2, Check, FileText, Languages } from 'lucide-react'
+import { showToast } from '@/components/Toast'
+
+const panelStyle = {
+  background: '#1a1a1a',
+  boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.3), 0 0 0 0.5px rgba(255, 255, 255, 0.1) inset, 0 1px 0 0 rgba(255, 255, 255, 0.15) inset'
+}
+
+const buttonStyle = {
+  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.1) inset'
+}
 
 export default function TransliteratorPage() {
   const [inputText, setInputText] = useState('')
   const [outputText, setOutputText] = useState('')
-  const [showToast, setShowToast] = useState(false)
-  const [toastMessage, setToastMessage] = useState('')
+  const [isCopied, setIsCopied] = useState(false)
 
   const transliterationRules: Record<string, string> = {
     'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'Yo', 'Ж': 'Zh', 'З': 'Z', 'И': 'I',
@@ -56,9 +65,9 @@ export default function TransliteratorPage() {
   const handleCopy = async () => {
     if (outputText) {
       await navigator.clipboard.writeText(outputText)
-      setToastMessage('Скопировано в буфер обмена!')
-      setShowToast(true)
-      setTimeout(() => setShowToast(false), 3000)
+      setIsCopied(true)
+      setTimeout(() => setIsCopied(false), 2000)
+      showToast('Скопировано в буфер обмена!', 'success')
     }
   }
 
@@ -73,9 +82,7 @@ export default function TransliteratorPage() {
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      setToastMessage('Файл успешно скачан!')
-      setShowToast(true)
-      setTimeout(() => setShowToast(false), 3000)
+      showToast('Файл скачан!', 'success')
     }
   }
 
@@ -85,110 +92,101 @@ export default function TransliteratorPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-4xl font-bold text-[var(--foreground)] mb-3">
-          Транслитерация
-        </h1>
-        <p className="text-lg text-[var(--foreground)] opacity-70">
-          Конвертация кириллицы в латиницу для создания URL-адресов
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Input Field */}
-        <div className="card hover:border-[var(--button)]/30 transition-colors">
-          <div className="flex items-center justify-between mb-3">
-            <label htmlFor="inputText" className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
-              <svg className="w-5 h-5 text-[var(--button)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-              Русский текст
-            </label>
-            {inputText && (
-              <span className="text-xs text-[var(--foreground)] opacity-50">
-                {inputText.length} символов
-              </span>
-            )}
+    <div className="h-full flex p-4 gap-4">
+      {/* Левая панель - Ввод */}
+      <div 
+        className="flex-1 rounded-2xl border border-white/10 overflow-hidden flex flex-col"
+        style={panelStyle}
+      >
+        <div className="p-3 border-b border-white/10 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-[#4a9eff]" />
+            <span className="text-xs font-medium text-white/60">Русский текст</span>
           </div>
+          {inputText && (
+            <span className="text-[10px] text-white/30">
+              {inputText.length} символов
+            </span>
+          )}
+        </div>
+        
+        <div className="flex-1 p-3">
           <textarea
-            id="inputText"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder="Введите текст на русском языке...\n\nПример:\nМосква Санкт-Петербург\n//Привет// мир"
-            className="w-full min-h-[300px] px-4 py-3 bg-[var(--background)] border-2 border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--button)] focus:border-transparent resize-vertical text-[var(--foreground)] text-base"
+            placeholder="Введите текст на русском языке...
+
+Пример:
+Москва Санкт-Петербург
+//Привет// мир"
+            className="w-full h-full bg-transparent border-none resize-none focus:outline-none text-sm placeholder:text-white/20"
           />
         </div>
+      </div>
 
-        {/* Output Field */}
-        <div className="card hover:border-[var(--button)]/30 transition-colors">
-          <div className="flex items-center justify-between mb-3">
-            <label htmlFor="outputText" className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
-              <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Результат
-            </label>
-            {outputText && (
-              <span className="text-xs text-green-500 font-medium">
-                {outputText.length} символов
-              </span>
-            )}
+      {/* Правая панель - Результат */}
+      <div 
+        className="flex-1 rounded-2xl border border-white/10 overflow-hidden flex flex-col"
+        style={panelStyle}
+      >
+        <div className="p-3 border-b border-white/10 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Languages className="w-4 h-4 text-green-400" />
+            <span className="text-xs font-medium text-white/60">Результат</span>
           </div>
+          {outputText && (
+            <span className="text-[10px] text-green-400">
+              {outputText.length} символов
+            </span>
+          )}
+        </div>
+        
+        <div className="flex-1 p-3">
           <textarea
-            id="outputText"
             value={outputText}
             readOnly
             placeholder="Здесь появится результат транслитерации..."
-            className="w-full min-h-[300px] px-4 py-3 bg-[var(--background)] border-2 border-green-500/30 rounded-lg resize-vertical text-[var(--foreground)] text-base font-mono"
+            className="w-full h-full bg-transparent border-none resize-none focus:outline-none text-sm font-mono text-[#22D3EE] placeholder:text-white/20"
           />
         </div>
-      </div>
 
-      {/* Buttons */}
-      <div className="flex flex-wrap gap-3">
-        <button
-          onClick={handleCopy}
-          disabled={!outputText}
-          className="bg-[var(--button)] text-white px-6 py-3 rounded-lg hover:bg-[var(--button)]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium shadow-lg hover:shadow-xl"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-          Копировать
-        </button>
-        <button
-          onClick={handleDownload}
-          disabled={!outputText}
-          className="bg-[var(--button)] text-white px-6 py-3 rounded-lg hover:bg-[var(--button)]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium shadow-lg hover:shadow-xl"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Скачать файл
-        </button>
-        <button
-          onClick={handleClear}
-          disabled={!inputText && !outputText}
-          className="bg-[var(--button)] text-white px-6 py-3 rounded-lg hover:bg-[var(--button)]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium shadow-lg hover:shadow-xl"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-          Очистить всё
-        </button>
-      </div>
-
-      {/* Toast notification */}
-      {showToast && (
-        <div className="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center gap-3 animate-fade-in z-50">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          {toastMessage}
+        {/* Кнопки действий */}
+        <div className="p-3 border-t border-white/10 flex gap-2">
+          <button
+            onClick={handleCopy}
+            disabled={!outputText}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+              isCopied 
+                ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                : 'bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10'
+            }`}
+            style={buttonStyle}
+          >
+            {isCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            {isCopied ? 'Скопировано!' : 'Копировать'}
+          </button>
+          
+          <button
+            onClick={handleDownload}
+            disabled={!outputText}
+            className="px-4 py-2 rounded-lg bg-white/5 text-white/70 hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={buttonStyle}
+            title="Скачать файл"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+          
+          <button
+            onClick={handleClear}
+            disabled={!inputText && !outputText}
+            className="px-4 py-2 rounded-lg bg-white/5 text-white/70 hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={buttonStyle}
+            title="Очистить"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
-      )}
+      </div>
     </div>
   )
 }

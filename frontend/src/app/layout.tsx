@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Orbitron, Rajdhani } from "next/font/google";
 import "./globals.css";
 import ToastContainer from "@/components/Toast";
 import ApiInitializer from "@/components/ApiInitializer";
 import AuthGuard from "@/components/AuthGuard";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,9 +16,21 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const orbitron = Orbitron({
+  variable: "--font-orbitron",
+  subsets: ["latin"],
+  weight: ["400", "700", "900"],
+});
+
+const rajdhani = Rajdhani({
+  variable: "--font-rajdhani",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+});
+
 export const metadata: Metadata = {
-  title: "Feed Editor",
-  description: "Редактор фидов с системой шаблонов и переменных",
+  title: "Marketing Tools Suite - Набор инструментов для маркетинга",
+  description: "Комплексная платформа инструментов для маркетинга: редактор фидов, парсер Я.Директ, словолов, UTM-генератор, анализ конкурентов, задачи и события",
 };
 
 export default function RootLayout({
@@ -26,13 +39,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru">
+    <html lang="ru" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${orbitron.variable} ${rajdhani.variable} antialiased`}
+        suppressHydrationWarning
       >
-        <ApiInitializer />
-        <AuthGuard>{children}</AuthGuard>
-        <ToastContainer />
+        <ThemeProvider>
+          <ApiInitializer />
+          <AuthGuard>{children}</AuthGuard>
+          <ToastContainer />
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -1,130 +1,150 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { apiFetch } from '@/lib/api'
-import Link from 'next/link'
-import { showToast } from '@/components/Toast'
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { 
+  ArrowLeft, Users, Settings, FileText, Plus, Trash2, 
+  Shield, Key, RefreshCw, Database, CheckCircle, XCircle,
+  AlertTriangle, Info, Loader2, Save, X, Pencil
+} from 'lucide-react';
 
 interface User {
-  id: string
-  name?: string
-  username?: string
-  email?: string
-  password?: string
-  role: 'admin' | 'user'
-  enabledTools?: string[]
-  createdAt: string
+  id: string;
+  name?: string;
+  username?: string;
+  email?: string;
+  password?: string;
+  role: 'admin' | 'user';
+  todoRole?: 'executor' | 'customer' | 'universal';  // Роль в задачах
+  position?: string;  // Должность
+  department?: string;  // Отдел
+  enabledTools?: string[];
+  canSeeAllTasks?: boolean;  // Может видеть все задачи (не только свои)
+  telegramId?: string;  // Telegram ID для уведомлений
+  createdAt: string;
 }
 
 interface Tool {
-  id: string
-  name: string
-  description: string
-  path: string
+  id: string;
+  name: string;
+  description: string;
+  path: string;
 }
 
 const availableTools: Tool[] = [
-  {
-    id: 'feed-editor',
-    name: 'Редактор фидов',
-    description: 'Управление фидами для Яндекс.Директ',
-    path: '/feed-editor'
-  },
-  {
-    id: 'transliterator',
-    name: 'Транслитератор',
-    description: 'Транслитерация текста',
-    path: '/transliterator'
-  },
-  {
-    id: 'competitor-parser',
-    name: 'Парсер Я.Директ',
-    description: 'Анализ и извлечение данных из рекламы конкурентов',
-    path: '/competitor-parser'
-  },
-  {
-    id: 'slovolov',
-    name: 'Словолов',
-    description: 'Подбор поисковых слов и ключевых фраз для рекламных кампаний',
-    path: '/slovolov'
-  },
-  {
-    id: 'competitor-spy',
-    name: 'Товары конкурентов',
-    description: 'Парсинг и анализ ассортимента конкурентов по датам',
-    path: '/competitor-parser'
-  },
-  {
-    id: 'utm-creator',
-    name: 'Генератор UTM',
-    description: 'Создание и отслеживание UTM меток с помощью Я.Метрики',
-    path: '/utm-generator'
-  }
-]
+  { id: 'feed-editor', name: 'Редактор фидов', description: 'Управление фидами для Яндекс.Директ', path: '/feed-editor' },
+  { id: 'transliterator', name: 'Транслитератор', description: 'Транслитерация текста', path: '/transliterator' },
+  { id: 'competitor-parser', name: 'Парсер Я.Директ', description: 'Анализ рекламы конкурентов', path: '/competitor-parser' },
+  { id: 'slovolov', name: 'Словолов', description: 'Подбор поисковых слов', path: '/slovolov' },
+  { id: 'competitor-spy', name: 'Товары конкурентов', description: 'Парсинг ассортимента', path: '/competitor-parser' },
+  { id: 'utm-creator', name: 'Генератор UTM', description: 'Создание UTM меток', path: '/utm-generator' },
+  { id: 'slovolov-pro', name: 'Словолов PRO', description: 'Расширенный подбор ключевых слов', path: '/slovolov-pro' },
+];
+
+type TabType = 'settings' | 'users' | 'logs';
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'users' | 'settings' | 'logs'>('settings')
-  const [users, setUsers] = useState<User[]>([])
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const [showUserModal, setShowUserModal] = useState(false)
-  const [showToolsModal, setShowToolsModal] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [savingSettings, setSavingSettings] = useState(false)
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<TabType>('settings');
+  const [users, setUsers] = useState<User[]>([]);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [showToolsModal, setShowToolsModal] = useState(false);
+  const [showEditUserModal, setShowEditUserModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [savingUser, setSavingUser] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
+  
   const [dbStats, setDbStats] = useState({
     size: '',
     lastModified: '',
-    counts: {
-      logs: 0,
-      feeds: 0,
-      products: 0,
-      dataSources: 0,
-      chatSessions: 0,
-      aiPresets: 0
-    }
-  })
+    counts: { logs: 0, feeds: 0, products: 0, dataSources: 0, chatSessions: 0, aiPresets: 0 }
+  });
+  
   const [settings, setSettings] = useState({
     metricaCounterId: '',
     metricaToken: '',
     wordstatToken: '',
     wordstatClientId: '',
     deepseekApiKey: '',
-    deepseekModel: '',
-    deepseekMaxTokens: '',
-    deepseekTemperature: '',
+    deepseekModel: 'deepseek-chat',
+    deepseekMaxTokens: '4096',
+    deepseekTemperature: '0.7',
     telegramBotToken: '',
     telegramChatId: '',
     telegramNotifications: false
-  })
+  });
+  
   const [newUser, setNewUser] = useState({
+    username: '',
     name: '',
     email: '',
     password: '',
-    role: 'user' as 'admin' | 'user'
-  })
+    role: 'user' as 'admin' | 'user',
+    todoRole: 'executor' as 'executor' | 'customer' | 'universal'
+  });
+  
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
+  const [editingPassword, setEditingPassword] = useState<{ userId: string; password: string } | null>(null);
+  const [showPasswords, setShowPasswords] = useState(false);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'warning') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // Проверка прав доступа
+  useEffect(() => {
+    const userRole = localStorage.getItem('userRole');
+    if (userRole !== 'admin') {
+      setAccessDenied(true);
+      setTimeout(() => router.push('/'), 2000);
+    }
+  }, [router]);
 
   useEffect(() => {
-    loadUsers()
-    loadSettings()
-    loadDbStats()
-  }, [])
+    if (!accessDenied) {
+      loadUsers();
+      loadSettings();
+      loadDbStats();
+    }
+  }, [accessDenied]);
+
+  // Если доступ запрещён
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center">
+        <div className="text-center">
+          <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-white mb-2">Доступ запрещён</h1>
+          <p className="text-white/60">У вас нет прав для просмотра этой страницы</p>
+          <p className="text-white/40 text-sm mt-4">Перенаправление на главную...</p>
+        </div>
+      </div>
+    );
+  }
 
   const loadDbStats = async () => {
     try {
-      const response = await fetch('/api/admin/database-stats')
+      const response = await fetch('/api/admin/database-stats');
       if (response.ok) {
-        const data = await response.json()
-        setDbStats(data)
+        const data = await response.json();
+        setDbStats(data);
       }
     } catch (error) {
-      console.error('Ошибка загрузки статистики БД:', error)
+      console.error('Ошибка загрузки статистики БД:', error);
     }
-  }
+  };
 
   const loadSettings = async () => {
     try {
-      const response = await fetch('/api/admin/settings')
+      const response = await fetch('/api/admin/settings');
       if (response.ok) {
-        const data = await response.json()
+        const data = await response.json();
         setSettings({
           metricaCounterId: data.metricaCounterId || '',
           metricaToken: data.metricaToken || '',
@@ -137,931 +157,1048 @@ export default function AdminPage() {
           telegramBotToken: data.telegramBotToken || '',
           telegramChatId: data.telegramChatId || '',
           telegramNotifications: data.telegramNotifications || false
-        })
+        });
       }
     } catch (error) {
-      console.error('Ошибка загрузки настроек:', error)
+      console.error('Ошибка загрузки настроек:', error);
     }
-  }
+  };
 
   const saveSettings = async () => {
     try {
-      setSavingSettings(true)
+      setSavingSettings(true);
       const response = await fetch('/api/admin/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings)
-      })
-
+      });
       if (response.ok) {
-        showToast('Настройки сохранены', 'success')
+        showToast('Настройки сохранены', 'success');
       } else {
-        showToast('Ошибка сохранения настроек', 'error')
+        showToast('Ошибка сохранения настроек', 'error');
       }
     } catch (error) {
-      console.error('Ошибка сохранения настроек:', error)
-      showToast('Ошибка сохранения настроек', 'error')
+      showToast('Ошибка сохранения настроек', 'error');
     } finally {
-      setSavingSettings(false)
+      setSavingSettings(false);
     }
-  }
+  };
 
   const loadUsers = async () => {
     try {
-      setLoading(true)
-      const response = await apiFetch('/api/users')
+      setLoading(true);
+      const response = await fetch('/api/users?includePasswords=true');
       if (response.ok) {
-        const data = await response.json()
-        // Ensure data is an array
-        setUsers(Array.isArray(data) ? data : [])
+        const data = await response.json();
+        setUsers(Array.isArray(data) ? data : []);
       } else {
-        showToast('Ошибка загрузки пользователей', 'error')
-        setUsers([])
+        setUsers([]);
       }
     } catch (error) {
-      console.error('Ошибка загрузки пользователей:', error)
-      showToast('Ошибка подключения к серверу', 'error')
-      setUsers([])
+      console.error('Ошибка загрузки пользователей:', error);
+      setUsers([]);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
+
+  const updateUserPassword = async (userId: string, newPassword: string) => {
+    if (!newPassword.trim()) {
+      showToast('Пароль не может быть пустым', 'warning');
+      return;
+    }
+    try {
+      const response = await fetch('/api/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: userId, password: newPassword })
+      });
+      if (response.ok) {
+        showToast('Пароль обновлён', 'success');
+        setEditingPassword(null);
+        loadUsers();
+      } else {
+        showToast('Ошибка обновления пароля', 'error');
+      }
+    } catch (error) {
+      showToast('Ошибка обновления пароля', 'error');
+    }
+  };
 
   const createUser = async () => {
-    if (!newUser.name || !newUser.email || !newUser.password) {
-      showToast('Заполните все поля', 'warning')
-      return
+    if (!newUser.username || !newUser.password) {
+      showToast('Заполните логин и пароль', 'warning');
+      return;
     }
 
     try {
-      const response = await apiFetch('/api/users', {
+      const response = await fetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newUser)
-      })
+        body: JSON.stringify({
+          username: newUser.username,
+          name: newUser.name,
+          email: newUser.email,
+          password: newUser.password,
+          role: newUser.role,
+          todoRole: newUser.todoRole
+        })
+      });
 
       if (response.ok) {
-        showToast('Пользователь создан', 'success')
-        setShowUserModal(false)
-        setNewUser({ name: '', email: '', password: '', role: 'user' })
-        loadUsers()
+        showToast('Пользователь создан', 'success');
+        setShowUserModal(false);
+        setNewUser({ username: '', name: '', email: '', password: '', role: 'user', todoRole: 'executor' });
+        loadUsers();
       } else {
-        showToast('Ошибка создания пользователя', 'error')
+        const data = await response.json();
+        showToast(data.error || 'Ошибка создания пользователя', 'error');
       }
     } catch (error) {
-      console.error('Ошибка создания пользователя:', error)
-      showToast('Ошибка создания пользователя', 'error')
+      showToast('Ошибка создания пользователя', 'error');
     }
-  }
+  };
+
+  const saveEditingUser = async () => {
+    if (!editingUser) return;
+    
+    setSavingUser(true);
+    try {
+      const response = await fetch(`/api/users/${editingUser.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: editingUser.username,
+          name: editingUser.name,
+          email: editingUser.email,
+          password: editingUser.password,
+          role: editingUser.role,
+          todoRole: editingUser.todoRole,
+          canSeeAllTasks: editingUser.canSeeAllTasks,
+          telegramId: editingUser.telegramId
+        })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        showToast('Пользователь обновлён', 'success');
+        setShowEditUserModal(false);
+        setEditingUser(null);
+        loadUsers();
+      } else {
+        console.error('Error updating user:', data);
+        showToast(data.error || data.details || 'Ошибка обновления', 'error');
+      }
+    } catch (error) {
+      console.error('Error updating user:', error);
+      showToast('Ошибка обновления пользователя: ' + (error instanceof Error ? error.message : 'Unknown'), 'error');
+    } finally {
+      setSavingUser(false);
+    }
+  };
+
+  const openEditUserModal = (user: User) => {
+    setEditingUser({ ...user });
+    setShowEditUserModal(true);
+  };
 
   const deleteUser = async (userId: string) => {
-    if (!confirm('Удалить пользователя?')) return
+    if (!confirm('Удалить пользователя?')) return;
 
     try {
-      const response = await apiFetch(`/api/users/${userId}`, {
-        method: 'DELETE'
-      })
-
+      const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
       if (response.ok) {
-        showToast('Пользователь удален', 'success')
-        loadUsers()
+        showToast('Пользователь удален', 'success');
+        loadUsers();
       } else {
-        showToast('Ошибка удаления пользователя', 'error')
+        showToast('Ошибка удаления пользователя', 'error');
       }
     } catch (error) {
-      console.error('Ошибка удаления пользователя:', error)
-      showToast('Ошибка удаления пользователя', 'error')
+      showToast('Ошибка удаления пользователя', 'error');
     }
-  }
+  };
 
   const toggleTool = async (userId: string, toolId: string) => {
     try {
-      const user = users.find(u => u.id === userId)
-      if (!user) return
+      const user = users.find(u => u.id === userId);
+      if (!user) {
+        showToast('Пользователь не найден', 'error');
+        return;
+      }
 
-      const currentTools = user.enabledTools || []
+      const currentTools = user.enabledTools || [];
       const enabledTools = currentTools.includes(toolId)
         ? currentTools.filter(t => t !== toolId)
-        : [...currentTools, toolId]
+        : [...currentTools, toolId];
 
-      const response = await apiFetch(`/api/users/${userId}/tools`, {
+      console.log('Updating tools for user:', userId, 'Tools:', enabledTools);
+
+      const response = await fetch(`/api/users/${userId}/tools`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabledTools })
-      })
+      });
+
+      const data = await response.json();
+      console.log('Response:', response.status, data);
 
       if (response.ok) {
-        showToast('Доступ обновлен', 'success')
-        loadUsers()
-        setShowToolsModal(false)
-        setSelectedUser(null)
+        showToast('Доступ обновлен', 'success');
+        loadUsers();
+        setSelectedUser(prev => prev ? { ...prev, enabledTools } : null);
       } else {
-        showToast('Ошибка обновления доступа', 'error')
+        showToast(`Ошибка: ${data.error || 'Неизвестная ошибка'}`, 'error');
       }
     } catch (error) {
-      console.error('Ошибка обновления доступа:', error)
-      showToast('Ошибка обновления доступа', 'error')
+      console.error('Error updating tools:', error);
+      showToast('Ошибка обновления доступа', 'error');
     }
-  }
+  };
 
-  const openToolsModal = (user: User) => {
-    setSelectedUser(user)
-    setShowToolsModal(true)
-  }
+  const tabs = [
+    { id: 'settings' as TabType, label: 'Настройки ENV', icon: Settings },
+    { id: 'users' as TabType, label: 'Пользователи', icon: Users },
+    { id: 'logs' as TabType, label: 'Логи', icon: FileText },
+  ];
 
   return (
-    <div className="min-h-screen bg-[var(--background)] p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <Link href="/" className="text-[var(--button)] hover:underline mb-2 inline-flex items-center gap-1">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Назад на главную
-            </Link>
-            <h1 className="text-4xl font-bold text-[var(--foreground)] mb-2">
-              Панель администратора
-            </h1>
-            <p className="text-[var(--foreground)] opacity-70">
-              Управление системой и настройками
-            </p>
-            
-            {/* Database Stats */}
-            <div className="mt-4 flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--card)] border border-[var(--border)] rounded-lg">
-                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
-                </svg>
-                <span className="text-[var(--foreground)] opacity-70">Размер БД:</span>
-                <span className="font-semibold text-[var(--foreground)]">{dbStats.size || 'N/A'}</span>
-              </div>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--card)] border border-[var(--border)] rounded-lg">
-                <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <span className="text-[var(--foreground)] opacity-70">Логов:</span>
-                <span className="font-semibold text-[var(--foreground)]">{dbStats.counts.logs}</span>
-              </div>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--card)] border border-[var(--border)] rounded-lg">
-                <svg className="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-                </svg>
-                <span className="text-[var(--foreground)] opacity-70">Фидов:</span>
-                <span className="font-semibold text-[var(--foreground)]">{dbStats.counts.feeds}</span>
-              </div>
-            </div>
-          </div>
+    <div className="min-h-screen bg-[#0d0d0d]">
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl border backdrop-blur-xl flex items-center gap-2 shadow-2xl ${
+          toast.type === 'success' ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' :
+          toast.type === 'error' ? 'bg-red-500/20 border-red-500/30 text-red-400' :
+          'bg-yellow-500/20 border-yellow-500/30 text-yellow-400'
+        }`}>
+          {toast.type === 'success' && <CheckCircle className="w-4 h-4" />}
+          {toast.type === 'error' && <XCircle className="w-4 h-4" />}
+          {toast.type === 'warning' && <AlertTriangle className="w-4 h-4" />}
+          <span className="text-sm">{toast.message}</span>
+        </div>
+      )}
 
-          {activeTab === 'users' && (
-            <button
-              onClick={() => setShowUserModal(true)}
-              className="px-6 py-3 bg-[var(--button)] text-white rounded-lg hover:bg-[var(--button)]/90 transition-colors flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Добавить пользователя
-            </button>
-          )}
+      {/* Header */}
+      <header className="h-14 bg-[#1a1a1a] border-b border-white/5 flex items-center px-6 sticky top-0 z-40">
+        <Link
+          href="/"
+          className="flex items-center justify-center w-8 h-8 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 transition-all mr-4"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </Link>
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500/20 to-purple-500/20 border border-cyan-500/20">
+            <Shield className="w-5 h-5 text-cyan-400" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold text-white">Панель администратора</h1>
+            <p className="text-[10px] text-white/40">Управление системой</p>
+          </div>
         </div>
 
-        {/* Tabs */}
-        <div className="mb-6">
-          <div className="border-b border-[var(--border)]">
-            <nav className="flex gap-8">
-              <button
-                onClick={() => setActiveTab('settings')}
-                className={`pb-4 px-1 border-b-2 font-medium transition-colors ${
-                  activeTab === 'settings'
-                    ? 'border-[var(--button)] text-[var(--button)]'
-                    : 'border-transparent text-[var(--foreground)] opacity-60 hover:opacity-100'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  Настройки ENV
-                </div>
-              </button>
-              <button
-                onClick={() => setActiveTab('users')}
-                className={`pb-4 px-1 border-b-2 font-medium transition-colors ${
-                  activeTab === 'users'
-                    ? 'border-[var(--button)] text-[var(--button)]'
-                    : 'border-transparent text-[var(--foreground)] opacity-60 hover:opacity-100'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                  Пользователи
-                </div>
-              </button>
-              <button
-                onClick={() => setActiveTab('logs')}
-                className={`pb-4 px-1 border-b-2 font-medium transition-colors ${
-                  activeTab === 'logs'
-                    ? 'border-[var(--button)] text-[var(--button)]'
-                    : 'border-transparent text-[var(--foreground)] opacity-60 hover:opacity-100'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Все логи
-                </div>
-              </button>
-            </nav>
+        {/* DB Stats */}
+        <div className="ml-auto flex items-center gap-3">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
+            <Database className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-xs text-white/50">БД:</span>
+            <span className="text-xs text-white/80 font-medium">{dbStats.size || 'N/A'}</span>
           </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
+            <FileText className="w-3.5 h-3.5 text-purple-400" />
+            <span className="text-xs text-white/50">Логов:</span>
+            <span className="text-xs text-white/80 font-medium">{dbStats.counts.logs}</span>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-6xl mx-auto p-6">
+        {/* Tabs */}
+        <div className="flex items-center gap-1 mb-6 p-1 bg-white/5 rounded-xl w-fit">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === tab.id 
+                  ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' 
+                  : 'text-white/50 hover:text-white/70 hover:bg-white/5'
+              }`}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {/* Settings Tab */}
         {activeTab === 'settings' && (
-          <div className="card mb-8">
-          <div className="p-6 border-b border-[var(--border)]">
-            <h2 className="text-2xl font-bold text-[var(--foreground)]">Глобальные настройки ENV</h2>
-            <p className="text-sm text-[var(--foreground)] opacity-70 mt-1">
-              Настройки API ключей и интеграций
-            </p>
-          </div>
-
-          <div className="p-6 space-y-6">
+          <div className="space-y-6">
             {/* Яндекс.Метрика */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                Яндекс.Метрика
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white/[0.03] rounded-2xl border border-white/[0.06] overflow-hidden">
+              <div className="px-6 py-4 border-b border-white/[0.06] flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                  <Key className="w-4 h-4 text-yellow-400" />
+                </div>
+                <h3 className="text-white font-medium">Яндекс.Метрика</h3>
+              </div>
+              <div className="p-6 grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                    ID счетчика
-                  </label>
+                  <label className="block text-xs text-white/50 mb-2">ID счетчика</label>
                   <input
                     type="text"
                     value={settings.metricaCounterId}
                     onChange={(e) => setSettings({...settings, metricaCounterId: e.target.value})}
-                    className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
                     placeholder="12345678"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                    OAuth токен
-                  </label>
+                  <label className="block text-xs text-white/50 mb-2">OAuth токен</label>
                   <input
                     type="password"
                     value={settings.metricaToken}
                     onChange={(e) => setSettings({...settings, metricaToken: e.target.value})}
-                    className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
                     placeholder="y0_..."
                   />
                 </div>
               </div>
             </div>
 
-            {/* Yandex Wordstat */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                </svg>
-                Yandex Wordstat API
-              </h3>
-              <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                  OAuth токен
-                </label>
-                <input
-                  type="password"
-                  value={settings.wordstatToken}
-                  onChange={(e) => setSettings({...settings, wordstatToken: e.target.value})}
-                  className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
-                  placeholder="AgA..."
-                />
-                <p className="text-xs text-[var(--foreground)] opacity-50 mt-1">
-                  Получите токен в <a href="https://oauth.yandex.ru/" target="_blank" rel="noopener noreferrer" className="text-[var(--button)] hover:underline">Яндекс.OAuth</a>
-                </p>
+            {/* Wordstat */}
+            <div className="bg-white/[0.03] rounded-2xl border border-white/[0.06] overflow-hidden">
+              <div className="px-6 py-4 border-b border-white/[0.06] flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                  <Key className="w-4 h-4 text-purple-400" />
+                </div>
+                <h3 className="text-white font-medium">Yandex Wordstat API</h3>
+              </div>
+              <div className="p-6">
+                <div>
+                  <label className="block text-xs text-white/50 mb-2">OAuth токен</label>
+                  <input
+                    type="password"
+                    value={settings.wordstatToken}
+                    onChange={(e) => setSettings({...settings, wordstatToken: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                    placeholder="AgA..."
+                  />
+                </div>
               </div>
             </div>
 
-            {/* DeepSeek AI */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                DeepSeek AI
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                    API ключ
-                  </label>
+            {/* DeepSeek */}
+            <div className="bg-white/[0.03] rounded-2xl border border-white/[0.06] overflow-hidden">
+              <div className="px-6 py-4 border-b border-white/[0.06] flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+                  <Key className="w-4 h-4 text-cyan-400" />
+                </div>
+                <h3 className="text-white font-medium">DeepSeek AI</h3>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs text-white/50 mb-2">API ключ</label>
                   <input
                     type="password"
                     value={settings.deepseekApiKey}
                     onChange={(e) => setSettings({...settings, deepseekApiKey: e.target.value})}
-                    className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
                     placeholder="sk-..."
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                    Модель
-                  </label>
-                  <select
-                    value={settings.deepseekModel}
-                    onChange={(e) => setSettings({...settings, deepseekModel: e.target.value})}
-                    className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
-                  >
-                    <option value="deepseek-chat">deepseek-chat</option>
-                    <option value="deepseek-reasoner">deepseek-reasoner</option>
-                  </select>
-                  <p className="text-xs text-[var(--foreground)] opacity-50 mt-1">
-                    Модель для генерации ответов
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                    Макс. токенов
-                  </label>
-                  <input
-                    type="number"
-                    value={settings.deepseekMaxTokens}
-                    onChange={(e) => setSettings({...settings, deepseekMaxTokens: e.target.value})}
-                    className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
-                    placeholder="4096"
-                    min="100"
-                    max="32000"
-                  />
-                  <p className="text-xs text-[var(--foreground)] opacity-50 mt-1">
-                    Максимальная длина ответа (100-32000)
-                  </p>
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                    Температура: {settings.deepseekTemperature}
-                  </label>
-                  <div className="flex items-center gap-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs text-white/50 mb-2">Модель</label>
+                    <select
+                      value={settings.deepseekModel}
+                      onChange={(e) => setSettings({...settings, deepseekModel: e.target.value})}
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                    >
+                      <option value="deepseek-chat">deepseek-chat</option>
+                      <option value="deepseek-reasoner">deepseek-reasoner</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-white/50 mb-2">Макс. токенов</label>
                     <input
-                      type="range"
+                      type="number"
+                      value={settings.deepseekMaxTokens}
+                      onChange={(e) => setSettings({...settings, deepseekMaxTokens: e.target.value})}
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-white/50 mb-2">Temperature</label>
+                    <input
+                      type="number"
+                      step="0.1"
                       value={settings.deepseekTemperature}
                       onChange={(e) => setSettings({...settings, deepseekTemperature: e.target.value})}
-                      className="flex-1 h-2 bg-[var(--border)] rounded-lg appearance-none cursor-pointer slider"
-                      min="0"
-                      max="2"
-                      step="0.1"
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
                     />
-                    <span className="text-sm font-mono text-[var(--foreground)] w-12 text-center">
-                      {parseFloat(settings.deepseekTemperature).toFixed(1)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-xs text-[var(--foreground)] opacity-50 mt-1">
-                    <span>Точнее (0.0)</span>
-                    <span>Креативнее (2.0)</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Telegram Bot */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-                Telegram уведомления
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Telegram */}
+            <div className="bg-white/[0.03] rounded-2xl border border-white/[0.06] overflow-hidden">
+              <div className="px-6 py-4 border-b border-white/[0.06] flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                  <Key className="w-4 h-4 text-blue-400" />
+                </div>
+                <h3 className="text-white font-medium">Telegram</h3>
+              </div>
+              <div className="p-6 grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                    Bot Token
-                  </label>
+                  <label className="block text-xs text-white/50 mb-2">Bot Token</label>
                   <input
                     type="password"
                     value={settings.telegramBotToken}
                     onChange={(e) => setSettings({...settings, telegramBotToken: e.target.value})}
-                    className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
-                    placeholder="123456789:ABC..."
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                    placeholder="123456:ABC..."
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                    Chat ID
-                  </label>
+                  <label className="block text-xs text-white/50 mb-2">Chat ID</label>
                   <input
                     type="text"
                     value={settings.telegramChatId}
                     onChange={(e) => setSettings({...settings, telegramChatId: e.target.value})}
-                    className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
                     placeholder="-1001234567890"
                   />
                 </div>
               </div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.telegramNotifications}
-                  onChange={(e) => setSettings({...settings, telegramNotifications: e.target.checked})}
-                  className="w-5 h-5 text-[var(--button)] bg-[var(--background)] border-[var(--border)] rounded focus:ring-2 focus:ring-[var(--button)]"
-                />
-                <span className="text-sm text-[var(--foreground)]">
-                  Включить отправку уведомлений в Telegram
-                </span>
-              </label>
             </div>
 
             {/* Save Button */}
-            <div className="pt-4 border-t border-[var(--border)]">
-              <button
-                onClick={saveSettings}
-                disabled={savingSettings}
-                className="px-6 py-3 bg-[var(--button)] text-white rounded-lg hover:bg-[var(--button)]/90 transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                {savingSettings ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    Сохранение...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    Сохранить настройки
-                  </>
-                )}
-              </button>
-            </div>
+            <button
+              onClick={saveSettings}
+              disabled={savingSettings}
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-600 text-white rounded-xl font-medium hover:from-cyan-600 hover:to-cyan-700 transition-all disabled:opacity-50"
+            >
+              {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Сохранить настройки
+            </button>
           </div>
-        </div>
         )}
 
         {/* Users Tab */}
         {activeTab === 'users' && (
-          <>
-            <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-[var(--foreground)]">Управление пользователями</h2>
+          <div className="space-y-4">
+            {/* Add User Button + Show Passwords Toggle */}
+            <div className="flex justify-between items-center">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showPasswords}
+                  onChange={(e) => setShowPasswords(e.target.checked)}
+                  className="w-4 h-4 rounded accent-cyan-500"
+                />
+                <span className="text-sm text-white/60">Показать пароли</span>
+              </label>
               <button
-                onClick={loadUsers}
-                disabled={loading}
-                className="btn-secondary flex items-center gap-2"
+                onClick={() => setShowUserModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-cyan-500/20 text-cyan-400 rounded-xl border border-cyan-500/30 hover:bg-cyan-500/30 transition-all text-sm font-medium"
               >
-                <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Обновить
+                <Plus className="w-4 h-4" />
+                Добавить пользователя
+              </button>
+              <button
+                onClick={() => loadUsers()}
+                className="flex items-center gap-2 px-4 py-2 bg-white/5 text-white/60 rounded-xl border border-white/10 hover:bg-white/10 transition-all text-sm"
+                title="Обновить список пользователей"
+              >
+                <RefreshCw className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Users Table */}
-            {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--button)]"></div>
-          </div>
-        ) : users.length === 0 ? (
-          <div className="card text-center py-12">
-            <svg className="w-16 h-16 mx-auto mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            <h3 className="text-lg font-medium mb-2">Пользователи не найдены</h3>
-            <p className="text-sm opacity-60 mb-4">Нажмите кнопку &quot;Создать пользователя&quot; для добавления</p>
-            <button onClick={() => setShowUserModal(true)} className="btn-primary">
-              Создать пользователя
-            </button>
-          </div>
-        ) : (
-          <div className="card overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-[var(--background)]">
-                <tr className="border-b border-[var(--border)]">
-                  <th className="px-6 py-4 text-left text-sm font-medium text-[var(--foreground)]">Пользователь</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-[var(--foreground)]">Email</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-[var(--foreground)]">Роль</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-[var(--foreground)]">Доступные инструменты</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-[var(--foreground)]">Действия</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => {
-                  const displayName = user.name || user.username || 'Без имени'
-                  return (
-                  <tr key={user.id} className="border-b border-[var(--border)] hover:bg-[var(--background)] transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-[var(--button)] flex items-center justify-center text-white font-semibold">
-                          {displayName.charAt(0).toUpperCase()}
+            {/* Users List */}
+            <div className="bg-white/[0.03] rounded-2xl border border-white/[0.06] overflow-hidden">
+              <div className="px-6 py-4 border-b border-white/[0.06] flex items-center gap-3">
+                <Users className="w-4 h-4 text-white/40" />
+                <h3 className="text-white font-medium">Пользователи</h3>
+                <span className="text-xs text-white/30 px-2 py-0.5 bg-white/5 rounded-full">{users.length}</span>
+              </div>
+
+              {loading ? (
+                <div className="p-12 text-center">
+                  <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto" />
+                  <p className="text-white/40 text-sm mt-3">Загрузка...</p>
+                </div>
+              ) : users.length === 0 ? (
+                <div className="p-12 text-center">
+                  <Users className="w-12 h-12 text-white/20 mx-auto" />
+                  <p className="text-white/40 text-sm mt-3">Пользователи не найдены</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-white/[0.04]">
+                  {users.map(user => (
+                    <div key={user.id} className="px-6 py-4 hover:bg-white/[0.02] transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          user.role === 'admin' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/10 text-white/60'
+                        }`}>
+                          {user.role === 'admin' ? <Shield className="w-5 h-5" /> : <Users className="w-5 h-5" />}
                         </div>
-                        <div>
-                          <div className="font-medium text-[var(--foreground)]">{displayName}</div>
-                          <div className="text-xs text-[var(--foreground)] opacity-50">
-                            ID: {user.id}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-white font-medium">{user.name || user.username || 'Без имени'}</span>
+                            {user.role === 'admin' && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                                Админ
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-white/40">
+                            <span>@{user.username || user.email}</span>
+                            <span>•</span>
+                            <span>{user.enabledTools?.length || 0} инструментов</span>
+                            <span>•</span>
+                            <span>{new Date(user.createdAt).toLocaleDateString('ru-RU')}</span>
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-[var(--foreground)]">
-                      {user.email || '—'}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        user.role === 'admin' 
-                          ? 'bg-purple-500/20 text-purple-400' 
-                          : 'bg-blue-500/20 text-blue-400'
-                      }`}>
-                        {user.role === 'admin' ? 'Администратор' : 'Пользователь'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {user.enabledTools?.map(toolId => {
-                          const tool = availableTools.find(t => t.id === toolId)
-                          return tool ? (
-                            <span key={toolId} className="px-2 py-1 bg-[var(--button)]/20 text-[var(--button)] text-xs rounded">
-                              {tool.name}
-                            </span>
-                          ) : null
-                        })}
-                        {(!user.enabledTools || user.enabledTools.length === 0) && (
-                          <span className="text-xs text-[var(--foreground)] opacity-50">Нет доступа</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => openToolsModal(user)}
-                          className="p-2 hover:bg-[var(--background)] rounded-lg transition-colors"
-                          title="Управление доступом"
-                        >
-                          <svg className="w-5 h-5 text-[var(--foreground)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                          </svg>
-                        </button>
-                        {user.role !== 'admin' && (
+                        <div className="flex items-center gap-1">
                           <button
-                            onClick={() => deleteUser(user.id)}
-                            className="p-2 hover:bg-red-500/10 rounded-lg transition-colors"
-                            title="Удалить"
+                            onClick={() => openEditUserModal(user)}
+                            className="p-2 rounded-lg hover:bg-white/10 text-white/40 hover:text-cyan-400 transition-all"
+                            title="Редактировать"
                           >
-                            <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
+                            <Pencil className="w-4 h-4" />
                           </button>
-                        )}
+                          <button
+                            onClick={() => { setSelectedUser(user); setShowToolsModal(true); }}
+                            className="p-2 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-all"
+                            title="Управление доступом"
+                          >
+                            <Key className="w-4 h-4" />
+                          </button>
+                          {user.role !== 'admin' && (
+                            <button
+                              onClick={() => deleteUser(user.id)}
+                              className="p-2 rounded-lg hover:bg-red-500/20 text-white/40 hover:text-red-400 transition-all"
+                              title="Удалить"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </td>
-                  </tr>
-                )})}
-              </tbody>
-            </table>
-          </div>
-        )}
-          </>
-        )}
-
-        {/* Create User Modal */}
-        {showUserModal && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg max-w-md w-full shadow-2xl">
-              <div className="p-6 border-b border-[var(--border)]">
-                <h2 className="text-2xl font-bold text-[var(--foreground)]">
-                  Создать пользователя
-                </h2>
-              </div>
-
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                    Имя
-                  </label>
-                  <input
-                    type="text"
-                    value={newUser.name}
-                    onChange={(e) => setNewUser({...newUser, name: e.target.value})}
-                    className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
-                    placeholder="Введите имя"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={newUser.email}
-                    onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-                    className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
-                    placeholder="user@example.com"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                    Пароль
-                  </label>
-                  <input
-                    type="password"
-                    value={newUser.password}
-                    onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                    className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
-                    placeholder="••••••••"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                    Роль
-                  </label>
-                  <select
-                    value={newUser.role}
-                    onChange={(e) => setNewUser({...newUser, role: e.target.value as 'admin' | 'user'})}
-                    className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
-                  >
-                    <option value="user">Пользователь</option>
-                    <option value="admin">Администратор</option>
-                  </select>
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={createUser}
-                    className="flex-1 bg-[var(--button)] text-white px-6 py-2 rounded-lg hover:bg-[var(--button)]/90 transition-colors"
-                  >
-                    Создать
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowUserModal(false)
-                      setNewUser({ name: '', email: '', password: '', role: 'user' })
-                    }}
-                    className="px-6 py-2 border border-[var(--border)] rounded-lg text-[var(--foreground)] hover:bg-[var(--background)] transition-colors"
-                  >
-                    Отмена
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tools Access Modal */}
-        {showToolsModal && selectedUser && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg max-w-4xl w-full shadow-2xl">
-              <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-[var(--foreground)]">
-                    Управление доступом
-                  </h2>
-                  <p className="text-sm text-[var(--foreground)] opacity-70">
-                    {selectedUser.name || selectedUser.username || 'Пользователь'}
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowToolsModal(false)
-                    setSelectedUser(null)
-                  }}
-                  className="px-4 py-2 border border-[var(--border)] rounded-lg text-[var(--foreground)] hover:bg-[var(--background)] transition-colors text-sm"
-                >
-                  Закрыть
-                </button>
-              </div>
-
-              <div className="p-4">
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {availableTools.map((tool) => (
-                    <div
-                      key={tool.id}
-                      onClick={() => toggleTool(selectedUser.id, tool.id)}
-                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all border ${
-                        selectedUser.enabledTools?.includes(tool.id)
-                          ? 'bg-[var(--button)]/20 border-[var(--button)]'
-                          : 'bg-[var(--background)] border-transparent hover:border-[var(--border)]'
-                      }`}
-                    >
-                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                        selectedUser.enabledTools?.includes(tool.id)
-                          ? 'bg-[var(--button)] border-[var(--button)]'
-                          : 'border-[var(--border)]'
-                      }`}>
-                        {selectedUser.enabledTools?.includes(tool.id) && (
-                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </div>
-                      <span className="font-medium text-[var(--foreground)] text-sm truncate">{tool.name}</span>
+                      
+                      {/* Password Row */}
+                      {showPasswords && (
+                        <div className="mt-3 ml-14 flex items-center gap-2">
+                          <span className="text-xs text-white/30">Пароль:</span>
+                          {editingPassword?.userId === user.id ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={editingPassword.password}
+                                onChange={(e) => setEditingPassword({ ...editingPassword, password: e.target.value })}
+                                className="px-2 py-1 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-cyan-500/50 w-40"
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => updateUserPassword(user.id, editingPassword.password)}
+                                className="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30"
+                              >
+                                <Save className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setEditingPassword(null)}
+                                className="p-1.5 rounded-lg bg-white/5 text-white/40 hover:bg-white/10"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <code className="px-2 py-1 bg-white/5 rounded text-xs text-amber-400 font-mono">
+                                {user.password || '—'}
+                              </code>
+                              <button
+                                onClick={() => setEditingPassword({ userId: user.id, password: user.password || '' })}
+                                className="p-1 rounded hover:bg-white/10 text-white/30 hover:text-white/60"
+                                title="Изменить пароль"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
-              </div>
+              )}
             </div>
           </div>
         )}
 
         {/* Logs Tab */}
-        {activeTab === 'logs' && (
-          <LogsTab />
-        )}
+        {activeTab === 'logs' && <LogsTab showToast={showToast} />}
       </div>
+
+      {/* Create User Modal */}
+      {showUserModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl max-w-3xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between sticky top-0 bg-[#1a1a1a] z-10">
+              <h2 className="text-lg font-semibold text-white">Создать пользователя</h2>
+              <button
+                onClick={() => { setShowUserModal(false); setNewUser({ username: '', name: '', email: '', password: '', role: 'user', todoRole: 'executor' }); }}
+                className="p-2 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-white/50 mb-2">Логин *</label>
+                  <input
+                    type="text"
+                    value={newUser.username}
+                    onChange={(e) => setNewUser({...newUser, username: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                    placeholder="username"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/50 mb-2">Имя</label>
+                  <input
+                    type="text"
+                    value={newUser.name}
+                    onChange={(e) => setNewUser({...newUser, name: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                    placeholder="Иван Иванов"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/50 mb-2">Email</label>
+                  <input
+                    type="email"
+                    value={newUser.email}
+                    onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                    placeholder="user@example.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/50 mb-2">Пароль *</label>
+                  <input
+                    type="password"
+                    value={newUser.password}
+                    onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                    placeholder="••••••••"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/50 mb-2">Должность</label>
+                  <input
+                    type="text"
+                    value={newUser.position || ''}
+                    onChange={(e) => setNewUser({...newUser, position: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                    placeholder="Менеджер проектов"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/50 mb-2">Отдел</label>
+                  <input
+                    type="text"
+                    value={newUser.department || ''}
+                    onChange={(e) => setNewUser({...newUser, department: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                    placeholder="Отдел разработки"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/50 mb-2">Роль</label>
+                  <select
+                    value={newUser.role}
+                    onChange={(e) => setNewUser({...newUser, role: e.target.value as 'admin' | 'user'})}
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                  >
+                    <option value="user">Пользователь</option>
+                    <option value="admin">Администратор</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-white/50 mb-2">Роль в задачах *</label>
+                  <select
+                    value={newUser.todoRole}
+                    onChange={(e) => setNewUser({...newUser, todoRole: e.target.value as 'executor' | 'customer' | 'universal'})}
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                  >
+                    <option value="executor">Исполнитель</option>
+                    <option value="customer">Заказчик</option>
+                    <option value="universal">Универсальный</option>
+                  </select>
+                  <p className="text-[10px] text-white/30 mt-1">Определяет, какие задачи может создавать и выполнять пользователь</p>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-6">
+                <button
+                  onClick={createUser}
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-cyan-600 text-white rounded-xl font-medium hover:from-cyan-600 hover:to-cyan-700 transition-all"
+                >
+                  Создать
+                </button>
+                <button
+                  onClick={() => { setShowUserModal(false); setNewUser({ username: '', name: '', email: '', password: '', role: 'user', todoRole: 'executor' }); }}
+                  className="px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white/70 hover:bg-white/10 transition-all"
+                >
+                  Отмена
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tools Access Modal */}
+      {showToolsModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl max-w-2xl w-full shadow-2xl">
+            <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Управление доступом</h2>
+                <p className="text-xs text-white/40">{selectedUser.name || selectedUser.username}</p>
+              </div>
+              <button
+                onClick={() => { setShowToolsModal(false); setSelectedUser(null); }}
+                className="p-2 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {availableTools.map(tool => (
+                  <button
+                    key={tool.id}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleTool(selectedUser.id, tool.id);
+                    }}
+                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all text-left cursor-pointer ${
+                      selectedUser.enabledTools?.includes(tool.id)
+                        ? 'bg-cyan-500/20 border-cyan-500/30 text-cyan-400'
+                        : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'
+                    }`}
+                  >
+                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                      selectedUser.enabledTools?.includes(tool.id)
+                        ? 'bg-cyan-500 border-cyan-500'
+                        : 'border-white/30'
+                    }`}>
+                      {selectedUser.enabledTools?.includes(tool.id) && (
+                        <CheckCircle className="w-3 h-3 text-white" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium block truncate">{tool.name}</span>
+                      <span className="text-[10px] text-white/40 block truncate">{tool.description}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {showEditUserModal && editingUser && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl max-w-md w-full shadow-2xl">
+            <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white">Редактировать пользователя</h2>
+              <button
+                onClick={() => { setShowEditUserModal(false); setEditingUser(null); }}
+                className="p-2 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); saveEditingUser(); }} className="p-6">
+              {/* Две колонки */}
+              <div className="grid grid-cols-2 gap-6">
+                {/* Левая колонка */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs text-white/50 mb-2">Логин</label>
+                    <input
+                      type="text"
+                      value={editingUser.username || ''}
+                      onChange={(e) => setEditingUser({...editingUser, username: e.target.value})}
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                      placeholder="username"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-white/50 mb-2">Имя</label>
+                    <input
+                      type="text"
+                      value={editingUser.name || ''}
+                      onChange={(e) => setEditingUser({...editingUser, name: e.target.value})}
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                      placeholder="Иван Иванов"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-white/50 mb-2">Email</label>
+                    <input
+                      type="email"
+                      value={editingUser.email || ''}
+                      onChange={(e) => setEditingUser({...editingUser, email: e.target.value})}
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                      placeholder="user@example.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-white/50 mb-2">Должность</label>
+                    <input
+                      type="text"
+                      value={editingUser.position || ''}
+                      onChange={(e) => setEditingUser({...editingUser, position: e.target.value})}
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                      placeholder="Менеджер проектов"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-white/50 mb-2">Отдел</label>
+                    <input
+                      type="text"
+                      value={editingUser.department || ''}
+                      onChange={(e) => setEditingUser({...editingUser, department: e.target.value})}
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                      placeholder="Отдел разработки"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-white/50 mb-2">Telegram ID</label>
+                    <input
+                      type="text"
+                      value={editingUser.telegramId || ''}
+                      onChange={(e) => setEditingUser({...editingUser, telegramId: e.target.value})}
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                      placeholder="123456789"
+                    />
+                    <p className="text-[10px] text-white/30 mt-1">ID пользователя в Telegram для уведомлений</p>
+                  </div>
+                </div>
+
+                {/* Правая колонка */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs text-white/50 mb-2">Пароль</label>
+                    <input
+                      type="text"
+                      value={editingUser.password || ''}
+                      onChange={(e) => setEditingUser({...editingUser, password: e.target.value})}
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-white/50 mb-2">Роль</label>
+                    <select
+                      value={editingUser.role}
+                      onChange={(e) => setEditingUser({...editingUser, role: e.target.value as 'admin' | 'user'})}
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                    >
+                      <option value="user" className="bg-[#1a1a1a]">Пользователь</option>
+                      <option value="admin" className="bg-[#1a1a1a]">Администратор</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-white/50 mb-2">Роль в задачах</label>
+                    <select
+                      value={editingUser.todoRole || 'executor'}
+                      onChange={(e) => setEditingUser({...editingUser, todoRole: e.target.value as 'executor' | 'customer' | 'universal'})}
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                    >
+                      <option value="executor" className="bg-[#1a1a1a]">Исполнитель</option>
+                      <option value="customer" className="bg-[#1a1a1a]">Заказчик</option>
+                      <option value="universal" className="bg-[#1a1a1a]">Универсальный</option>
+                    </select>
+                    <p className="text-[10px] text-white/30 mt-1">Определяет, какие задачи может создавать и выполнять</p>
+                  </div>
+                  <label className="flex items-center gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={editingUser.canSeeAllTasks || false}
+                      onChange={(e) => setEditingUser({...editingUser, canSeeAllTasks: e.target.checked})}
+                      className="w-4 h-4 rounded border-white/20 bg-white/5 text-cyan-500 focus:ring-cyan-500/20"
+                    />
+                    <span className="text-sm text-white/70 group-hover:text-white/90 transition-colors">
+                      Может видеть все задачи
+                    </span>
+                  </label>
+                  <p className="text-[10px] text-white/30 -mt-2 pl-7">
+                    Если выключено — видит только свои задачи (исполнитель или заказчик)
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 pt-6 border-t border-white/10 mt-6">
+                <button
+                  type="submit"
+                  disabled={savingUser}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-cyan-600 text-white rounded-xl font-medium hover:from-cyan-600 hover:to-cyan-700 transition-all disabled:opacity-50"
+                >
+                  {savingUser ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Сохранить
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowEditUserModal(false); setEditingUser(null); }}
+                  className="px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white/70 hover:bg-white/10 transition-all"
+                >
+                  Отмена
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
-  )
+  );
 }
 
+// Logs Tab Component
 interface Log {
-  id: string
-  timestamp: string
-  type: string
-  message: string
-  details?: any
-  status: 'success' | 'error' | 'warning' | 'info'
+  id: string;
+  timestamp: string;
+  type: string;
+  message: string;
+  details?: any;
+  status: 'success' | 'error' | 'warning' | 'info';
 }
 
-function LogsTab() {
-  const [logs, setLogs] = useState<Log[]>([])
-  const [loading, setLoading] = useState(true)
-  const [filterType, setFilterType] = useState<string>('all')
-  const [filterStatus, setFilterStatus] = useState<string>('all')
+function LogsTab({ showToast }: { showToast: (msg: string, type: 'success' | 'error' | 'warning') => void }) {
+  const [logs, setLogs] = useState<Log[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterType, setFilterType] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
 
   useEffect(() => {
-    fetchLogs()
-  }, [])
+    fetchLogs();
+  }, []);
 
   const fetchLogs = async () => {
     try {
-      setLoading(true)
-      const response = await fetch('/api/admin/logs')
+      setLoading(true);
+      const response = await fetch('/api/admin/logs');
       if (response.ok) {
-        const data = await response.json()
-        setLogs(data.logs)
+        const data = await response.json();
+        setLogs(data.logs || []);
       }
     } catch (error) {
-      console.error('Failed to fetch logs:', error)
-      showToast('Ошибка при загрузке логов', 'error')
+      showToast('Ошибка загрузки логов', 'error');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const filteredLogs = logs.filter(log => {
-    if (filterType !== 'all' && log.type !== filterType) return false
-    if (filterStatus !== 'all' && log.status !== filterStatus) return false
-    return true
-  })
+    if (filterType !== 'all' && log.type !== filterType) return false;
+    if (filterStatus !== 'all' && log.status !== filterStatus) return false;
+    return true;
+  });
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'success':
-        return (
-          <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        )
-      case 'error':
-        return (
-          <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        )
-      case 'warning':
-        return (
-          <svg className="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-        )
-      default:
-        return (
-          <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        )
+      case 'success': return <CheckCircle className="w-4 h-4 text-emerald-400" />;
+      case 'error': return <XCircle className="w-4 h-4 text-red-400" />;
+      case 'warning': return <AlertTriangle className="w-4 h-4 text-yellow-400" />;
+      default: return <Info className="w-4 h-4 text-cyan-400" />;
     }
-  }
-
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp)
-    return date.toLocaleString('ru-RU', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    })
-  }
+  };
 
   return (
-    <div className="card">
-      <div className="p-6 border-b border-[var(--border)]">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-[var(--foreground)]">Все логи</h2>
-            <p className="text-sm text-[var(--foreground)] opacity-70 mt-1">
-              Журнал событий системы
-            </p>
-          </div>
+    <div className="bg-white/[0.03] rounded-2xl border border-white/[0.06] overflow-hidden">
+      <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <FileText className="w-4 h-4 text-white/40" />
+          <h3 className="text-white font-medium">Журнал событий</h3>
+        </div>
+        <div className="flex items-center gap-3">
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-white text-xs focus:outline-none"
+          >
+            <option value="all">Все типы</option>
+            <option value="collection">Коллекции</option>
+            <option value="feed">Фиды</option>
+            <option value="parser">Парсер</option>
+            <option value="system">Система</option>
+          </select>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-white text-xs focus:outline-none"
+          >
+            <option value="all">Все статусы</option>
+            <option value="success">Успех</option>
+            <option value="error">Ошибка</option>
+            <option value="warning">Предупреждение</option>
+            <option value="info">Информация</option>
+          </select>
           <button
             onClick={fetchLogs}
-            className="px-4 py-2 bg-[var(--button)] text-white rounded-lg hover:opacity-90 transition-opacity"
+            className="p-2 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-all"
           >
-            Обновить
+            <RefreshCw className="w-4 h-4" />
           </button>
-        </div>
-
-        {/* Filters */}
-        <div className="flex gap-4 mt-6">
-          <div>
-            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-              Тип
-            </label>
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)]"
-            >
-              <option value="all">Все типы</option>
-              <option value="collection">Коллекции</option>
-              <option value="feed">Фиды</option>
-              <option value="parser">Парсер</option>
-              <option value="system">Система</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-              Статус
-            </label>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)]"
-            >
-              <option value="all">Все статусы</option>
-              <option value="success">Успех</option>
-              <option value="error">Ошибка</option>
-              <option value="warning">Предупреждение</option>
-              <option value="info">Информация</option>
-            </select>
-          </div>
         </div>
       </div>
 
-      <div className="p-6">
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin w-8 h-8 border-4 border-[var(--button)] border-t-transparent rounded-full mx-auto"></div>
-            <p className="mt-4 text-[var(--foreground)] opacity-70">Загрузка логов...</p>
-          </div>
-        ) : filteredLogs.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-[var(--foreground)] opacity-70">Логи не найдены</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredLogs.map((log) => (
-              <div
-                key={log.id}
-                className="flex items-start gap-4 p-4 bg-[var(--background)] rounded-lg border border-[var(--border)] hover:shadow-md transition-shadow"
-              >
+      {loading ? (
+        <div className="p-12 text-center">
+          <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto" />
+          <p className="text-white/40 text-sm mt-3">Загрузка логов...</p>
+        </div>
+      ) : filteredLogs.length === 0 ? (
+        <div className="p-12 text-center">
+          <FileText className="w-12 h-12 text-white/20 mx-auto" />
+          <p className="text-white/40 text-sm mt-3">Логи не найдены</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-white/[0.04] max-h-[600px] overflow-y-auto">
+          {filteredLogs.map(log => (
+            <div key={log.id} className="px-6 py-4 hover:bg-white/[0.02] transition-colors">
+              <div className="flex items-start gap-3">
                 {getStatusIcon(log.status)}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-1">
-                    <span className="text-sm font-medium text-[var(--foreground)]">
-                      {log.type}
-                    </span>
-                    <span className="text-xs text-[var(--foreground)] opacity-50">
-                      {formatTimestamp(log.timestamp)}
+                    <span className="text-xs font-medium text-white/80 px-2 py-0.5 bg-white/10 rounded">{log.type}</span>
+                    <span className="text-[10px] text-white/30">
+                      {new Date(log.timestamp).toLocaleString('ru-RU')}
                     </span>
                   </div>
-                  <p className="text-sm text-[var(--foreground)] opacity-80 mb-2">
-                    {log.message}
-                  </p>
+                  <p className="text-sm text-white/70">{log.message}</p>
                   {log.details && (
-                    <details className="text-xs text-[var(--foreground)] opacity-60">
-                      <summary className="cursor-pointer hover:opacity-100">Подробности</summary>
-                      <pre className="mt-2 p-2 bg-[var(--card)] rounded overflow-x-auto">
+                    <details className="mt-2">
+                      <summary className="text-[10px] text-white/40 cursor-pointer hover:text-white/60">Подробности</summary>
+                      <pre className="mt-2 p-2 bg-black/30 rounded-lg text-[10px] text-white/50 overflow-x-auto">
                         {JSON.stringify(log.details, null, 2)}
                       </pre>
                     </details>
                   )}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
-  )
+  );
 }
-

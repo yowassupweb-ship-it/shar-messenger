@@ -1,7 +1,7 @@
 // API URL utility with automatic fallback
 // Uses relative URLs in production, localhost in development
 
-const LOCALHOST_API = ''
+const LOCALHOST_API = 'http://localhost:8000'
 const NETWORK_API = 'http://117.117.117.235:8000'
 
 // Check if running in browser and not on localhost

@@ -27,25 +27,25 @@ export default function GlassButton({
 
   const variantStyles = {
     primary: {
-      background: 'linear-gradient(135deg, var(--glass-blue, #89b4fa) 0%, var(--glass-lavender, #b4befe) 100%)',
-      color: '#0f0f23',
-      fontWeight: 600,
-      boxShadow: '0 4px 15px 0 rgba(137, 180, 250, 0.3)'
+      background: '#4a9eff',
+      color: 'white',
+      fontWeight: 500,
+      boxShadow: '0 2px 8px rgba(74, 158, 255, 0.3)'
     },
     secondary: {
-      background: 'rgba(137, 180, 250, 0.1)',
-      color: 'var(--glass-text-primary, #cdd6f4)',
-      border: '1px solid rgba(137, 180, 250, 0.2)'
+      background: 'rgba(255, 255, 255, 0.08)',
+      color: '#e0e0e0',
+      border: '1px solid rgba(255, 255, 255, 0.1)'
     },
     danger: {
-      background: 'linear-gradient(135deg, var(--glass-red, #f38ba8) 0%, #f5c2e7 100%)',
-      color: '#0f0f23',
-      fontWeight: 600,
-      boxShadow: '0 4px 15px 0 rgba(243, 139, 168, 0.3)'
+      background: '#dc3545',
+      color: 'white',
+      fontWeight: 500,
+      boxShadow: '0 2px 8px rgba(220, 53, 69, 0.3)'
     },
     ghost: {
       background: 'transparent',
-      color: 'var(--glass-text-secondary, #bac2de)',
+      color: '#888888',
       border: '1px solid transparent'
     }
   }[variant]

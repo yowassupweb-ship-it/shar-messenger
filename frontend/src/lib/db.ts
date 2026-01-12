@@ -62,10 +62,13 @@ export interface Database {
  */
 export async function readDB(): Promise<Database> {
   try {
+    console.log('[DB] Reading from:', DB_PATH)
     const data = await fs.readFile(DB_PATH, 'utf-8')
-    return JSON.parse(data)
+    const parsed = JSON.parse(data)
+    console.log('[DB] Read successfully, keys:', Object.keys(parsed))
+    return parsed
   } catch (error) {
-    console.error('Error reading database:', error)
+    console.error('[DB] Error reading database from', DB_PATH, ':', error)
     return {}
   }
 }
@@ -74,7 +77,14 @@ export async function readDB(): Promise<Database> {
  * Записать базу данных
  */
 export async function writeDB(db: Database): Promise<void> {
-  await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2), 'utf-8')
+  try {
+    console.log('[DB] Writing to:', DB_PATH)
+    await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2), 'utf-8')
+    console.log('[DB] Write successful')
+  } catch (error) {
+    console.error('[DB] Error writing database to', DB_PATH, ':', error)
+    throw error // Пробрасываем ошибку чтобы API вернул 500
+  }
 }
 
 /**

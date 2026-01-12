@@ -52,18 +52,21 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--background)] p-4">
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: '#0f0f0f' }}>
       <div className="w-full max-w-md">
-        <div className="card">
+        <div className="rounded-2xl p-8" style={{
+          background: '#1a1a1a',
+          border: '1px solid rgba(255, 255, 255, 0.08)'
+        }}>
           <div className="text-center mb-8">
-            <p className="text-[var(--foreground)] opacity-70">
+            <p className="text-[#e0e0e0] opacity-70">
               Вход в систему
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-[var(--foreground)] mb-2">
+              <label htmlFor="username" className="block text-sm font-medium text-[#e0e0e0] mb-2">
                 Логин
               </label>
               <input
@@ -71,14 +74,27 @@ export default function LoginPage() {
                 id="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-3 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--button)] text-[var(--foreground)]"
+                className="w-full px-4 py-3 rounded-xl text-[#e0e0e0] placeholder-[#666] transition-all"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  outline: 'none'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#4a9eff';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(74, 158, 255, 0.15)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                  e.target.style.boxShadow = 'none';
+                }}
                 placeholder="Введите логин"
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-[var(--foreground)] mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-[#e0e0e0] mb-2">
                 Пароль
               </label>
               <input
@@ -86,14 +102,27 @@ export default function LoginPage() {
                 id="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--button)] text-[var(--foreground)]"
+                className="w-full px-4 py-3 rounded-xl text-[#e0e0e0] placeholder-[#666] transition-all"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  outline: 'none'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#4a9eff';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(74, 158, 255, 0.15)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                  e.target.style.boxShadow = 'none';
+                }}
                 placeholder="Введите пароль"
                 required
               />
             </div>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/50 text-red-500 px-4 py-3 rounded-lg">
+              <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl">
                 {error}
               </div>
             )}
@@ -101,7 +130,11 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[var(--button)] text-white py-3 rounded-lg hover:bg-[var(--button)]/90 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full text-white py-3 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:-translate-y-0.5"
+              style={{
+                background: 'linear-gradient(135deg, #4a9eff 0%, #3b82f6 100%)',
+                boxShadow: '0 2px 8px rgba(74, 158, 255, 0.3), 0 1px 0 rgba(255, 255, 255, 0.2) inset'
+              }}
             >
               {loading ? 'Вход...' : 'Войти'}
             </button>

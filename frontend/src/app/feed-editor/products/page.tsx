@@ -313,13 +313,13 @@ export default function ProductsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-4xl font-bold text-[var(--foreground)] mb-2">
+          <h1 className="text-4xl font-bold text-white mb-2">
             Товары
           </h1>
-          <p className="text-[var(--foreground)] opacity-70">
+          <p className="text-white/70">
             Управление товарами для добавления в фиды
           </p>
-          <p className="text-[var(--foreground)] opacity-60 text-sm mt-1">
+          <p className="text-white/60 text-sm mt-1">
             Всего: {products.length} · Показано: {filteredProducts.length}
             {pausedCount > 0 && ` · На паузе: ${pausedCount}`}
             {hiddenCount > 0 && ` · Скрыто: ${hiddenCount}`}
@@ -329,7 +329,7 @@ export default function ProductsPage() {
         <div className="flex gap-2">
           <button 
             onClick={checkProductAvailability}
-            className="px-4 py-2 bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--hover)] transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-[#0d0d0d] border border-white/10 text-white rounded-lg hover:bg-white/5 transition-colors flex items-center gap-2"
             title="Проверить доступность товаров"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -352,7 +352,7 @@ export default function ProductsPage() {
               })
               setShowEditModal(true)
             }}
-            className="bg-[var(--button)] text-white px-4 py-2 rounded-lg hover:bg-[var(--button)]/90 transition-colors flex items-center gap-2"
+            className="bg-cyan-500 text-white px-4 py-2 rounded-lg hover:bg-cyan-500/90 transition-colors flex items-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -368,7 +368,7 @@ export default function ProductsPage() {
           {/* Search */}
           <div className="flex-1 max-w-md">
             <div className="relative">
-              <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--foreground)] opacity-40" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/40" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <circle cx="11" cy="11" r="8"/>
                 <path d="M21 21l-4.35-4.35"/>
               </svg>
@@ -377,14 +377,14 @@ export default function ProductsPage() {
                 placeholder="Поиск товаров..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--button)] text-[var(--foreground)]"
+                className="w-full pl-10 pr-4 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500/50 text-white"
               />
             </div>
           </div>
 
           {/* Filters Group */}
           <div className="flex gap-3 items-center flex-wrap">
-            <span className="text-sm text-[var(--foreground)] opacity-70 font-medium whitespace-nowrap">Фильтры:</span>
+            <span className="text-sm text-white/70 font-medium whitespace-nowrap">Фильтры:</span>
             
             {/* Source Filter */}
             <div className="relative">
@@ -392,7 +392,7 @@ export default function ProductsPage() {
                 value={selectedSource}
                 onChange={(e) => setSelectedSource(e.target.value)}
                 style={{ colorScheme: 'dark' }}
-                className="appearance-none pl-4 pr-10 py-2 bg-[var(--background)] border-2 border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--button)] text-[var(--foreground)] font-medium cursor-pointer hover:border-[var(--button)]/50 transition-colors min-w-[180px]"
+                className="appearance-none pl-4 pr-10 py-2 bg-[#0d0d0d] border-2 border-white/10 rounded-lg focus:outline-none focus:border-cyan-500 text-white font-medium cursor-pointer hover:border-cyan-500/30 transition-colors min-w-[180px]"
               >
                 {sources.map((source) => (
                   <option key={source.id} value={source.id}>
@@ -400,7 +400,7 @@ export default function ProductsPage() {
                   </option>
                 ))}
               </select>
-              <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--foreground)] opacity-50 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-white/50 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </div>
@@ -420,7 +420,7 @@ export default function ProductsPage() {
                   </option>
                 ))}
               </select>
-              <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--foreground)] opacity-50 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-white/50 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </div>
@@ -438,16 +438,16 @@ export default function ProductsPage() {
                 <option value="paused">На паузе</option>
                 <option value="hidden">Скрыто</option>
               </select>
-              <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--foreground)] opacity-50 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-white/50 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </div>
 
             {/* View Mode Toggle */}
-            <div className="flex gap-1 bg-[var(--background)] border-2 border-[var(--border)] rounded-lg p-1">
+            <div className="flex gap-1 bg-[#0d0d0d] border-2 border-white/10 rounded-lg p-1">
               <button
                 onClick={() => setViewMode('cards')}
-                className={`px-3 py-1 rounded transition-colors ${viewMode === 'cards' ? 'bg-[var(--button)] text-white' : 'text-[var(--foreground)] opacity-70 hover:opacity-100'}`}
+                className={`px-3 py-1 rounded transition-colors ${viewMode === 'cards' ? 'bg-cyan-500 text-white' : 'text-white/70 hover:opacity-100'}`}
                 title="Карточки"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -459,7 +459,7 @@ export default function ProductsPage() {
               </button>
               <button
                 onClick={() => setViewMode('table')}
-                className={`px-3 py-1 rounded transition-colors ${viewMode === 'table' ? 'bg-[var(--button)] text-white' : 'text-[var(--foreground)] opacity-70 hover:opacity-100'}`}
+                className={`px-3 py-1 rounded transition-colors ${viewMode === 'table' ? 'bg-cyan-500 text-white' : 'text-white/70 hover:opacity-100'}`}
                 title="Таблица"
               >
                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -478,8 +478,8 @@ export default function ProductsPage() {
       {/* Loading State */}
       {loading && (
         <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--button)]"></div>
-          <p className="mt-4 text-[var(--foreground)] opacity-70">Загрузка товаров...</p>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500"></div>
+          <p className="mt-4 text-white/70">Загрузка товаров...</p>
         </div>
       )}
 
@@ -490,14 +490,14 @@ export default function ProductsPage() {
             {filteredProducts.map((product) => (
               <div 
                 key={product.id} 
-                className="card hover:border-[var(--button)] transition-all relative"
+                className="card hover:border-cyan-500 transition-all relative"
               >
                 {/* Image */}
-                <div className="w-full h-40 bg-[var(--background)] rounded-lg mb-4 flex items-center justify-center overflow-hidden relative">
+                <div className="w-full h-40 bg-[#0d0d0d] rounded-lg mb-4 flex items-center justify-center overflow-hidden relative">
                   {product.image ? (
                     <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                   ) : (
-                    <svg className="w-16 h-16 text-[var(--foreground)] opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-16 h-16 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                   )}
@@ -521,7 +521,7 @@ export default function ProductsPage() {
                                   </div>
                                 ))}
                                 {productFeeds.length > 3 && (
-                                  <div className="bg-[var(--button)]/80 text-[var(--background)] text-[10px] font-semibold px-1.5 py-0.5 rounded shadow-md backdrop-blur-sm">
+                                  <div className="bg-cyan-500/80 text-[#0d0d0d] text-[10px] font-semibold px-1.5 py-0.5 rounded shadow-md backdrop-blur-sm">
                                     +{productFeeds.length - 3}
                                   </div>
                                 )}
@@ -549,11 +549,11 @@ export default function ProductsPage() {
 
                 {/* Product Info */}
                 <div className="mb-3 min-w-0">
-                  <h3 className="font-semibold text-[var(--foreground)] line-clamp-2 min-h-[3rem] mb-2">
+                  <h3 className="font-semibold text-white line-clamp-2 min-h-[3rem] mb-2">
                     {product.name}
                   </h3>
                   {product.days && (
-                    <p className="text-xs text-[var(--foreground)] opacity-50 mb-1">
+                    <p className="text-xs text-white/50 mb-1">
                       {formatDaysLabel(parseInt(product.days))} · {
                         product.sourceIds && product.sourceIds.length > 1 
                           ? `${product.sourceIds.length} источника`
@@ -563,7 +563,7 @@ export default function ProductsPage() {
                   )}
                   <div className="h-[2.5rem] mb-1">
                     {product.route && (
-                      <p className="text-sm text-[var(--foreground)] opacity-60 line-clamp-2">
+                      <p className="text-sm text-white/60 line-clamp-2">
                         {product.route}
                       </p>
                     )}
@@ -571,9 +571,9 @@ export default function ProductsPage() {
                 </div>
 
                 {/* Price & Actions */}
-                <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
+                <div className="flex items-center justify-between pt-3 border-t border-white/10">
                   <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold text-[var(--button)]">
+                    <span className="text-lg font-bold text-cyan-400">
                       {typeof product.price === 'string' ? parseInt(product.price).toLocaleString('ru-RU') : product.price.toLocaleString('ru-RU')} ₽
                     </span>
                     {product.oldPrice && Number(product.oldPrice) > Number(product.price) && (
@@ -585,7 +585,7 @@ export default function ProductsPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => openEditModal(product)}
-                      className="text-sm px-3 py-1 rounded border border-[var(--border)] hover:bg-[var(--background)] transition-colors"
+                      className="text-sm px-3 py-1 rounded border border-white/10 hover:bg-[#0d0d0d] transition-colors"
                       title="Редактировать товар"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -594,7 +594,7 @@ export default function ProductsPage() {
                     </button>
                   <button
                     onClick={() => toggleProductActive(product.id)}
-                    className="text-sm px-3 py-1 rounded border border-[var(--border)] hover:bg-[var(--background)] transition-colors"
+                    className="text-sm px-3 py-1 rounded border border-white/10 hover:bg-[#0d0d0d] transition-colors"
                     title={product.active === false ? 'Активировать товар' : 'Приостановить товар'}
                   >
                     {product.active === false ? (
@@ -610,7 +610,7 @@ export default function ProductsPage() {
                   </button>
                   <button
                     onClick={() => product.url && window.open(product.url, '_blank')}
-                    className="text-sm px-3 py-1 rounded border border-[var(--border)] hover:bg-[var(--background)] transition-colors"
+                    className="text-sm px-3 py-1 rounded border border-white/10 hover:bg-[#0d0d0d] transition-colors"
                     title="Посмотреть на сайте"
                     disabled={!product.url}
                   >
@@ -632,7 +632,7 @@ export default function ProductsPage() {
               <h3 className="text-xl font-semibold text-[var(--foreground)] mb-2">
                 Товары не найдены
               </h3>
-              <p className="text-[var(--foreground)] opacity-70">
+              <p className="text-white/70">
                 {products.length === 0 ? 'Добавьте источник данных и запустите парсинг' : 'Попробуйте изменить параметры поиска'}
               </p>
             </div>

@@ -230,10 +230,10 @@ export default function DataSourcesPage() {
       
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-4xl font-bold text-[var(--foreground)] mb-2">
+          <h1 className="text-4xl font-bold text-white mb-2">
             Источники данных
           </h1>
-          <p className="text-[var(--foreground)] opacity-70">
+          <p className="text-white/70">
             Управление источниками для парсинга товаров
           </p>
         </div>
@@ -242,7 +242,7 @@ export default function DataSourcesPage() {
           <button 
             onClick={handleParseAll}
             disabled={isParsingAll || sources.length === 0}
-            className="bg-[var(--button)] text-white px-6 py-2 rounded-lg hover:bg-[var(--button)]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="bg-cyan-500 text-white px-6 py-2 rounded-lg hover:bg-cyan-500/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             title="Обновить все источники"
           >
             <svg className={`w-5 h-5 ${isParsingAll ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -253,7 +253,7 @@ export default function DataSourcesPage() {
           
           <button 
             onClick={() => setShowAddModal(true)}
-            className="bg-[var(--button)] text-white px-6 py-2 rounded-lg hover:bg-[var(--button)]/90 transition-colors flex items-center gap-2"
+            className="bg-cyan-500 text-white px-6 py-2 rounded-lg hover:bg-cyan-500/90 transition-colors flex items-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -266,11 +266,11 @@ export default function DataSourcesPage() {
       {/* Sources List */}
       <div className="grid grid-cols-1 gap-6">
         {sources.map((source) => (
-          <div key={source.id} className="card">
+          <div key={source.id} className="bg-[#1a1a1a] border border-white/10 rounded-lg p-6">
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-xl font-semibold text-[var(--foreground)]">
+                  <h3 className="text-xl font-semibold text-white">
                     {source.name}
                   </h3>
                   
@@ -286,7 +286,7 @@ export default function DataSourcesPage() {
                   )}
                   
                   {source.itemsCount !== undefined && (
-                    <span className="text-sm text-[var(--foreground)] opacity-60">
+                    <span className="text-sm text-white/60">
                       • {source.itemsCount} товаров
                     </span>
                   )}
@@ -298,11 +298,11 @@ export default function DataSourcesPage() {
                   )}
                 </div>
                 
-                <p className="text-sm text-[var(--foreground)] opacity-60 mb-1">
+                <p className="text-sm text-white/60 mb-1">
                   {source.url}
                 </p>
                 {source.lastSync && (
-                  <p className="text-xs text-[var(--foreground)] opacity-50">
+                  <p className="text-xs text-white/50">
                     Последнее обновление: {new Date(source.lastSync).toLocaleString('ru-RU')}
                   </p>
                 )}
@@ -323,7 +323,7 @@ export default function DataSourcesPage() {
                 
                 <button
                   onClick={() => setEditingSource(source)}
-                  className="text-[var(--foreground)] opacity-70 hover:opacity-100 transition-opacity"
+                  className="text-white/70 hover:opacity-100 transition-opacity"
                   title="Настройки"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -361,7 +361,7 @@ export default function DataSourcesPage() {
                 
                 <button
                   onClick={() => source.isParsing ? handleStopParse(source.id) : handleParse(source.id)}
-                  className="bg-[var(--button)] text-white px-4 py-2 rounded-lg hover:bg-[var(--button)]/90 transition-colors flex items-center gap-2"
+                  className="bg-cyan-500 text-white px-4 py-2 rounded-lg hover:bg-cyan-500/90 transition-colors flex items-center gap-2"
                 >
                   {source.isParsing ? (
                     <>
@@ -386,10 +386,10 @@ export default function DataSourcesPage() {
             {source.isParsing && (
               <div className="mt-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-[var(--foreground)] opacity-70">Парсинг в процессе...</span>
+                  <span className="text-sm text-white/70">Парсинг в процессе...</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                  <div className="h-full bg-[var(--button)] rounded-full animate-pulse" style={{width: '100%'}}></div>
+                  <div className="h-full bg-cyan-500 rounded-full animate-pulse" style={{width: '100%'}}></div>
                 </div>
               </div>
             )}
@@ -400,59 +400,59 @@ export default function DataSourcesPage() {
       {/* Add Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl">
-            <h2 className="text-2xl font-bold text-[var(--foreground)] mb-4">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl">
+            <h2 className="text-2xl font-bold text-white mb-4">
               Добавить источник данных
             </h2>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   Название
                 </label>
                 <input
                   type="text"
                   value={newSource.name}
                   onChange={(e) => setNewSource({...newSource, name: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
+                  className="w-full px-3 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
                   placeholder="Основной каталог"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   URL
                 </label>
                 <input
                   type="text"
                   value={newSource.url}
                   onChange={(e) => setNewSource({...newSource, url: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
+                  className="w-full px-3 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
                   placeholder="https://vssite.kroky.ru"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   Логин (опционально)
                 </label>
                 <input
                   type="text"
                   value={newSource.username}
                   onChange={(e) => setNewSource({...newSource, username: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
+                  className="w-full px-3 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   Пароль (опционально)
                 </label>
                 <input
                   type="password"
                   value={newSource.password}
                   onChange={(e) => setNewSource({...newSource, password: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--button)]"
+                  className="w-full px-3 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
                 />
               </div>
 
@@ -462,22 +462,22 @@ export default function DataSourcesPage() {
                   id="autoSync"
                   checked={newSource.autoSync}
                   onChange={(e) => setNewSource({...newSource, autoSync: e.target.checked})}
-                  className="w-4 h-4 text-[var(--button)] focus:ring-[var(--button)]"
+                  className="w-4 h-4 text-cyan-500 focus:ring-cyan-500/50"
                 />
-                <label htmlFor="autoSync" className="text-sm text-[var(--foreground)]">
+                <label htmlFor="autoSync" className="text-sm text-white">
                   Включить автообновление
                 </label>
               </div>
 
               {newSource.autoSync && (
                 <div>
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                  <label className="block text-sm font-medium text-white mb-2">
                     Интервал обновления
                   </label>
                   <select
                     value={newSource.syncInterval}
                     onChange={(e) => setNewSource({...newSource, syncInterval: parseInt(e.target.value)})}
-                    className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--button)] text-[var(--foreground)]"
+                    className="w-full px-3 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500/50 text-white"
                   >
                     <option value="3600">1 раз в час</option>
                     <option value="21600">1 раз в 6 часов</option>
@@ -491,13 +491,13 @@ export default function DataSourcesPage() {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={handleAddSource}
-                className="flex-1 bg-[var(--button)] text-white px-4 py-2 rounded-lg hover:bg-[var(--button)]/90 transition-colors"
+                className="flex-1 bg-cyan-500 text-white px-4 py-2 rounded-lg hover:bg-cyan-500/90 transition-colors"
               >
                 Добавить
               </button>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="flex-1 border border-[var(--border)] px-4 py-2 rounded-lg hover:bg-[var(--background)] transition-colors"
+                className="flex-1 border border-white/10 px-4 py-2 rounded-lg hover:bg-[#0d0d0d] transition-colors"
               >
                 Отмена
               </button>
@@ -509,38 +509,38 @@ export default function DataSourcesPage() {
       {/* Settings Modal */}
       {editingSource && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold text-[var(--foreground)] mb-4">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold text-white mb-4">
               Настройки: {editingSource.name}
             </h2>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   Название
                 </label>
                 <input
                   type="text"
                   value={editingSource.name}
                   onChange={(e) => setEditingSource({...editingSource, name: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--button)] text-[var(--foreground)]"
+                  className="w-full px-3 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500/50 text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   URL
                 </label>
                 <input
                   type="text"
                   value={editingSource.url}
                   onChange={(e) => setEditingSource({...editingSource, url: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--button)] text-[var(--foreground)]"
+                  className="w-full px-3 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500/50 text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   Логин (опционально)
                 </label>
                 <input
@@ -550,12 +550,12 @@ export default function DataSourcesPage() {
                     ...editingSource, 
                     auth: { ...editingSource.auth, username: e.target.value }
                   })}
-                  className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--button)] text-[var(--foreground)]"
+                  className="w-full px-3 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500/50 text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   Пароль (опционально)
                 </label>
                 <input
@@ -565,7 +565,7 @@ export default function DataSourcesPage() {
                     ...editingSource,
                     auth: { ...editingSource.auth, password: e.target.value }
                   })}
-                  className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--button)] text-[var(--foreground)]"
+                  className="w-full px-3 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500/50 text-white"
                 />
               </div>
 
@@ -575,22 +575,22 @@ export default function DataSourcesPage() {
                   id="editAutoSync"
                   checked={editingSource.autoSync || false}
                   onChange={(e) => setEditingSource({...editingSource, autoSync: e.target.checked})}
-                  className="w-4 h-4 text-[var(--button)] focus:ring-[var(--button)]"
+                  className="w-4 h-4 text-cyan-500 focus:ring-cyan-500/50"
                 />
-                <label htmlFor="editAutoSync" className="text-sm text-[var(--foreground)]">
+                <label htmlFor="editAutoSync" className="text-sm text-white">
                   Включить автообновление
                 </label>
               </div>
 
               {editingSource.autoSync && (
                 <div>
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                  <label className="block text-sm font-medium text-white mb-2">
                     Интервал обновления
                   </label>
                   <select
                     value={editingSource.syncInterval || 3600}
                     onChange={(e) => setEditingSource({...editingSource, syncInterval: parseInt(e.target.value)})}
-                    className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--button)] text-[var(--foreground)]"
+                    className="w-full px-3 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500/50 text-white"
                   >
                     <option value="3600">1 раз в час</option>
                     <option value="21600">1 раз в 6 часов</option>
@@ -600,8 +600,8 @@ export default function DataSourcesPage() {
                 </div>
               )}
 
-              <div className="pt-4 border-t border-[var(--border)]">
-                <p className="text-sm text-[var(--foreground)] opacity-70">
+              <div className="pt-4 border-t border-white/10">
+                <p className="text-sm text-white/70">
                   При автообновлении товары, которые пропали из источника, будут автоматически скрыты из фида. Новые товары получат отметку "Новое".
                 </p>
               </div>
@@ -610,13 +610,13 @@ export default function DataSourcesPage() {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={handleUpdateSource}
-                className="flex-1 bg-[var(--button)] text-white px-4 py-2 rounded-lg hover:bg-[var(--button)]/90 transition-colors"
+                className="flex-1 bg-cyan-500 text-white px-4 py-2 rounded-lg hover:bg-cyan-500/90 transition-colors"
               >
                 Сохранить
               </button>
               <button
                 onClick={() => setEditingSource(null)}
-                className="flex-1 border border-[var(--border)] px-4 py-2 rounded-lg hover:bg-[var(--background)] transition-colors"
+                className="flex-1 border border-white/10 px-4 py-2 rounded-lg hover:bg-[#0d0d0d] transition-colors"
               >
                 Отмена
               </button>
