@@ -1255,7 +1255,7 @@ export default function MessagesPage() {
           {/* Контейнер чата */}
           <div className="flex-1 flex flex-col overflow-hidden relative">
           {/* Chat header */}
-          <div className="h-12 backdrop-blur-xl bg-[var(--bg-secondary)]/60 border-b border-white/10 flex items-center px-3 gap-2 flex-shrink-0">
+          <div className="fixed md:sticky top-0 left-0 right-0 md:left-auto md:right-auto z-30 md:z-20 h-12 backdrop-blur-xl bg-[var(--bg-secondary)]/95 border-b border-white/10 flex items-center px-3 gap-2 flex-shrink-0">
             {isSelectionMode ? (
               <>
                 <button
@@ -1503,7 +1503,7 @@ export default function MessagesPage() {
           )}
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 pb-24 md:pb-40">
+          <div className="flex-1 overflow-y-auto p-4 pt-16 md:pt-4 pb-20 md:pb-40">
             <div className="max-w-3xl mx-auto space-y-3 min-h-full flex flex-col">
               {messages.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-[var(--text-muted)]">
@@ -1943,7 +1943,7 @@ export default function MessagesPage() {
 
           {/* Message input */}
           <div 
-            className={`absolute bottom-0 md:bottom-[56px] left-0 right-0 px-3 py-2 transition-all duration-300 ${
+            className={`fixed md:absolute bottom-0 left-0 right-0 md:bottom-[56px] px-1 md:px-3 py-1 pb-[env(safe-area-inset-bottom,0px)] md:py-2 z-30 md:z-auto bg-[var(--bg-primary)] md:bg-transparent transition-all duration-300 ${
               isDragging ? 'scale-[1.02]' : ''
             }`}
             onDragOver={(e) => {
@@ -2039,7 +2039,7 @@ export default function MessagesPage() {
                 </button>
               </div>
             ) : (
-            <div className="flex gap-2 items-end max-w-3xl mx-auto relative">
+            <div className="flex gap-1.5 md:gap-2 items-end max-w-3xl mx-auto relative">
               {/* Emoji button - только на десктопе */}
               {!selectedChat?.isNotificationsChat && (
               <div className="relative">
