@@ -250,3 +250,34 @@ Key packages: `next`, `react`, `react-dom`, `chart.js`, `lucide-react`
 - UTM parameters come from templates, not hardcoded
 - Logs stored in DB, not separate files
 - CLI is PowerShell-based (Windows environment)
+
+## 📋 TODO System (Tasks)
+
+### User Model Extensions
+Users can be linked to task profiles via:
+- `todoPersonId` - ID профиля в системе задач (привязка к Person)
+- `canSeeAllTasks` - может видеть все задачи (если false - только свои)
+
+### Task Statuses
+Задачи поддерживают следующие статусы:
+- `todo` - К выполнению
+- `pending` - В ожидании  
+- `in-progress` - В работе
+- `review` - Готово к проверке
+- `cancelled` - Отменена
+- `stuck` - Застряла
+
+### Access Control
+- Админы (`role: 'admin'`) видят все задачи
+- Пользователи с `canSeeAllTasks: true` видят все задачи
+- Обычные пользователи видят только задачи где они исполнитель или заказчик
+- Привязка аккаунта к профилю настраивается в админке (Admin → Users → Edit)
+
+### Files involved:
+- `frontend/src/app/todos/page.tsx` - UI задач
+- `frontend/src/app/api/todos/route.ts` - API задач
+- `frontend/src/app/api/todos/people/route.ts` - API профилей
+- `frontend/src/app/api/auth/me/route.ts` - получение настроек пользователя
+- `frontend/src/app/admin/page.tsx` - управление пользователями
+
+/var/www/feed-editor/frontend - папка фронтенда на сервере

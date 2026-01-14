@@ -1,0 +1,52 @@
+{
+  "notifications": [
+    {
+      "id": "notif-1768401210010-fdiurn4n2",
+      "type": "event_invite",
+      "eventId": "event_1768401210005_mrl40ihjt",
+      "eventTitle": "Тестовое событие",
+      "fromUserId": "user_1768226637877.3e99840b",
+      "fromUserName": "Иван Петров",
+      "toUserId": "user_1768211260672.pd42l49yv",
+      "message": "Вас пригласили на событие \"Тестовое событие\"",
+      "read": false,
+      "createdAt": "2026-01-14T14:33:30.010Z"
+    },
+    {
+      "id": "notif-1768390240370",
+      "type": "new_task",
+      "todoId": "20260114_113040_uhfu5p",
+      "todoTitle": "рннн",
+      "fromUserId": "user_1768226637877.3e99840b",
+      "fromUserName": "Иван Петров",
+      "toUserId": "user_1768211670938.cjlk65kuz",
+      "message": "Иван Петров создал задачу для вас",
+      "read": false,
+      "createdAt": "2026-01-14T11:30:40.370Z"
+    },
+    {
+      "id": "notif-1768231529113",
+      "type": "assignment",
+      "todoId": "20260112_152516_r5ugom",
+      "todoTitle": "бббббб",
+      "fromUserId": "user_1768226637877.3e99840b",
+      "fromUserName": "Иван Петров",
+      "toUserId": "user_1768211260672.pd42l49yv",
+      "message": "Иван Петров назначил вас исполнителем",
+      "read": false,
+      "createdAt": "2026-01-12T15:25:29.113Z"
+    },
+    {
+      "id": "notif-1768231308254",
+      "type": "assignment",
+      "todoId": "20260112_152124_j5d2h1",
+      "todoTitle": "Тест",
+      "fromUserId": "user_1768226637877.3e99840b",
+      "fromUserName": "Иван Петров",
+      "toUserId": "user_1768211260672.pd42l49yv",
+      "message": "Иван Петров назначил вас исполнителем",
+      "read": false,
+      "createdAt": "2026-01-12T15:21:48.254Z"
+    }
+  ]
+}

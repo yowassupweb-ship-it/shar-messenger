@@ -36,7 +36,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { username, name, email, password, role = 'user', enabledTools = [] } = body
+    const { 
+      username, 
+      name, 
+      email, 
+      password, 
+      role = 'user', 
+      todoRole = 'executor',
+      position = '',
+      department = '',
+      enabledTools = [] 
+    } = body
     
     if (!password) {
       return NextResponse.json({ error: 'Пароль обязателен' }, { status: 400 })
@@ -65,6 +75,9 @@ export async function POST(request: NextRequest) {
       email: email || '',
       password: password, // В реальном приложении нужно хешировать!
       role,
+      todoRole,
+      position,
+      department,
       enabledTools,
       createdAt: new Date().toISOString()
     }

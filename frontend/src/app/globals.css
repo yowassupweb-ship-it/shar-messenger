@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+/* Apple Emoji Font Priority */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI", "Segoe UI Symbol", "Noto Color Emoji", sans-serif;
+}
+
+/* Emoji-specific font */
+.emoji-content {
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+}
+
+/* Utility class to hide scrollbar */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
+
 /* CSS Variables for Themes */
 :root {
   /* Dark Theme (default) */
@@ -34,7 +53,7 @@
 [data-theme="light"] {
   --bg-primary: #f5f5f7;
   --bg-secondary: #ffffff;
-  --bg-tertiary: #fafafa;
+  --bg-tertiary: #e8e8ed;
   --bg-glass: rgba(255, 255, 255, 0.7);
   --bg-glass-hover: rgba(255, 255, 255, 0.8);
   --bg-glass-active: rgba(255, 255, 255, 0.9);
@@ -75,7 +94,7 @@
     transition: background-color 0.3s ease, color 0.3s ease;
   }
 
-  /* Убираем синий outline по умолчанию */
+  /* Remove default blue outline */
   *:focus {
     outline: none;
   }
@@ -84,20 +103,20 @@
     outline: none;
   }
 
-  /* Убираем белую рамку у кнопок */
+  /* Remove white border from buttons */
   button:focus,
   button:focus-visible {
     outline: none !important;
     box-shadow: none !important;
   }
 
-  /* Отключаем preflight подчёркивание ссылок */
+  /* Disable preflight link underline */
   a {
     color: inherit;
     text-decoration: inherit;
   }
 
-  /* Кнопки */
+  /* Buttons */
   button {
     background: transparent;
     border: none;
@@ -106,7 +125,7 @@
     color: inherit;
   }
 
-  /* Инпуты */
+  /* Inputs */
   input, textarea, select {
     font: inherit;
     color: inherit;
@@ -505,6 +524,15 @@ input[type="date"] {
   background-color: var(--bg-secondary);
 }
 
+/* Light theme input focus - reduce shadow */
+[data-theme="light"] .input:focus,
+[data-theme="light"] input:focus,
+[data-theme="light"] textarea:focus,
+[data-theme="light"] select:focus {
+  box-shadow: none;
+  border-color: var(--accent-primary);
+}
+
 input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(1);
   opacity: 1;
@@ -523,7 +551,7 @@ input[type="date"]::-webkit-datetime-edit {
   color: var(--text-primary);
 }
 
-/* Плавные анимации для drag and drop */
+/* Smooth animations for drag and drop */
 .drag-transition {
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
@@ -532,7 +560,7 @@ input[type="date"]::-webkit-datetime-edit {
    GLASSMORPHISM UTILITIES - Apple Style
    ============================================ */
 
-/* Glass Card - основа для всех карточек */
+/* Glass Card - base for all cards */
 .glass-card {
   background: var(--bg-glass);
   backdrop-filter: blur(var(--blur-glass));
@@ -548,7 +576,7 @@ input[type="date"]::-webkit-datetime-edit {
   box-shadow: var(--shadow-card);
 }
 
-/* Glass Panel - панели и сайдбары */
+/* Glass Panel - panels and sidebars */
 .glass-panel {
   background: var(--bg-glass);
   backdrop-filter: blur(var(--blur-glass));
@@ -670,4 +698,254 @@ input[type="date"]::-webkit-datetime-edit {
 }
 
 [data-theme="light"] ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.25);}
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Mobile size increase - 20% larger on mobile */
+@media (max-width: 768px) {
+  /* Base font size increase */
+  html {
+    font-size: 120% !important;
+  }
+  
+  body {
+    font-size: 1rem !important;
+  }
+  
+  /* Increase buttons and inputs - exclude icon buttons with fixed sizes */
+  button:not(.no-mobile-scale):not(.rounded-full):not([class*="rounded-full"]) {
+    min-height: 48px !important;
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+    font-size: 0.9rem !important;
+  }
+  
+  /* Allow rounded-full buttons to have proper height from Tailwind classes */
+  button.rounded-full,
+  button[class*="rounded-full"] {
+    /* Don't override - let Tailwind handle sizing */
+  }
+  
+  input:not([type="checkbox"]):not([type="radio"]):not(.no-mobile-scale), 
+  textarea:not(.no-mobile-scale), 
+  select:not(.no-mobile-scale) {
+    min-height: 48px !important;
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+    font-size: 1rem !important;
+  }
+  
+  /* Increase text sizes */
+  h1, h2, h3, h4, h5, h6 {
+    font-size: 120% !important;
+  }
+  
+  p, span, div, label, a {
+    font-size: inherit;
+  }
+  
+  /* Small text increase */
+  .text-xs {
+    font-size: 0.85rem !important;
+  }
+  
+  .text-sm {
+    font-size: 0.95rem !important;
+  }
+  
+  .text-\[10px\], .text-\[9px\], .text-\[8px\] {
+    font-size: 0.75rem !important;
+  }
+  
+  .text-\[11px\] {
+    font-size: 0.8rem !important;
+  }
+  
+  /* Increase icon sizes for mobile */
+  svg.w-3 {
+    width: 1rem !important;
+    height: 1rem !important;
+  }
+  
+  svg.w-4 {
+    width: 1.3rem !important;
+    height: 1.3rem !important;
+  }
+  
+  svg.w-5 {
+    width: 1.5rem !important;
+    height: 1.5rem !important;
+  }
+  
+  svg.w-6 {
+    width: 1.75rem !important;
+    height: 1.75rem !important;
+  }
+  
+  svg.w-7, svg.w-8 {
+    width: 2.25rem !important;
+    height: 2.25rem !important;
+  }
+  
+  svg.w-10 {
+    width: 2.75rem !important;
+    height: 2.75rem !important;
+  }
+  
+  /* Cards and task items */
+  .rounded-lg, .rounded-xl {
+    padding: 0.75rem !important;
+  }
+  
+  /* Better touch targets */
+  .gap-1 { gap: 0.35rem !important; }
+  .gap-1\.5 { gap: 0.5rem !important; }
+  .gap-2 { gap: 0.6rem !important; }
+  
+  /* Padding adjustments */
+  .p-2 { padding: 0.65rem !important; }
+  .p-2\.5 { padding: 0.75rem !important; }
+  .p-3 { padding: 0.9rem !important; }
+  .px-2 { padding-left: 0.65rem !important; padding-right: 0.65rem !important; }
+  .px-3 { padding-left: 0.9rem !important; padding-right: 0.9rem !important; }
+  .py-1 { padding-top: 0.35rem !important; padding-bottom: 0.35rem !important; }
+  .py-1\.5 { padding-top: 0.5rem !important; padding-bottom: 0.5rem !important; }
+  .py-2 { padding-top: 0.65rem !important; padding-bottom: 0.65rem !important; }
+}
+
+/* Mobile-specific todo styles */
+@media (max-width: 768px) {
+  /* Task cards - larger touch targets */
+  [class*="todo-card"],
+  [draggable="true"] {
+    min-height: 60px !important;
+  }
+  
+  /* Column width on mobile */
+  .md\:w-80 {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  
+  /* Header height increase */
+  .h-12 {
+    height: 3.5rem !important;
+  }
+  
+  /* Modal improvements - scrollable content */
+  .fixed.inset-0 > div {
+    max-height: 95vh !important;
+    margin: 0.5rem !important;
+    overflow-y: auto !important;
+  }
+  
+  /* Убираем горизонтальный скролл в задачах на мобильных */
+  .overflow-x-auto {
+    overflow-x: hidden !important;
+  }
+}
+
+/* Hide scrollbar utility class */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Uniform border radius for all inputs */
+input, textarea, select {
+  border-radius: 35px !important;
+}
+
+/* Icon button with round background */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bg-glass);
+  padding: 0.5rem;
+  transition: background 0.2s ease;
+}
+
+.icon-btn:hover {
+  background: var(--bg-glass-hover);
+}
+
+/* Checkbox and radio - don't stretch */
+input[type="checkbox"],
+input[type="radio"] {
+  flex-shrink: 0 !important;
+  width: 1rem !important;
+  height: 1rem !important;
+}
+
+/* Disable mobile scale for specific elements */
+.no-mobile-scale {
+  transform: none !important;
+}
+
+/* Message animations */
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.message-animation-left {
+  animation: slideInFromLeft 0.3s ease-out;
+}
+
+.message-animation-right {
+  animation: slideInFromRight 0.3s ease-out;
+}
+
+/* Selection mode styles */
+.message-selected {
+  background: rgba(6, 182, 212, 0.1);
+  border-left: 3px solid #06b6d4;
+  padding-left: 1rem;
+  margin-left: -1rem;
+}
+
+/* Scrollbar styles for horizontal scroll */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(6, 182, 212, 0.3) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(6, 182, 212, 0.3);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(6, 182, 212, 0.5);
+}

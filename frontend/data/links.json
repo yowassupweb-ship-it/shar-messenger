@@ -1,0 +1,32 @@
+{
+  "links": [
+    {
+      "id": "20260114_122650_i1dqxg",
+      "url": "https://vs-travel.ru/",
+      "title": "Турфирма Вокруг света - экскурсионные туры по России. Официальный сайт",
+      "description": "Поиск, подбор, бронирование туров по всем направлениям России. Экскурсии на 1 день, автобусные и ж/д туры.",
+      "favicon": "https://www.google.com/s2/favicons?domain=vs-travel.ru&sz=64",
+      "image": "https://vs-travel.ru/assets/i/logo.svg",
+      "siteName": "vs-travel.ru",
+      "listId": "work",
+      "tags": [],
+      "isBookmarked": false,
+      "isPinned": false,
+      "clickCount": 0,
+      "createdAt": "2026-01-14T12:26:50.738Z",
+      "updatedAt": "2026-01-14T12:26:50.738Z",
+      "order": 0
+    }
+  ],
+  "lists": [
+    {
+      "id": "work",
+      "name": "Работа",
+      "color": "#3b82f6",
+      "icon": "",
+      "order": 0,
+      "createdAt": "2025-12-29T13:57:04.220Z"
+    }
+  ],
+  "categories": []
+}

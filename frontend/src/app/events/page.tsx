@@ -148,6 +148,7 @@ export default function EventsPage() {
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string | null>(null);
   const [showTodoTasks, setShowTodoTasks] = useState(true); // Показывать задачи из списка дел
   const [viewMode, setViewMode] = useState<'calendar' | 'timeline'>('calendar');
+  const [sidebarTab, setSidebarTab] = useState<'upcoming' | 'timeline'>('upcoming'); // Вкладки в боковой панели
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [users, setUsers] = useState<Person[]>([]);
   const [myAccountId, setMyAccountId] = useState<string | null>(null);
@@ -425,6 +426,14 @@ export default function EventsPage() {
   // Фильтрация событий по поиску и участникам
   const filterEvents = (eventList: Event[]) => {
     return eventList.filter(e => {
+      // Фильтр по правам доступа - пользователь видит только свои задачи
+      if (myAccountId && currentUser && !currentUser.canSeeAllTasks) {
+        const isParticipant = e.participants?.includes(myAccountId) ||
+                            e.assignedById === myAccountId ||
+                            e.assignedToIds?.includes(myAccountId) ||
+                            e.createdBy === myAccountId;
+        if (!isParticipant) return false;
+      }
       // Фильтр по поиску
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -753,6 +762,8 @@ export default function EventsPage() {
         return e.startDate >= today;
       })).sort((a, b) => a.startDate.localeCompare(b.startDate)).slice(0, 10);
 
+  const today = new Date().toISOString().split('T')[0];
+
   // Все события для полного таймлайна (сгруппированные по дате)
   const allTimelineEvents = filterEvents(events
     .filter(e => filterTodoTasks(e))
@@ -782,27 +793,25 @@ export default function EventsPage() {
     return acc;
   }, {} as Record<string, Event[]>);
 
-  const today = new Date().toISOString().split('T')[0];
-
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-2 border-white/30 border-t-transparent rounded-full"></div>
+      <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full"></div>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col text-white">
-      {/* Tabs */}
-      <div className="bg-[#1a1a1a] border-b border-white/5 px-2 sm:px-4 pt-2">
-        <div className="flex gap-1">
+    <div className="h-full flex flex-col text-white bg-[var(--bg-primary)]">
+      {/* Header with backdrop blur */}
+      <div className="backdrop-blur-xl bg-[var(--bg-secondary)]/60 border-b border-white/10 px-4 pt-3 pb-2 sticky top-0 z-10">
+        <div className="flex gap-2">
           <button
             onClick={() => setViewMode('calendar')}
-            className={`px-2 sm:px-4 py-2 rounded-t-lg text-xs sm:text-sm font-medium transition-all ${
+            className={`px-3 sm:px-4 py-2 rounded-t-xl text-xs sm:text-sm font-medium transition-all ${
               viewMode === 'calendar' 
-                ? 'bg-[#0d0d0d] text-white border-t border-l border-r border-white/10' 
-                : 'text-white/50 hover:text-white/70 hover:bg-white/5'
+                ? 'bg-[var(--bg-primary)] text-cyan-400 border-t border-l border-r border-cyan-500/30' 
+                : 'text-white/50 hover:text-white/80 hover:bg-white/5'
             }`}
           >
             <div className="flex items-center gap-1.5 sm:gap-2">
@@ -812,10 +821,10 @@ export default function EventsPage() {
           </button>
           <button
             onClick={() => setViewMode('timeline')}
-            className={`px-2 sm:px-4 py-2 rounded-t-lg text-xs sm:text-sm font-medium transition-all ${
+            className={`px-3 sm:px-4 py-2 rounded-t-xl text-xs sm:text-sm font-medium transition-all ${
               viewMode === 'timeline' 
-                ? 'bg-[#0d0d0d] text-white border-t border-l border-r border-white/10' 
-                : 'text-white/50 hover:text-white/70 hover:bg-white/5'
+                ? 'bg-[var(--bg-primary)] text-cyan-400 border-t border-l border-r border-cyan-500/30' 
+                : 'text-white/50 hover:text-white/80 hover:bg-white/5'
             }`}
           >
             <div className="flex items-center gap-1.5 sm:gap-2">
@@ -827,39 +836,29 @@ export default function EventsPage() {
       </div>
 
       {/* Header */}
-      <header className="h-12 bg-[#0d0d0d] border-b border-white/5 flex items-center px-2 sm:px-4 flex-shrink-0">
+      <header className="backdrop-blur-xl bg-[var(--bg-secondary)]/60 border-b border-white/10 flex items-center px-3 sm:px-4 py-3 flex-shrink-0">
         <Link
           href="/"
-          className="flex items-center justify-center w-8 h-8 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 transition-all mr-2 sm:mr-3"
+          className="flex items-center justify-center w-9 h-9 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-all mr-3"
           title="На главную"
         >
           <ArrowLeft className="w-4 h-4" strokeWidth={2} />
         </Link>
         
-        <div className="flex items-center gap-1.5 sm:gap-2 mr-2 sm:mr-4">
-          <CalendarDays className="w-4 h-4 text-white/60" />
-          <span className="font-medium text-sm hidden sm:inline">События</span>
-        </div>
-
-        {/* My Account - read-only display */}
-        <div className="mr-2 sm:mr-4 hidden md:block">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
-            <User className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="text-xs font-medium text-cyan-400">
-              {currentUser?.name || 'Загрузка...'}
-            </span>
-          </div>
+        <div className="flex items-center gap-2 mr-4">
+          <CalendarDays className="w-5 h-5 text-cyan-400" />
+          <span className="font-semibold text-base">Календарь событий</span>
         </div>
 
         {/* Search */}
         <div className="relative mr-2 sm:mr-3 flex-1 sm:flex-initial">
-          <Search className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 sm:w-4 h-3.5 sm:h-4 text-white/30" />
+          <Search className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 sm:w-4 h-3.5 sm:h-4 text-white/40" />
           <input
             type="text"
             placeholder="Поиск..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-7 sm:pl-9 pr-3 py-1.5 bg-white/5 border border-white/10 rounded-lg w-full sm:w-48 text-xs sm:text-sm focus:outline-none focus:border-white/20 transition-colors"
+            className="pl-7 sm:pl-9 pr-3 py-2 backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl w-full sm:w-48 text-xs sm:text-sm focus:outline-none focus:border-cyan-500/50 focus:bg-white/10 transition-all"
           />
         </div>
 
@@ -867,24 +866,24 @@ export default function EventsPage() {
         <div className="relative mr-2 sm:mr-3 hidden sm:block" ref={participantFilterRef}>
           <button
             onClick={() => setShowParticipantFilter(!showParticipantFilter)}
-            className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 sm:gap-2 border ${
+            className={`px-2 sm:px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 sm:gap-2 border ${
               participantFilter !== 'all'
-                ? 'bg-purple-500/20 text-purple-400 border-purple-500/50'
-                : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10'
+                ? 'backdrop-blur-xl bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
+                : 'backdrop-blur-xl bg-white/5 text-white/60 border-white/10 hover:bg-white/10'
             }`}
           >
             <Filter className="w-3.5 h-3.5" />
             {participantFilter === 'all' 
               ? 'Участник' 
               : users.find(u => u.id === participantFilter)?.name || 'Участник'}
-            <ChevronDown className={`w-3 h-3 transition-transform ${showParticipantFilter ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-3 h-3 transition-transform ${ showParticipantFilter ? 'rotate-180' : ''}`} />
           </button>
           
           {showParticipantFilter && (
-            <div className="absolute left-0 top-full mt-1 w-56 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl z-50 py-1 max-h-64 overflow-y-auto">
+            <div className="absolute left-0 top-full mt-1 w-56 backdrop-blur-xl bg-[var(--bg-tertiary)]/80 border border-white/10 rounded-xl shadow-xl z-50 py-1 max-h-64 overflow-y-auto">
               <button
                 onClick={() => { setParticipantFilter('all'); setShowParticipantFilter(false); }}
-                className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-white/5 transition-colors ${
+                className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-white/10 transition-colors rounded-lg mx-1 ${
                   participantFilter === 'all' ? 'text-white bg-white/5' : 'text-white/60'
                 }`}
               >
@@ -895,8 +894,8 @@ export default function EventsPage() {
                 <button
                   key={user.id}
                   onClick={() => { setParticipantFilter(user.id); setShowParticipantFilter(false); }}
-                  className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-white/5 transition-colors ${
-                    participantFilter === user.id ? 'text-purple-400 bg-purple-500/10' : 'text-white/60'
+                  className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-white/10 transition-colors rounded-lg mx-1 ${
+                    participantFilter === user.id ? 'text-cyan-400 bg-cyan-500/10' : 'text-white/60'
                   }`}
                 >
                   <div 
@@ -924,7 +923,7 @@ export default function EventsPage() {
             <button
               onClick={() => setShowInbox(!showInbox)}
               title="Почтовый ящик"
-              className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs transition-colors flex items-center border border-white/10 relative"
+              className="p-2 backdrop-blur-xl bg-white/5 hover:bg-white/10 rounded-xl text-xs transition-all flex items-center border border-white/10 relative"
             >
               {unreadCount > 0 ? <BellRing className="w-4 h-4 text-orange-400" /> : <Bell className="w-4 h-4" />}
               {unreadCount > 0 && (
@@ -936,16 +935,16 @@ export default function EventsPage() {
 
             {/* Inbox Dropdown */}
             {showInbox && (
-              <div className="absolute right-0 top-full mt-1 w-80 sm:w-96 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl z-50 max-h-[400px] sm:max-h-[450px] flex flex-col">
-                <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
+              <div className="absolute right-0 top-full mt-1 w-80 sm:w-96 backdrop-blur-xl bg-[var(--bg-tertiary)]/80 border border-white/10 rounded-xl shadow-2xl z-50 max-h-[400px] sm:max-h-[450px] flex flex-col">
+                <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/10">
                   <div className="flex items-center gap-2">
-                    <Bell className="w-4 h-4 text-blue-400" />
+                    <Bell className="w-4 h-4 text-cyan-400" />
                     <span className="text-sm font-medium">Уведомления</span>
                   </div>
                   {inboxTab === 'new' && unreadCount > 0 && (
                     <button
                       onClick={markAllNotificationsRead}
-                      className="text-[10px] text-blue-400 hover:text-blue-300"
+                      className="text-[10px] text-cyan-400 hover:text-cyan-300 transition-colors"
                     >
                       Прочитать все
                     </button>
@@ -956,20 +955,20 @@ export default function EventsPage() {
                 <div className="flex border-b border-white/10">
                   <button
                     onClick={() => setInboxTab('new')}
-                    className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                    className={`flex-1 px-3 py-2 text-xs font-medium transition-all ${
                       inboxTab === 'new' 
-                        ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5' 
-                        : 'text-white/50 hover:text-white/70'
+                        ? 'text-cyan-400 border-b-2 border-cyan-400 bg-cyan-500/5' 
+                        : 'text-white/50 hover:text-white/70 hover:bg-white/5'
                     }`}
                   >
                     Новые {unreadCount > 0 && <span className="ml-1 px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded-full text-[10px]">{unreadCount}</span>}
                   </button>
                   <button
                     onClick={() => setInboxTab('history')}
-                    className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                    className={`flex-1 px-3 py-2 text-xs font-medium transition-all ${
                       inboxTab === 'history' 
-                        ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5' 
-                        : 'text-white/50 hover:text-white/70'
+                        ? 'text-cyan-400 border-b-2 border-cyan-400 bg-cyan-500/5' 
+                        : 'text-white/50 hover:text-white/70 hover:bg-white/5'
                     }`}
                   >
                     История
@@ -1053,7 +1052,7 @@ export default function EventsPage() {
 
           <button
             onClick={() => openAddEvent()}
-            className="px-3 py-1.5 bg-white/10 hover:bg-white/15 border border-white/10 text-white rounded-lg flex items-center gap-1.5 transition-all text-xs outline-none"
+            className="px-3 py-2 backdrop-blur-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 text-cyan-400 hover:text-cyan-300 rounded-xl flex items-center gap-1.5 transition-all text-xs outline-none font-medium"
           >
             <Plus className="w-3.5 h-3.5" />
             Добавить
@@ -1063,15 +1062,15 @@ export default function EventsPage() {
           <div className="relative" ref={settingsRef}>
             <button
               onClick={() => setShowSettings(!showSettings)}
-              className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs transition-colors flex items-center border border-white/10"
+              className="p-2 backdrop-blur-xl bg-white/5 hover:bg-white/10 rounded-xl text-xs transition-all flex items-center border border-white/10"
               title="Инструменты"
             >
               <Settings className="w-4 h-4" />
             </button>
             
             {showSettings && (
-              <div className="absolute right-0 top-full mt-1 w-56 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl z-50 py-1">
-                <label className="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer text-white/70 hover:bg-white/5 transition-colors">
+              <div className="absolute right-0 top-full mt-1 w-56 backdrop-blur-xl bg-[var(--bg-tertiary)]/80 border border-white/10 rounded-xl shadow-2xl z-50 py-1">
+                <label className="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-lg mx-1">
                   <input
                     type="checkbox"
                     checked={showTodoTasks}
@@ -1082,7 +1081,7 @@ export default function EventsPage() {
                 </label>
                 <button
                   onClick={() => { setShowAddType(true); setShowSettings(false); }}
-                  className="w-full px-3 py-2 text-xs text-left flex items-center gap-2 text-white/70 hover:bg-white/5 transition-colors"
+                  className="w-full px-3 py-2 text-xs text-left flex items-center gap-2 text-white/70 hover:text-white hover:bg-white/10 transition-all rounded-lg mx-1"
                 >
                   <Tag className="w-3.5 h-3.5" />
                   Типы событий
@@ -1091,7 +1090,7 @@ export default function EventsPage() {
                 <div className="border-t border-white/10 my-1" />
                 <button
                   onClick={() => { router.push('/'); setShowSettings(false); }}
-                  className="w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-white/5 transition-colors text-white/60 hover:text-white"
+                  className="w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-white/10 hover:text-white transition-all text-white/60 rounded-lg mx-1"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   На главную
@@ -1137,12 +1136,12 @@ export default function EventsPage() {
         <div className="flex flex-col lg:flex-row gap-3 sm:gap-6 relative">
           {/* Календарь */}
           <div className={`transition-all duration-300 w-full ${isSidebarCollapsed ? 'lg:flex-1 lg:max-w-4xl lg:mx-auto' : 'lg:flex-1'}`}>
-            <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-2 sm:p-4">
+            <div className="backdrop-blur-xl bg-[var(--bg-secondary)]/60 border border-white/10 rounded-xl p-2 sm:p-4">
               {/* Навигация */}
               <div className="flex items-center justify-between mb-3 sm:mb-4">
                 <button
                   onClick={goToPreviousMonth}
-                  className="p-1.5 sm:p-2 bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 rounded-lg transition-all outline-none"
+                  className="p-1.5 sm:p-2 backdrop-blur-xl bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all outline-none"
                 >
                   <ChevronLeft className="w-4 sm:w-5 h-4 sm:h-5" />
                 </button>
@@ -1152,14 +1151,14 @@ export default function EventsPage() {
                   </h2>
                   <button
                     onClick={goToToday}
-                    className="px-2 sm:px-3 py-1 text-xs bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all outline-none"
+                    className="px-2 sm:px-3 py-1 text-xs backdrop-blur-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-full transition-all outline-none"
                   >
                     Сегодня
                   </button>
                 </div>
                 <button
                   onClick={goToNextMonth}
-                  className="p-1.5 sm:p-2 bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 rounded-lg transition-all outline-none"
+                  className="p-1.5 sm:p-2 backdrop-blur-xl bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all outline-none"
                 >
                   <ChevronRight className="w-4 sm:w-5 h-4 sm:h-5" />
                 </button>
@@ -1211,25 +1210,25 @@ export default function EventsPage() {
                       key={index}
                       onClick={() => setSelectedDate(dateStr)}
                       className={`
-                        group min-h-[60px] sm:min-h-[80px] lg:min-h-[90px] p-1 sm:p-1.5 rounded-lg sm:rounded-xl cursor-pointer transition-all border relative outline-none
+                        group min-h-[60px] sm:min-h-[80px] lg:min-h-[90px] p-1 sm:p-1.5 rounded-xl cursor-pointer transition-all border relative outline-none
                         ${isCurrentMonth 
-                          ? isWeekend ? 'bg-[#0d0d0d]/50' : 'bg-[#0d0d0d]' 
-                          : 'bg-[#1a1a1a] opacity-40'
+                          ? isWeekend ? 'backdrop-blur-xl bg-[var(--bg-tertiary)]/40' : 'backdrop-blur-xl bg-[var(--bg-tertiary)]/60' 
+                          : 'backdrop-blur-xl bg-[var(--bg-tertiary)]/20 opacity-40'
                         }
-                        ${isToday ? 'border-purple-500/50 bg-purple-500/5' : 'border-transparent'}
-                        ${isSelected ? 'ring-2 ring-purple-500/50 ring-offset-1 ring-offset-[#1a1a1a]' : ''}
+                        ${isToday ? 'border-cyan-500/50 bg-cyan-500/10' : 'border-white/5'}
+                        ${isSelected ? 'ring-2 ring-cyan-500/50 ring-offset-1 ring-offset-transparent' : ''}
                         hover:bg-white/5 hover:border-white/10
                       `}
                     >
                       <div className={`text-[10px] sm:text-xs font-medium mb-1 flex items-center justify-between ${
-                        isToday ? 'text-purple-400' : isWeekend && isCurrentMonth ? 'text-white/40' : ''
+                        isToday ? 'text-cyan-400' : isWeekend && isCurrentMonth ? 'text-white/40' : ''
                       }`}>
-                        <span className={isToday ? 'bg-purple-500 text-white w-4 sm:w-5 h-4 sm:h-5 rounded-full flex items-center justify-center text-[9px] sm:text-[10px]' : ''}>
+                        <span className={isToday ? 'bg-cyan-500 text-white w-4 sm:w-5 h-4 sm:h-5 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-bold' : ''}>
                           {date.getDate()}
                         </span>
                         <div className="flex items-center gap-0.5 sm:gap-1">
                           {dayEvents.length > 0 && !isToday && (
-                            <span className="w-1 sm:w-1.5 h-1 sm:h-1.5 rounded-full bg-purple-400/60"></span>
+                            <span className="w-1 sm:w-1.5 h-1 sm:h-1.5 rounded-full bg-cyan-400/60"></span>
                           )}
                           <button
                             onClick={(e) => { e.stopPropagation(); openAddEvent(dateStr); }}
@@ -1240,62 +1239,105 @@ export default function EventsPage() {
                           </button>
                         </div>
                       </div>
+                      {/* События - разные представления для мобильных и десктопа */}
                       <div className="space-y-0.5">
-                        {/* Дедлайны ТЗ - первые */}
-                        {deadlineEvents.map(event => {
-                          const eventType = eventTypes.find(t => t.id === event.type);
-                          return (
-                            <div
-                              key={`deadline-${event.id}`}
-                              className="text-[9px] sm:text-[10px] px-0.5 sm:px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80 relative z-10"
-                              style={{ 
-                                backgroundColor: eventType?.color || '#6366f1',
-                                color: '#fff'
-                              }}
-                              title={`Дедлайн: ${event.title}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openEditEvent(event);
-                              }}
-                            >
-                              ⏰ {event.title}
+                        {/* Мобильная версия - цветные точки */}
+                        <div className="flex flex-wrap gap-0.5 sm:hidden">
+                          {deadlineEvents.slice(0, 3).map(event => {
+                            const eventType = eventTypes.find(t => t.id === event.type);
+                            return (
+                              <div
+                                key={`deadline-mobile-${event.id}`}
+                                className="w-2 h-2 rounded-full cursor-pointer ring-1 ring-white/30"
+                                style={{ backgroundColor: eventType?.color || '#6366f1' }}
+                                title={`⏰ ${event.title}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditEvent(event);
+                                }}
+                              />
+                            );
+                          })}
+                          {regularEvents.slice(0, 3).map(event => {
+                            const eventType = eventTypes.find(t => t.id === event.type);
+                            return (
+                              <div
+                                key={`mobile-${event.id}`}
+                                className="w-2 h-2 rounded-full cursor-pointer"
+                                style={{ backgroundColor: eventType?.color || '#6366f1' }}
+                                title={event.title}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditEvent(event);
+                                }}
+                              />
+                            );
+                          })}
+                          {(deadlineEvents.length + regularEvents.length) > 6 && (
+                            <div className="w-2 h-2 rounded-full bg-white/30 flex items-center justify-center text-[6px]">
+                              +
                             </div>
-                          );
-                        })}
-                        {/* Обычные события (не ТЗ) - в середине */}
-                        {regularEvents.filter(e => e.type !== 'task').slice(0, 2).map(event => {
-                          const eventType = eventTypes.find(t => t.id === event.type);
-                          return (
-                            <div
-                              key={event.id}
-                              className="text-[9px] sm:text-[10px] px-0.5 sm:px-1 py-0.5 rounded truncate relative z-10"
-                              style={{ 
-                                backgroundColor: eventType?.color || '#6366f1',
-                                color: '#fff'
-                              }}
-                              title={event.title}
-                            >
-                              {event.title}
-                            </div>
-                          );
-                        })}
-                        {/* ТЗ - последние */}
-                        {regularEvents.filter(e => e.type === 'task').map(event => {
-                          const eventType = eventTypes.find(t => t.id === event.type);
-                          return (
-                            <div
-                              key={event.id}
-                              className="text-[9px] sm:text-[10px] px-0.5 sm:px-1 py-0.5 rounded truncate relative z-10"
-                              style={{ 
-                                backgroundColor: eventType?.color || '#6366f1',
-                                color: '#fff'
-                              }}
-                              title={event.title}
-                            >
-                              {event.title}
-                            </div>
-                          );
-                        })}
+                          )}
+                        </div>
+                        
+                        {/* Десктопная версия - полные блоки с текстом */}
+                        <div className="hidden sm:block space-y-0.5">
+                          {/* Дедлайны ТЗ - первые */}
+                          {deadlineEvents.map(event => {
+                            const eventType = eventTypes.find(t => t.id === event.type);
+                            return (
+                              <div
+                                key={`deadline-${event.id}`}
+                                className="text-[10px] px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80 relative z-10"
+                                style={{ 
+                                  backgroundColor: eventType?.color || '#6366f1',
+                                  color: '#fff'
+                                }}
+                                title={`Дедлайн: ${event.title}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditEvent(event);
+                                }}
+                              >
+                                ⏰ {event.title}
+                              </div>
+                            );
+                          })}
+                          {/* Обычные события (не ТЗ) - в середине */}
+                          {regularEvents.filter(e => e.type !== 'task').slice(0, 2).map(event => {
+                            const eventType = eventTypes.find(t => t.id === event.type);
+                            return (
+                              <div
+                                key={event.id}
+                                className="text-[10px] px-1 py-0.5 rounded truncate relative z-10"
+                                style={{ 
+                                  backgroundColor: eventType?.color || '#6366f1',
+                                  color: '#fff'
+                                }}
+                                title={event.title}
+                              >
+                                {event.title}
+                              </div>
+                            );
+                          })}
+                          {/* ТЗ - последние */}
+                          {regularEvents.filter(e => e.type === 'task').map(event => {
+                            const eventType = eventTypes.find(t => t.id === event.type);
+                            return (
+                              <div
+                                key={event.id}
+                                className="text-[10px] px-1 py-0.5 rounded truncate relative z-10"
+                                style={{ 
+                                  backgroundColor: eventType?.color || '#6366f1',
+                                  color: '#fff'
+                                }}
+                                title={event.title}
+                              >
+                                {event.title}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   );
@@ -1328,81 +1370,62 @@ export default function EventsPage() {
                   
                   const lineColor = taskType?.color || '#8b5cf6';
                   
-                  // Константы для расчёта позиций
+                  // Константы для расчёта позиций - линия идёт ровно между ячейками
                   const rowHeight = 94; // 90px min-h + 4px gap
                   const cellWidthPercent = 100 / 7;
-                  const blockHeight = 16; // Примерная высота блока события
-                  const dateTextHeight = 28; // Число даты + padding + отступ (с новыми стилями)
-                  const blockGap = 2; // gap между блоками
+                  const gapBetweenCells = 4; // gap-1 = 4px
                   
-                  // Подсчёт событий в начальной и конечной ячейках для определения позиции блоков
-                  const startDateStr = taskStartDate;
-                  const endDateStr = taskEndDate;
+                  // Позиции между ячейками (не в центре, а по границе)
+                  // Правая граница стартовой ячейки = (startCol + 1) * cellWidth
+                  // Левая граница конечной ячейки = endCol * cellWidth
+                  const startRightEdge = (startCol + 1) * cellWidthPercent;
+                  const endLeftEdge = endCol * cellWidthPercent;
                   
-                  // Сколько блоков ДО ТЗ в начальной ячейке (дедлайны + обычные события)
-                  const startCellDeadlines = events.filter(e => 
-                    e.type === 'task' && 
-                    e.endDate && 
-                    e.endDate.split('T')[0] === startDateStr &&
-                    filterTodoTasks(e) &&
-                    (!selectedTypeFilter || e.type === selectedTypeFilter)
-                  ).length;
-                  const startCellRegular = events.filter(e => {
-                    const date = e.startDate.split('T')[0];
-                    return date === startDateStr && 
-                      e.type !== 'task' && 
-                      filterTodoTasks(e) &&
-                      (!selectedTypeFilter || e.type === selectedTypeFilter);
-                  }).slice(0, 2).length;
-                  const blocksBeforeTask = startCellDeadlines + startCellRegular;
+                  // Y координаты - ровно между рядами
+                  const rowBottomY = (startRow + 1) * rowHeight - gapBetweenCells / 2;
+                  const nextRowTopY = endRow * rowHeight + gapBetweenCells / 2;
                   
-                  // Дедлайн всегда первый блок в ячейке
-                  const deadlineBlockCenter = dateTextHeight + blockHeight / 2;
-                  // ТЗ идёт после всех предыдущих блоков
-                  const taskBlockCenter = dateTextHeight + blocksBeforeTask * (blockHeight + blockGap) + blockHeight / 2;
+                  // Вертикальные выходы из блоков - от нижней границы ячейки
+                  const startCellBottomY = (startRow + 1) * rowHeight - gapBetweenCells;
+                  const endCellTopY = endRow * rowHeight + 20; // отступ от верха для числа
                   
-                  // Центр ячейки по горизонтали в %
-                  const startX = (startCol + 0.5) * cellWidthPercent;
-                  const endX = (endCol + 0.5) * cellWidthPercent;
-                  
-                  // Y координаты в px - центры блоков
-                  const startY = startRow * rowHeight + taskBlockCenter;
-                  const endY = endRow * rowHeight + deadlineBlockCenter;
-                  const rowBottom = (startRow + 1) * rowHeight - 4;
-                  const endRowTop = endRow * rowHeight + 4;
+                  // Горизонтальный центр ячеек
+                  const startCenterX = (startCol + 0.5) * cellWidthPercent;
+                  const endCenterX = (endCol + 0.5) * cellWidthPercent;
                   
                   const elements: React.ReactNode[] = [];
                   let lineIndex = 0;
                   
                   if (startRow === endRow) {
-                    // Одна строка - обходной путь по низу
-                    // 1. Вниз от ТЗ
+                    // Одна строка - горизонтальная линия ровно между рядами (под ячейками)
+                    // 1. Вниз из центра начальной ячейки до нижнего края
                     elements.push(
                       <div
                         key={`${task.id}-line-${lineIndex++}`}
                         className="absolute pointer-events-none"
                         style={{
-                          left: `${startX}%`,
-                          top: `${startY}px`,
-                          width: '1px',
-                          height: `${rowBottom - startY}px`,
+                          left: `${startCenterX}%`,
+                          top: `${startCellBottomY}px`,
+                          width: '2px',
+                          height: `${gapBetweenCells}px`,
                           backgroundColor: lineColor,
-                          opacity: 0.5
+                          opacity: 0.6,
+                          transform: 'translateX(-50%)'
                         }}
                       />
                     );
-                    // 2. Горизонтально
+                    // 2. Горизонтальная линия ровно между рядами
                     elements.push(
                       <div
                         key={`${task.id}-line-${lineIndex++}`}
                         className="absolute pointer-events-none"
                         style={{
-                          left: `${Math.min(startX, endX)}%`,
-                          width: `${Math.abs(endX - startX)}%`,
-                          top: `${rowBottom}px`,
-                          height: '1px',
+                          left: `${Math.min(startCenterX, endCenterX)}%`,
+                          width: `${Math.abs(endCenterX - startCenterX)}%`,
+                          top: `${rowBottomY}px`,
+                          height: '2px',
                           backgroundColor: lineColor,
-                          opacity: 0.5
+                          opacity: 0.6
                         }}
                       />
                     );
@@ -1412,74 +1435,76 @@ export default function EventsPage() {
                         key={`${task.id}-line-${lineIndex++}`}
                         className="absolute pointer-events-none"
                         style={{
-                          left: `${endX}%`,
-                          top: `${endY}px`,
-                          width: '1px',
-                          height: `${rowBottom - endY}px`,
+                          left: `${endCenterX}%`,
+                          top: `${endCellTopY}px`,
+                          width: '2px',
+                          height: `${rowBottomY - endCellTopY}px`,
                           backgroundColor: lineColor,
-                          opacity: 0.5
+                          opacity: 0.6,
+                          transform: 'translateX(-50%)'
                         }}
                       />
                     );
                   } else {
-                    // Разные строки - путь по правому краю
-                    // 1. Вниз от ТЗ
+                    // Разные строки - путь по правому краю между ячейками
+                    // 1. Вниз из центра ТЗ до нижней границы между рядами
                     elements.push(
                       <div
                         key={`${task.id}-line-${lineIndex++}`}
                         className="absolute pointer-events-none"
                         style={{
-                          left: `${startX}%`,
-                          top: `${startY}px`,
-                          width: '1px',
-                          height: `${rowBottom - startY}px`,
+                          left: `${startCenterX}%`,
+                          top: `${startCellBottomY}px`,
+                          width: '2px',
+                          height: `${rowBottomY - startCellBottomY}px`,
                           backgroundColor: lineColor,
-                          opacity: 0.5
+                          opacity: 0.6,
+                          transform: 'translateX(-50%)'
                         }}
                       />
                     );
-                    // 2. Вправо
+                    // 2. Вправо по нижнему краю строки
                     elements.push(
                       <div
                         key={`${task.id}-line-${lineIndex++}`}
                         className="absolute pointer-events-none"
                         style={{
-                          left: `${startX}%`,
-                          width: `${100 - startX}%`,
-                          top: `${rowBottom}px`,
-                          height: '1px',
+                          left: `${startCenterX}%`,
+                          width: `calc(100% - ${startCenterX}%)`,
+                          top: `${rowBottomY}px`,
+                          height: '2px',
                           backgroundColor: lineColor,
-                          opacity: 0.5
+                          opacity: 0.6
                         }}
                       />
                     );
-                    // 3. Вниз по правому краю
+                    // 3. Вниз по правому краю между рядами
                     elements.push(
                       <div
                         key={`${task.id}-line-${lineIndex++}`}
                         className="absolute pointer-events-none"
                         style={{
                           right: '0px',
-                          top: `${rowBottom}px`,
-                          width: '1px',
-                          height: `${endRowTop - rowBottom}px`,
+                          top: `${rowBottomY}px`,
+                          width: '2px',
+                          height: `${nextRowTopY - rowBottomY}px`,
                           backgroundColor: lineColor,
-                          opacity: 0.5
+                          opacity: 0.6
                         }}
                       />
                     );
-                    // 4. Влево к дедлайну
+                    // 4. Влево по верхнему краю целевой строки к дедлайну
                     elements.push(
                       <div
                         key={`${task.id}-line-${lineIndex++}`}
                         className="absolute pointer-events-none"
                         style={{
-                          left: `${endX}%`,
-                          width: `${100 - endX}%`,
-                          top: `${endRowTop}px`,
-                          height: '1px',
+                          left: `${endCenterX}%`,
+                          width: `calc(100% - ${endCenterX}%)`,
+                          top: `${nextRowTopY}px`,
+                          height: '2px',
                           backgroundColor: lineColor,
-                          opacity: 0.5
+                          opacity: 0.6
                         }}
                       />
                     );
@@ -1489,12 +1514,13 @@ export default function EventsPage() {
                         key={`${task.id}-line-${lineIndex++}`}
                         className="absolute pointer-events-none"
                         style={{
-                          left: `${endX}%`,
-                          top: `${endRowTop}px`,
-                          width: '1px',
-                          height: `${endY - endRowTop}px`,
+                          left: `${endCenterX}%`,
+                          top: `${nextRowTopY}px`,
+                          width: '2px',
+                          height: `${endCellTopY - nextRowTopY}px`,
                           backgroundColor: lineColor,
-                          opacity: 0.5
+                          opacity: 0.6,
+                          transform: 'translateX(-50%)'
                         }}
                       />
                     );
@@ -1506,10 +1532,10 @@ export default function EventsPage() {
             </div>
 
             {/* Переключатель задач из списка дел */}
-            <div className="mt-4 bg-[#1a1a1a] border border-white/10 rounded-xl p-4 hidden lg:block">
+            <div className="mt-4 backdrop-blur-xl bg-[var(--bg-secondary)]/60 border border-white/10 rounded-xl p-4 hidden lg:block">
               <label className="flex items-center justify-between cursor-pointer">
                 <div className="flex items-center gap-2">
-                  <Briefcase className="w-4 h-4 text-purple-400" />
+                  <Briefcase className="w-4 h-4 text-cyan-400" />
                   <span className="text-sm">Задачи из списка дел</span>
                 </div>
                 <div className="relative">
@@ -1519,19 +1545,19 @@ export default function EventsPage() {
                     onChange={(e) => setShowTodoTasks(e.target.checked)}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
+                  <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
                 </div>
               </label>
               <p className="text-[10px] text-white/40 mt-2">Показывать задачи, добавленные из раздела «Задачи»</p>
             </div>
 
             {/* Фильтры по типу */}
-            <div className="mt-4 bg-[#1a1a1a] border border-white/10 rounded-xl p-4 hidden lg:block">
+            <div className="mt-4 backdrop-blur-xl bg-[var(--bg-secondary)]/60 border border-white/10 rounded-xl p-4 hidden lg:block">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-medium">Фильтр по типу</h3>
                 <button
                   onClick={() => setShowAddType(true)}
-                  className="text-xs px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all flex items-center gap-1 outline-none"
+                  className="text-xs px-2 py-1 backdrop-blur-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-xl transition-all flex items-center gap-1 outline-none"
                 >
                   <Plus className="w-3 h-3" />
                   Добавить тип
@@ -1540,10 +1566,10 @@ export default function EventsPage() {
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => setSelectedTypeFilter(null)}
-                  className={`px-3 py-1.5 rounded-full text-xs transition-colors outline-none ${
+                  className={`px-3 py-1.5 rounded-full text-xs transition-all outline-none ${
                     selectedTypeFilter === null 
-                      ? 'bg-white/20 text-white font-medium' 
-                      : 'bg-white/5 hover:bg-white/10'
+                      ? 'backdrop-blur-xl bg-cyan-500/20 text-cyan-400 font-medium border border-cyan-500/30' 
+                      : 'backdrop-blur-xl bg-white/5 hover:bg-white/10 border border-white/10'
                   }`}
                 >
                   Все события
@@ -1586,15 +1612,41 @@ export default function EventsPage() {
             </div>
           </div>
 
-          {/* Вертикальный таймлайн */}
+          {/* Боковая панель с вкладками */}
           {!isSidebarCollapsed && (
-          <div className="w-full lg:w-96 flex flex-col gap-4 hidden lg:flex">
-            {/* Секция для выбранной даты */}
-            <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-4">
-              <div className="mb-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-medium">
+          <div className="w-full lg:w-96 hidden lg:flex flex-col">
+            <div className="backdrop-blur-xl bg-[var(--bg-secondary)]/60 border border-white/10 rounded-xl flex-1 flex flex-col overflow-hidden">
+              {/* Вкладки */}
+              <div className="flex border-b border-white/10 flex-shrink-0">
+                <button
+                  onClick={() => setSidebarTab('upcoming')}
+                  className={`flex-1 px-4 py-3 text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                    sidebarTab === 'upcoming' 
+                      ? 'text-cyan-400 border-b-2 border-cyan-400 bg-cyan-500/5' 
+                      : 'text-white/50 hover:text-white/70 hover:bg-white/5'
+                  }`}
+                >
+                  <CalendarIcon className="w-4 h-4" />
+                  {selectedDate ? new Date(selectedDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) : 'Ближайшие'}
+                </button>
+                <button
+                  onClick={() => setSidebarTab('timeline')}
+                  className={`flex-1 px-4 py-3 text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                    sidebarTab === 'timeline' 
+                      ? 'text-cyan-400 border-b-2 border-cyan-400 bg-cyan-500/5' 
+                      : 'text-white/50 hover:text-white/70 hover:bg-white/5'
+                  }`}
+                >
+                  <Clock className="w-4 h-4" />
+                  Таймлайн
+                </button>
+              </div>
+
+              {/* Контент вкладки "Ближайшие события" */}
+              {sidebarTab === 'upcoming' && (
+                <div className="p-4 flex-1 overflow-y-auto">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-medium text-sm">
                       {selectedDate 
                         ? `События на ${new Date(selectedDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`
                         : 'Ближайшие события'
@@ -1603,246 +1655,177 @@ export default function EventsPage() {
                     {selectedDate && (
                       <button
                         onClick={() => openAddEvent(selectedDate)}
-                        className="p-1.5 bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 rounded-lg transition-all outline-none"
+                        className="p-2 backdrop-blur-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 rounded-xl transition-all outline-none"
                       >
-                        <Plus className="w-4 h-4" />
+                        <Plus className="w-4 h-4 text-cyan-400" />
                       </button>
                     )}
                   </div>
-                  {!selectedDate && (
-                    <button
-                      onClick={() => setUpcomingEventsExpanded(!upcomingEventsExpanded)}
-                      className="p-1 hover:bg-white/10 rounded transition-all"
-                    >
-                      <ChevronDown className={`w-4 h-4 transition-transform ${upcomingEventsExpanded ? '' : '-rotate-90'}`} />
-                    </button>
-                  )}
-                </div>
-              </div>
 
-              {(selectedDate || upcomingEventsExpanded) && (
-                selectedDateEvents.length === 0 ? (
-                <div className="text-center py-6 text-white/50">
-                  <CalendarIcon className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Нет событий</p>
-                  <button
-                    onClick={() => openAddEvent()}
-                    className="mt-2 px-3 py-1.5 bg-white/10 hover:bg-white/15 border border-white/10 text-white text-sm rounded-lg transition-all outline-none"
-                  >
-                    Добавить событие
-                  </button>
-                </div>
-              ) : (
-                <div className="relative">
-                  <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-white/10"></div>
-                  <div className="space-y-3">
-                    {selectedDateEvents.map((event) => {
-                      const eventType = eventTypes.find(t => t.id === event.type);
-                      const isTask = event.type === 'task' && event.endDate;
-                      return (
-                        <div key={event.id} className="relative pl-8">
-                          <div 
-                            className="absolute left-1.5 top-2 w-3 h-3 rounded-full border-2 border-[#1a1a1a]"
-                            style={{ backgroundColor: eventType?.color || '#6366f1' }}
-                          ></div>
-                          <div 
-                            className="p-3 rounded-lg border transition-all hover:shadow-md group"
-                            style={{ 
-                              borderColor: `${eventType?.color || '#6366f1'}40`,
-                              backgroundColor: `${eventType?.color || '#6366f1'}08`
-                            }}
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span 
-                                    className="px-2 py-0.5 rounded text-[10px] font-medium"
-                                    style={{ 
-                                      backgroundColor: `${eventType?.color || '#6366f1'}20`,
-                                      color: eventType?.color || '#6366f1'
-                                    }}
-                                  >
-                                    {eventType?.name || event.type}
-                                  </span>
-                                  {!selectedDate && (
-                                    <span className="text-[10px] text-white/50">
-                                      {new Date(event.startDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                                    </span>
-                                  )}
-                                  {isTask && (
-                                    <span className="text-[10px] text-white/50 flex items-center gap-1">
-                                      ⏰ до {new Date(event.endDate!).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                                    </span>
-                                  )}
-                                </div>
-                                <h4 className="font-medium text-sm">{event.title}</h4>
-                                {event.description && (
-                                  <p className="text-xs text-white/50 mt-1 line-clamp-2">
-                                    {event.description}
-                                  </p>
-                                )}
-                                {/* Автор и участники */}
-                                <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                  {event.createdBy && users.find(u => u.id === event.createdBy) && (
-                                    <div className="flex items-center gap-1 text-[10px] text-white/40">
-                                      <span>Автор:</span>
-                                      <div
-                                        className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold"
-                                        style={{ backgroundColor: users.find(u => u.id === event.createdBy)?.color }}
-                                        title={users.find(u => u.id === event.createdBy)?.name}
-                                      >
-                                        {users.find(u => u.id === event.createdBy)?.name.charAt(0).toUpperCase()}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {event.participants && event.participants.length > 0 && (
-                                    <div className="flex items-center gap-1">
-                                      <div className="flex -space-x-1.5">
-                                        {event.participants.slice(0, 3).map(participantId => {
-                                          const user = users.find(u => u.id === participantId);
-                                          if (!user) return null;
-                                          return (
-                                            <div
-                                              key={participantId}
-                                              className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold border border-[#1a1a1a]"
-                                              style={{ backgroundColor: user.color }}
-                                              title={user.name}
-                                            >
-                                              {user.name.charAt(0).toUpperCase()}
-                                            </div>
-                                          );
-                                        })}
-                                        {event.participants.length > 3 && (
-                                          <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[8px] border border-[#1a1a1a]">
-                                            +{event.participants.length - 3}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); copyEvent(event); }} 
-                                  className="p-1.5 hover:bg-white/5 rounded-lg transition-all duration-200 hover:scale-110 outline-none"
-                                  title="Копировать"
-                                >
-                                  <Copy className="w-3.5 h-3.5" />
-                                </button>
-                                <button 
-                                  onClick={() => openEditEvent(event)} 
-                                  className="p-1.5 hover:bg-white/5 rounded-lg transition-all duration-200 hover:scale-110 outline-none"
-                                  title="Редактировать"
-                                >
-                                  <Edit3 className="w-3.5 h-3.5" />
-                                </button>
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); if(confirm('Удалить событие?')) deleteEvent(event.id); }} 
-                                  className="p-1.5 hover:bg-red-500/20 rounded-lg text-red-400 transition-all duration-200 hover:scale-110 outline-none"
-                                  title="Удалить"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )
-            )}
-            </div>
-
-            {/* Полный вертикальный таймлайн */}
-            <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-4 flex-1 overflow-hidden">
-              <h3 className="font-medium flex items-center gap-2 mb-4">
-                <Clock className="w-4 h-4 text-white/50" />
-                Полный таймлайн
-              </h3>
-                  {Object.keys(groupedEvents).length === 0 ? (
+                  {selectedDateEvents.length === 0 ? (
                     <div className="text-center py-8 text-white/50">
-                      <Clock className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">Нет запланированных событий</p>
+                      <CalendarIcon className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                      <p className="text-sm mb-3">Нет событий</p>
+                      <button
+                        onClick={() => openAddEvent()}
+                        className="px-4 py-2 backdrop-blur-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 text-cyan-400 text-sm rounded-xl transition-all outline-none font-medium"
+                      >
+                        <Plus className="w-4 h-4 inline mr-1" />
+                        Добавить событие
+                      </button>
                     </div>
                   ) : (
-                    <div className="relative max-h-[400px] overflow-y-auto pr-2">
-                  {/* Вертикальная линия таймлайна */}
-                  <div className="absolute left-[7px] top-0 bottom-0 w-[2px] bg-gradient-to-b from-white/20 via-white/10 to-transparent"></div>
-                  
-                  <div className="space-y-6">
-                    {Object.entries(groupedEvents).map(([date, dateEvents]) => {
-                      const dateObj = new Date(date);
-                      const isToday = date === today;
-                      const isPast = date < today;
-                      
-                      return (
-                        <div key={date} className="relative">
-                          {/* Маркер даты на таймлайне */}
-                          <div className={`
-                            absolute left-0 top-0 w-4 h-4 rounded-full border-2 
-                            ${isToday ? 'bg-white/20 border-white/20' : isPast ? 'bg-white/30 border-white/30' : 'bg-[#1a1a1a] border-white/20'}
-                          `}></div>
-                          
-                          <div className="pl-7">
-                            {/* Заголовок даты */}
-                            <div className={`text-xs font-semibold mb-2 flex items-center gap-2 ${isToday ? 'text-white' : isPast ? 'text-white/50' : ''}`}>
-                              {isToday && <div className="w-2 h-2 rounded-full bg-white/30 animate-pulse" />}
-                              {isToday ? 'Сегодня' : dateObj.toLocaleDateString('ru-RU', { 
-                                weekday: 'short', 
-                                day: 'numeric', 
-                                month: 'long' 
-                              })}
-                            </div>
-                            
-                            {/* События этой даты */}
-                            <div className="space-y-2">
-                              {dateEvents.map(event => {
-                                const eventType = eventTypes.find(t => t.id === event.type);
-                                const isTask = event.type === 'task' && event.endDate;
-                                return (
-                                  <div 
-                                    key={event.id}
-                                    onClick={() => {
-                                      setSelectedDate(date);
-                                      openEditEvent(event);
-                                    }}
-                                    className={`
-                                      p-2 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02] hover:-translate-y-0.5
-                                      ${isPast ? 'opacity-60' : ''}
-                                    `}
-                                    style={{ 
-                                      borderColor: `${eventType?.color || '#6366f1'}30`,
-                                      borderLeftWidth: '3px',
-                                      borderLeftColor: eventType?.color || '#6366f1',
-                                      backgroundColor: `${eventType?.color || '#6366f1'}05`
-                                    }}
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <span style={{ color: eventType?.color }}>
-                                        {TYPE_ICONS[eventType?.icon || 'star'] || <Star className="w-3 h-3" />}
+                    <div className="relative">
+                      <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-white/10"></div>
+                      <div className="space-y-3">
+                        {selectedDateEvents.map((event) => {
+                          const eventType = eventTypes.find(t => t.id === event.type);
+                          const isTask = event.type === 'task' && event.endDate;
+                          return (
+                            <div key={event.id} className="relative pl-8">
+                              <div 
+                                className="absolute left-1.5 top-2 w-3 h-3 rounded-full border-2 border-[var(--bg-primary)]"
+                                style={{ backgroundColor: eventType?.color || '#06b6d4' }}
+                              ></div>
+                              <div 
+                                className="p-3 rounded-xl border transition-all hover:shadow-md group backdrop-blur-xl cursor-pointer"
+                                style={{ 
+                                  borderColor: `${eventType?.color || '#06b6d4'}40`,
+                                  backgroundColor: `${eventType?.color || '#06b6d4'}08`
+                                }}
+                                onClick={() => openEditEvent(event)}
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                      <span 
+                                        className="px-2 py-0.5 rounded text-[10px] font-medium"
+                                        style={{ 
+                                          backgroundColor: `${eventType?.color || '#6366f1'}20`,
+                                          color: eventType?.color || '#6366f1'
+                                        }}
+                                      >
+                                        {eventType?.name || event.type}
                                       </span>
-                                      <span className="text-xs font-medium truncate flex-1">{event.title}</span>
+                                      {!selectedDate && (
+                                        <span className="text-[10px] text-white/50">
+                                          {new Date(event.startDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                                        </span>
+                                      )}
                                       {isTask && (
                                         <span className="text-[10px] text-white/50 flex items-center gap-1">
-                                          <Clock className="w-3 h-3" />
-                                          до {new Date(event.endDate!).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                                          ⏰ {new Date(event.endDate!).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                                         </span>
                                       )}
                                     </div>
+                                    <h4 className="font-medium text-sm truncate">{event.title}</h4>
+                                    {event.description && (
+                                      <p className="text-xs text-white/50 mt-1 line-clamp-2" dangerouslySetInnerHTML={{ __html: event.description }} />
+                                    )}
                                   </div>
-                              );
-                            })}
-                          </div>
-                        </div>
+                                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200 ml-2">
+                                    <button 
+                                      onClick={(e) => { e.stopPropagation(); copyEvent(event); }} 
+                                      className="p-1.5 hover:bg-white/10 rounded-lg transition-all"
+                                      title="Копировать"
+                                    >
+                                      <Copy className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button 
+                                      onClick={(e) => { e.stopPropagation(); if(confirm('Удалить?')) deleteEvent(event.id); }} 
+                                      className="p-1.5 hover:bg-red-500/20 rounded-lg text-red-400 transition-all"
+                                      title="Удалить"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* Контент вкладки "Таймлайн" */}
+              {sidebarTab === 'timeline' && (
+                <div className="p-4 flex-1 overflow-y-auto">
+                  {Object.keys(groupedEvents).length === 0 ? (
+                    <div className="text-center py-8 text-white/50">
+                      <Clock className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                      <p className="text-sm">Нет запланированных событий</p>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <div className="absolute left-[7px] top-0 bottom-0 w-[2px] bg-gradient-to-b from-white/20 via-white/10 to-transparent"></div>
+                      
+                      <div className="space-y-5">
+                        {Object.entries(groupedEvents).map(([date, dateEvents]) => {
+                          const dateObj = new Date(date);
+                          const isToday = date === today;
+                          const isPast = date < today;
+                          
+                          return (
+                            <div key={date} className="relative">
+                              <div className={`
+                                absolute left-0 top-0 w-4 h-4 rounded-full border-2 
+                                ${isToday ? 'bg-cyan-500 border-cyan-400' : isPast ? 'bg-white/30 border-white/30' : 'bg-[var(--bg-primary)] border-white/20'}
+                              `}></div>
+                              
+                              <div className="pl-7">
+                                <div className={`text-xs font-semibold mb-2 flex items-center gap-2 ${isToday ? 'text-cyan-400' : isPast ? 'text-white/50' : ''}`}>
+                                  {isToday && <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />}
+                                  {isToday ? 'Сегодня' : dateObj.toLocaleDateString('ru-RU', { 
+                                    weekday: 'short', 
+                                    day: 'numeric', 
+                                    month: 'short' 
+                                  })}
+                                </div>
+                                
+                                <div className="space-y-2">
+                                  {dateEvents.map(event => {
+                                    const eventType = eventTypes.find(t => t.id === event.type);
+                                    return (
+                                      <div 
+                                        key={event.id}
+                                        onClick={() => {
+                                          setSelectedDate(date);
+                                          setSidebarTab('upcoming');
+                                          openEditEvent(event);
+                                        }}
+                                        className={`
+                                          p-2.5 rounded-xl border cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02]
+                                          ${isPast ? 'opacity-60' : ''}
+                                        `}
+                                        style={{ 
+                                          borderColor: `${eventType?.color || '#06b6d4'}30`,
+                                          borderLeftWidth: '3px',
+                                          borderLeftColor: eventType?.color || '#06b6d4',
+                                          backgroundColor: `${eventType?.color || '#06b6d4'}08`
+                                        }}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span style={{ color: eventType?.color }}>
+                                            {TYPE_ICONS[eventType?.icon || 'star'] || <Star className="w-3 h-3" />}
+                                          </span>
+                                          <span className="text-xs font-medium truncate flex-1">{event.title}</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           )}
@@ -1851,15 +1834,15 @@ export default function EventsPage() {
           /* Вид таймлайна на всю ширину */
           <div className="max-w-4xl mx-auto">
           {/* Фильтры по типу */}
-          <div className="mb-6 bg-[#1a1a1a] border border-white/10 rounded-xl p-4">
+          <div className="mb-6 backdrop-blur-xl bg-[var(--bg-secondary)]/60 border border-white/10 rounded-xl p-4">
             <h3 className="text-sm font-medium mb-3">Фильтр по типу</h3>
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setSelectedTypeFilter(null)}
-                className={`px-3 py-1.5 rounded-full text-xs transition-colors outline-none ${
+                className={`px-3 py-1.5 rounded-full text-xs transition-all outline-none ${
                   selectedTypeFilter === null 
-                    ? 'bg-white/20 text-white' 
-                    : 'bg-white/5 hover:bg-white/10'
+                    ? 'backdrop-blur-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' 
+                    : 'backdrop-blur-xl bg-white/5 hover:bg-white/10 border border-white/10'
                 }`}
               >
                 Все события
@@ -1886,10 +1869,10 @@ export default function EventsPage() {
           </div>
 
           {/* Полный вертикальный таймлайн */}
-          <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-6">
+          <div className="backdrop-blur-xl bg-[var(--bg-secondary)]/60 border border-white/10 rounded-xl p-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold flex items-center gap-2">
-                <Clock className="w-5 h-5 text-white/50" />
+                <Clock className="w-5 h-5 text-cyan-400" />
                 Все события
               </h3>
               <span className="text-sm text-white/50">
@@ -1904,7 +1887,7 @@ export default function EventsPage() {
                 <p className="text-sm">Создайте первое событие, чтобы начать</p>
                 <button
                   onClick={() => openAddEvent()}
-                  className="mt-4 px-4 py-2 bg-white/10 hover:bg-white/15 border border-white/10 text-white rounded-lg transition-all font-medium outline-none"
+                  className="mt-4 px-4 py-2 backdrop-blur-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 text-cyan-400 rounded-xl transition-all font-medium outline-none"
                 >
                   <Plus className="w-4 h-4 inline mr-2" />
                   Добавить событие
@@ -1930,7 +1913,7 @@ export default function EventsPage() {
                             ? 'bg-white/20 border-white/20 shadow-lg shadow-white/10' 
                             : isPast 
                               ? 'bg-white/30 border-white/30' 
-                              : 'bg-[#1a1a1a] border-white/20 border-2'
+                              : 'backdrop-blur-xl bg-[var(--bg-primary)] border-white/20 border-2'
                           }
                         `}>
                           {isToday && <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>}
@@ -1956,14 +1939,14 @@ export default function EventsPage() {
                                 <div 
                                   key={event.id}
                                   className={`
-                                    p-4 rounded-xl border cursor-pointer transition-all hover:shadow-md group
+                                    p-4 rounded-xl border cursor-pointer transition-all hover:shadow-lg group backdrop-blur-xl
                                     ${isPast ? 'opacity-70' : ''}
                                   `}
                                   style={{ 
-                                    borderColor: `${eventType?.color || '#6366f1'}40`,
+                                    borderColor: `${eventType?.color || '#06b6d4'}40`,
                                     borderLeftWidth: '4px',
-                                    borderLeftColor: eventType?.color || '#6366f1',
-                                    backgroundColor: `${eventType?.color || '#6366f1'}08`
+                                    borderLeftColor: eventType?.color || '#06b6d4',
+                                    backgroundColor: `${eventType?.color || '#06b6d4'}08`
                                   }}
                                 >
                                   <div className="flex items-start justify-between">
@@ -2087,84 +2070,96 @@ export default function EventsPage() {
       
       {/* Модал добавления/редактирования события */}
       {(showAddEvent || editingEvent) && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl w-full max-w-2xl shadow-2xl">
-            {/* Заголовок модалки */}
-            <div className="flex items-center justify-between p-5 border-b border-white/10">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
-                  <CalendarIcon className="w-5 h-5 text-white" />
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center z-50">
+          <div className="backdrop-blur-2xl bg-[var(--bg-tertiary)]/95 sm:bg-[var(--bg-tertiary)]/80 border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-[95vw] xl:max-w-[1200px] shadow-2xl h-[95vh] sm:h-[90vh] flex flex-col animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
+            {/* Шапка с индикатором для мобильных */}
+            <div className="flex flex-col items-center pt-2 sm:pt-0">
+              {/* Индикатор перетаскивания для мобильных */}
+              <div className="w-12 h-1 bg-white/20 rounded-full mb-2 sm:hidden"></div>
+              <div className="w-full flex items-center justify-between px-4 sm:px-5 py-3 sm:py-2.5 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center border border-cyan-500/20">
+                    <CalendarIcon className="w-5 h-5 sm:w-4 sm:h-4 text-cyan-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-base sm:text-sm">
+                      {editingEvent ? 'Редактировать' : 'Новое событие'}
+                    </h3>
+                    <p className="text-xs text-white/50 hidden sm:block">Заполните информацию о событии</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-lg">
-                    {editingEvent ? 'Редактировать событие' : 'Новое событие'}
-                  </h3>
-                  <p className="text-xs text-white/50">Заполните информацию о событии</p>
-                </div>
+                <button
+                  onClick={() => { setShowAddEvent(false); setEditingEvent(null); resetEventForm(); }}
+                  className="p-2.5 sm:p-1.5 hover:bg-white/10 rounded-xl transition-all outline-none"
+                >
+                  <X className="w-5 h-5 sm:w-4 sm:h-4 text-white/60" />
+                </button>
               </div>
-              <button
-                onClick={() => { setShowAddEvent(false); setEditingEvent(null); resetEventForm(); }}
-                className="p-2 hover:bg-white/5 rounded-lg transition-colors outline-none"
-              >
-                <X className="w-5 h-5" />
-              </button>
             </div>
             
-            <div className="p-5 space-y-5 max-h-[60vh] overflow-y-auto">
-              {/* Название */}
-              <div>
-                <label className="block text-sm font-medium mb-2 text-white/80">Название</label>
-                <input
-                  type="text"
-                  value={eventForm.title}
-                  onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
-                  className="w-full px-4 py-3 bg-[#0d0d0d] border border-white/10 rounded-xl focus:outline-none focus:border-purple-500/50 transition-colors"
-                  placeholder="Введите название события"
-                  autoFocus
-                />
-              </div>
-              
-              {/* Тип и Даты */}
-              <div className="grid grid-cols-3 gap-4">
+            {/* Контент - адаптивно */}
+            <div className="flex flex-1 overflow-hidden flex-col lg:flex-row">
+              {/* Левый блок - основные поля */}
+              <div className="w-full lg:w-[380px] p-4 space-y-4 border-b lg:border-b-0 lg:border-r border-white/10 overflow-y-auto flex-shrink-0">
+                {/* Название */}
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-white/80">Тип</label>
+                  <label className="block text-xs font-medium text-white/60 mb-2 uppercase tracking-wide">Название</label>
+                  <input
+                    type="text"
+                    value={eventForm.title}
+                    onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
+                    className="w-full px-4 py-3.5 sm:py-2.5 backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl text-base sm:text-sm focus:outline-none focus:border-cyan-500/50 focus:bg-white/10 transition-all text-white placeholder-white/30"
+                    placeholder="Введите название события..."
+                    autoFocus
+                  />
+                </div>
+                
+                {/* Тип */}
+                <div>
+                  <label className="block text-xs font-medium text-white/60 mb-2 uppercase tracking-wide">Тип события</label>
                   <select
                     value={eventForm.type}
                     onChange={(e) => setEventForm({ ...eventForm, type: e.target.value })}
-                    className="w-full px-4 py-3 bg-[#0d0d0d] border border-white/10 rounded-xl focus:outline-none focus:border-purple-500/50 transition-colors appearance-none cursor-pointer"
+                    className="w-full px-4 py-3.5 sm:py-2.5 backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-cyan-500/50 transition-all appearance-none cursor-pointer text-base sm:text-sm"
                   >
                     {eventTypes.map(type => (
                       <option key={type.id} value={type.id}>{type.name}</option>
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-white/80">Дата начала</label>
-                  <input
-                    type="date"
-                    value={eventForm.startDate}
-                    onChange={(e) => setEventForm({ ...eventForm, startDate: e.target.value })}
-                    className="w-full px-4 py-3 bg-[#0d0d0d] border border-white/10 rounded-xl focus:outline-none focus:border-purple-500/50 transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-white/80">Дата окончания</label>
-                  <input
-                    type="date"
-                    value={eventForm.endDate}
-                    onChange={(e) => setEventForm({ ...eventForm, endDate: e.target.value })}
-                    className="w-full px-4 py-3 bg-[#0d0d0d] border border-white/10 rounded-xl focus:outline-none focus:border-purple-500/50 transition-colors"
-                  />
+                
+                {/* Даты */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-white/60 mb-2 uppercase tracking-wide">Дата начала</label>
+                    <input
+                      type="date"
+                      value={eventForm.startDate}
+                      onChange={(e) => setEventForm({ ...eventForm, startDate: e.target.value })}
+                      className="w-full px-3 py-3.5 sm:py-2.5 backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-cyan-500/50 transition-all text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-white/60 mb-2 uppercase tracking-wide">Дата окончания</label>
+                    <input
+                      type="date"
+                      value={eventForm.endDate}
+                      onChange={(e) => setEventForm({ ...eventForm, endDate: e.target.value })}
+                      className="w-full px-3 py-3.5 sm:py-2.5 backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-cyan-500/50 transition-all text-sm"
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Участники */}
-              <div>
-                <label className="block text-sm font-medium mb-2 text-white/80">
-                  <UserPlus className="w-4 h-4 inline mr-1" />
-                  Участники
-                </label>
-                <div className="flex flex-wrap gap-2 p-3 bg-[#0d0d0d] border border-white/10 rounded-xl min-h-[60px]">
+              {/* Средний блок - контент */}
+              <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+                {/* Участники */}
+                <div>
+                  <label className="block text-xs font-medium text-white/60 mb-2 uppercase tracking-wide flex items-center gap-2">
+                    <UserPlus className="w-4 h-4" />
+                    Участники
+                  </label>
+                  <div className="flex flex-wrap gap-2 p-3 backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl min-h-[60px]">
                   {users.length === 0 ? (
                     <span className="text-white/30 text-sm">Нет доступных пользователей</span>
                   ) : (
@@ -2174,15 +2169,15 @@ export default function EventsPage() {
                         <button
                           key={user.id}
                           onClick={() => toggleParticipant(user.id)}
-                          className={`px-3 py-1.5 rounded-full text-sm flex items-center gap-2 transition-all outline-none ${
+                          className={`px-3 py-2 rounded-xl text-sm flex items-center gap-2 transition-all outline-none ${
                             isSelected 
-                              ? 'text-white' 
+                              ? 'text-white shadow-lg' 
                               : 'bg-white/5 hover:bg-white/10 text-white/60'
                           }`}
                           style={isSelected ? { backgroundColor: user.color } : {}}
                         >
                           <div 
-                            className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
+                            className="w-6 h-6 sm:w-5 sm:h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
                             style={{ backgroundColor: isSelected ? 'rgba(255,255,255,0.2)' : user.color }}
                           >
                             {user.name.charAt(0).toUpperCase()}
@@ -2210,7 +2205,7 @@ export default function EventsPage() {
                     <select
                       value={eventForm.assignedById}
                       onChange={(e) => setEventForm({ ...eventForm, assignedById: e.target.value })}
-                      className="w-full px-4 py-3 bg-[#0d0d0d] border border-white/10 rounded-xl focus:outline-none focus:border-purple-500/50 transition-colors appearance-none cursor-pointer text-sm"
+                      className="w-full px-4 py-3 backdrop-blur-xl bg-[var(--bg-tertiary)]/60 border border-white/10 rounded-xl focus:outline-none focus:border-cyan-500/50 transition-all appearance-none cursor-pointer text-sm"
                     >
                       <option value="">Выбрать заказчика...</option>
                       {users.filter(u => u.role === 'customer' || u.role === 'universal').map(user => (
@@ -2224,7 +2219,7 @@ export default function EventsPage() {
                 {/* Исполнители */}
                 <div>
                   <label className="block text-sm font-medium mb-2 text-white/80">Исполнители</label>
-                  <div className="flex flex-wrap gap-2 p-3 bg-[#0d0d0d] border border-white/10 rounded-xl min-h-[52px]">
+                  <div className="flex flex-wrap gap-2 p-3 backdrop-blur-xl bg-[var(--bg-tertiary)]/60 border border-white/10 rounded-xl min-h-[52px]">
                     {users.filter(u => u.role === 'executor' || u.role === 'universal').map(user => {
                       const isSelected = eventForm.assignedToIds.includes(user.id);
                       return (
@@ -2265,7 +2260,7 @@ export default function EventsPage() {
                   Описание
                 </label>
                 {/* Панель форматирования */}
-                <div className="flex items-center gap-1 flex-wrap mb-2 p-2 bg-[#0d0d0d] border border-white/10 rounded-t-xl border-b-0">
+                <div className="flex items-center gap-1 flex-wrap mb-2 p-2 backdrop-blur-xl bg-[var(--bg-tertiary)]/60 border border-white/10 rounded-t-xl border-b-0">
                   <button
                     type="button"
                     onClick={() => {
@@ -2393,48 +2388,52 @@ export default function EventsPage() {
                     document.execCommand('insertHTML', false, text);
                   }}
                   dangerouslySetInnerHTML={{ __html: eventForm.description }}
-                  className="w-full min-h-[120px] px-4 py-3 bg-[#0d0d0d] border border-white/10 rounded-b-xl text-sm text-white placeholder-white/30 overflow-y-auto focus:outline-none focus:border-purple-500/50 transition-all leading-relaxed [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-medium [&_h3]:mb-1 [&_ul]:list-disc [&_ul]:ml-4 [&_ol]:list-decimal [&_ol]:ml-4 [&_a]:text-blue-400 [&_a]:underline [&_a]:cursor-pointer [&_li]:ml-2 [&_div]:text-sm [&_div]:font-normal [&_p]:text-sm [&_p]:font-normal"
+                  className="w-full min-h-[120px] px-4 py-3 backdrop-blur-xl bg-[var(--bg-tertiary)]/60 border border-white/10 rounded-b-xl text-sm text-white placeholder-white/30 overflow-y-auto focus:outline-none focus:border-cyan-500/50 transition-all leading-relaxed [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-medium [&_h3]:mb-1 [&_ul]:list-disc [&_ul]:ml-4 [&_ol]:list-decimal [&_ol]:ml-4 [&_a]:text-blue-400 [&_a]:underline [&_a]:cursor-pointer [&_li]:ml-2 [&_div]:text-sm [&_div]:font-normal [&_p]:text-sm [&_p]:font-normal"
                 />
               </div>
+              </div>
               
-              {/* Заметки */}
-              <div>
-                <label className="block text-sm font-medium mb-2 text-white/80">Заметки</label>
-                <textarea
-                  value={eventForm.notes}
-                  onChange={(e) => setEventForm({ ...eventForm, notes: e.target.value })}
-                  className="w-full px-4 py-3 bg-[#0d0d0d] border border-white/10 rounded-xl focus:outline-none focus:border-purple-500/50 transition-colors resize-none"
-                  rows={2}
-                  placeholder="Дополнительные заметки..."
-                />
+              {/* Правый блок - заметки (только на десктопе) */}
+              <div className="w-full lg:w-[280px] p-4 border-t lg:border-t-0 lg:border-l border-white/10 overflow-y-auto flex-shrink-0 hidden lg:block">
+                {/* Заметки */}
+                <div>
+                  <label className="block text-xs font-medium text-white/60 mb-2 uppercase tracking-wide">Заметки</label>
+                  <textarea
+                    value={eventForm.notes}
+                    onChange={(e) => setEventForm({ ...eventForm, notes: e.target.value })}
+                    className="w-full px-4 py-3 backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-cyan-500/50 transition-all resize-none"
+                    rows={4}
+                    placeholder="Дополнительные заметки..."
+                  />
+                </div>
               </div>
             </div>
             
             {/* Футер модалки */}
-            <div className="flex items-center justify-between p-5 border-t border-white/10 bg-white/[0.02]">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-t border-white/10 bg-white/[0.02] safe-area-bottom">
               <div className="flex items-center gap-3">
                 {editingEvent && (
                   <>
                     {!showDeleteConfirm ? (
                       <button
                         onClick={() => setShowDeleteConfirm(true)}
-                        className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl transition-all outline-none flex items-center gap-2"
+                        className="px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl transition-all outline-none flex items-center gap-2"
                       >
                         <Trash2 className="w-4 h-4" />
-                        Удалить
+                        <span className="hidden sm:inline">Удалить</span>
                       </button>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-red-400">Удалить событие?</span>
+                        <span className="text-xs text-red-400">Удалить?</span>
                         <button
                           onClick={() => deleteEvent(editingEvent.id)}
-                          className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all outline-none text-xs"
+                          className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-all outline-none text-xs font-medium"
                         >
                           Да
                         </button>
                         <button
                           onClick={() => setShowDeleteConfirm(false)}
-                          className="px-3 py-1.5 bg-white/10 hover:bg-white/15 rounded-lg transition-all outline-none text-xs"
+                          className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-xl transition-all outline-none text-xs"
                         >
                           Нет
                         </button>
@@ -2443,16 +2442,16 @@ export default function EventsPage() {
                   </>
                 )}
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-2 sm:gap-3">
                 <button
                   onClick={() => { setShowAddEvent(false); setEditingEvent(null); resetEventForm(); setShowDeleteConfirm(false); }}
-                  className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all outline-none"
+                  className="px-4 sm:px-5 py-2.5 sm:py-3 backdrop-blur-xl bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all outline-none text-sm"
                 >
                   Отмена
                 </button>
                 <button
                   onClick={editingEvent ? updateEvent : addEvent}
-                  className="px-5 py-2.5 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl transition-all font-medium outline-none flex items-center gap-2"
+                  className="px-5 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white rounded-xl transition-all font-medium outline-none flex items-center gap-2 text-sm"
                 >
                   {editingEvent ? (
                     <>
@@ -2474,8 +2473,8 @@ export default function EventsPage() {
 
       {/* Модал добавления типа */}
       {showAddType && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1a] border border-white/10 rounded-xl w-full max-w-sm">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="backdrop-blur-xl bg-[var(--bg-tertiary)]/80 border border-white/10 rounded-xl w-full max-w-sm">
             <div className="flex items-center justify-between p-4 border-b border-white/10">
               <h3 className="font-semibold">Новый тип события</h3>
               <button
@@ -2493,7 +2492,7 @@ export default function EventsPage() {
                   type="text"
                   value={typeForm.name}
                   onChange={(e) => setTypeForm({ ...typeForm, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-[#0d0d0d] border border-white/10 rounded-lg focus:outline-none focus:border-white/30"
+                  className="w-full px-3 py-2 backdrop-blur-xl bg-[var(--bg-tertiary)]/60 border border-white/10 rounded-xl focus:outline-none focus:border-cyan-500/50 transition-all"
                   placeholder="Название типа"
                   autoFocus
                 />
@@ -2532,13 +2531,13 @@ export default function EventsPage() {
             <div className="flex justify-end gap-2 p-4 border-t border-white/10">
               <button
                 onClick={() => setShowAddType(false)}
-                className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all outline-none"
+                className="px-4 py-2 backdrop-blur-xl bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all outline-none"
               >
                 Отмена
               </button>
               <button
                 onClick={addType}
-                className="px-4 py-2 bg-white/10 hover:bg-white/15 border border-white/10 text-white rounded-lg transition-all font-medium outline-none"
+                className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white rounded-xl transition-all font-medium outline-none"
               >
                 Добавить
               </button>

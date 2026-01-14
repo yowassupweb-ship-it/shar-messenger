@@ -215,6 +215,8 @@ interface TodoList {
   defaultExecutorId?: string;
   defaultCustomerId?: string;
   defaultAddToCalendar?: boolean;
+  creatorId?: string;
+  allowedUsers?: string[];
 }
 
 const PRIORITY_COLORS = {
@@ -268,6 +270,13 @@ const hasUnreadComments = (todo: Todo, myAccountId: string | null): boolean => {
   return lastReadIndex < todo.comments.length - 1;
 };
 
+// Хелпер для получения имени человека по ID
+const getPersonNameById = (people: Person[], personId: string | undefined, fallbackName?: string): string => {
+  if (!personId) return fallbackName || '';
+  const person = people.find(p => p.id === personId);
+  return person?.name || fallbackName || personId;
+};
+
 const LIST_ICONS: Record<string, React.ReactNode> = {
   inbox: <Inbox className="w-4 h-4" />,
   calendar: <Calendar className="w-4 h-4" />,
@@ -309,7 +318,7 @@ export default function TodosPage() {
   const [categories, setCategories] = useState<TodoCategory[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [returnUrl, setReturnUrl] = useState<string>('/todos');
+  const [returnUrl, setReturnUrl] = useState<string>('/account?tab=tasks');
   const [showAddList, setShowAddList] = useState(false);
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
@@ -333,6 +342,7 @@ export default function TodosPage() {
   const [availableLinks, setAvailableLinks] = useState<LinkItem[]>([]);
   const [linksSearchQuery, setLinksSearchQuery] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [showCompleted, setShowCompleted] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'all' | 'in-progress' | 'pending' | 'review' | 'cancelled' | 'stuck'>('all');
   const [showStatusFilter, setShowStatusFilter] = useState(false);
@@ -343,6 +353,10 @@ export default function TodosPage() {
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [addingToList, setAddingToList] = useState<string | null>(null);
   const [newTodoTitle, setNewTodoTitle] = useState('');
+  const [newTodoAssigneeId, setNewTodoAssigneeId] = useState<string | null>(null);
+  const [showNewTodoAssigneeDropdown, setShowNewTodoAssigneeDropdown] = useState(false);
+  const [newListAssigneeId, setNewListAssigneeId] = useState<string | null>(null);
+  const [showNewListAssigneeDropdown, setShowNewListAssigneeDropdown] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [editingListName, setEditingListName] = useState('');
@@ -576,18 +590,17 @@ export default function TodosPage() {
     
     if (createTask === 'true' && assignTo && people.length > 0) {
       // Убираем параметры из URL
-      router.replace('/todos', { scroll: false });
+      router.replace('/account?tab=tasks', { scroll: false });
       
-      // Открываем модальное окно создания задачи с предзаполненным исполнителем
+      // Находим первый список и открываем форму добавления
       setTimeout(() => {
-        setNewTodo(prev => ({
-          ...prev,
-          assignedToId: assignTo
-        }));
-        setShowAddTodoModal(true);
+        const firstList = lists.find(l => !l.archived);
+        if (firstList) {
+          setAddingToList(firstList.id);
+        }
       }, 100);
     }
-  }, [searchParams, people, router]);
+  }, [searchParams, people, router, lists]);
 
   // Polling задач каждые 3 секунды для real-time синхронизации
   useEffect(() => {
@@ -1358,9 +1371,9 @@ export default function TodosPage() {
     const currentPath = window.location.pathname + window.location.search;
     if (currentPath.startsWith('/account')) {
       setReturnUrl(currentPath);
-      router.push(`/todos?task=${todo.id}&from=${encodeURIComponent(currentPath)}`, { scroll: false });
+      router.push(`/account?tab=tasks&task=${todo.id}&from=${encodeURIComponent(currentPath)}`, { scroll: false });
     } else {
-      router.push(`/todos?task=${todo.id}`, { scroll: false });
+      router.push(`/account?tab=tasks&task=${todo.id}`, { scroll: false });
     }
     
     // Отмечаем комментарии как прочитанные
@@ -1394,9 +1407,9 @@ export default function TodosPage() {
           const currentPath = window.location.pathname + window.location.search;
           if (currentPath.startsWith('/account')) {
             setReturnUrl(currentPath);
-            router.push(`/todos?task=${todoId}&from=${encodeURIComponent(currentPath)}`, { scroll: false });
+            router.push(`/account?tab=tasks&task=${todoId}&from=${encodeURIComponent(currentPath)}`, { scroll: false });
           } else {
-            router.push(`/todos?task=${todoId}`, { scroll: false });
+            router.push(`/account?tab=tasks&task=${todoId}`, { scroll: false });
           }
           
           // Отмечаем комментарии как прочитанные
@@ -1418,7 +1431,7 @@ export default function TodosPage() {
     setEditingTodo(null);
     router.push(returnUrl, { scroll: false });
     // Сбрасываем returnUrl после возврата
-    setReturnUrl('/todos');
+    setReturnUrl('/account?tab=tasks');
   };
 
   // Закрытие dropdown при клике вне
@@ -1523,6 +1536,9 @@ export default function TodosPage() {
     const isExecutor = myAccount && myAccount.role === 'executor';
     const isCustomer = myAccount && (myAccount.role === 'customer' || myAccount.role === 'universal');
     
+    // Если выбран исполнитель вручную - используем его
+    const selectedAssignee = newTodoAssigneeId ? people.find(p => p.id === newTodoAssigneeId) : null;
+    
     try {
       const res = await fetch('/api/todos', {
         method: 'POST',
@@ -1531,8 +1547,10 @@ export default function TodosPage() {
           title: newTodoTitle,
           listId: listId,
           priority: 'medium',
-          // Если исполнитель - ставим его исполнителем
-          ...(isExecutor && { assignedToId: myAccount.id, assignedTo: myAccount.name }),
+          // Если выбран исполнитель вручную - используем его
+          ...(selectedAssignee && { assignedToId: selectedAssignee.id, assignedTo: selectedAssignee.name }),
+          // Иначе если текущий пользователь исполнитель - ставим его
+          ...(!selectedAssignee && isExecutor && { assignedToId: myAccount.id, assignedTo: myAccount.name }),
           // Если руководитель/универсал - ставим его постановщиком
           ...(isCustomer && { assignedById: myAccount.id, assignedBy: myAccount.name })
         })
@@ -1542,6 +1560,8 @@ export default function TodosPage() {
         const newTodo = await res.json();
         setTodos(prev => [...prev, newTodo]);
         setNewTodoTitle('');
+        setNewTodoAssigneeId(null);
+        setShowNewTodoAssigneeDropdown(false);
         setAddingToList(null);
         
         // Отправляем уведомление исполнителю о новой задаче
@@ -1724,11 +1744,15 @@ export default function TodosPage() {
     console.log('[addList] Called with name:', newListName);
     console.log('[addList] myAccountId:', myAccountId);
     console.log('[addList] newListColor:', newListColor);
+    console.log('[addList] newListAssigneeId:', newListAssigneeId);
     
     if (!newListName.trim()) {
       console.log('[addList] Name is empty, returning');
       return;
     }
+    
+    // Получаем данные выбранного исполнителя
+    const selectedAssignee = newListAssigneeId ? people.find(p => p.id === newListAssigneeId) : null;
     
     try {
       const payload = {
@@ -1736,7 +1760,9 @@ export default function TodosPage() {
         name: newListName,
         color: newListColor,
         icon: 'folder',
-        creatorId: myAccountId
+        creatorId: myAccountId,
+        // Добавляем исполнителя по умолчанию если выбран
+        ...(selectedAssignee && { defaultAssigneeId: selectedAssignee.id, defaultAssignee: selectedAssignee.name })
       };
       console.log('[addList] Sending POST request with payload:', payload);
       
@@ -1757,6 +1783,7 @@ export default function TodosPage() {
         await loadData();
         
         setNewListName('');
+        setNewListAssigneeId(null);
         setShowAddList(false);
         // Сразу открываем настройки нового списка
         setShowListSettings(newList.id);
@@ -2356,31 +2383,17 @@ export default function TodosPage() {
     <div className="min-h-screen flex flex-col text-[var(--text-primary)]">
       {/* Header */}
       <header className="h-12 bg-[var(--bg-tertiary)] border-b border-[var(--border-secondary)] flex items-center px-2 sm:px-4 flex-shrink-0 sticky top-0 z-40">
-        <Link
-          href="/"
-          className="flex items-center justify-center w-8 h-8 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-glass)] transition-all mr-2 sm:mr-3"
-          title="На главную"
+        {/* Search - на мобилке иконка, на десктопе поле */}
+        {/* Mobile search toggle */}
+        <button
+          onClick={() => setShowMobileSearch(!showMobileSearch)}
+          className="sm:hidden w-8 h-8 rounded-full bg-[var(--bg-glass)] border border-[var(--border-color)] flex items-center justify-center hover:bg-[var(--bg-glass-hover)] transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" strokeWidth={2} />
-        </Link>
+          <Search className="w-4 h-4 text-[var(--text-muted)]" />
+        </button>
         
-        <div className="flex items-center gap-1.5 sm:gap-2 mr-2 sm:mr-4">
-          <CheckSquare className="w-4 h-4 text-[var(--text-secondary)]" />
-          <span className="font-medium text-sm hidden sm:inline">Задачи</span>
-        </div>
-
-        {/* My Account */}
-        {myAccountId && people.find(p => p.id === myAccountId) && (
-          <div className="hidden sm:flex items-center gap-1.5 mr-4 px-2.5 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
-            <User className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="text-xs font-medium text-cyan-400">
-              {people.find(p => p.id === myAccountId)?.name}
-            </span>
-          </div>
-        )}
-
-        {/* Search */}
-        <div className="relative flex-1 max-w-xs hidden sm:block">
+        {/* Desktop search */}
+        <div className="relative hidden sm:block flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
           <input
             type="text"
@@ -2390,33 +2403,44 @@ export default function TodosPage() {
             className="pl-9 pr-4 py-1.5 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-[25px] w-full text-sm focus:outline-none focus:border-[var(--border-light)] transition-colors"
           />
         </div>
+        
+        {/* Mobile search expanded */}
+        {showMobileSearch && (
+          <div className="sm:hidden absolute left-0 right-0 top-full bg-[var(--bg-tertiary)] border-b border-[var(--border-secondary)] p-2 z-50">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+              <input
+                type="text"
+                placeholder="Поиск..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                autoFocus
+                className="pl-9 pr-10 py-2 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-[25px] w-full text-sm focus:outline-none focus:border-[var(--border-light)] transition-colors"
+              />
+              <button
+                onClick={() => { setShowMobileSearch(false); setSearchQuery(''); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full hover:bg-white/10 flex items-center justify-center"
+              >
+                <X className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Status Filter Dropdown */}
         <div className="relative ml-2 sm:ml-4" ref={statusFilterRef}>
           <button
             onClick={() => setShowStatusFilter(!showStatusFilter)}
-            className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 sm:gap-2 border ${
-              statusFilter !== 'all'
-                ? statusFilter === 'in-progress' 
-                  ? 'bg-blue-500/20 text-blue-400 border-blue-500/50'
-                  : statusFilter === 'pending'
-                    ? 'bg-orange-500/20 text-orange-400 border-orange-500/50'
-                    : statusFilter === 'cancelled'
-                      ? 'bg-red-500/20 text-red-400 border-red-500/50'
-                      : statusFilter === 'stuck'
-                        ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50'
-                        : 'bg-green-500/20 text-green-400 border-green-500/50'
-                : 'bg-[var(--bg-glass)] text-[var(--text-secondary)] border-[var(--border-color)] hover:bg-[var(--bg-glass-hover)]'
-            }`}
+            className="flex-shrink-0 px-3 py-2 min-h-[36px] rounded-full text-xs font-medium transition-all flex items-center gap-2 border bg-[var(--bg-glass)] text-[var(--text-secondary)] border-[var(--border-color)] hover:bg-[var(--bg-glass-hover)]"
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${
+            <span className={`w-2 h-2 rounded-full transition-colors ${
               statusFilter === 'in-progress' ? 'bg-blue-400' :
               statusFilter === 'pending' ? 'bg-orange-400' :
               statusFilter === 'review' ? 'bg-green-400' : 
               statusFilter === 'cancelled' ? 'bg-red-400' :
               statusFilter === 'stuck' ? 'bg-yellow-500' : 'bg-white/40'
             }`} />
-            <span className="hidden sm:inline">{statusFilter === 'all' ? 'Статус' : 
+            <span>{statusFilter === 'all' ? 'Статус' : 
              statusFilter === 'in-progress' ? 'В работе' :
              statusFilter === 'pending' ? 'Ожидание' : 
              statusFilter === 'cancelled' ? 'Отменена' :
@@ -2484,11 +2508,11 @@ export default function TodosPage() {
           )}
         </div>
 
-        {/* Executor Filter Dropdown */}
-        <div className="relative ml-2" ref={executorFilterRef}>
+        {/* Executor Filter Dropdown - иконка на мобильных */}
+        <div className="relative ml-2 hidden sm:block" ref={executorFilterRef}>
           <button
             onClick={() => setShowExecutorFilter(!showExecutorFilter)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-2 border ${
+            className={`flex-shrink-0 px-3 py-2 min-h-[36px] rounded-full text-xs font-medium transition-all flex items-center gap-2 border ${
               executorFilter !== 'all'
                 ? 'bg-purple-500/20 text-purple-400 border-purple-500/50'
                 : 'bg-[var(--bg-glass)] text-[var(--text-secondary)] border-[var(--border-color)] hover:bg-[var(--bg-glass-hover)]'
@@ -2541,7 +2565,7 @@ export default function TodosPage() {
             <button
               onClick={() => setShowSettingsMenu(!showSettingsMenu)}
               title="Настройки"
-              className="p-1.5 bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] rounded-lg text-xs transition-colors flex items-center border border-[var(--border-color)]"
+              className="flex-shrink-0 w-8 h-8 bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] rounded-full transition-colors flex items-center justify-center border border-[var(--border-glass)] backdrop-blur-sm"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -2581,14 +2605,6 @@ export default function TodosPage() {
                   {telegramEnabled && <span className="ml-auto text-[10px] bg-cyan-500/20 px-1.5 py-0.5 rounded">ON</span>}
                 </button>
                 <button
-                  onClick={() => { setShowPeopleManager(true); setShowSettingsMenu(false); }}
-                  className="w-full px-3 py-2 text-xs text-left flex items-center gap-2 text-[var(--text-secondary)] hover:bg-[var(--bg-glass)] transition-colors"
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  Люди
-                  <span className="ml-auto text-[10px] text-[var(--text-muted)]">{people.length}</span>
-                </button>
-                <button
                   onClick={() => { setShowCategoryManager(true); setShowSettingsMenu(false); }}
                   className="w-full px-3 py-2 text-xs text-left flex items-center gap-2 text-[var(--text-secondary)] hover:bg-[var(--bg-glass)] transition-colors"
                 >
@@ -2604,77 +2620,68 @@ export default function TodosPage() {
           <button
             onClick={() => setShowArchive(!showArchive)}
             title="Архив"
-            className={`px-2 py-1.5 rounded-lg flex items-center gap-1 transition-all text-xs border ${
+            className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all border backdrop-blur-sm ${
               showArchive 
                 ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' 
-                : 'bg-[var(--bg-glass)] text-[var(--text-secondary)] border-[var(--border-color)] hover:bg-[var(--bg-glass-hover)] hover:text-orange-400'
+                : 'bg-[var(--bg-glass)] text-[var(--text-secondary)] border-[var(--border-glass)] hover:bg-[var(--bg-glass-hover)] hover:text-orange-400'
             }`}
           >
-            <Archive className="w-3.5 h-3.5" />
-            {(lists.filter(l => l.archived).length > 0 || todos.filter(t => t.archived).length > 0) && (
-              <span className="text-[10px] bg-[var(--bg-glass-hover)] px-1.5 py-0.5 rounded-full">
-                {lists.filter(l => l.archived).length + todos.filter(t => t.archived).length}
-              </span>
-            )}
-          </button>
-          
-          <button
-            onClick={() => setShowAddList(true)}
-            title="Новый список"
-            className="p-1.5 bg-[var(--bg-glass-hover)] text-[var(--text-primary)] hover:bg-white/15 rounded-lg flex items-center transition-all border border-[var(--border-color)]"
-          >
-            <Plus className="w-4 h-4" />
+            <Archive className="w-4 h-4" />
           </button>
         </div>
       </header>
 
-      {/* Мобильная навигация по колонкам */}
-      <div className="md:hidden px-2 py-2 bg-[var(--bg-secondary)] border-b border-[var(--border-color)]">
-        <div className="flex gap-1 overflow-x-auto pb-1">
+      {/* Mobile Column Switcher - только на мобильных */}
+      <div className="md:hidden sticky top-12 z-30 bg-[var(--bg-tertiary)] border-b border-[var(--border-color)]">
+        <div className="flex flex-wrap gap-1 px-2 py-2 items-center">
+          {/* Кнопка добавления списка - первая */}
+          <button
+            onClick={() => setShowAddList(true)}
+            className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center text-white shadow-lg"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
           {lists.filter(l => !l.archived).sort((a, b) => a.order - b.order)
             .filter(list => {
-              // Пока не загрузились права - скрываем все
               if (canSeeAllTasks === null) return false;
-              // Для пользователей без полного доступа скрываем пустые столбцы, КРОМЕ своих списков
               if (!canSeeAllTasks && myAccountId) {
-                // Показываем свои списки всегда (даже пустые)
                 const isOwnList = list.creatorId === myAccountId || (list.allowedUsers && list.allowedUsers.includes(myAccountId));
                 if (!isOwnList) {
                   const listTodos = getTodosForList(list.id, showArchive);
                   if (listTodos.length === 0) return false;
                 }
               }
-              if (!searchQuery) return true;
-              const listTodos = getTodosForList(list.id, showArchive);
-              return listTodos.length > 0;
+              return true;
             })
-            .map((list, index) => (
-              <button
-                key={list.id}
-                onClick={() => setSelectedColumnIndex(index)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  selectedColumnIndex === index
-                    ? 'bg-[var(--bg-glass-hover)] text-[var(--text-primary)] border border-[var(--border-light)]'
-                    : 'text-[var(--text-secondary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-glass)]'
-                }`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <div
-                    className="w-2 h-2 rounded-full flex-shrink-0"
+            .map((list, index) => {
+              const listTodos = getTodosForList(list.id, showArchive);
+              return (
+                <button
+                  key={list.id}
+                  onClick={() => setSelectedColumnIndex(index)}
+                  className={`flex-shrink-0 px-4 py-3 min-h-[44px] rounded-full text-sm font-medium transition-all flex items-center gap-2 ${
+                    selectedColumnIndex === index
+                      ? 'bg-[var(--accent-primary)] text-white'
+                      : 'bg-[var(--bg-glass)] text-[var(--text-secondary)] border border-[var(--border-color)]'
+                  }`}
+                >
+                  <span 
+                    className="w-2.5 h-2.5 rounded-full" 
                     style={{ backgroundColor: list.color }}
                   />
-                  <span className="whitespace-nowrap">{list.name}</span>
-                </div>
-              </button>
-            ))}
+                  <span className="max-w-[100px] truncate">{list.name}</span>
+                  <span className="text-[11px] opacity-70">{listTodos.length}</span>
+                </button>
+              );
+            })}
         </div>
       </div>
 
       {/* Kanban Board */}
-      <div className="flex-1 px-2 sm:px-4 py-2 sm:py-4">
+      <div className="flex-1 px-1 sm:px-4 py-2 sm:py-4 overflow-hidden">
         <div 
           ref={boardRef}
-          className="flex gap-2 sm:gap-4 overflow-x-auto pb-4 md:overflow-x-auto" 
+          className="flex flex-col md:flex-row gap-2 sm:gap-4 md:overflow-x-auto scrollbar-hide pb-4 select-none" 
           style={{ cursor: 'grab' }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
@@ -2733,21 +2740,22 @@ export default function TodosPage() {
               >
                 {/* List Header */}
                 <div 
-                  className="bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-t-xl p-2.5 flex-shrink-0"
+                  className="bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-t-xl p-2 sm:p-2.5 flex-shrink-0"
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 sm:gap-1.5">
+                      {/* Drag handle - только на десктопе */}
                       <div
                         draggable
                         onDragStart={(e) => handleListDragStart(e, list)}
                         onDragEnd={handleListDragEnd}
-                        className="p-1 -ml-1 rounded hover:bg-[var(--bg-glass-hover)] cursor-grab active:cursor-grabbing transition-colors"
+                        className="hidden md:block p-0.5 -ml-1 rounded hover:bg-[var(--bg-glass-hover)] cursor-grab active:cursor-grabbing transition-colors"
                         title="Перетащите для изменения порядка"
                       >
-                        <GripVertical className="w-3 h-3 opacity-40" />
+                        <GripVertical className="w-3.5 h-3.5 sm:w-3 sm:h-3 opacity-40" />
                       </div>
                       <div 
-                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                        className="w-2.5 h-2.5 sm:w-2.5 sm:h-2.5 rounded-full flex-shrink-0"
                         style={{ backgroundColor: list.color }}
                       />
                       {editingListId === list.id ? (
@@ -2778,7 +2786,7 @@ export default function TodosPage() {
                         />
                       ) : (
                         <h3 
-                          className="font-medium text-sm truncate cursor-pointer hover:text-blue-400 transition-colors"
+                          className="font-medium text-sm sm:text-sm truncate cursor-pointer hover:text-blue-400 transition-colors"
                           onClick={(e) => {
                             e.stopPropagation();
                             setEditingListId(list.id);
@@ -2807,42 +2815,42 @@ export default function TodosPage() {
                     <div className="flex items-center gap-0.5">
                       <button
                         onClick={() => setAddingToList(list.id)}
-                        className="p-1.5 bg-green-500/20 hover:bg-green-500/30 rounded-lg transition-all duration-200 text-green-400"
+                        className="flex-shrink-0 w-7 h-7 bg-[var(--bg-glass)] hover:bg-green-500/30 rounded-full transition-all duration-200 text-green-400 flex items-center justify-center border border-[var(--border-glass)] backdrop-blur-sm"
                         title="Добавить задачу"
                       >
-                        <Plus className="w-4 h-4" />
+                        <Plus className="w-3.5 h-3.5" />
                       </button>
                       {/* Меню ... */}
                       <div className="relative">
                         <button
                           onClick={() => setShowListMenu(showListMenu === list.id ? null : list.id)}
-                          className="p-1 hover:bg-[var(--bg-glass-hover)] rounded transition-all duration-200 text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                          className="w-7 h-7 bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] rounded-full transition-all duration-200 text-[var(--text-muted)] hover:text-[var(--text-secondary)] flex items-center justify-center border border-[var(--border-glass)] backdrop-blur-sm"
                           title="Действия со списком"
                         >
-                          <MoreVertical className="w-4 h-4" />
+                          <MoreVertical className="w-3.5 h-3.5" />
                         </button>
                         {showListMenu === list.id && (
-                          <div className="absolute right-0 top-full mt-1 w-40 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl z-50 py-1">
+                          <div className="absolute right-0 top-full mt-1 w-44 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl z-50 py-1">
                             <button
                               onClick={() => { setShowListMenu(null); setShowListSettings(list.id); }}
-                              className="w-full px-3 py-2 text-xs text-left flex items-center gap-2 text-blue-400 hover:bg-blue-500/10 transition-colors"
+                              className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-blue-400 hover:bg-blue-500/10 transition-colors"
                             >
-                              <Settings className="w-3.5 h-3.5" />
+                              <Settings className="w-4 h-4" />
                               Настройки
                             </button>
                             <button
                               onClick={() => { toggleArchiveList(list.id, true); setShowListMenu(null); }}
-                              className="w-full px-3 py-2 text-xs text-left flex items-center gap-2 text-orange-400 hover:bg-orange-500/10 transition-colors"
+                              className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-orange-400 hover:bg-orange-500/10 transition-colors"
                             >
-                              <Archive className="w-3.5 h-3.5" />
+                              <Archive className="w-4 h-4" />
                               Архивировать
                             </button>
                             <div className="border-t border-[var(--border-color)] my-1" />
                             <button
                               onClick={() => { deleteList(list.id); setShowListMenu(null); }}
-                              className="w-full px-3 py-2 text-xs text-left flex items-center gap-2 text-red-400 hover:bg-red-500/10 transition-colors"
+                              className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-red-400 hover:bg-red-500/10 transition-colors"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-4 h-4" />
                               Удалить
                             </button>
                           </div>
@@ -2868,21 +2876,64 @@ export default function TodosPage() {
                         onChange={(e) => setNewTodoTitle(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') addTodo(list.id);
-                          if (e.key === 'Escape') { setAddingToList(null); setNewTodoTitle(''); }
+                          if (e.key === 'Escape') { setAddingToList(null); setNewTodoTitle(''); setNewTodoAssigneeId(null); }
                         }}
                         className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg mb-2 focus:outline-none focus:border-white/30"
                         autoFocus
                       />
+                      {/* Выбор исполнителя */}
+                      <div className="relative mb-2">
+                        <button
+                          onClick={() => setShowNewTodoAssigneeDropdown(!showNewTodoAssigneeDropdown)}
+                          className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-left text-sm flex items-center justify-between hover:border-[var(--border-light)] transition-colors"
+                        >
+                          <span className="flex items-center gap-2">
+                            <UserCheck className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                            {newTodoAssigneeId 
+                              ? people.find(p => p.id === newTodoAssigneeId)?.name || 'Исполнитель'
+                              : 'Выбрать исполнителя'}
+                          </span>
+                          <ChevronDown className={`w-3.5 h-3.5 text-[var(--text-muted)] transition-transform ${showNewTodoAssigneeDropdown ? 'rotate-180' : ''}`} />
+                        </button>
+                        {showNewTodoAssigneeDropdown && (
+                          <div className="absolute left-0 right-0 top-full mt-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl z-50 py-1 max-h-48 overflow-y-auto">
+                            <button
+                              onClick={() => { setNewTodoAssigneeId(null); setShowNewTodoAssigneeDropdown(false); }}
+                              className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-[var(--bg-glass)] transition-colors ${
+                                !newTodoAssigneeId ? 'text-[var(--text-primary)] bg-[var(--bg-glass)]' : 'text-[var(--text-secondary)]'
+                              }`}
+                            >
+                              <Users className="w-3.5 h-3.5" />
+                              Без исполнителя
+                            </button>
+                            {people.filter(p => p.role === 'executor' || p.role === 'universal').map(person => (
+                              <button
+                                key={person.id}
+                                onClick={() => { setNewTodoAssigneeId(person.id); setShowNewTodoAssigneeDropdown(false); }}
+                                className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-[var(--bg-glass)] transition-colors ${
+                                  newTodoAssigneeId === person.id ? 'text-purple-400 bg-purple-500/10' : 'text-[var(--text-secondary)]'
+                                }`}
+                              >
+                                <UserCheck className="w-3.5 h-3.5" />
+                                {person.name}
+                                {person.id === myAccountId && (
+                                  <span className="ml-auto text-[10px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded">Я</span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       <div className="flex gap-2">
                         <button
                           onClick={() => addTodo(list.id)}
-                          className="flex-1 py-1.5 bg-[var(--bg-glass-hover)] text-[var(--text-primary)] hover:bg-white/15 rounded-xl text-sm font-medium transition-all border border-[var(--border-color)]"
+                          className="flex-1 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-all"
                         >
                           Добавить
                         </button>
                         <button
-                          onClick={() => { setAddingToList(null); setNewTodoTitle(''); }}
-                          className="px-3 py-1.5 bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] rounded-xl text-sm transition-all"
+                          onClick={() => { setAddingToList(null); setNewTodoTitle(''); setNewTodoAssigneeId(null); }}
+                          className="px-3 py-1.5 bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] rounded-lg text-sm transition-all"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -2902,14 +2953,14 @@ export default function TodosPage() {
                       onMouseEnter={(e) => handleTodoMouseEnter(e, todo)}
                       onMouseLeave={handleTodoMouseLeave}
                       className={`
-                        group bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg p-2.5 cursor-grab active:cursor-grabbing
+                        group bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg p-2.5 sm:p-2.5 cursor-grab active:cursor-grabbing
                         transition-all duration-200 hover:shadow-md hover:border-[var(--border-light)] border-l-3 ${PRIORITY_COLORS[todo.priority]}
                         ${todo.completed ? 'opacity-60' : ''}
                         ${draggedTodo?.id === todo.id ? 'opacity-50 scale-95' : ''}
                         ${dragOverTodoId === todo.id && draggedTodo?.id !== todo.id ? 'border-t-2 border-t-blue-500' : ''}
                       `}
                     >
-                      <div className="flex items-start gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         {/* Grip handle */}
                         <div className="mt-0.5 opacity-0 group-hover:opacity-40 transition-opacity duration-200 cursor-grab">
                           <GripVertical className="w-3 h-3" />
@@ -2919,30 +2970,30 @@ export default function TodosPage() {
                         <button
                           onClick={() => toggleTodo(todo)}
                           className={`
-                            w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all
+                            w-5 h-5 sm:w-4 sm:h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all
                             ${todo.completed 
                               ? 'bg-green-500 border-green-500 text-[var(--text-primary)]' 
                               : 'border-[var(--border-color)] hover:border-green-500'
                             }
                           `}
                         >
-                          {todo.completed && <Check className="w-2.5 h-2.5" />}
+                          {todo.completed && <Check className="w-3 h-3 sm:w-2.5 sm:h-2.5" />}
                         </button>
                         
                         {/* Content */}
                         <div className="flex-1 min-w-0">
-                          <p className={`font-medium text-xs ${todo.completed ? 'line-through text-white/50' : ''}`}>
+                          <p className={`font-medium text-sm sm:text-xs ${todo.completed ? 'line-through text-white/50' : ''}`}>
                             {todo.title}
                           </p>
                           {todo.description && (
                             <p 
-                              className="text-[10px] text-white/50 mt-0.5 line-clamp-2"
+                              className="text-xs sm:text-[10px] text-white/50 mt-1 sm:mt-0.5 line-clamp-2"
                               dangerouslySetInnerHTML={{ __html: todo.description.replace(/<[^>]*>/g, ' ').slice(0, 100) }}
                             />
                           )}
-                          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          <div className="flex items-center gap-2 sm:gap-1.5 mt-2 sm:mt-1.5 flex-wrap">
                             {todo.status && !todo.completed && (
-                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-medium ${
+                              <span className={`px-2 py-1 sm:px-1.5 sm:py-0.5 rounded text-xs sm:text-[8px] font-medium ${
                                 todo.status === 'in-progress' 
                                   ? 'bg-blue-500/20 text-blue-400' 
                                   : todo.status === 'pending'
@@ -2959,31 +3010,31 @@ export default function TodosPage() {
                                  todo.status === 'stuck' ? 'Застряла' : 'Готово к проверке'}
                               </span>
                             )}
-                            {todo.assignedBy && (
-                              <span className="text-[9px] text-white/50" title="От кого">
-                                {todo.assignedBy}
+                            {todo.assignedById && (
+                              <span className="text-xs sm:text-[9px] text-white/50" title="От кого">
+                                {getPersonNameById(people, todo.assignedById, todo.assignedBy)}
                               </span>
                             )}
                             {/* Множественные исполнители или один */}
                             {todo.assignedToIds && todo.assignedToIds.length > 1 ? (
-                              <span className="text-[9px] text-green-400" title={`Исполнители: ${todo.assignedToNames?.join(', ')}`}>
-                                {todo.assignedToNames?.slice(0, 2).join(', ')}{todo.assignedToIds.length > 2 ? ` +${todo.assignedToIds.length - 2}` : ''}
+                              <span className="text-xs sm:text-[9px] text-green-400" title={`Исполнители: ${todo.assignedToIds.map(id => getPersonNameById(people, id)).join(', ')}`}>
+                                {todo.assignedToIds.slice(0, 2).map(id => getPersonNameById(people, id)).join(', ')}{todo.assignedToIds.length > 2 ? ` +${todo.assignedToIds.length - 2}` : ''}
                               </span>
-                            ) : todo.assignedTo && (
-                              <span className="text-[9px] text-green-400" title="Кому">
-                                {todo.assignedTo}
+                            ) : todo.assignedToId && (
+                              <span className="text-xs sm:text-[9px] text-green-400" title="Кому">
+                                {getPersonNameById(people, todo.assignedToId, todo.assignedTo)}
                               </span>
                             )}
                             {/* Индикатор непрочитанных комментариев */}
                             {hasUnreadComments(todo, myAccountId) && (
-                              <span className="flex items-center gap-0.5 text-[10px] text-red-400 font-medium animate-bounce" title="Есть непрочитанные комментарии">
-                                <MessageCircle className="w-3 h-3 fill-red-400/30" />
-                                <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
+                              <span className="flex items-center gap-1 text-xs sm:text-[10px] text-red-400 font-medium animate-bounce" title="Есть непрочитанные комментарии">
+                                <MessageCircle className="w-4 h-4 sm:w-3 sm:h-3 fill-red-400/30" />
+                                <span className="w-2.5 h-2.5 sm:w-2 sm:h-2 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
                               </span>
                             )}
                             {todo.dueDate && (
-                              <span className="flex items-center gap-0.5 text-[9px] text-white/50">
-                                <Clock className="w-2.5 h-2.5" />
+                              <span className="flex items-center gap-1 text-xs sm:text-[9px] text-white/50">
+                                <Clock className="w-3.5 h-3.5 sm:w-2.5 sm:h-2.5" />
                                 {new Date(todo.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                               </span>
                             )}
@@ -2991,10 +3042,10 @@ export default function TodosPage() {
                               const cat = categories.find(c => c.id === todo.categoryId);
                               return cat ? (
                                 <span 
-                                  className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+                                  className="flex items-center gap-1 px-2 py-1 sm:px-1.5 sm:py-0.5 rounded text-xs sm:text-[10px] font-medium"
                                   style={{ backgroundColor: `${cat.color}20`, color: cat.color }}
                                 >
-                                  {CATEGORY_ICONS[cat.icon] || <Tag className="w-3 h-3" />}
+                                  {CATEGORY_ICONS[cat.icon] || <Tag className="w-3.5 h-3.5 sm:w-3 sm:h-3" />}
                                   {cat.name}
                                 </span>
                               ) : null;
@@ -3016,10 +3067,10 @@ export default function TodosPage() {
                         </div>
                         
                         {/* Actions */}
-                        <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-200">
+                        <div className="flex items-center gap-1 flex-shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-200">
                           <button
                             onClick={() => openTodoModal(todo)}
-                            className="p-1.5 hover:bg-[var(--bg-glass-hover)] rounded-lg transition-all duration-200"
+                            className="flex-shrink-0 w-7 h-7 bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] rounded-full transition-all duration-200 flex items-center justify-center border border-[var(--border-glass)] backdrop-blur-sm"
                             title="Редактировать"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
@@ -3027,7 +3078,7 @@ export default function TodosPage() {
                           {todo.completed && (
                             <button
                               onClick={() => toggleArchiveTodo(todo.id, true)}
-                              className="p-1.5 hover:bg-orange-500/20 rounded-lg text-orange-400 transition-all duration-200"
+                              className="flex-shrink-0 w-7 h-7 bg-[var(--bg-glass)] hover:bg-orange-500/20 rounded-full text-orange-400 transition-all duration-200 flex items-center justify-center border border-[var(--border-glass)] backdrop-blur-sm"
                               title="В архив"
                             >
                               <Archive className="w-3.5 h-3.5" />
@@ -3035,7 +3086,7 @@ export default function TodosPage() {
                           )}
                           <button
                             onClick={() => deleteTodo(todo.id)}
-                            className="p-1.5 hover:bg-red-500/20 rounded-lg text-red-400 transition-all duration-200"
+                            className="flex-shrink-0 w-7 h-7 bg-[var(--bg-glass)] hover:bg-red-500/20 rounded-full text-red-400 transition-all duration-200 flex items-center justify-center border border-[var(--border-glass)] backdrop-blur-sm"
                             title="Удалить"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -3050,12 +3101,6 @@ export default function TodosPage() {
                     <div className="flex flex-col items-center justify-center py-8 text-white/50">
                       <Inbox className="w-8 h-8 mb-2 opacity-50" />
                       <p className="text-sm">Нет задач</p>
-                      <button
-                        onClick={() => setAddingToList(list.id)}
-                        className="mt-2 text-[var(--text-secondary)] text-sm hover:underline"
-                      >
-                        Добавить задачу
-                      </button>
                     </div>
                   )}
                 </div>
@@ -3079,39 +3124,83 @@ export default function TodosPage() {
           {/* Add List Form */}
           {showAddList && (
             <div className="flex-shrink-0 w-80 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl p-4">
-              <h3 className="font-semibold mb-3">Новый список</h3>
+              <h3 className="font-semibold mb-3 text-[var(--text-primary)]">Новый список</h3>
               <input
                 type="text"
                 placeholder="Название списка"
                 value={newListName}
                 onChange={(e) => setNewListName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addList()}
-                className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg mb-3 focus:outline-none focus:border-white/30"
+                className="w-full px-3 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl mb-3 focus:outline-none focus:border-[var(--accent-primary)] text-[var(--text-primary)]"
                 autoFocus
               />
-              <div className="mb-3">
-                <label className="block text-sm text-white/50 mb-2">Цвет</label>
+              <div className="mb-4">
+                <label className="block text-sm text-[var(--text-muted)] mb-2">Цвет</label>
                 <div className="flex gap-2 flex-wrap">
                   {LIST_COLORS.map(color => (
                     <button
                       key={color}
                       onClick={() => setNewListColor(color)}
-                      className={`w-5 h-5 rounded-full transition-all ${newListColor === color ? 'ring-2 ring-white/50 ring-offset-2 ring-offset-[#1a1a1a]' : 'opacity-70 hover:opacity-100'}`}
+                      className={`w-6 h-6 rounded-full transition-all ${newListColor === color ? 'ring-2 ring-[var(--accent-primary)] ring-offset-2 ring-offset-[var(--bg-tertiary)] scale-110' : 'hover:scale-110'}`}
                       style={{ backgroundColor: color }}
                     />
                   ))}
                 </div>
               </div>
+              {/* Выбор исполнителя по умолчанию */}
+              <div className="mb-4 relative">
+                <label className="block text-sm text-[var(--text-muted)] mb-2">Исполнитель по умолчанию</label>
+                <button
+                  onClick={() => setShowNewListAssigneeDropdown(!showNewListAssigneeDropdown)}
+                  className="w-full px-3 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl text-left text-sm flex items-center justify-between hover:border-[var(--border-light)] transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <UserCheck className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                    {newListAssigneeId 
+                      ? people.find(p => p.id === newListAssigneeId)?.name || 'Исполнитель'
+                      : 'Не выбран'}
+                  </span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-[var(--text-muted)] transition-transform ${showNewListAssigneeDropdown ? 'rotate-180' : ''}`} />
+                </button>
+                {showNewListAssigneeDropdown && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl shadow-xl z-50 py-1 max-h-48 overflow-y-auto">
+                    <button
+                      onClick={() => { setNewListAssigneeId(null); setShowNewListAssigneeDropdown(false); }}
+                      className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-[var(--bg-glass)] transition-colors ${
+                        !newListAssigneeId ? 'text-[var(--text-primary)] bg-[var(--bg-glass)]' : 'text-[var(--text-secondary)]'
+                      }`}
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      Не выбран
+                    </button>
+                    {people.filter(p => p.role === 'executor' || p.role === 'universal').map(person => (
+                      <button
+                        key={person.id}
+                        onClick={() => { setNewListAssigneeId(person.id); setShowNewListAssigneeDropdown(false); }}
+                        className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-[var(--bg-glass)] transition-colors ${
+                          newListAssigneeId === person.id ? 'text-purple-400 bg-purple-500/10' : 'text-[var(--text-secondary)]'
+                        }`}
+                      >
+                        <UserCheck className="w-3.5 h-3.5" />
+                        {person.name}
+                        {person.id === myAccountId && (
+                          <span className="ml-auto text-[10px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded">Я</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div className="flex gap-2">
                 <button
                   onClick={addList}
-                  className="flex-1 py-2 bg-[var(--bg-glass-hover)] text-[var(--text-primary)] hover:bg-white/15 rounded-xl text-sm font-medium transition-all border border-[var(--border-color)]"
+                  className="flex-1 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-medium transition-all"
                 >
                   Создать
                 </button>
                 <button
-                  onClick={() => { setShowAddList(false); setNewListName(''); }}
-                  className="px-4 py-2 bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] rounded-xl text-sm transition-all"
+                  onClick={() => { setShowAddList(false); setNewListName(''); setNewListAssigneeId(null); }}
+                  className="px-4 py-2.5 bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] rounded-xl text-sm font-medium transition-all"
                 >
                   Отмена
                 </button>
@@ -3182,7 +3271,7 @@ export default function TodosPage() {
             {lists.filter(l => l.archived).length > 0 && (
               <>
                 <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">Архивные списки</h3>
-                <div className="flex gap-4 overflow-x-auto pb-4">
+                <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-4">
                   {lists.filter(l => l.archived).map(list => {
                     const listTodos = getTodosForList(list.id, true);
                     const completedCount = todos.filter(t => t.listId === list.id && t.completed).length;
@@ -3322,12 +3411,12 @@ export default function TodosPage() {
             </div>
           )}
           
-          {(hoveredTodo.assignedTo || hoveredTodo.dueDate) && (
+          {(hoveredTodo.assignedToId || hoveredTodo.dueDate) && (
             <div className="flex items-center gap-3 mt-3 pt-2 border-t border-[var(--border-color)] text-xs text-white/50">
-              {hoveredTodo.assignedTo && (
+              {hoveredTodo.assignedToId && (
                 <span className="flex items-center gap-1">
                   <UserCheck className="w-3 h-3" />
-                  {hoveredTodo.assignedTo}
+                  {getPersonNameById(people, hoveredTodo.assignedToId, hoveredTodo.assignedTo)}
                 </span>
               )}
               {hoveredTodo.dueDate && (
@@ -3343,12 +3432,12 @@ export default function TodosPage() {
 
       {/* Edit Todo Modal */}
       {editingTodo && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-gradient-to-b from-[#1a1a1a] to-[#151515] border border-[var(--border-color)] rounded-xl w-full max-w-[95vw] xl:max-w-[1200px] shadow-2xl h-[95vh] sm:h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-gradient-to-b from-[#1a1a1a] to-[#151515] border border-[var(--border-color)] rounded-xl w-full max-w-[95vw] xl:max-w-[1200px] shadow-2xl min-h-0 max-h-[95vh] sm:max-h-[90vh] flex flex-col my-auto">
             {/* Шапка */}
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border-color)] bg-white/[0.02] rounded-t-xl">
-              <div className="flex items-center gap-3">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center border border-[var(--border-color)]">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border-color)] bg-white/[0.02] rounded-t-xl flex-shrink-0">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center border border-[var(--border-color)]">
                   <Edit3 className="w-3.5 h-3.5 text-blue-400" />
                 </div>
                 <h3 className="font-medium text-sm">Редактировать задачу</h3>
@@ -3359,7 +3448,7 @@ export default function TodosPage() {
                     setEditingTodo({ ...editingTodo, completed: newCompleted });
                     toggleTodo(editingTodo);
                   }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                     editingTodo.completed
                       ? 'bg-green-500/30 text-green-300 ring-1 ring-green-500/50 hover:bg-green-500/40'
                       : 'bg-[var(--bg-glass)] text-[var(--text-secondary)] hover:bg-green-500/20 hover:text-green-400 ring-1 ring-white/10'
@@ -3372,16 +3461,16 @@ export default function TodosPage() {
               </div>
               <button
                 onClick={closeTodoModal}
-                className="p-1.5 hover:bg-[var(--bg-glass-hover)] rounded-lg transition-colors"
+                className="w-8 h-8 bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] rounded-full transition-colors flex-shrink-0 flex items-center justify-center border border-[var(--border-glass)] backdrop-blur-sm"
               >
                 <X className="w-4 h-4 text-[var(--text-secondary)]" />
               </button>
             </div>
             
             {/* Три колонки - адаптивно */}
-            <div className="flex flex-1 overflow-hidden flex-col lg:flex-row">
+            <div className="flex flex-1 overflow-y-auto lg:overflow-hidden flex-col lg:flex-row min-h-0">
               {/* Левый блок - основные поля */}
-              <div className="w-full lg:w-[380px] p-3 space-y-3 border-b lg:border-b-0 lg:border-r border-[var(--border-color)] overflow-y-auto flex-shrink-0 bg-[var(--bg-secondary)]">
+              <div className="w-full lg:w-[380px] p-3 space-y-3 border-b lg:border-b-0 lg:border-r border-[var(--border-color)] lg:overflow-y-auto flex-shrink-0 bg-[var(--bg-secondary)] order-2 lg:order-1">
                 {/* Название */}
                 <div>
                   <label className="block text-[10px] font-medium text-white/50 mb-1 uppercase tracking-wide">Название</label>
@@ -3389,7 +3478,7 @@ export default function TodosPage() {
                     type="text"
                     value={editingTodo.title}
                     onChange={(e) => setEditingTodo({ ...editingTodo, title: e.target.value })}
-                    className="w-full px-3 py-2 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg text-sm focus:outline-none focus:border-blue-500/50 transition-all text-[var(--text-primary)] placeholder-white/30"
+                    className="no-mobile-scale w-full px-3 py-2.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-sm focus:outline-none focus:border-blue-500/50 transition-all text-[var(--text-primary)] placeholder-white/30"
                     placeholder="Введите название задачи..."
                   />
                 </div>
@@ -3401,7 +3490,7 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => setEditingTodo({ ...editingTodo, status: 'pending' })}
-                      className={`px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
                         !editingTodo.status || editingTodo.status === 'pending' 
                           ? 'bg-orange-500/20 text-orange-400 ring-1 ring-orange-500/50' 
                           : 'bg-[var(--bg-glass)] text-white/50 hover:bg-orange-500/10 hover:text-orange-400'
@@ -3412,7 +3501,7 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => setEditingTodo({ ...editingTodo, status: 'in-progress' })}
-                      className={`px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
                         editingTodo.status === 'in-progress' 
                           ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/50' 
                           : 'bg-[var(--bg-glass)] text-white/50 hover:bg-blue-500/10 hover:text-blue-400'
@@ -3423,7 +3512,7 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => setEditingTodo({ ...editingTodo, status: 'review' })}
-                      className={`px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
                         editingTodo.status === 'review' 
                           ? 'bg-green-500/20 text-green-400 ring-1 ring-green-500/50' 
                           : 'bg-[var(--bg-glass)] text-white/50 hover:bg-green-500/10 hover:text-green-400'
@@ -3434,7 +3523,7 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => setEditingTodo({ ...editingTodo, status: 'cancelled' })}
-                      className={`px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
                         editingTodo.status === 'cancelled' 
                           ? 'bg-red-500/20 text-red-400 ring-1 ring-red-500/50' 
                           : 'bg-[var(--bg-glass)] text-white/50 hover:bg-red-500/10 hover:text-red-400'
@@ -3445,7 +3534,7 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => setEditingTodo({ ...editingTodo, status: 'stuck' })}
-                      className={`px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
                         editingTodo.status === 'stuck' 
                           ? 'bg-yellow-500/20 text-yellow-500 ring-1 ring-yellow-500/50' 
                           : 'bg-[var(--bg-glass)] text-white/50 hover:bg-yellow-500/10 hover:text-yellow-500'
@@ -3460,7 +3549,7 @@ export default function TodosPage() {
                       <textarea
                         value={editingTodo.reviewComment || ''}
                         onChange={(e) => setEditingTodo({ ...editingTodo, reviewComment: e.target.value })}
-                        className="w-full px-3 py-2 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg text-sm focus:outline-none focus:border-[var(--border-light)] transition-all text-[var(--text-secondary)] placeholder-white/30 resize-none"
+                        className="no-mobile-scale w-full px-3 py-2.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-sm focus:outline-none focus:border-blue-500/50 transition-all text-[var(--text-secondary)] placeholder-white/30 resize-none"
                         placeholder="Комментарий или замечания..."
                         rows={2}
                       />
@@ -3478,7 +3567,7 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => setOpenDropdown(openDropdown === 'assignedBy' ? null : 'assignedBy')}
-                      className="w-full px-3 py-2 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg text-sm text-left flex items-center justify-between hover:border-[var(--border-light)] transition-all"
+                      className="no-mobile-scale w-full px-3 py-2.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all"
                     >
                       <span className={editingTodo.assignedById ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}>
                         {editingTodo.assignedBy || 'Не выбран'}
@@ -3524,7 +3613,7 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => setOpenDropdown(openDropdown === 'assignedTo' ? null : 'assignedTo')}
-                      className="w-full px-3 py-2 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg text-sm text-left flex items-center justify-between hover:border-[var(--border-light)] transition-all min-h-[38px]"
+                      className="no-mobile-scale w-full px-3 py-2.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all min-h-[42px]"
                     >
                       <div className="flex flex-wrap gap-1">
                         {editingTodo.assignedToIds && editingTodo.assignedToIds.length > 0 ? (
@@ -3555,7 +3644,7 @@ export default function TodosPage() {
                             ) : null;
                           })
                         ) : editingTodo.assignedToId ? (
-                          <span className="text-[var(--text-primary)]">{editingTodo.assignedTo}</span>
+                          <span className="text-[var(--text-primary)]">{getPersonNameById(people, editingTodo.assignedToId, editingTodo.assignedTo)}</span>
                         ) : (
                           <span className="text-[var(--text-muted)]">Выберите исполнителей</span>
                         )}
@@ -3649,7 +3738,7 @@ export default function TodosPage() {
                         <button
                           key={p}
                           onClick={() => setEditingTodo({ ...editingTodo, priority: p })}
-                          className={`w-6 h-6 rounded-full transition-all flex items-center justify-center ${
+                          className={`flex-shrink-0 w-6 h-6 rounded-full transition-all flex items-center justify-center ${
                             editingTodo.priority === p
                               ? p === 'high' 
                                 ? 'bg-red-500/20 ring-1 ring-red-500'
@@ -3660,7 +3749,7 @@ export default function TodosPage() {
                           }`}
                           title={p === 'high' ? 'Высокий' : p === 'medium' ? 'Средний' : 'Низкий'}
                         >
-                          <span className={`w-3 h-3 rounded-full ${
+                          <span className={`flex-shrink-0 w-3 h-3 rounded-full ${
                             p === 'high' 
                               ? 'bg-red-500' 
                               : p === 'medium' 
@@ -3680,7 +3769,7 @@ export default function TodosPage() {
                       type="date"
                       value={editingTodo.dueDate || ''}
                       onChange={(e) => setEditingTodo({ ...editingTodo, dueDate: e.target.value })}
-                      className="w-full px-3 py-2 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg text-sm focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer"
+                      className="no-mobile-scale w-full px-3 py-2.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-sm focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer"
                     />
                   </div>
                 </div>
@@ -3695,7 +3784,7 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => setOpenDropdown(openDropdown === 'list' ? null : 'list')}
-                      className="w-full px-3 py-2 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg text-sm text-left flex items-center justify-between hover:border-[var(--border-light)] transition-all"
+                      className="no-mobile-scale w-full px-3 py-2.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all"
                     >
                       <div className="flex items-center gap-1.5">
                         {(() => {
@@ -3740,7 +3829,7 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => setOpenDropdown(openDropdown === 'category' ? null : 'category')}
-                      className="w-full px-3 py-2 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg text-sm text-left flex items-center justify-between hover:border-[var(--border-light)] transition-all"
+                      className="no-mobile-scale w-full px-3 py-2.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all"
                     >
                       <div className="flex items-center gap-1.5">
                         {(() => {
@@ -3830,7 +3919,7 @@ export default function TodosPage() {
                       <button
                         type="button"
                         onClick={() => setOpenDropdown(openDropdown === 'link' ? null : 'link')}
-                        className="w-full px-3 py-2 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg text-sm text-left flex items-center justify-between hover:border-[var(--border-light)] transition-all"
+                        className="no-mobile-scale w-full px-3 py-2.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all"
                       >
                         <span className="text-[var(--text-muted)] text-xs">Выбрать ссылку из базы...</span>
                         <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform ${openDropdown === 'link' ? 'rotate-180' : ''}`} />
@@ -3941,7 +4030,7 @@ export default function TodosPage() {
               </div>
 
               {/* Средний блок - Описание (шире) */}
-              <div className="flex-1 lg:flex-none lg:w-[420px] flex flex-col bg-[var(--bg-secondary)] border-b lg:border-b-0 lg:border-r border-[var(--border-color)]">
+              <div className="flex-1 lg:flex-none lg:w-[420px] flex flex-col bg-[var(--bg-secondary)] border-b lg:border-b-0 lg:border-r border-[var(--border-color)] order-1 lg:order-2">
                 {/* Заголовок с кнопками форматирования */}
                 <div className="px-3 py-2 border-b border-[var(--border-color)]">
                   <div className="flex items-center justify-between mb-2">
@@ -4304,7 +4393,7 @@ export default function TodosPage() {
               </div>
 
               {/* Правый блок - Комментарии */}
-              <div className="w-full lg:flex-1 flex flex-col bg-[var(--bg-secondary)]">
+              <div className="w-full lg:flex-1 flex flex-col bg-[var(--bg-secondary)] order-3 lg:order-3">
                 {/* Заголовок */}
                 <div className="px-3 py-2 border-b border-[var(--border-color)] flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -4684,9 +4773,9 @@ export default function TodosPage() {
                 </button>
                 <button
                   onClick={() => updateTodo(editingTodo)}
-                  className="px-3 py-1.5 bg-[var(--bg-glass-hover)] text-[var(--text-primary)] rounded-lg hover:bg-white/15 transition-all text-xs font-medium border border-[var(--border-color)]"
+                  className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-all text-sm font-medium"
                 >
-                  Сохранить изменения
+                  Сохранить
                 </button>
               </div>
             </div>
@@ -5234,8 +5323,8 @@ export default function TodosPage() {
         
         return (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl w-full max-w-md">
-              <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
+            <div className="bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl w-full max-w-md max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)] flex-shrink-0">
                 <h3 className="font-semibold flex items-center gap-2">
                   <Settings className="w-5 h-5 text-blue-400" />
                   Настройки списка &quot;{settingsList.name}&quot;
@@ -5251,8 +5340,8 @@ export default function TodosPage() {
                 </button>
               </div>
               
-              <div className="p-4 space-y-4">
-                <p className="text-sm text-white/50">
+              <div className="p-4 space-y-4 overflow-y-auto flex-1">
+                <p className="text-sm text-[var(--text-muted)]">
                   Задайте исполнителя и заказчика по умолчанию для новых задач в этом списке.
                 </p>
 

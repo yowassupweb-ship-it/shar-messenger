@@ -83,7 +83,9 @@ export default function AdminPage() {
     email: '',
     password: '',
     role: 'user' as 'admin' | 'user',
-    todoRole: 'executor' as 'executor' | 'customer' | 'universal'
+    todoRole: 'executor' as 'executor' | 'customer' | 'universal',
+    position: '',
+    department: ''
   });
   
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -241,14 +243,16 @@ export default function AdminPage() {
           email: newUser.email,
           password: newUser.password,
           role: newUser.role,
-          todoRole: newUser.todoRole
+          todoRole: newUser.todoRole,
+          position: newUser.position,
+          department: newUser.department
         })
       });
 
       if (response.ok) {
         showToast('Пользователь создан', 'success');
         setShowUserModal(false);
-        setNewUser({ username: '', name: '', email: '', password: '', role: 'user', todoRole: 'executor' });
+        setNewUser({ username: '', name: '', email: '', password: '', role: 'user', todoRole: 'executor', position: '', department: '' });
         loadUsers();
       } else {
         const data = await response.json();
@@ -413,7 +417,7 @@ export default function AdminPage() {
 
       <div className="max-w-6xl mx-auto p-6">
         {/* Tabs */}
-        <div className="flex items-center gap-1 mb-6 p-1 bg-white/5 rounded-xl w-fit">
+        <div className="flex flex-wrap items-center gap-1 mb-6 p-1 bg-white/5 rounded-xl w-full md:w-fit">
           {tabs.map(tab => (
             <button
               key={tab.id}
@@ -748,7 +752,7 @@ export default function AdminPage() {
             <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between sticky top-0 bg-[#1a1a1a] z-10">
               <h2 className="text-lg font-semibold text-white">Создать пользователя</h2>
               <button
-                onClick={() => { setShowUserModal(false); setNewUser({ username: '', name: '', email: '', password: '', role: 'user', todoRole: 'executor' }); }}
+                onClick={() => { setShowUserModal(false); setNewUser({ username: '', name: '', email: '', password: '', role: 'user', todoRole: 'executor', position: '', department: '' }); }}
                 className="p-2 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-all"
               >
                 <X className="w-4 h-4" />
@@ -849,7 +853,7 @@ export default function AdminPage() {
                   Создать
                 </button>
                 <button
-                  onClick={() => { setShowUserModal(false); setNewUser({ username: '', name: '', email: '', password: '', role: 'user', todoRole: 'executor' }); }}
+                  onClick={() => { setShowUserModal(false); setNewUser({ username: '', name: '', email: '', password: '', role: 'user', todoRole: 'executor', position: '', department: '' }); }}
                   className="px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white/70 hover:bg-white/10 transition-all"
                 >
                   Отмена

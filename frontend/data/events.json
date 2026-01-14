@@ -1,0 +1,22 @@
+{
+  "events": [
+    {
+      "id": "event_1768401210005_mrl40ihjt",
+      "title": "Тестовое событие",
+      "description": "",
+      "type": "task",
+      "dateType": "range",
+      "startDate": "2026-01-01",
+      "endDate": "2026-01-12",
+      "tags": [],
+      "participants": [
+        "user_1768226637877.3e99840b",
+        "user_1768211260672.pd42l49yv"
+      ],
+      "createdBy": "user_1768226637877.3e99840b",
+      "createdAt": "2026-01-14T14:33:30.005Z",
+      "updatedAt": "2026-01-14T14:33:30.005Z"
+    }
+  ],
+  "lastUpdated": "2026-01-14T14:33:30.005Z"
+}

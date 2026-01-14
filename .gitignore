@@ -41,6 +41,15 @@ npm-debug.log*
 backend/database.json.backup
 backend/*.backup
 
+# Database files - включены для тестовых данных
+# backend/database.json
+# backend/messages.json
+# frontend/data/todos.json
+# frontend/data/todos-people.json
+# frontend/data/chats.json
+# frontend/data/notifications.json
+# frontend/data/links.json
+
 # Test results
 results_*.json
 

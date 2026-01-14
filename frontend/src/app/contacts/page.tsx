@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { User, Mail, Phone, Briefcase, Shield, Calendar, MessageCircle, CheckSquare, ArrowLeft } from 'lucide-react';
+import { User, Mail, Phone, Briefcase, Shield, Calendar, MessageCircle, CheckSquare, ArrowLeft, Plus, X, Inbox } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -18,14 +18,27 @@ interface Contact {
   createdAt: string;
 }
 
+interface TodoList {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export default function ContactsPage() {
   const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showListModal, setShowListModal] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [lists, setLists] = useState<TodoList[]>([]);
+  const [showNewListForm, setShowNewListForm] = useState(false);
+  const [newListName, setNewListName] = useState('');
+  const [newListColor, setNewListColor] = useState('#3b82f6');
 
   useEffect(() => {
     loadContacts();
+    loadLists();
   }, []);
 
   const loadContacts = async () => {
@@ -45,6 +58,48 @@ export default function ContactsPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadLists = async () => {
+    try {
+      const res = await fetch('/api/todos');
+      if (res.ok) {
+        const data = await res.json();
+        setLists(data.lists || []);
+      }
+    } catch (error) {
+      console.error('Error loading lists:', error);
+    }
+  };
+
+  const createNewList = async () => {
+    if (!newListName.trim()) return;
+    
+    try {
+      const res = await fetch('/api/todos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'list',
+          name: newListName,
+          color: newListColor
+        })
+      });
+      
+      if (res.ok) {
+        await loadLists();
+        setNewListName('');
+        setNewListColor('#3b82f6');
+        setShowNewListForm(false);
+      }
+    } catch (error) {
+      console.error('Error creating list:', error);
+    }
+  };
+
+  const createTaskInList = (listId: string) => {
+    if (!selectedContact) return;
+    router.push(`/todos?createTask=true&listId=${listId}&assignTo=${selectedContact.id}&assignToName=${encodeURIComponent(selectedContact.name || selectedContact.username || '')}`);
   };
 
   const filteredContacts = contacts.filter(contact => {
@@ -144,8 +199,6 @@ export default function ContactsPage() {
                   <h3 className="font-semibold text-sm truncate">
                     {contact.name || contact.username || 'Без имени'}
                   </h3>
-                  {getRoleBadge(contact.role)}
-                  {getTodoRoleBadge(contact.todoRole)}
                 </div>
                 
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--text-secondary)]">
@@ -229,8 +282,10 @@ export default function ContactsPage() {
                   <span className="hidden sm:inline">Сообщение</span>
                 </button>
                 <button
-                  onClick={() => router.push(`/todos?createTask=true&assignTo=${contact.id}&assignToName=${encodeURIComponent(contact.name || contact.username || '')}`)
-                  }
+                  onClick={() => {
+                    setSelectedContact(contact);
+                    setShowListModal(true);
+                  }}
                   className="flex items-center justify-center gap-1 px-3 py-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded-lg text-xs font-medium transition-all"
                   title="Поставить задачу"
                 >
@@ -249,6 +304,132 @@ export default function ContactsPage() {
         )}
         </div>
       </div>
+
+      {/* Модалка выбора списка */}
+      {showListModal && selectedContact && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-b from-[#1a1a1a] to-[#151515] border border-white/10 rounded-xl w-full max-w-md shadow-2xl">
+            {/* Заголовок */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.02]">
+              <div>
+                <h3 className="font-semibold text-sm">Выберите список</h3>
+                <p className="text-xs text-white/50 mt-0.5">
+                  Задача для: {selectedContact.name || selectedContact.username}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowListModal(false);
+                  setSelectedContact(null);
+                  setShowNewListForm(false);
+                }}
+                className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4 text-white/60" />
+              </button>
+            </div>
+
+            {/* Списки */}
+            <div className="p-4 max-h-[60vh] overflow-y-auto">
+              {!showNewListForm ? (
+                <>
+                  <div className="space-y-2">
+                    {lists.map((list) => (
+                      <button
+                        key={list.id}
+                        onClick={() => {
+                          createTaskInList(list.id);
+                          setShowListModal(false);
+                        }}
+                        className="w-full flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all text-left"
+                      >
+                        <div 
+                          className="w-4 h-4 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: list.color }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Inbox className="w-4 h-4 text-white/50" />
+                            <span className="font-medium text-sm truncate">{list.name}</span>
+                          </div>
+                        </div>
+                        <CheckSquare className="w-4 h-4 text-green-400 flex-shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Кнопка создания нового списка */}
+                  <button
+                    onClick={() => setShowNewListForm(true)}
+                    className="w-full mt-4 flex items-center justify-center gap-2 p-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span className="text-sm font-medium">Создать новый список</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Форма создания нового списка */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-medium text-white/60 mb-2">Название списка</label>
+                      <input
+                        type="text"
+                        value={newListName}
+                        onChange={(e) => setNewListName(e.target.value)}
+                        placeholder="Введите название..."
+                        className="w-full px-4 py-3 bg-[#0d0d0d] border border-white/10 rounded-lg text-sm focus:outline-none focus:border-blue-500/50 transition-colors"
+                        autoFocus
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-white/60 mb-2">Цвет</label>
+                      <div className="flex gap-2 flex-wrap">
+                        {['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'].map((color) => (
+                          <button
+                            key={color}
+                            onClick={() => setNewListColor(color)}
+                            className={`w-10 h-10 rounded-lg transition-all ${
+                              newListColor === color ? 'ring-2 ring-white/50 scale-110' : ''
+                            }`}
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setShowNewListForm(false)}
+                        className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all text-sm"
+                      >
+                        Отмена
+                      </button>
+                      <button
+                        onClick={createNewList}
+                        disabled={!newListName.trim()}
+                        className="flex-1 px-4 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:bg-white/10 disabled:text-white/30 text-white rounded-lg transition-all text-sm font-medium flex items-center justify-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Создать
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {lists.length === 0 && !showNewListForm && (
+                <div className="text-center py-8 text-white/50 text-sm">
+                  <Inbox className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>Нет доступных списков</p>
+                  <p className="text-xs mt-1">Создайте первый список</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

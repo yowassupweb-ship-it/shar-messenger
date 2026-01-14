@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, status
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, status, Body, UploadFile, File
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, FileResponse, StreamingResponse
@@ -11,6 +11,9 @@ import os
 import secrets
 import asyncio
 import logging
+import uuid
+import shutil
+from pathlib import Path
 from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -122,6 +125,46 @@ async def log_requests(request, call_next):
     response = await call_next(request)
     print(f"<<< Response status: {response.status_code}")
     return response
+
+# Создаем папку для загрузок
+UPLOAD_DIR = Path(__file__).parent / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+# Upload файлов
+@app.post("/api/upload")
+async def upload_file(file: UploadFile = File(...)):
+    """Загрузка файла на сервер"""
+    try:
+        # Генерируем уникальное имя файла
+        file_ext = Path(file.filename).suffix
+        unique_filename = f"{uuid.uuid4()}{file_ext}"
+        file_path = UPLOAD_DIR / unique_filename
+        
+        # Сохраняем файл
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Возвращаем URL файла
+        file_url = f"/api/uploads/{unique_filename}"
+        
+        return {
+            "success": True,
+            "url": file_url,
+            "filename": file.filename,
+            "size": file_path.stat().st_size
+        }
+    except Exception as e:
+        print(f"Error uploading file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Отдача загруженных файлов
+@app.get("/api/uploads/{filename}")
+async def get_uploaded_file(filename: str):
+    """Получить загруженный файл"""
+    file_path = UPLOAD_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(file_path)
 
 # Test Telegram endpoint
 @app.post("/api/test-telegram")
@@ -1139,11 +1182,21 @@ def login(credentials: LoginRequest):
     is_valid = db.verify_user(credentials.username, credentials.password)
     print(f"verify_user returned: {is_valid}")
     if is_valid:
+        # Получаем пользователя для его реальной роли И реального username
+        user = db.get_user(credentials.username)
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        user_role = user.get("role", "user")
+        # Возвращаем РЕАЛЬНЫЙ username из базы, не введённый
+        real_username = user.get("username", credentials.username)
+        print(f"User role: {user_role}, Real username: {real_username}")
         return {
             "status": "success",
             "user": {
-                "username": credentials.username,
-                "role": "admin"
+                "id": user.get("id"),
+                "username": real_username,
+                "name": user.get("name", ""),
+                "role": user_role
             }
         }
     raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -1409,6 +1462,9 @@ class UserCreate(BaseModel):
     email: str
     password: str
     role: str = "user"
+    todoRole: str = "executor"  # executor, customer, universal
+    position: Optional[str] = None  # Должность
+    department: Optional[str] = None  # Отдел
     enabledTools: List[str] = []
 
 class UserUpdate(BaseModel):
@@ -1416,6 +1472,9 @@ class UserUpdate(BaseModel):
     email: Optional[str] = None
     password: Optional[str] = None
     role: Optional[str] = None
+    todoRole: Optional[str] = None
+    position: Optional[str] = None  # Должность
+    department: Optional[str] = None  # Отдел
     enabledTools: Optional[List[str]] = None
 
 @app.get("/api/users")
@@ -1795,6 +1854,7 @@ def get_metrica_analytics(
         settings = db.get_settings()
         counter_id = settings.get("metricaCounterId")
         token = settings.get("metricaToken")
+        selected_goal_ids = settings.get("selectedGoalIds", [])  # Выбранные цели для подсчёта
         
         if not counter_id or not token:
             raise HTTPException(
@@ -1806,10 +1866,11 @@ def get_metrica_analytics(
         data = client.get_utm_statistics(
             date_from=date_from,
             date_to=date_to,
-            utm_term=utm_term
+            utm_term=utm_term,
+            selected_goal_ids=selected_goal_ids
         )
         
-        parsed = client.parse_utm_data(data)
+        parsed = client.parse_utm_data(data, selected_goal_ids=selected_goal_ids)
         
         # Сохраняем данные аналитики на сервере
         db.save_analytics_data({
@@ -1835,6 +1896,7 @@ def get_campaigns_analytics(
         settings = db.get_settings()
         counter_id = settings.get("metricaCounterId")
         token = settings.get("metricaToken")
+        selected_goal_ids = settings.get("selectedGoalIds", [])  # Выбранные цели для подсчёта
         
         if not counter_id or not token:
             raise HTTPException(
@@ -1845,7 +1907,8 @@ def get_campaigns_analytics(
         client = YandexMetricaClient(counter_id=counter_id, token=token)
         data = client.get_campaigns_by_source(
             date_from=date_from,
-            date_to=date_to
+            date_to=date_to,
+            selected_goal_ids=selected_goal_ids
         )
         
         return data
@@ -2952,6 +3015,517 @@ def delete_direct_parser_api_key(key_id: str):
     db.update_settings(settings)
     
     return {"success": True}
+
+
+# ============== Todos & Links API ==============
+
+@app.get("/api/todos")
+def get_todos(userId: Optional[str] = None):
+    """Получить список задач"""
+    todos = db.data.get('todos', [])
+    
+    # Если указан userId, фильтруем задачи
+    if userId:
+        todos = [
+            todo for todo in todos 
+            if todo.get('authorId') == userId or 
+               userId in (todo.get('assignedTo', []) if isinstance(todo.get('assignedTo'), list) else [todo.get('assignedTo')])
+        ]
+    
+    return {"todos": todos}
+
+@app.post("/api/todos")
+def create_todo(todo_data: dict = Body(...)):
+    """Создать новую задачу"""
+    import uuid
+    
+    todos = db.data.get('todos', [])
+    
+    new_todo = {
+        'id': str(uuid.uuid4()),
+        'title': todo_data.get('title', ''),
+        'description': todo_data.get('description', ''),
+        'status': todo_data.get('status', 'todo'),
+        'priority': todo_data.get('priority', 'medium'),
+        'authorId': todo_data.get('authorId'),
+        'assignedTo': todo_data.get('assignedTo', []),
+        'dueDate': todo_data.get('dueDate'),
+        'createdAt': datetime.now().isoformat(),
+        'updatedAt': datetime.now().isoformat()
+    }
+    
+    todos.append(new_todo)
+    db.data['todos'] = todos
+    db.save_to_disk()
+    
+    return new_todo
+
+@app.get("/api/links")
+def get_links(userId: Optional[str] = None):
+    """Получить список ссылок"""
+    links = db.data.get('links', [])
+    
+    # Если указан userId, фильтруем ссылки
+    if userId:
+        links = [link for link in links if link.get('userId') == userId]
+    
+    return {"links": links}
+
+@app.post("/api/links")
+def create_link(link_data: dict = Body(...)):
+    """Создать новую ссылку"""
+    import uuid
+    
+    links = db.data.get('links', [])
+    
+    new_link = {
+        'id': str(uuid.uuid4()),
+        'url': link_data.get('url', ''),
+        'title': link_data.get('title', ''),
+        'description': link_data.get('description', ''),
+        'userId': link_data.get('userId'),
+        'createdAt': datetime.now().isoformat()
+    }
+    
+    links.append(new_link)
+    db.data['links'] = links
+    db.save_to_disk()
+    
+    return new_link
+
+
+# ============== Messaging System ==============
+
+class ChatCreate(BaseModel):
+    participantIds: List[str]
+    title: Optional[str] = None
+    isGroup: bool = False
+    creatorId: Optional[str] = None
+
+class MessageCreate(BaseModel):
+    authorId: str
+    content: str
+    mentions: Optional[List[str]] = []
+    replyToId: Optional[str] = None
+    attachments: Optional[List[Dict[str, Any]]] = []
+
+@app.get("/api/chats")
+def get_chats(user_id: Optional[str] = None):
+    """Получить список всех чатов пользователя"""
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+    
+    import uuid
+    chats = db.data.get('chats', [])
+    
+    # Автоматически создаем служебные чаты при первом запросе
+    notifications_chat = next((c for c in chats if c.get('isNotificationsChat') and user_id in c.get('participantIds', [])), None)
+    if not notifications_chat:
+        notifications_chat = {
+            "id": f"notifications-{user_id}",
+            "title": "Уведомления",
+            "isGroup": False,
+            "isNotificationsChat": True,
+            "isSystemChat": True,
+            "participantIds": [user_id],
+            "createdAt": datetime.now().isoformat(),
+            "readMessagesByUser": {}
+        }
+        chats.append(notifications_chat)
+        db.data['chats'] = chats
+        db.save_to_disk()
+    
+    favorites_chat = next((c for c in chats if c.get('isFavoritesChat') and user_id in c.get('participantIds', [])), None)
+    if not favorites_chat:
+        favorites_chat = {
+            "id": f"favorites-{user_id}",
+            "title": "Избранное",
+            "isGroup": False,
+            "isFavoritesChat": True,
+            "isSystemChat": True,
+            "participantIds": [user_id],
+            "createdAt": datetime.now().isoformat(),
+            "readMessagesByUser": {}
+        }
+        chats.append(favorites_chat)
+        db.data['chats'] = chats
+        db.save_to_disk()
+    
+    chats = db.data.get('chats', [])
+    
+    # Фильтруем чаты, где пользователь является участником
+    user_chats = [chat for chat in chats if user_id in chat.get('participantIds', [])]
+    
+    # Добавляем информацию о последнем сообщении и непрочитанных
+    for chat in user_chats:
+        chat_messages = [msg for msg in db.data.get('messages', []) if msg.get('chatId') == chat['id']]
+        chat_messages.sort(key=lambda x: x.get('createdAt', ''), reverse=True)
+        
+        if chat_messages:
+            chat['lastMessage'] = chat_messages[0]
+            last_msg_time = chat_messages[0].get('createdAt', '')
+        else:
+            chat['unreadCount'] = 0
+            continue
+        
+        # Подсчитываем непрочитанные
+        last_read_at = chat.get('readMessagesByUser', {}).get(user_id)
+        
+        # Простая логика: если прочитал после последнего сообщения - всё прочитано
+        if last_read_at and last_read_at >= last_msg_time:
+            chat['unreadCount'] = 0
+        elif last_read_at:
+            # Считаем сообщения после last_read_at
+            is_system_chat = chat.get('isNotificationsChat') or chat.get('isSystemChat')
+            if is_system_chat:
+                # Для системных чатов считаем ВСЕ сообщения после last_read_at
+                unread = sum(1 for msg in chat_messages 
+                            if msg.get('createdAt', '') > last_read_at)
+            else:
+                # Для обычных чатов - только сообщения от других пользователей
+                unread = sum(1 for msg in chat_messages 
+                            if msg.get('authorId') != user_id 
+                            and msg.get('createdAt', '') > last_read_at)
+            chat['unreadCount'] = unread
+        else:
+            # Если не читал - считаем непрочитанные
+            is_system_chat = chat.get('isNotificationsChat') or chat.get('isSystemChat')
+            if is_system_chat:
+                chat['unreadCount'] = len(chat_messages)
+            else:
+                chat['unreadCount'] = sum(1 for msg in chat_messages if msg.get('authorId') != user_id)
+    
+    # Сортируем по последнему сообщению
+    user_chats.sort(key=lambda x: x.get('lastMessage', {}).get('createdAt', ''), reverse=True)
+    
+    return user_chats
+
+@app.post("/api/chats")
+def create_chat(chat_data: ChatCreate):
+    """Создать новый чат"""
+    import uuid
+    
+    chats = db.data.get('chats', [])
+    
+    # Проверяем, не существует ли уже личный чат с этими участниками
+    if not chat_data.isGroup and len(chat_data.participantIds) == 2:
+        existing_chat = next(
+            (chat for chat in chats 
+             if not chat.get('isGroup', False) 
+             and set(chat.get('participantIds', [])) == set(chat_data.participantIds)),
+            None
+        )
+        if existing_chat:
+            return existing_chat
+    
+    new_chat = {
+        "id": str(uuid.uuid4()),
+        "title": chat_data.title,
+        "isGroup": chat_data.isGroup,
+        "participantIds": chat_data.participantIds,
+        "createdAt": datetime.now().isoformat(),
+        "readMessagesByUser": {}
+    }
+    
+    # Добавляем creatorId для групповых чатов
+    if chat_data.isGroup and chat_data.creatorId:
+        new_chat["creatorId"] = chat_data.creatorId
+    
+    db.create_chat(new_chat)
+    
+    return new_chat
+
+@app.get("/api/chats/{chat_id}")
+def get_chat(chat_id: str):
+    """Получить информацию о чате"""
+    chat = db.get_chat(chat_id)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    return chat
+
+@app.delete("/api/chats/{chat_id}")
+def delete_chat(chat_id: str):
+    """Удалить чат и все его сообщения"""
+    chats = db.data.get('chats', [])
+    
+    chat = next((c for c in chats if c['id'] == chat_id), None)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    # Удаляем чат
+    db.data['chats'] = [c for c in chats if c['id'] != chat_id]
+    
+    # Удаляем все сообщения чата
+    messages = db.data.get('messages', [])
+    db.data['messages'] = [msg for msg in messages if msg.get('chatId') != chat_id]
+    
+    db._save()
+    
+    return {"success": True}
+
+@app.get("/api/chats/{chat_id}/messages")
+def get_chat_messages(chat_id: str):
+    """Получить все сообщения чата"""
+    messages = db.data.get('messages', [])
+    
+    chat_messages = [msg for msg in messages if msg.get('chatId') == chat_id]
+    chat_messages.sort(key=lambda x: x.get('createdAt', ''))
+    
+    return chat_messages
+
+@app.post("/api/chats/{chat_id}/messages")
+def send_message(chat_id: str, message_data: MessageCreate):
+    """Отправить сообщение в чат"""
+    import uuid
+    
+    # Проверяем существование чата
+    chats = db.data.get('chats', [])
+    chat = next((c for c in chats if c['id'] == chat_id), None)
+    
+    # Если чат не найден и это favorites чат - создаём его автоматически
+    if not chat and chat_id.startswith('favorites_'):
+        user_id = chat_id.replace('favorites_', '')
+        new_chat = {
+            "id": chat_id,
+            "title": "Избранное",
+            "isGroup": False,
+            "isFavoritesChat": True,
+            "participantIds": [user_id],
+            "createdAt": datetime.now().isoformat(),
+            "readMessagesByUser": {},
+            "pinnedByUser": {user_id: True}
+        }
+        db.data.setdefault('chats', []).append(new_chat)
+        db._save()
+        chat = new_chat
+    
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    # Получаем информацию об авторе
+    users = db.data.get('users', [])
+    author = next((u for u in users if u['id'] == message_data.authorId), None)
+    if not author:
+        raise HTTPException(status_code=404, detail="Author not found")
+    
+    messages = db.data.get('messages', [])
+    
+    new_message = {
+        "id": str(uuid.uuid4()),
+        "chatId": chat_id,
+        "authorId": message_data.authorId,
+        "authorName": author.get('name') or author.get('username') or 'Unknown',
+        "content": message_data.content,
+        "mentions": message_data.mentions or [],
+        "replyToId": message_data.replyToId,
+        "createdAt": datetime.now().isoformat(),
+        "updatedAt": None,
+        "isEdited": False,
+        "attachments": message_data.attachments or []
+    }
+    
+    db.add_message(new_message)
+    
+    # Уведомления о сообщениях НЕ отправляем - чат "Уведомления" только для задач, событий и т.д.
+    
+    return new_message
+
+@app.patch("/api/chats/{chat_id}/messages/{message_id}")
+def update_message(chat_id: str, message_id: str, update_data: dict):
+    """Обновить сообщение"""
+    messages = db.data.get('messages', [])
+    
+    message = next((msg for msg in messages if msg['id'] == message_id and msg['chatId'] == chat_id), None)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    
+    if 'content' in update_data:
+        message['content'] = update_data['content']
+        message['updatedAt'] = datetime.now().isoformat()
+        message['isEdited'] = True
+    
+    db._save()
+    
+    return message
+
+@app.post("/api/chats/{chat_id}/messages/{message_id}/forward")
+def forward_message(chat_id: str, message_id: str, forward_data: dict = Body(...)):
+    """Переслать сообщение в другие чаты"""
+    import uuid
+    from datetime import datetime
+    
+    print(f"DEBUG - Forward request: chat_id={chat_id}, message_id={message_id}")
+    print(f"DEBUG - Target chats: {forward_data.get('targetChatIds', [])}")
+    
+    # Получаем оригинальное сообщение
+    messages = db.data.get('messages', [])
+    print(f"DEBUG - Total messages in DB: {len(messages)}")
+    
+    original_message = next((msg for msg in messages if msg['id'] == message_id and msg['chatId'] == chat_id), None)
+    
+    if not original_message:
+        # Ищем сообщение только по ID без привязки к чату
+        message_by_id = next((msg for msg in messages if msg['id'] == message_id), None)
+        if message_by_id:
+            print(f"DEBUG - Message found but in different chat: {message_by_id['chatId']}")
+            # Используем правильный chatId из сообщения
+            original_message = message_by_id
+        else:
+            print(f"DEBUG - Message not found at all. Available message IDs: {[m['id'] for m in messages[:5]]}")
+            raise HTTPException(status_code=404, detail="Message not found")
+    
+    target_chat_ids = forward_data.get('targetChatIds', [])
+    if not target_chat_ids:
+        raise HTTPException(status_code=400, detail="No target chats specified")
+    
+    forwarded_messages = []
+    
+    # Создаем копию сообщения для каждого целевого чата
+    for target_chat_id in target_chat_ids:
+        new_message = {
+            'id': str(uuid.uuid4()),
+            'chatId': target_chat_id,
+            'authorId': original_message['authorId'],
+            'authorName': original_message['authorName'],
+            'content': original_message['content'],
+            'mentions': original_message.get('mentions', []),
+            'createdAt': datetime.now().isoformat(),
+            'isEdited': False,
+            'isDeleted': False,
+            'attachments': original_message.get('attachments', []),
+            'isSystemMessage': False
+        }
+        
+        db.add_message(new_message)
+        forwarded_messages.append(new_message)
+    
+    return {"success": True, "forwardedMessages": forwarded_messages}
+
+@app.delete("/api/chats/{chat_id}/messages/{message_id}")
+def delete_message(chat_id: str, message_id: str):
+    """Мягкое удаление сообщения - помечает как удаленное"""
+    messages = db.data.get('messages', [])
+    
+    message = next((msg for msg in messages if msg['id'] == message_id and msg['chatId'] == chat_id), None)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    
+    message['isDeleted'] = True
+    message['content'] = 'Сообщение удалено'
+    message['deletedAt'] = datetime.now().isoformat()
+    db._save()
+    
+    return {"success": True}
+
+@app.post("/api/chats/{chat_id}/mark-read")
+def mark_messages_as_read(chat_id: str, data_payload: dict):
+    """Отметить сообщения как прочитанные"""
+    from datetime import datetime
+    
+    user_id = data_payload.get('userId')
+    last_message_id = data_payload.get('lastMessageId')
+    
+    if not user_id:
+        raise HTTPException(status_code=400, detail="userId is required")
+    
+    chats = db.data.get('chats', [])
+    
+    chat = next((c for c in chats if c['id'] == chat_id), None)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    if 'readMessagesByUser' not in chat:
+        chat['readMessagesByUser'] = {}
+    
+    # Сохраняем текущее время как время последнего прочтения
+    chat['readMessagesByUser'][user_id] = datetime.now().isoformat()
+    db._save()
+    
+    return {"success": True}
+
+@app.post("/api/chats/{chat_id}/pin")
+def pin_chat(chat_id: str, data_payload: dict):
+    """Закрепить/открепить чат для пользователя"""
+    user_id = data_payload.get('userId')
+    is_pinned = data_payload.get('isPinned', True)
+    
+    if not user_id:
+        raise HTTPException(status_code=400, detail="userId is required")
+    
+    chats = db.data.get('chats', [])
+    
+    chat = next((c for c in chats if c['id'] == chat_id), None)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    if 'pinnedByUser' not in chat:
+        chat['pinnedByUser'] = {}
+    
+    chat['pinnedByUser'][user_id] = is_pinned
+    db._save()
+    
+    return {"success": True, "isPinned": is_pinned}
+
+@app.get("/api/chats/notifications/{user_id}")
+def get_or_create_notifications_chat(user_id: str):
+    """Получить или создать чат уведомлений для пользователя"""
+    import uuid
+    
+    chats = db.data.get('chats', [])
+    
+    # Ищем существующий чат уведомлений для этого пользователя
+    notifications_chat = next(
+        (chat for chat in chats 
+         if chat.get('isNotificationsChat', False) 
+         and user_id in chat.get('participantIds', [])),
+        None
+    )
+    
+    if notifications_chat:
+        return notifications_chat
+    
+    # Создаем новый чат уведомлений
+    new_chat = {
+        "id": str(uuid.uuid4()),
+        "title": "Уведомления",
+        "isGroup": False,
+        "isNotificationsChat": True,
+        "isSystemChat": True,
+        "participantIds": [user_id],
+        "createdAt": datetime.now().isoformat(),
+        "readMessagesByUser": {},
+        "pinnedByUser": {user_id: True}  # Автоматически закрепляем
+    }
+    
+    db.create_chat(new_chat)
+    
+    return new_chat
+
+@app.post("/api/chats/notifications/{user_id}/send")
+def send_notification_message(user_id: str, notification_data: dict):
+    """Отправить уведомление в чат уведомлений пользователя"""
+    import uuid
+    
+    # Получаем или создаем чат уведомлений
+    notifications_chat = get_or_create_notifications_chat(user_id)
+    
+    new_message = {
+        "id": str(uuid.uuid4()),
+        "chatId": notifications_chat['id'],
+        "authorId": "system",
+        "authorName": "Система",
+        "content": notification_data.get('content', ''),
+        "mentions": [],
+        "replyToId": None,
+        "createdAt": datetime.now().isoformat(),
+        "updatedAt": None,
+        "isEdited": False,
+        "isSystemMessage": True
+    }
+    
+    db.add_message(new_message)
+    
+    return new_message
 
 
 if __name__ == "__main__":

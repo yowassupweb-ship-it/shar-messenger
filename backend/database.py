@@ -50,6 +50,11 @@ class Database:
                 return data
         return self._get_default_structure()
     
+    def reload(self):
+        """Перезагрузить данные из файла (для синхронизации с внешними изменениями)"""
+        self.data = self._load()
+        print(f"Database reloaded. Users count: {len(self.data.get('users', []))}")
+    
     def _save(self):
         """Сохранение данных в JSON файл"""
         with open(self.db_path, 'w', encoding='utf-8') as f:
@@ -70,7 +75,9 @@ class Database:
             "wordstatSearches": [],  # История поисков Словолова
             "wordstatCache": [],  # Кеш запросов к Yandex Wordstat API
             "trackedPosts": [],  # Отслеживаемые посты с UTM метками
-            "parsingState": {}  # Состояние активных процессов парсинга {sourceId: {status, progress, ...}}
+            "parsingState": {},  # Состояние активных процессов парсинга {sourceId: {status, progress, ...}}
+            "chats": [],  # Чаты пользователей
+            "messages": []  # Сообщения в чатах
         }
     
     # Settings
@@ -299,14 +306,21 @@ class Database:
     
     # Users
     def get_user(self, username: str) -> Optional[Dict[str, Any]]:
+        # Перезагружаем данные чтобы получить свежих пользователей
+        self.reload()
         print(f"=== get_user called ===")
         print(f"Looking for username: '{username}'")
         print(f"Total users in self.data: {len(self.data.get('users', []))}")
         users = self.data.get("users", [])
-        print(f"Users list: {users}")
         for user in users:
-            print(f"Checking user: {user.get('username')} == {username} ? {user.get('username') == username}")
-            if user.get("username") == username:
+            # Ищем по username ИЛИ по email ИЛИ по name ИЛИ по части username до @
+            user_username = user.get("username", "")
+            user_email = user.get("email", "")
+            user_name = user.get("name", "")
+            # Также проверяем часть до @ в username
+            user_username_prefix = user_username.split('@')[0] if '@' in user_username else user_username
+            print(f"Checking user: username='{user_username}', email='{user_email}', name='{user_name}', prefix='{user_username_prefix}' vs '{username}'")
+            if user_username == username or user_email == username or user_name == username or user_username_prefix == username:
                 print(f"MATCH FOUND: {user}")
                 return user
         print(f"NO MATCH FOUND")
@@ -780,6 +794,69 @@ class Database:
     def get_all_parsing_states(self) -> Dict[str, Any]:
         """Получить все активные состояния парсинга"""
         return self.data.get("parsingState", {})
+    
+    # Messaging System
+    def get_chat(self, chat_id: str) -> Optional[Dict[str, Any]]:
+        """Получить чат по ID"""
+        chats = self.data.get("chats", [])
+        return next((c for c in chats if c["id"] == chat_id), None)
+    
+    def get_user_chats(self, user_id: str) -> List[Dict[str, Any]]:
+        """Получить все чаты пользователя"""
+        chats = self.data.get("chats", [])
+        return [c for c in chats if user_id in c.get("participantIds", [])]
+    
+    def create_chat(self, chat_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Создать новый чат"""
+        if "chats" not in self.data:
+            self.data["chats"] = []
+        
+        self.data["chats"].append(chat_data)
+        self._save()
+        return chat_data
+    
+    def get_chat_messages(self, chat_id: str) -> List[Dict[str, Any]]:
+        """Получить все сообщения чата"""
+        messages = self.data.get("messages", [])
+        chat_messages = [msg for msg in messages if msg.get("chatId") == chat_id]
+        chat_messages.sort(key=lambda x: x.get("createdAt", ""))
+        return chat_messages
+    
+    def add_message(self, message_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Добавить сообщение"""
+        if "messages" not in self.data:
+            self.data["messages"] = []
+        
+        self.data["messages"].append(message_data)
+        self._save()
+        return message_data
+    
+    def update_message(self, message_id: str, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Обновить сообщение"""
+        messages = self.data.get("messages", [])
+        message = next((msg for msg in messages if msg["id"] == message_id), None)
+        
+        if message:
+            message.update(update_data)
+            message["updatedAt"] = datetime.now().isoformat()
+            self._save()
+            return message
+        
+        return None
+    
+    def delete_message(self, message_id: str) -> bool:
+        """Удалить сообщение"""
+        messages = self.data.get("messages", [])
+        initial_length = len(messages)
+        
+        messages = [msg for msg in messages if msg["id"] != message_id]
+        
+        if len(messages) < initial_length:
+            self.data["messages"] = messages
+            self._save()
+            return True
+        
+        return False
 
 # Singleton instance
 print("Creating Database singleton instance...")
