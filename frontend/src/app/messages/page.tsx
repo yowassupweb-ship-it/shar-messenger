@@ -1014,7 +1014,7 @@ export default function MessagesPage() {
   const unpinnedChats = filterChatsBySearch(allUnpinnedChats);
 
   return (
-    <div className="h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex overflow-hidden rounded-[25px]">
+    <div className="h-[100dvh] bg-[var(--bg-primary)] text-[var(--text-primary)] flex overflow-hidden rounded-[25px]">
       {/* Левая панель - список чатов */}
       <div className={`w-full ${selectedChat ? 'hidden md:block' : 'block'} md:w-80 border-r border-[var(--border-color)] flex flex-col h-full overflow-hidden`}>
         {/* Header */}
@@ -1056,7 +1056,7 @@ export default function MessagesPage() {
         </div>
 
         {/* Chats list */}
-        <div className="flex-1 overflow-y-auto pb-4 md:pb-20" style={{ maxHeight: 'calc(100vh - 108px)' }}>
+        <div className="flex-1 overflow-y-auto pb-20 md:pb-20">
           {chats.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-[var(--text-muted)] px-4 py-8">
               <MessageCircle className="w-12 h-12 mb-3 opacity-50" />
@@ -1503,7 +1503,7 @@ export default function MessagesPage() {
           )}
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 pb-40">
+          <div className="flex-1 overflow-y-auto p-4 pb-24 md:pb-40">
             <div className="max-w-3xl mx-auto space-y-3 min-h-full flex flex-col">
               {messages.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-[var(--text-muted)]">
@@ -1943,7 +1943,7 @@ export default function MessagesPage() {
 
           {/* Message input */}
           <div 
-            className={`absolute bottom-2 md:bottom-[56px] left-0 right-0 px-3 py-1 transition-all duration-300 ${
+            className={`absolute bottom-0 md:bottom-[56px] left-0 right-0 px-3 py-2 transition-all duration-300 ${
               isDragging ? 'scale-[1.02]' : ''
             }`}
             onDragOver={(e) => {
