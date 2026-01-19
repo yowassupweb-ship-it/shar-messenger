@@ -160,22 +160,28 @@
       ],
       "createdAt": "2026-01-12T12:57:03.010091",
       "readMessagesByUser": {
-        "user_1768211260672.pd42l49yv": "2026-01-12T17:12:40.302442",
-        "user_1768211670938.cjlk65kuz": "2026-01-12T17:35:10.410831"
+        "user_1768211260672.pd42l49yv": "2026-01-19T18:13:05.563996",
+        "user_1768211670938.cjlk65kuz": "2026-01-19T18:34:15.991714"
       },
       "unreadCount": 0,
       "lastMessage": {
-        "id": "993f3c8f-2dfe-41a0-aea3-4716a01ea18a",
+        "id": "82b2ebcf-7e34-4b9d-ac95-66e394647dfc",
         "chatId": "a0dde089-9ef4-41e6-b52f-e1597b0e0582",
         "authorId": "user_1768211670938.cjlk65kuz",
         "authorName": "Тест Тестов",
-        "content": "222",
+        "content": "",
         "mentions": [],
         "replyToId": null,
-        "createdAt": "2026-01-12T16:53:27.687811",
+        "createdAt": "2026-01-19T17:52:58.763920",
         "updatedAt": null,
         "isEdited": false,
-        "attachments": []
+        "attachments": [
+          {
+            "type": "task",
+            "name": "уу",
+            "taskId": "20260112_124407_pj3kda"
+          }
+        ]
       }
     },
     {
@@ -232,26 +238,27 @@
       ],
       "createdAt": "2026-01-12T13:04:29.748242",
       "readMessagesByUser": {
-        "user_1768211670938.cjlk65kuz": "2026-01-12T17:04:18.773873"
+        "user_1768211670938.cjlk65kuz": "2026-01-19T18:04:31.722795"
       },
       "pinnedByUser": {
         "user_1768211670938.cjlk65kuz": true
       },
       "unreadCount": 0,
       "lastMessage": {
-        "id": "3c6232cf-a70a-4214-bca8-862e8c204b76",
+        "id": "3eb02e51-f224-4fd5-8ef4-9015775bc170",
         "chatId": "4f91acba-08a8-4171-876f-96897848463a",
         "authorId": "system",
-        "authorName": "Новое сообщение",
-        "content": "💬 Администратор в чате \"Администратор\":\nhttp://localhost:3000/account?tab=messages&chat=a0...",
+        "authorName": "Система",
+        "content": "📋 <b>Новая задача</b>\n\nАдминистратор назначил(а) вам задачу:\n«Проверка»",
         "mentions": [],
         "replyToId": null,
-        "createdAt": "2026-01-12T16:52:30.392633",
+        "createdAt": "2026-01-19T17:29:34.221483",
         "updatedAt": null,
         "isEdited": false,
         "isSystemMessage": true,
-        "linkedChatId": "a0dde089-9ef4-41e6-b52f-e1597b0e0582",
-        "linkedMessageId": "56087c36-7210-49b1-96a3-3454c35fca0c"
+        "linkedTaskId": "20260119_142934_6z1hbq",
+        "linkedPostId": null,
+        "notificationType": "new_task"
       }
     },
     {
@@ -277,7 +284,7 @@
       ],
       "createdAt": "2026-01-12T16:46:19.605107",
       "readMessagesByUser": {
-        "user_1768211260672.pd42l49yv": "2026-01-14T18:01:28.563099"
+        "user_1768211260672.pd42l49yv": "2026-01-19T18:13:04.318410"
       },
       "pinnedByUser": {
         "user_1768211260672.pd42l49yv": true
@@ -378,7 +385,7 @@
       ],
       "createdAt": "2026-01-12T17:06:11.380685",
       "readMessagesByUser": {
-        "user_1768211670938.cjlk65kuz": "2026-01-12T17:37:57.122287"
+        "user_1768211670938.cjlk65kuz": "2026-01-19T17:24:49.386263"
       },
       "unreadCount": 0,
       "lastMessage": {
@@ -451,7 +458,7 @@
       ],
       "createdAt": "2026-01-12T17:43:11.535619",
       "readMessagesByUser": {
-        "user_1768226637877.3e99840b": "2026-01-14T17:10:22.080825"
+        "user_1768226637877.3e99840b": "2026-01-19T16:06:09.803489"
       },
       "pinnedByUser": {
         "user_1768226637877.3e99840b": true
@@ -483,24 +490,22 @@
       ],
       "createdAt": "2026-01-12T17:43:44.635753",
       "readMessagesByUser": {
-        "user_1768226637877.3e99840b": "2026-01-14T16:15:54.919928",
-        "user_1768211260672.pd42l49yv": "2026-01-12T18:49:30.869552"
+        "user_1768226637877.3e99840b": "2026-01-19T15:12:23.501738",
+        "user_1768211260672.pd42l49yv": "2026-01-19T18:19:04.416484"
       },
-      "unreadCount": 6,
+      "unreadCount": 0,
       "lastMessage": {
-        "id": "a4029050-534f-4fce-a875-1431f1006f97",
+        "id": "6051af8a-c862-40a8-b6a8-189b1c719871",
         "chatId": "59f422c7-1c45-4a8c-8d4b-53a1b422b365",
         "authorId": "user_1768226637877.3e99840b",
         "authorName": "Иван Петров",
-        "content": "Сообщение удалено",
+        "content": "Нужно убрать Mobile Column Switcher и изменить Kanban Board чтобы он горизонтально скроллился на мобильных:",
         "mentions": [],
         "replyToId": null,
-        "createdAt": "2026-01-14T11:56:30.312825",
-        "updatedAt": "2026-01-14T12:20:52.701083",
-        "isEdited": true,
-        "attachments": [],
-        "isDeleted": true,
-        "deletedAt": "2026-01-14T12:55:31.051071"
+        "createdAt": "2026-01-19T12:23:05.896724",
+        "updatedAt": null,
+        "isEdited": false,
+        "attachments": []
       },
       "pinnedByUser": {
         "user_1768226637877.3e99840b": false
@@ -516,29 +521,23 @@
       ],
       "createdAt": "2026-01-14T10:30:55.338133",
       "readMessagesByUser": {
-        "user_1768226637877.3e99840b": "2026-01-14T17:59:26.293234"
+        "user_1768226637877.3e99840b": "2026-01-19T17:07:28.507127"
       },
       "pinnedByUser": {
         "user_1768226637877.3e99840b": true
       },
       "lastMessage": {
-        "id": "0c0c3087-dea9-4618-827b-c36ae3c45cd4",
+        "id": "3ce67713-eca5-46bf-ae70-4237f6bb704d",
         "chatId": "favorites_user_1768226637877.3e99840b",
         "authorId": "user_1768226637877.3e99840b",
         "authorName": "Иван Петров",
-        "content": "",
+        "content": "ааа",
         "mentions": [],
         "replyToId": null,
-        "createdAt": "2026-01-14T17:57:30.466586",
+        "createdAt": "2026-01-19T12:58:58.422388",
         "updatedAt": null,
         "isEdited": false,
-        "attachments": [
-          {
-            "type": "image",
-            "name": "6163b44ff54dad46473c6d03400f7023.jpg",
-            "file": {}
-          }
-        ]
+        "attachments": []
       },
       "unreadCount": 0
     },
@@ -552,20 +551,20 @@
       ],
       "createdAt": "2026-01-14T14:10:20.133267",
       "readMessagesByUser": {
-        "user_1768226637877.3e99840b": "2026-01-14T16:11:48.794439"
+        "user_1768226637877.3e99840b": "2026-01-19T12:50:17.461778"
       },
       "unreadCount": 0,
       "lastMessage": {
-        "id": "94dda8b4-1b76-4ff3-868b-e419e94e4bf7",
+        "id": "4b32d814-7ad6-45cd-ba7b-655fcfc7d2c1",
         "chatId": "c6bf0754-e0bb-44db-9960-5f0ff1a8d0e2",
         "authorId": "user_1768226637877.3e99840b",
         "authorName": "Иван Петров",
-        "content": "еее",
+        "content": "аааааа",
         "mentions": [],
         "replyToId": null,
-        "createdAt": "2026-01-14T14:10:26.176956",
-        "updatedAt": "2026-01-14T14:12:32.210489",
-        "isEdited": true,
+        "createdAt": "2026-01-19T11:30:57.576930",
+        "updatedAt": null,
+        "isEdited": false,
         "attachments": []
       }
     },
@@ -584,31 +583,32 @@
       ],
       "createdAt": "2026-01-14T14:14:54.361934",
       "readMessagesByUser": {
-        "user_1768226637877.3e99840b": "2026-01-14T17:45:59.935281",
-        "user_1768211260672.pd42l49yv": "2026-01-14T17:40:57.756964"
+        "user_1768226637877.3e99840b": "2026-01-19T15:29:57.626664",
+        "user_1768211260672.pd42l49yv": "2026-01-19T16:55:04.961820",
+        "user_1768211670938.cjlk65kuz": "2026-01-19T17:24:47.977001"
       },
-      "unreadCount": 1,
+      "unreadCount": 0,
       "lastMessage": {
-        "id": "c228d787-86fc-40a6-801f-b3891df0fd0e",
+        "id": "2f3100a3-58ed-4085-9a6f-4dbb02a3cd1c",
         "chatId": "367eb16a-a9de-4f77-b35c-68b16e341343",
         "authorId": "user_1768226637877.3e99840b",
         "authorName": "Иван Петров",
         "content": "",
         "mentions": [],
         "replyToId": null,
-        "createdAt": "2026-01-14T17:42:35.657607",
+        "createdAt": "2026-01-19T15:14:15.636384",
         "updatedAt": null,
         "isEdited": false,
         "attachments": [
           {
             "type": "image",
-            "name": "1762420584-20251027170526-8c015c1e-md.jpg",
-            "file": {}
+            "name": "sad-bear.png",
+            "url": "/api/uploads/1768824854831-vhnbaaxqm.png"
           }
         ]
       },
       "pinnedByUser": {
-        "user_1768226637877.3e99840b": true
+        "user_1768226637877.3e99840b": false
       }
     },
     {
@@ -623,9 +623,11 @@
       ],
       "createdAt": "2026-01-14T15:00:16.828672",
       "readMessagesByUser": {
-        "user_1768226637877.3e99840b": "2026-01-14T16:15:47.737294"
+        "user_1768226637877.3e99840b": "2026-01-19T12:22:48.775441",
+        "user_1768211260672.pd42l49yv": "2026-01-19T16:31:59.583460",
+        "user_1768211670938.cjlk65kuz": "2026-01-19T17:26:14.652347"
       },
-      "unreadCount": 1,
+      "unreadCount": 0,
       "lastMessage": {
         "id": "efcd5b17-6acf-4346-8bef-8fa80ec2c674",
         "chatId": "ac2631cc-63a0-46d9-8817-75d24c148b51",
@@ -654,7 +656,7 @@
       ],
       "createdAt": "2026-01-14T15:48:26.778953",
       "readMessagesByUser": {
-        "user_1768226637877.3e99840b": "2026-01-14T16:15:45.668503"
+        "user_1768226637877.3e99840b": "2026-01-19T12:22:47.384339"
       },
       "unreadCount": 0,
       "lastMessage": {
@@ -671,7 +673,7 @@
         "attachments": []
       },
       "pinnedByUser": {
-        "user_1768226637877.3e99840b": true
+        "user_1768226637877.3e99840b": false
       }
     },
     {
@@ -685,19 +687,21 @@
       ],
       "createdAt": "2026-01-14T17:08:04.934381",
       "readMessagesByUser": {
-        "user_1768226637877.3e99840b": "2026-01-14T17:36:15.087710"
+        "user_1768226637877.3e99840b": "2026-01-19T16:05:13.950956",
+        "user_1768211260672.pd42l49yv": "2026-01-19T18:13:06.029691",
+        "user_1768211670938.cjlk65kuz": "2026-01-19T18:07:00.406098"
       },
       "creatorId": "user_1768226637877.3e99840b",
-      "unreadCount": 1,
+      "unreadCount": 0,
       "lastMessage": {
-        "id": "75cfd871-a007-495b-a8f6-732577f6d379",
+        "id": "8bfee3b1-ded7-47e8-8812-c9493b703b0b",
         "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
-        "authorId": "user_1768226637877.3e99840b",
-        "authorName": "Иван Петров",
-        "content": "😌😌😌😌",
+        "authorId": "user_1768211260672.pd42l49yv",
+        "authorName": "Администратор",
+        "content": "@ип ",
         "mentions": [],
         "replyToId": null,
-        "createdAt": "2026-01-14T17:08:08.687122",
+        "createdAt": "2026-01-19T17:28:11.470708",
         "updatedAt": null,
         "isEdited": false,
         "attachments": []
@@ -716,6 +720,64 @@
         "user_1768211260672.pd42l49yv"
       ],
       "createdAt": "2026-01-14T17:40:25.503490",
+      "readMessagesByUser": {},
+      "unreadCount": 0
+    },
+    {
+      "id": "c722210b-4bcb-4d92-86ab-eb1c08a8a53c",
+      "title": null,
+      "isGroup": false,
+      "participantIds": [
+        "user_1768226637877.3e99840b",
+        "user_1768211716045.nk39u6u7h"
+      ],
+      "createdAt": "2026-01-19T11:51:02.435938",
+      "readMessagesByUser": {},
+      "unreadCount": 0
+    },
+    {
+      "id": "92e8b3d3-7940-4a89-9f46-91084ea5e07c",
+      "title": "Отдел продаж",
+      "isGroup": true,
+      "participantIds": [
+        "user_1768211716045.nk39u6u7h",
+        "user_1768211670938.cjlk65kuz",
+        "user_1768226637897.cd896e3f",
+        "user_1768226637887.c4077077",
+        "user_1768226637907.3cdbe9ed",
+        "user_1768226637877.3e99840b"
+      ],
+      "createdAt": "2026-01-19T16:05:15.059974",
+      "readMessagesByUser": {
+        "user_1768226637877.3e99840b": "2026-01-19T16:06:09.144176",
+        "user_1768211670938.cjlk65kuz": "2026-01-19T17:24:48.834829"
+      },
+      "creatorId": "user_1768226637877.3e99840b",
+      "unreadCount": 0,
+      "lastMessage": {
+        "id": "2f891ba6-f93c-4c0d-abe1-e1e02bfea421",
+        "chatId": "92e8b3d3-7940-4a89-9f46-91084ea5e07c",
+        "authorId": "user_1768226637877.3e99840b",
+        "authorName": "Иван Петров",
+        "content": "Хэй",
+        "mentions": [],
+        "replyToId": null,
+        "createdAt": "2026-01-19T16:05:18.690357",
+        "updatedAt": null,
+        "isEdited": false,
+        "attachments": []
+      }
+    },
+    {
+      "id": "favorites-user_1768211670938.cjlk65kuz",
+      "title": "Избранное",
+      "isGroup": false,
+      "isFavoritesChat": true,
+      "isSystemChat": true,
+      "participantIds": [
+        "user_1768211670938.cjlk65kuz"
+      ],
+      "createdAt": "2026-01-19T17:07:37.790471",
       "readMessagesByUser": {},
       "unreadCount": 0
     }
@@ -2130,6 +2192,569 @@
           "type": "image",
           "name": "6163b44ff54dad46473c6d03400f7023.jpg",
           "file": {}
+        }
+      ]
+    },
+    {
+      "id": "ecb86a58-d7ed-4000-8ddb-a8121b457464",
+      "chatId": "favorites_user_1768226637877.3e99840b",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T10:22:09.458233",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": [
+        {
+          "type": "image",
+          "name": "Tver_E.Kuznetsova_1200x80_9548.jpg",
+          "url": "/api/uploads/1768807328422-x10h8pozp.jpg"
+        }
+      ]
+    },
+    {
+      "id": "daedf286-7395-4e8b-affc-9f61239509ea",
+      "chatId": "favorites_user_1768226637877.3e99840b",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T10:29:05.362600",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": [
+        {
+          "type": "file",
+          "name": "REFRESH_INFO.txt",
+          "url": "/api/uploads/1768807744165-jwpustx3l.txt"
+        }
+      ]
+    },
+    {
+      "id": "97b0d9c6-8a45-4022-a655-4d5ee500fbdf",
+      "chatId": "367eb16a-a9de-4f77-b35c-68b16e341343",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "😊",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T10:31:24.217475",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "fd67f6a7-fd5b-4314-a7f1-8721af38a5eb",
+      "chatId": "367eb16a-a9de-4f77-b35c-68b16e341343",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T10:33:29.597422",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": [
+        {
+          "type": "image",
+          "name": "1762420584-20251027170526-8c015c1e-md.jpg",
+          "url": "/api/uploads/1768808008058-xp83x5d4l.jpg"
+        }
+      ]
+    },
+    {
+      "id": "c3d01dd9-19b4-479c-acb3-b1ea66c65b4b",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "ррр",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T11:02:32.115849",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "2ff5d0fb-7435-495f-b802-0dbc1ca284cf",
+      "chatId": "c6bf0754-e0bb-44db-9960-5f0ff1a8d0e2",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "рррр",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T11:12:52.312701",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "e6a0c7fb-8616-4889-821b-a065b2ac8b72",
+      "chatId": "favorites_user_1768226637877.3e99840b",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "",
+      "mentions": [],
+      "createdAt": "2026-01-19T11:14:56.648128",
+      "isEdited": false,
+      "isDeleted": false,
+      "attachments": [
+        {
+          "type": "image",
+          "name": "1762420584-20251027170526-8c015c1e-md.jpg",
+          "url": "/api/uploads/1768808008058-xp83x5d4l.jpg"
+        }
+      ],
+      "isSystemMessage": false
+    },
+    {
+      "id": "4b32d814-7ad6-45cd-ba7b-655fcfc7d2c1",
+      "chatId": "c6bf0754-e0bb-44db-9960-5f0ff1a8d0e2",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "аааааа",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T11:30:57.576930",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "654a1d06-dcf9-41e5-9411-a4c4185aec63",
+      "chatId": "favorites_user_1768226637877.3e99840b",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "ввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввв",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T11:51:47.661488",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "c13eddba-b112-42e5-ad5b-d67ad874cd13",
+      "chatId": "59f422c7-1c45-4a8c-8d4b-53a1b422b365",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T12:09:39.233323",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": [
+        {
+          "type": "task",
+          "name": "уу",
+          "taskId": "20260112_124407_pj3kda"
+        }
+      ]
+    },
+    {
+      "id": "d397549d-2b14-4c30-8f18-251df362802c",
+      "chatId": "favorites_user_1768226637877.3e99840b",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "пнпппп",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T12:13:35.077103",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "6051af8a-c862-40a8-b6a8-189b1c719871",
+      "chatId": "59f422c7-1c45-4a8c-8d4b-53a1b422b365",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "Нужно убрать Mobile Column Switcher и изменить Kanban Board чтобы он горизонтально скроллился на мобильных:",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T12:23:05.896724",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "c6335e49-b12c-4e9e-bb28-8e521be1e92f",
+      "chatId": "367eb16a-a9de-4f77-b35c-68b16e341343",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "ааааааааааааа",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T12:53:35.530745",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "12d68128-2a03-4986-a5a8-5556a2350007",
+      "chatId": "favorites_user_1768226637877.3e99840b",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "сааааа",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T12:58:55.736498",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "3ce67713-eca5-46bf-ae70-4237f6bb704d",
+      "chatId": "favorites_user_1768226637877.3e99840b",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "ааа",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T12:58:58.422388",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "2f3100a3-58ed-4085-9a6f-4dbb02a3cd1c",
+      "chatId": "367eb16a-a9de-4f77-b35c-68b16e341343",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T15:14:15.636384",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": [
+        {
+          "type": "image",
+          "name": "sad-bear.png",
+          "url": "/api/uploads/1768824854831-vhnbaaxqm.png"
+        }
+      ]
+    },
+    {
+      "id": "eb0defad-dfb5-4356-9083-6cda1141e7c2",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768211260672.pd42l49yv",
+      "authorName": "Администратор",
+      "content": "Эй",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T15:22:05.555290",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "dc87579f-8e10-43bf-8257-cfa09eb0472b",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "Как дела?",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T15:22:10.932417",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "59390b0a-bcda-4b6a-b02e-c46d99f1032e",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768211260672.pd42l49yv",
+      "authorName": "Администратор",
+      "content": "Отлчино. Твои как?",
+      "mentions": [],
+      "replyToId": "dc87579f-8e10-43bf-8257-cfa09eb0472b",
+      "createdAt": "2026-01-19T15:22:26.745939",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "abfd6017-3e2b-42eb-82bd-90b2cf01df4a",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "Прекрасно",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T15:23:26.514557",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "023b6385-e620-4908-b41f-87172d919575",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "проверка",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T15:23:33.955158",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "a31e25b5-d605-451b-b750-d0aaaacd6511",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768211260672.pd42l49yv",
+      "authorName": "Администратор",
+      "content": "",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T15:54:46.908332",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": [
+        {
+          "type": "image",
+          "name": "sad-bear.png",
+          "url": "/api/uploads/1768827285819-injtdsrg9.png"
+        }
+      ]
+    },
+    {
+      "id": "2749ebae-e0c9-482f-bb47-acd1a3ea757a",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768211260672.pd42l49yv",
+      "authorName": "Администратор",
+      "content": "ввв",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T15:55:35.966811",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "24f5c3fa-a01d-4654-bc4b-2cd81b4cde69",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768211260672.pd42l49yv",
+      "authorName": "Администратор",
+      "content": "",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T15:55:43.168154",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": [
+        {
+          "type": "image",
+          "name": "1762420584-20251027170526-8c015c1e-md.jpg",
+          "url": "/api/uploads/1768827342236-2zjauwcmc.jpg"
+        }
+      ]
+    },
+    {
+      "id": "3b9a00da-a5f2-4969-b7ec-a8b841755095",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768211260672.pd42l49yv",
+      "authorName": "Администратор",
+      "content": "вввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввввв",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T15:58:59.030980",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "eddd7e09-7586-4842-8239-30fc4b9b5bb0",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768211260672.pd42l49yv",
+      "authorName": "Администратор",
+      "content": "ID\nюзернейм\nпочта (рабочая, для связи)\ntelegram ID (для авторизации)\nотдел - справочная (фильтры, в контактах)\nдолжность - справочная (фильтры, в контактах)\nроль - универсал или исполнитель. Универсал - может ставить задачи всем, включая других универсалов. А исполнитель - только себе. Его собственные туду видны только ему, и суперадмину, который видит все задачи\nЗадачи ддоступные пользователю\nСобытия доступные пользователю\nИнструменты доступные пользователю\nСообщения пользователя и чаты (нужно надежно шифровать)\n",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T16:00:26.235804",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "3fbc37b7-1c20-46f7-934f-192d4f0b3725",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "Хэй",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T16:03:46.540634",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "71985b4a-555d-45df-aed9-e4144aaa5d12",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "Как дела",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T16:03:52.755019",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "2f891ba6-f93c-4c0d-abe1-e1e02bfea421",
+      "chatId": "92e8b3d3-7940-4a89-9f46-91084ea5e07c",
+      "authorId": "user_1768226637877.3e99840b",
+      "authorName": "Иван Петров",
+      "content": "Хэй",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T16:05:18.690357",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "4da738ab-0777-4820-b9de-9af2692c4034",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768211260672.pd42l49yv",
+      "authorName": "Администратор",
+      "content": "",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T16:24:39.371265",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": [
+        {
+          "type": "image",
+          "name": "happy-bear.png",
+          "url": "/api/uploads/1768829076847-1fjv839lv.png"
+        }
+      ]
+    },
+    {
+      "id": "85bdf928-774a-4b46-a1a4-948cce9d39c9",
+      "chatId": "a0dde089-9ef4-41e6-b52f-e1597b0e0582",
+      "authorId": "user_1768211260672.pd42l49yv",
+      "authorName": "Администратор",
+      "content": "",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T16:35:42.900315",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": [
+        {
+          "type": "image",
+          "name": "1762420584-20251027170526-8c015c1e-md.jpg",
+          "url": "/api/uploads/1768829741896-48776v1u6.jpg"
+        }
+      ]
+    },
+    {
+      "id": "958bed5c-0fd4-494d-b17a-922c0e530504",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768211670938.cjlk65kuz",
+      "authorName": "Тест Тестов",
+      "content": "Эй",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T17:24:26.102688",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "45258eaf-5d28-4111-9042-233f5df9ee0f",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768211260672.pd42l49yv",
+      "authorName": "Администратор",
+      "content": "\"q",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T17:27:38.305637",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "c6d01985-0bf5-49e5-8b53-2d41406aa716",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768211260672.pd42l49yv",
+      "authorName": "Администратор",
+      "content": "В",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T17:27:44.878530",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "6ae38983-b8f3-4264-8387-e9765df8f288",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768211670938.cjlk65kuz",
+      "authorName": "Тест Тестов",
+      "content": "ллл",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T17:27:50.513481",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "8bfee3b1-ded7-47e8-8812-c9493b703b0b",
+      "chatId": "62c1f633-27b3-4b82-a1e0-a4302d02e2fc",
+      "authorId": "user_1768211260672.pd42l49yv",
+      "authorName": "Администратор",
+      "content": "@ип ",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T17:28:11.470708",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "3eb02e51-f224-4fd5-8ef4-9015775bc170",
+      "chatId": "4f91acba-08a8-4171-876f-96897848463a",
+      "authorId": "system",
+      "authorName": "Система",
+      "content": "📋 <b>Новая задача</b>\n\nАдминистратор назначил(а) вам задачу:\n«Проверка»",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T17:29:34.221483",
+      "updatedAt": null,
+      "isEdited": false,
+      "isSystemMessage": true,
+      "linkedTaskId": "20260119_142934_6z1hbq",
+      "linkedPostId": null,
+      "notificationType": "new_task"
+    },
+    {
+      "id": "82b2ebcf-7e34-4b9d-ac95-66e394647dfc",
+      "chatId": "a0dde089-9ef4-41e6-b52f-e1597b0e0582",
+      "authorId": "user_1768211670938.cjlk65kuz",
+      "authorName": "Тест Тестов",
+      "content": "",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-19T17:52:58.763920",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": [
+        {
+          "type": "task",
+          "name": "уу",
+          "taskId": "20260112_124407_pj3kda"
         }
       ]
     }

@@ -1,6 +1,90 @@
 {
   "notifications": [
     {
+      "id": "notif-1768832974096",
+      "type": "new_task",
+      "todoId": "20260119_142934_6z1hbq",
+      "todoTitle": "Проверка",
+      "fromUserId": "user_1768211260672.pd42l49yv",
+      "fromUserName": "Администратор",
+      "toUserId": "user_1768211670938.cjlk65kuz",
+      "message": "Администратор создал задачу для вас",
+      "read": false,
+      "createdAt": "2026-01-19T14:29:34.096Z"
+    },
+    {
+      "id": "notif-1768832509182",
+      "type": "assignment",
+      "todoId": "20260114_113040_uhfu5p",
+      "todoTitle": "рннн",
+      "fromUserId": "user_1768211670938.cjlk65kuz",
+      "fromUserName": "Тест Тестов",
+      "toUserId": "user_1768211260672.pd42l49yv",
+      "message": "Тест Тестов назначил вас исполнителем",
+      "read": false,
+      "createdAt": "2026-01-19T14:21:49.182Z"
+    },
+    {
+      "id": "notif-1768831634690",
+      "type": "assignment",
+      "todoId": "20260112_075207_cofz3x",
+      "todoTitle": "111",
+      "fromUserId": "user_1768211260672.pd42l49yv",
+      "fromUserName": "Администратор",
+      "toUserId": "user_1768211670938.cjlk65kuz",
+      "message": "Администратор назначил вас исполнителем",
+      "read": false,
+      "createdAt": "2026-01-19T14:07:14.690Z"
+    },
+    {
+      "id": "notif-1768829365372-user_1768226637877.3e99840b",
+      "type": "mention",
+      "todoId": "20260114_113040_uhfu5p",
+      "todoTitle": "рннн",
+      "fromUserId": "user_1768211260672.pd42l49yv",
+      "fromUserName": "Администратор",
+      "toUserId": "user_1768226637877.3e99840b",
+      "message": "Администратор упомянул вас в комментарии",
+      "read": false,
+      "createdAt": "2026-01-19T13:29:25.372Z"
+    },
+    {
+      "id": "notif-1768829365371-user_1768211670938.cjlk65kuz",
+      "type": "comment",
+      "todoId": "20260114_113040_uhfu5p",
+      "todoTitle": "рннн",
+      "fromUserId": "user_1768211260672.pd42l49yv",
+      "fromUserName": "Администратор",
+      "toUserId": "user_1768211670938.cjlk65kuz",
+      "message": "Администратор оставил комментарий",
+      "read": false,
+      "createdAt": "2026-01-19T13:29:25.371Z"
+    },
+    {
+      "id": "notif-1768825790326",
+      "type": "assignment",
+      "todoId": "20260119_122933_tljkn4",
+      "todoTitle": "Тест",
+      "fromUserId": "user_1768211260672.pd42l49yv",
+      "fromUserName": "Администратор",
+      "toUserId": "user_1768226637877.3e99840b",
+      "message": "Администратор назначил вас исполнителем",
+      "read": false,
+      "createdAt": "2026-01-19T12:29:50.326Z"
+    },
+    {
+      "id": "notif-1768816026211-user_1768211670938.cjlk65kuz",
+      "type": "comment",
+      "todoId": "20260114_113040_uhfu5p",
+      "todoTitle": "рннн",
+      "fromUserId": "user_1768226637877.3e99840b",
+      "fromUserName": "Иван Петров",
+      "toUserId": "user_1768211670938.cjlk65kuz",
+      "message": "Иван Петров оставил комментарий",
+      "read": false,
+      "createdAt": "2026-01-19T09:47:06.211Z"
+    },
+    {
       "id": "notif-1768401210010-fdiurn4n2",
       "type": "event_invite",
       "eventId": "event_1768401210005_mrl40ihjt",

@@ -49,12 +49,11 @@ const PLATFORMS = [
 ]
 
 const panelStyle = {
-  background: '#1a1a1a',
-  boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.3), 0 0 0 0.5px rgba(255, 255, 255, 0.1) inset, 0 1px 0 0 rgba(255, 255, 255, 0.15) inset'
+  // Стили будут применены через CSS классы для поддержки тем
 }
 
 const buttonStyle = {
-  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.1) inset'
+  // Стили будут применены через CSS классы для поддержки тем
 }
 
 type TabType = 'single' | 'bulk' | 'settings'
@@ -310,23 +309,22 @@ export default function UTMGeneratorPage() {
     <div className="h-full flex p-4 gap-4">
       {/* Левая панель - Форма */}
       <div 
-        className="w-96 rounded-2xl border border-white/10 overflow-hidden flex flex-col"
-        style={panelStyle}
+        className="w-96 rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1a1a1a] shadow-lg dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] overflow-hidden flex flex-col"
       >
-        <div className="p-3 border-b border-white/10">
+        <div className="p-3 border-b border-gray-200 dark:border-white/10">
           <div className="flex items-center gap-2 mb-3">
             <Link2 className="w-4 h-4 text-[#4a9eff]" />
-            <span className="text-xs font-medium text-white/60">UTM Генератор</span>
+            <span className="text-xs font-medium text-gray-500 dark:text-white/60">UTM Генератор</span>
           </div>
 
           {/* Табы */}
-          <div className="flex gap-1 p-1 bg-white/5 rounded-lg">
+          <div className="flex gap-1 p-1 bg-gray-100 dark:bg-white/5 rounded-lg">
             <button
               onClick={() => setActiveTab('single')}
               className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
                 activeTab === 'single' 
-                  ? 'bg-white/10 text-white border border-white/10' 
-                  : 'text-white/50 hover:text-white/70'
+                  ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white border border-gray-200 dark:border-white/10 shadow-sm' 
+                  : 'text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/70'
               }`}
             >
               <Link2 className="w-3 h-3" />
@@ -336,8 +334,8 @@ export default function UTMGeneratorPage() {
               onClick={() => setActiveTab('bulk')}
               className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
                 activeTab === 'bulk' 
-                  ? 'bg-white/10 text-white border border-white/10' 
-                  : 'text-white/50 hover:text-white/70'
+                  ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white border border-gray-200 dark:border-white/10 shadow-sm' 
+                  : 'text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/70'
               }`}
             >
               <Layers className="w-3 h-3" />
@@ -347,8 +345,8 @@ export default function UTMGeneratorPage() {
               onClick={() => setActiveTab('settings')}
               className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
                 activeTab === 'settings' 
-                  ? 'bg-white/10 text-white border border-white/10' 
-                  : 'text-white/50 hover:text-white/70'
+                  ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white border border-gray-200 dark:border-white/10 shadow-sm' 
+                  : 'text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/70'
               }`}
             >
               <Settings className="w-3 h-3" />
@@ -362,17 +360,17 @@ export default function UTMGeneratorPage() {
             /* Вкладка настроек пресетов */
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-medium text-white/70">Управление пресетами</h4>
+                <h4 className="text-xs font-medium text-gray-600 dark:text-white/70">Управление пресетами</h4>
                 <div className="flex gap-2">
                   <button
                     onClick={resetToDefaults}
-                    className="px-2 py-1 text-[10px] text-white/40 hover:text-white/60 transition-colors"
+                    className="px-2 py-1 text-[10px] text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/60 transition-colors"
                   >
                     Сбросить
                   </button>
                   <button
                     onClick={() => setIsAddingPreset(true)}
-                    className="flex items-center gap-1 px-2 py-1 bg-cyan-500/20 text-cyan-400 rounded-lg text-[10px] font-medium hover:bg-cyan-500/30 transition-colors"
+                    className="flex items-center gap-1 px-2 py-1 bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 rounded-lg text-[10px] font-medium hover:bg-cyan-500/30 transition-colors"
                   >
                     <Plus className="w-3 h-3" />
                     Добавить
@@ -382,10 +380,10 @@ export default function UTMGeneratorPage() {
 
               {/* Форма добавления пресета */}
               {isAddingPreset && (
-                <div className="p-3 bg-white/5 rounded-xl border border-white/10 space-y-2">
+                <div className="p-3 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10 space-y-2">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium">Новый пресет</span>
-                    <button onClick={() => setIsAddingPreset(false)} className="text-white/40 hover:text-white/60">
+                    <span className="text-xs font-medium text-gray-900 dark:text-white">Новый пресет</span>
+                    <button onClick={() => setIsAddingPreset(false)} className="text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/60">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
@@ -394,7 +392,7 @@ export default function UTMGeneratorPage() {
                     value={newPreset.name || ''}
                     onChange={(e) => setNewPreset({ ...newPreset, name: e.target.value })}
                     placeholder="Название *"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500/50 placeholder:text-white/30"
+                    className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
                   />
                   <div className="grid grid-cols-2 gap-2">
                     <input
@@ -402,14 +400,14 @@ export default function UTMGeneratorPage() {
                       value={newPreset.source || ''}
                       onChange={(e) => setNewPreset({ ...newPreset, source: e.target.value })}
                       placeholder="source *"
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500/50 placeholder:text-white/30"
+                      className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
                     />
                     <input
                       type="text"
                       value={newPreset.medium || ''}
                       onChange={(e) => setNewPreset({ ...newPreset, medium: e.target.value })}
                       placeholder="medium *"
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500/50 placeholder:text-white/30"
+                      className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
                     />
                   </div>
                   <input
@@ -417,10 +415,10 @@ export default function UTMGeneratorPage() {
                     value={newPreset.description || ''}
                     onChange={(e) => setNewPreset({ ...newPreset, description: e.target.value })}
                     placeholder="Описание"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500/50 placeholder:text-white/30"
+                    className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
                   />
                   <div>
-                    <label className="block text-[10px] text-white/40 mb-1">Цвет</label>
+                    <label className="block text-[10px] text-gray-400 dark:text-white/40 mb-1">Цвет</label>
                     <div className="flex flex-wrap gap-1">
                       {PRESET_COLORS.map(c => (
                         <button
@@ -433,7 +431,7 @@ export default function UTMGeneratorPage() {
                   </div>
                   <button
                     onClick={handleAddPreset}
-                    className="w-full px-3 py-1.5 bg-cyan-500/20 text-cyan-400 rounded-lg text-xs font-medium hover:bg-cyan-500/30 transition-colors"
+                    className="w-full px-3 py-1.5 bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 rounded-lg text-xs font-medium hover:bg-cyan-500/30 transition-colors"
                   >
                     Добавить пресет
                   </button>
@@ -443,7 +441,7 @@ export default function UTMGeneratorPage() {
               {/* Список пресетов */}
               <div className="space-y-2">
                 {presets.map(preset => (
-                  <div key={preset.id} className="flex items-center gap-2 p-2 bg-white/5 rounded-xl border border-white/10">
+                  <div key={preset.id} className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10">
                     {editingPreset?.id === preset.id ? (
                       /* Режим редактирования */
                       <div className="flex-1 space-y-2">
@@ -451,7 +449,7 @@ export default function UTMGeneratorPage() {
                           type="text"
                           value={editingPreset.name}
                           onChange={(e) => setEditingPreset({ ...editingPreset, name: e.target.value })}
-                          className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+                          className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
                         />
                         <div className="grid grid-cols-2 gap-1">
                           <input
@@ -459,14 +457,14 @@ export default function UTMGeneratorPage() {
                             value={editingPreset.source}
                             onChange={(e) => setEditingPreset({ ...editingPreset, source: e.target.value })}
                             placeholder="source"
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+                            className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
                           />
                           <input
                             type="text"
                             value={editingPreset.medium}
                             onChange={(e) => setEditingPreset({ ...editingPreset, medium: e.target.value })}
                             placeholder="medium"
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+                            className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
                           />
                         </div>
                         <input
@@ -474,7 +472,7 @@ export default function UTMGeneratorPage() {
                           value={editingPreset.description}
                           onChange={(e) => setEditingPreset({ ...editingPreset, description: e.target.value })}
                           placeholder="Описание"
-                          className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+                          className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
                         />
                         <div className="flex flex-wrap gap-1 mb-2">
                           {PRESET_COLORS.map(c => (
@@ -488,13 +486,13 @@ export default function UTMGeneratorPage() {
                         <div className="flex gap-1">
                           <button
                             onClick={() => setEditingPreset(null)}
-                            className="flex-1 px-2 py-1 bg-white/5 text-white/60 rounded-lg text-[10px] hover:bg-white/10"
+                            className="flex-1 px-2 py-1 bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-white/60 rounded-lg text-[10px] hover:bg-gray-200 dark:hover:bg-white/10"
                           >
                             Отмена
                           </button>
                           <button
                             onClick={handleUpdatePreset}
-                            className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-cyan-500/20 text-cyan-400 rounded-lg text-[10px] hover:bg-cyan-500/30"
+                            className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 rounded-lg text-[10px] hover:bg-cyan-500/30"
                           >
                             <Save className="w-3 h-3" />
                             Сохранить
@@ -507,12 +505,12 @@ export default function UTMGeneratorPage() {
                         <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${preset.color}`}>
                           {preset.name}
                         </span>
-                        <span className="flex-1 text-[10px] text-white/40 truncate">
+                        <span className="flex-1 text-[10px] text-gray-400 dark:text-white/40 truncate">
                           {preset.source} / {preset.medium}
                         </span>
                         <button
                           onClick={() => setEditingPreset(preset)}
-                          className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/10 rounded-lg transition-colors"
+                          className="p-1.5 text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/70 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
                         >
                           <Pencil className="w-3 h-3" />
                         </button>
@@ -532,7 +530,7 @@ export default function UTMGeneratorPage() {
           <>
           {/* Пресеты */}
           <div>
-            <label className="block text-[10px] text-white/40 mb-2">Быстрые пресеты</label>
+            <label className="block text-[10px] text-gray-400 dark:text-white/40 mb-2">Быстрые пресеты</label>
             <div className="flex flex-wrap gap-1">
               {presets.map(preset => (
                 <button
@@ -541,7 +539,7 @@ export default function UTMGeneratorPage() {
                   className={`px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-all ${
                     selectedPreset === preset.id 
                       ? preset.color
-                      : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'
+                      : 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-600 dark:text-white/60 hover:bg-gray-200 dark:hover:bg-white/10'
                   }`}
                   title={preset.description}
                 >
@@ -555,76 +553,76 @@ export default function UTMGeneratorPage() {
             <>
               {/* URL */}
               <div>
-                <label className="block text-[10px] text-white/40 mb-1">URL страницы</label>
+                <label className="block text-[10px] text-gray-400 dark:text-white/40 mb-1">URL страницы</label>
                 <input
                   type="url"
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
                   placeholder="https://vs-travel.ru/tour/123"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
+                  className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
                 />
               </div>
 
               {/* UTM параметры */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] text-white/40 mb-1">source *</label>
+                  <label className="block text-[10px] text-gray-400 dark:text-white/40 mb-1">source *</label>
                   <input
                     type="text"
                     value={source}
                     onChange={(e) => { setSource(e.target.value); setSelectedPreset(null) }}
                     placeholder="yandex"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
+                    className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-white/40 mb-1">medium *</label>
+                  <label className="block text-[10px] text-gray-400 dark:text-white/40 mb-1">medium *</label>
                   <input
                     type="text"
                     value={medium}
                     onChange={(e) => { setMedium(e.target.value); setSelectedPreset(null) }}
                     placeholder="cpc"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
+                    className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[10px] text-white/40 mb-1">campaign *</label>
+                <label className="block text-[10px] text-gray-400 dark:text-white/40 mb-1">campaign *</label>
                 <input
                   type="text"
                   value={campaign}
                   onChange={(e) => setCampaign(e.target.value)}
                   placeholder="summer_sale"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
+                  className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] text-white/30 mb-1">term</label>
+                  <label className="block text-[10px] text-gray-400/70 dark:text-white/30 mb-1">term</label>
                   <input
                     type="text"
                     value={term}
                     onChange={(e) => setTerm(e.target.value)}
                     placeholder="keyword"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
+                    className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-white/30 mb-1">content</label>
+                  <label className="block text-[10px] text-gray-400/70 dark:text-white/30 mb-1">content</label>
                   <input
                     type="text"
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
                     placeholder="banner_1"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
+                    className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
                   />
                 </div>
               </div>
 
               {/* Отслеживание */}
-              <div className="pt-3 border-t border-white/10">
+              <div className="pt-3 border-t border-gray-200 dark:border-white/10">
                 <label className="flex items-center gap-2 cursor-pointer mb-3">
                   <input
                     type="checkbox"
@@ -632,31 +630,31 @@ export default function UTMGeneratorPage() {
                     onChange={(e) => setEnableTracking(e.target.checked)}
                     className="w-4 h-4 rounded accent-[#22D3EE]"
                   />
-                  <span className="text-xs font-medium">Отслеживать</span>
+                  <span className="text-xs font-medium text-gray-700 dark:text-white">Отслеживать</span>
                   <TrendingUp className="w-3.5 h-3.5 text-[#22D3EE]" />
                 </label>
                 
                 {enableTracking && (
                   <div className="space-y-2">
                     <div>
-                      <label className="block text-[10px] text-white/40 mb-1">Название</label>
+                      <label className="block text-[10px] text-gray-400 dark:text-white/40 mb-1">Название</label>
                       <input
                         type="text"
                         value={trackingTitle}
                         onChange={(e) => setTrackingTitle(e.target.value)}
                         placeholder="Пост про летние туры"
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
+                        className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-white/40 mb-1">Платформа</label>
+                      <label className="block text-[10px] text-gray-400 dark:text-white/40 mb-1">Платформа</label>
                       <select
                         value={trackingPlatform}
                         onChange={(e) => setTrackingPlatform(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50"
+                        className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50"
                       >
                         {PLATFORMS.map(p => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
+                          <option key={p.id} value={p.id} className="bg-white dark:bg-[#1a1a1a]">{p.name}</option>
                         ))}
                       </select>
                     </div>
@@ -670,54 +668,53 @@ export default function UTMGeneratorPage() {
             <>
               {/* Массовая генерация */}
               <div>
-                <label className="block text-[10px] text-white/40 mb-1">URL страниц (по одному на строку)</label>
+                <label className="block text-[10px] text-gray-400 dark:text-white/40 mb-1">URL страниц (по одному на строку)</label>
                 <textarea
                   value={bulkUrls}
                   onChange={(e) => setBulkUrls(e.target.value)}
                   placeholder={`https://vs-travel.ru/tour/123\nhttps://vs-travel.ru/tour/456\nhttps://vs-travel.ru/tour/789`}
                   rows={6}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30 resize-none"
+                  className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-gray-400 dark:placeholder:text-white/30 resize-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] text-white/40 mb-1">source *</label>
+                  <label className="block text-[10px] text-gray-400 dark:text-white/40 mb-1">source *</label>
                   <input
                     type="text"
                     value={source}
                     onChange={(e) => setSource(e.target.value)}
                     placeholder="yandex"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
+                    className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-white/40 mb-1">medium *</label>
+                  <label className="block text-[10px] text-gray-400 dark:text-white/40 mb-1">medium *</label>
                   <input
                     type="text"
                     value={medium}
                     onChange={(e) => setMedium(e.target.value)}
                     placeholder="cpc"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
+                    className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[10px] text-white/40 mb-1">campaign</label>
+                <label className="block text-[10px] text-gray-400 dark:text-white/40 mb-1">campaign</label>
                 <input
                   type="text"
                   value={campaign}
                   onChange={(e) => setCampaign(e.target.value)}
                   placeholder="summer_sale"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-white/30"
+                  className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
                 />
               </div>
 
               <button
                 onClick={generateBulkUrls}
-                className="w-full px-4 py-2 rounded-lg bg-white/10 text-white border border-white/10 text-sm font-medium hover:bg-white/15 transition-colors"
-                style={buttonStyle}
+                className="w-full px-4 py-2 rounded-lg bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-white border border-gray-200 dark:border-white/10 text-sm font-medium hover:bg-gray-200 dark:hover:bg-white/15 transition-colors shadow-sm dark:shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
               >
                 Сгенерировать
               </button>
@@ -727,8 +724,7 @@ export default function UTMGeneratorPage() {
           {(activeTab === 'single' || activeTab === 'bulk') && (
           <button
             onClick={clearForm}
-            className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg bg-white/5 text-white/60 text-xs hover:bg-white/10 transition-colors"
-            style={buttonStyle}
+            className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-white/60 text-xs hover:bg-gray-200 dark:hover:bg-white/10 transition-colors shadow-sm dark:shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Очистить
@@ -742,11 +738,11 @@ export default function UTMGeneratorPage() {
       {/* Правая панель - Результат */}
       <div className="flex-1 flex flex-col gap-4">
         <div 
-          className="rounded-2xl border border-white/10 overflow-hidden flex flex-col"
-          style={{ ...panelStyle, maxHeight: activeTab === 'single' ? '320px' : undefined, flex: activeTab === 'single' ? '0 0 auto' : '1' }}
+          className="rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1a1a1a] shadow-lg dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] overflow-hidden flex flex-col"
+          style={{ maxHeight: activeTab === 'single' ? '320px' : undefined, flex: activeTab === 'single' ? '0 0 auto' : '1' }}
         >
-          <div className="p-3 border-b border-white/10">
-            <h3 className="flex items-center gap-2 text-sm font-medium">
+          <div className="p-3 border-b border-gray-200 dark:border-white/10">
+            <h3 className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white">
               <Link2 className="w-4 h-4 text-[#22D3EE]" />
               {activeTab === 'single' ? 'Сгенерированная ссылка' : activeTab === 'bulk' ? 'Результат массовой генерации' : 'Настройки пресетов'}
             </h3>
@@ -756,9 +752,9 @@ export default function UTMGeneratorPage() {
             {activeTab === 'settings' ? (
               <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
-                  <Settings className="w-16 h-16 mx-auto mb-4 text-white/10" />
-                  <h3 className="text-lg font-medium text-white/50 mb-2">Настройки пресетов</h3>
-                  <p className="text-sm text-white/30 max-w-md">
+                  <Settings className="w-16 h-16 mx-auto mb-4 text-gray-200 dark:text-white/10" />
+                  <h3 className="text-lg font-medium text-gray-500 dark:text-white/50 mb-2">Настройки пресетов</h3>
+                  <p className="text-sm text-gray-400 dark:text-white/30 max-w-md">
                     Управляйте пресетами в панели слева
                   </p>
                 </div>
@@ -766,8 +762,8 @@ export default function UTMGeneratorPage() {
             ) : activeTab === 'single' ? (
               generatedUrl ? (
                 <div className="flex flex-col">
-                  <div className="rounded-xl p-3 bg-black/30 border border-white/5 mb-3 overflow-auto max-h-32">
-                    <p className="text-sm font-mono break-all text-[#22D3EE]">
+                  <div className="rounded-xl p-3 bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-white/5 mb-3 overflow-auto max-h-32">
+                    <p className="text-sm font-mono break-all text-cyan-600 dark:text-[#22D3EE]">
                       {generatedUrl}
                     </p>
                   </div>
@@ -776,20 +772,18 @@ export default function UTMGeneratorPage() {
                     <button 
                       onClick={copyAndTrack}
                       disabled={isCreating || (enableTracking && !trackingTitle)}
-                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm dark:shadow-[0_1px_2px_rgba(0,0,0,0.3)] ${
                         isCopied 
-                          ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
-                          : 'bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10'
+                          ? 'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-500/30' 
+                          : 'bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 text-gray-600 dark:text-white/70 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-white/10'
                       }`}
-                      style={buttonStyle}
                     >
                       {isCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                       {isCreating ? 'Сохранение...' : isCopied ? 'Скопировано!' : enableTracking ? 'Копировать и сохранить' : 'Копировать'}
                     </button>
                     <button 
                       onClick={() => window.open(generatedUrl, '_blank')}
-                      className="px-4 py-2 rounded-lg bg-white/5 text-white/70 hover:bg-white/10 transition-colors"
-                      style={buttonStyle}
+                      className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-white/70 hover:bg-gray-200 dark:hover:bg-white/10 transition-colors shadow-sm dark:shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
                       title="Открыть в новой вкладке"
                     >
                       <ExternalLink className="w-4 h-4" />
@@ -799,9 +793,9 @@ export default function UTMGeneratorPage() {
               ) : (
                 <div className="flex items-center justify-center py-8">
                   <div className="text-center">
-                    <Link2 className="w-12 h-12 mx-auto mb-3 text-white/10" />
-                    <h3 className="text-sm font-medium text-white/50 mb-1">Введите URL</h3>
-                    <p className="text-xs text-white/30 max-w-xs">
+                    <Link2 className="w-12 h-12 mx-auto mb-3 text-gray-200 dark:text-white/10" />
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-white/50 mb-1">Введите URL</h3>
+                    <p className="text-xs text-gray-400 dark:text-white/30 max-w-xs">
                       Заполните URL и UTM-параметры слева
                     </p>
                   </div>
@@ -810,9 +804,9 @@ export default function UTMGeneratorPage() {
             ) : (
               bulkResults.length > 0 ? (
                 <div className="flex-1 flex flex-col">
-                  <div className="flex-1 rounded-xl p-4 bg-black/30 border border-white/5 mb-4 overflow-auto">
+                  <div className="flex-1 rounded-xl p-4 bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-white/5 mb-4 overflow-auto">
                     {bulkResults.map((url, idx) => (
-                      <p key={idx} className="text-xs font-mono break-all text-[#22D3EE] mb-1">
+                      <p key={idx} className="text-xs font-mono break-all text-cyan-600 dark:text-[#22D3EE] mb-1">
                         {url}
                       </p>
                     ))}
@@ -820,12 +814,11 @@ export default function UTMGeneratorPage() {
                   
                   <button 
                     onClick={copyBulkResults}
-                    className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm dark:shadow-[0_1px_2px_rgba(0,0,0,0.3)] ${
                       bulkCopied 
-                        ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
-                        : 'bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10'
+                        ? 'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-500/30' 
+                        : 'bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 text-gray-600 dark:text-white/70 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-white/10'
                     }`}
-                    style={buttonStyle}
                   >
                     {bulkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                     {bulkCopied ? 'Скопировано!' : `Копировать все (${bulkResults.length})`}
@@ -834,9 +827,9 @@ export default function UTMGeneratorPage() {
               ) : (
                 <div className="flex-1 flex items-center justify-center">
                   <div className="text-center">
-                    <Layers className="w-16 h-16 mx-auto mb-4 text-white/10" />
-                    <h3 className="text-lg font-medium text-white/50 mb-2">Массовая генерация</h3>
-                    <p className="text-sm text-white/30 max-w-md">
+                    <Layers className="w-16 h-16 mx-auto mb-4 text-gray-200 dark:text-white/10" />
+                    <h3 className="text-lg font-medium text-gray-500 dark:text-white/50 mb-2">Массовая генерация</h3>
+                    <p className="text-sm text-gray-400 dark:text-white/30 max-w-md">
                       Введите несколько URL и UTM-параметры, затем нажмите "Сгенерировать"
                     </p>
                   </div>

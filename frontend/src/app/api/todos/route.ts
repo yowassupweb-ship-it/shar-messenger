@@ -192,8 +192,23 @@ export async function GET(request: NextRequest) {
     let todos = data.todos;
     let lists = data.lists;
     
-    // Фильтрация списков по userId - показываем только те где пользователь creator или в allowedUsers
+    // Загружаем пользователя для проверки роли
+    let currentUser: any = null;
     if (userId) {
+      try {
+        const dbPath = require('path').resolve(process.cwd(), '..', 'backend', 'database.json');
+        const dbData = JSON.parse(require('fs').readFileSync(dbPath, 'utf-8'));
+        currentUser = dbData.users?.find((u: any) => u.id === userId);
+      } catch (e) {
+        console.log('Could not load user from backend DB');
+      }
+    }
+    
+    // Суперадмин (canSeeAllTasks) видит ВСЕ задачи
+    const canSeeAll = currentUser?.canSeeAllTasks === true;
+    
+    // Фильтрация списков по userId - показываем только те где пользователь creator или в allowedUsers
+    if (userId && !canSeeAll) {
       lists = lists.filter(list => {
         // Старые списки без creatorId показываем всем
         if (!list.creatorId) return true;
@@ -201,6 +216,18 @@ export async function GET(request: NextRequest) {
         if (list.creatorId === userId) return true;
         // Если пользователь в списке разрешенных
         if (list.allowedUsers && list.allowedUsers.includes(userId)) return true;
+        return false;
+      });
+      
+      // Фильтрация задач по userId - показываем только доступные пользователю
+      const allowedListIds = new Set(lists.map(l => l.id));
+      todos = todos.filter(todo => {
+        // Задача в доступном списке
+        if (allowedListIds.has(todo.listId)) return true;
+        // Пользователь - исполнитель
+        if (todo.assignedToId === userId) return true;
+        // Пользователь - автор
+        if (todo.assignedById === userId) return true;
         return false;
       });
     }
@@ -241,11 +268,35 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { type, ...itemData } = body;
+    const { type, creatorUserId, ...itemData } = body;
     
-    console.log('[POST /api/todos] Received:', { type, assignedToId: itemData.assignedToId, priority: itemData.priority });
+    console.log('[POST /api/todos] Received:', { type, assignedToId: itemData.assignedToId, priority: itemData.priority, creatorUserId });
     
     const data = readJsonFile<TodosData>('todos.json', DEFAULT_DATA);
+    
+    // Проверка роли пользователя для создания задач
+    if (type === 'todo' && creatorUserId && itemData.assignedToId) {
+      try {
+        const backendDbPath = path.join(process.cwd(), '..', 'backend', 'database.json');
+        const backendDb = JSON.parse(fs.readFileSync(backendDbPath, 'utf-8'));
+        const creator = backendDb.users?.find((u: any) => u.id === creatorUserId);
+        
+        // Если пользователь - исполнитель (executor), он может ставить задачи только себе
+        if (creator?.todoRole === 'executor' && itemData.assignedToId !== creatorUserId) {
+          // Находим people ID пользователя-создателя
+          const peopleData = readJsonFile<PeopleData>('todos-people.json', { people: [] });
+          const creatorPerson = peopleData.people.find(p => p.userId === creatorUserId);
+          
+          if (!creatorPerson || itemData.assignedToId !== creatorPerson.id) {
+            return NextResponse.json({ 
+              error: 'Исполнитель может ставить задачи только себе' 
+            }, { status: 403 });
+          }
+        }
+      } catch (err) {
+        console.error('[POST /api/todos] Error checking user role:', err);
+      }
+    }
     
     if (type === 'category') {
       const newCategory: TodoCategory = {

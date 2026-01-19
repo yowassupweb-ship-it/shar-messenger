@@ -38,6 +38,11 @@ import {
   Flag,
   Globe
 } from 'lucide-react';
+import { 
+  ContentPlanNotificationManager, 
+  getPostRelatedUsers,
+  getStatusLabel 
+} from '@/services/notificationService';
 
 interface Person {
   id: string;
@@ -118,7 +123,7 @@ const PLATFORM_CONFIG: Record<string, { color: string; name: string; icon: strin
   dzen: { color: '#FFFFFF', name: 'Дзен', icon: '/icons/dzen.svg' },
   max: { color: '#8B5CF6', name: 'MAX', icon: '/icons/max.svg' },
   mailing: { color: '#f59e0b', name: 'Рассылка', icon: '' },
-  site: { color: '#10b981', name: 'Сайт', icon: 'globe' }
+  site: { color: '#10b981', name: 'Сайт', icon: '' }
 };
 
 // Ограничения контента по платформам
@@ -811,6 +816,10 @@ export default function ContentPlanPage() {
   const updatePost = async () => {
     if (!editingPost || !postForm.title.trim()) return;
     
+    // Сохраняем старый статус для уведомлений
+    const oldStatus = editingPost.postStatus;
+    const statusChanged = oldStatus !== postForm.postStatus;
+    
     try {
       const res = await fetch('/api/content-plan', {
         method: 'PUT',
@@ -836,6 +845,35 @@ export default function ContentPlanPage() {
       });
       
       if (res.ok) {
+        // Отправляем уведомления
+        if (myAccountId) {
+          const author = users.find(u => u.id === myAccountId);
+          if (author) {
+            const manager = new ContentPlanNotificationManager(myAccountId, author.name || 'Пользователь');
+            const relatedUsers = getPostRelatedUsers({
+              createdById: editingPost.createdBy,
+              assignedById: postForm.assignedById,
+              assignedToId: postForm.assignedToIds?.[0]
+            });
+            
+            if (statusChanged) {
+              await manager.notifyStatusChanged(
+                relatedUsers,
+                editingPost.id,
+                postForm.title,
+                oldStatus,
+                postForm.postStatus
+              );
+            } else {
+              await manager.notifyPostUpdated(
+                relatedUsers,
+                editingPost.id,
+                postForm.title
+              );
+            }
+          }
+        }
+        
         loadPosts();
         setIsDirty(false);
         setEditingPost(null);
@@ -852,6 +890,8 @@ export default function ContentPlanPage() {
   const autoSaveStatus = async (newStatus: 'draft' | 'scheduled' | 'approved') => {
     if (!editingPost) return;
     
+    const oldStatus = editingPost.postStatus;
+    
     try {
       const res = await fetch('/api/content-plan', {
         method: 'PUT',
@@ -866,6 +906,27 @@ export default function ContentPlanPage() {
         // Обновляем локальное состояние
         setEditingPost(prev => prev ? { ...prev, postStatus: newStatus } : null);
         setPosts(prev => prev.map(p => p.id === editingPost.id ? { ...p, postStatus: newStatus } : p));
+        
+        // Отправляем уведомление об изменении статуса
+        if (myAccountId && oldStatus !== newStatus) {
+          const author = users.find(u => u.id === myAccountId);
+          if (author) {
+            const manager = new ContentPlanNotificationManager(myAccountId, author.name || 'Пользователь');
+            const relatedUsers = getPostRelatedUsers({
+              createdById: editingPost.createdBy,
+              assignedById: editingPost.assignedById,
+              assignedToId: editingPost.assignedToIds?.[0]
+            });
+            
+            await manager.notifyStatusChanged(
+              relatedUsers,
+              editingPost.id,
+              editingPost.title,
+              oldStatus,
+              newStatus
+            );
+          }
+        }
       }
     } catch (error) {
       console.error('Error auto-saving status:', error);
@@ -909,6 +970,21 @@ export default function ContentPlanPage() {
   const addComment = async () => {
     if (!editingPost || !newComment.trim() || !myAccountId) return;
     
+    // Парсим @упоминания из комментария
+    const mentionRegex = /@([a-zA-Zа-яА-ЯёЁ0-9_]+(?:\s+[a-zA-Zа-яА-ЯёЁ0-9_]+)?)/g;
+    const mentions: string[] = [];
+    let match: RegExpExecArray | null;
+    while ((match = mentionRegex.exec(newComment)) !== null) {
+      const mentionText = match[1].trim();
+      const mentionedUser = users.find(u => 
+        u.name?.toLowerCase() === mentionText.toLowerCase() ||
+        u.name?.toLowerCase().startsWith(mentionText.toLowerCase())
+      );
+      if (mentionedUser) {
+        mentions.push(mentionedUser.id);
+      }
+    }
+    
     // Optimistic update - сразу добавляем комментарий в UI
     const newCommentObj: Comment = {
       id: `comment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -942,7 +1018,25 @@ export default function ContentPlanPage() {
         })
       });
       
-      if (!res.ok) {
+      if (res.ok) {
+        // Отправляем уведомления в чат уведомлений
+        const author = users.find(u => u.id === myAccountId);
+        if (author) {
+          const manager = new ContentPlanNotificationManager(myAccountId, author.name || 'Пользователь');
+          const relatedUsers = getPostRelatedUsers({
+            createdById: editingPost.createdBy,
+            assignedById: editingPost.assignedById,
+            assignedToId: editingPost.assignedToIds?.[0]
+          });
+          
+          await manager.notifyNewComment(
+            relatedUsers,
+            editingPost.id,
+            editingPost.title,
+            mentions
+          );
+        }
+      } else {
         // Rollback при ошибке
         setEditingPost(prev => prev ? { ...prev, comments: editingPost.comments } : null);
         setPosts(prev => prev.map(p => p.id === editingPost.id ? { ...p, comments: editingPost.comments } : p));
@@ -1260,8 +1354,8 @@ export default function ContentPlanPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-2 border-white/30 border-t-transparent rounded-full"></div>
+      <div className="min-h-screen bg-[#ededed] dark:bg-[#0d0d0d] flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-2 border-gray-400 dark:border-white/30 border-t-transparent rounded-full"></div>
       </div>
     );
   }
@@ -1269,30 +1363,30 @@ export default function ContentPlanPage() {
   const dayNames = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
 
   return (
-    <div className="h-screen flex flex-col bg-[#0d0d0d] text-white overflow-hidden">
+    <div className="h-screen flex flex-col bg-[#ededed] dark:bg-[#0d0d0d] text-gray-900 dark:text-white overflow-hidden">
       {/* Header */}
-      <header className="h-14 bg-[#0d0d0d] border-b border-white/5 flex items-center px-4 flex-shrink-0">
+      <header className="h-12 sm:h-14 bg-[#e3e3e3] dark:bg-[#0d0d0d] border-b border-gray-300 dark:border-white/5 flex items-center px-2 sm:px-4 flex-shrink-0">
         <Link
           href="/"
-          className="flex items-center justify-center w-8 h-8 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 transition-all mr-3"
+          className="flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 dark:text-white/40 hover:text-gray-700 dark:hover:text-white/70 hover:bg-gray-200 dark:hover:bg-white/5 transition-all mr-2 sm:mr-3"
           title="На главную"
         >
           <ArrowLeft className="w-4 h-4" strokeWidth={2} />
         </Link>
         
-        <div className="flex items-center gap-2 mr-6">
-          <CalendarIcon className="w-5 h-5 text-purple-400" />
-          <span className="font-semibold">Контент-план</span>
+        <div className="flex items-center gap-1.5 sm:gap-2 mr-2 sm:mr-6">
+          <CalendarIcon className="w-4 sm:w-5 h-4 sm:h-5 text-purple-500 dark:text-purple-400" />
+          <span className="font-semibold text-sm sm:text-base hidden xs:inline">Контент-план</span>
         </div>
 
         {/* View Mode Toggle */}
-        <div className="flex items-center bg-white/5 rounded-lg p-0.5 mr-4">
+        <div className="flex items-center bg-gray-200 dark:bg-white/5 rounded-lg p-0.5 mr-2 sm:mr-4">
           <button
             onClick={() => setViewMode('columns')}
-            className={`p-2 rounded-md transition-all ${
+            className={`p-1.5 sm:p-2 rounded-md transition-all ${
               viewMode === 'columns' 
-                ? 'bg-purple-500/20 text-purple-400' 
-                : 'text-white/50 hover:text-white/70'
+                ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' 
+                : 'text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/70'
             }`}
             title="Колонки"
           >
@@ -1300,10 +1394,10 @@ export default function ContentPlanPage() {
           </button>
           <button
             onClick={() => setViewMode('calendar')}
-            className={`p-2 rounded-md transition-all ${
+            className={`p-1.5 sm:p-2 rounded-md transition-all ${
               viewMode === 'calendar' 
-                ? 'bg-purple-500/20 text-purple-400' 
-                : 'text-white/50 hover:text-white/70'
+                ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' 
+                : 'text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/70'
             }`}
             title="Календарь"
           >
@@ -1314,53 +1408,53 @@ export default function ContentPlanPage() {
         {/* Navigation - depends on view mode */}
         {viewMode === 'columns' ? (
           <>
-            <div className="flex items-center gap-2 mr-4 bg-white/5 rounded-xl p-1">
+            <div className="hidden sm:flex items-center gap-2 mr-4 bg-gray-200 dark:bg-white/5 rounded-xl p-1">
               <button
                 onClick={goToPreviousWeek}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-300 dark:hover:bg-white/10 rounded-lg transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={goToCurrentWeek}
-                className="px-4 py-1.5 text-xs font-medium bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 rounded-lg transition-colors"
+                className="px-4 py-1.5 text-xs font-medium bg-purple-500/20 text-purple-600 dark:text-purple-400 hover:bg-purple-500/30 rounded-lg transition-colors"
               >
                 Сегодня
               </button>
               <button
                 onClick={goToNextWeek}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-300 dark:hover:bg-white/10 rounded-lg transition-colors"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
-            <span className="text-sm text-white/60">
+            <span className="hidden lg:inline text-sm text-gray-500 dark:text-white/60">
               {weekDays[0].toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })} — {weekDays[6].toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
             </span>
           </>
         ) : (
           <>
-            <div className="flex items-center gap-2 mr-4 bg-white/5 rounded-xl p-1">
+            <div className="hidden sm:flex items-center gap-2 mr-4 bg-gray-200 dark:bg-white/5 rounded-xl p-1">
               <button
                 onClick={goToPreviousMonth}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-300 dark:hover:bg-white/10 rounded-lg transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={goToCurrentMonth}
-                className="px-4 py-1.5 text-xs font-medium bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 rounded-lg transition-colors"
+                className="px-4 py-1.5 text-xs font-medium bg-purple-500/20 text-purple-600 dark:text-purple-400 hover:bg-purple-500/30 rounded-lg transition-colors"
               >
                 Сегодня
               </button>
               <button
                 onClick={goToNextMonth}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-300 dark:hover:bg-white/10 rounded-lg transition-colors"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
-            <span className="text-sm text-white/60">
+            <span className="hidden lg:inline text-sm text-gray-500 dark:text-white/60">
               {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
             </span>
           </>
@@ -1369,33 +1463,33 @@ export default function ContentPlanPage() {
         <div className="flex-1" />
 
         {/* Platform Filters */}
-        <div className="relative mr-3" data-filter-menu>
+        <div className="relative mr-2 sm:mr-3" data-filter-menu>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg transition-all ${
               selectedPlatformFilters.length > 0 
-                ? 'bg-purple-500/20 border border-purple-500/30 text-purple-400' 
-                : 'bg-white/5 border border-white/10 hover:bg-white/10 text-white/70'
+                ? 'bg-purple-500/20 border border-purple-500/30 text-purple-600 dark:text-purple-400' 
+                : 'bg-gray-200 dark:bg-white/5 border border-gray-300 dark:border-white/10 hover:bg-gray-300 dark:hover:bg-white/10 text-gray-600 dark:text-white/70'
             }`}
           >
             <Filter className="w-3.5 h-3.5" />
-            <span className="text-xs font-medium">Каналы</span>
+            <span className="text-xs font-medium hidden sm:inline">Каналы</span>
             {selectedPlatformFilters.length > 0 && (
               <span className="text-[10px] bg-purple-500 text-white px-1.5 rounded-full">
                 {selectedPlatformFilters.length}
               </span>
             )}
-            <ChevronDown className={`w-3 h-3 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-3 h-3 transition-transform hidden sm:block ${showFilters ? 'rotate-180' : ''}`} />
           </button>
           
           {showFilters && (
-            <div className="absolute right-0 top-full mt-1 w-56 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl z-50 py-1">
-              <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
-                <span className="text-xs text-white/50">Фильтр по каналам</span>
+            <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 py-1">
+              <div className="px-3 py-2 border-b border-gray-200 dark:border-white/10 flex items-center justify-between">
+                <span className="text-xs text-gray-500 dark:text-white/50">Фильтр по каналам</span>
                 {selectedPlatformFilters.length > 0 && (
                   <button
                     onClick={() => setSelectedPlatformFilters([])}
-                    className="text-[10px] text-purple-400 hover:text-purple-300"
+                    className="text-[10px] text-purple-600 dark:text-purple-400 hover:text-purple-500 dark:hover:text-purple-300"
                   >
                     Сбросить
                   </button>
@@ -1408,20 +1502,20 @@ export default function ContentPlanPage() {
                   <button
                     key={platform}
                     onClick={() => togglePlatformFilter(platform)}
-                    className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-white/5 transition-colors ${
-                      isSelected ? 'text-white bg-white/5' : 'text-white/70'
+                    className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors ${
+                      isSelected ? 'text-gray-900 dark:text-white bg-gray-100 dark:bg-white/5' : 'text-gray-600 dark:text-white/70'
                     }`}
                   >
                     <div className={`w-5 h-5 flex items-center justify-center flex-shrink-0 ${config.iconBg ? 'bg-white rounded-full p-0.5' : ''}`}>
                       {config.icon ? (
                         <Image src={config.icon} alt={config.name} width={16} height={16} className="w-4 h-4 object-contain" />
                       ) : (
-                        <Mail className="w-4 h-4 text-emerald-400" />
+                        <Mail className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
                       )}
                     </div>
                     <span className="flex-1">{config.name}</span>
                     {isSelected && (
-                      <Check className="w-3.5 h-3.5 text-purple-400" />
+                      <Check className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                     )}
                   </button>
                 );
@@ -1431,13 +1525,13 @@ export default function ContentPlanPage() {
         </div>
 
         {/* Inbox Button */}
-        <div className="relative mr-3">
+        <div className="relative mr-2 sm:mr-3">
           <button
             onClick={() => setShowInbox(!showInbox)}
             title="Почтовый ящик"
-            className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs transition-colors flex items-center border border-white/10 relative"
+            className="p-1.5 bg-gray-200 dark:bg-white/5 hover:bg-gray-300 dark:hover:bg-white/10 rounded-lg text-xs transition-colors flex items-center border border-gray-300 dark:border-white/10 relative"
           >
-            {unreadCount > 0 ? <BellRing className="w-4 h-4 text-orange-400" /> : <Bell className="w-4 h-4" />}
+            {unreadCount > 0 ? <BellRing className="w-4 h-4 text-orange-500 dark:text-orange-400" /> : <Bell className="w-4 h-4" />}
             {unreadCount > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center font-medium">
                 {unreadCount > 9 ? '9+' : unreadCount}
@@ -1447,16 +1541,16 @@ export default function ContentPlanPage() {
 
           {/* Inbox Dropdown */}
           {showInbox && (
-            <div className="absolute right-0 top-full mt-1 w-80 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl z-50 max-h-[450px] flex flex-col">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
+            <div className="absolute right-0 top-full mt-1 w-80 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl shadow-xl z-50 max-h-[450px] flex flex-col">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-white/10">
                 <div className="flex items-center gap-2">
-                  <Bell className="w-4 h-4 text-blue-400" />
+                  <Bell className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                   <span className="text-sm font-medium">Уведомления</span>
                 </div>
                 {inboxTab === 'new' && unreadCount > 0 && (
                   <button
                     onClick={markAllNotificationsRead}
-                    className="text-[10px] text-blue-400 hover:text-blue-300"
+                    className="text-[10px] text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300"
                   >
                     Прочитать все
                   </button>
@@ -1464,23 +1558,23 @@ export default function ContentPlanPage() {
               </div>
 
               {/* Tabs */}
-              <div className="flex border-b border-white/10">
+              <div className="flex border-b border-gray-200 dark:border-white/10">
                 <button
                   onClick={() => setInboxTab('new')}
                   className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
                     inboxTab === 'new' 
-                      ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5' 
-                      : 'text-white/50 hover:text-white/70'
+                      ? 'text-blue-500 dark:text-blue-400 border-b-2 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-500/5' 
+                      : 'text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/70'
                   }`}
                 >
-                  Новые {unreadCount > 0 && <span className="ml-1 px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded-full text-[10px]">{unreadCount}</span>}
+                  Новые {unreadCount > 0 && <span className="ml-1 px-1.5 py-0.5 bg-red-100 dark:bg-red-500/20 text-red-500 dark:text-red-400 rounded-full text-[10px]">{unreadCount}</span>}
                 </button>
                 <button
                   onClick={() => setInboxTab('history')}
                   className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
                     inboxTab === 'history' 
-                      ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5' 
-                      : 'text-white/50 hover:text-white/70'
+                      ? 'text-blue-500 dark:text-blue-400 border-b-2 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-500/5' 
+                      : 'text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/70'
                   }`}
                 >
                   История
@@ -1495,7 +1589,7 @@ export default function ContentPlanPage() {
                   
                   if (filteredNotifs.length === 0) {
                     return (
-                      <div className="flex flex-col items-center justify-center py-8 text-white/30">
+                      <div className="flex flex-col items-center justify-center py-8 text-gray-400 dark:text-white/30">
                         <Bell className="w-8 h-8 mb-2 opacity-50" />
                         <p className="text-xs">{inboxTab === 'new' ? 'Нет новых уведомлений' : 'История пуста'}</p>
                       </div>
@@ -1525,8 +1619,8 @@ export default function ContentPlanPage() {
                             }
                           }
                         }}
-                        className={`px-3 py-2.5 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors ${
-                          !notif.read ? 'bg-blue-500/5' : ''
+                        className={`px-3 py-2.5 border-b border-gray-100 dark:border-white/5 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${
+                          !notif.read ? 'bg-blue-50 dark:bg-blue-500/5' : ''
                         }`}
                       >
                         <div className="flex items-start gap-2">
@@ -1552,11 +1646,11 @@ export default function ContentPlanPage() {
                             {notif.type === 'event_reminder' && <Bell className="w-3 h-3" />}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs text-white/90 line-clamp-1">{notif.message}</p>
-                            <p className="text-[10px] text-white/40 truncate mt-0.5">
+                            <p className="text-xs text-gray-700 dark:text-white/90 line-clamp-1">{notif.message}</p>
+                            <p className="text-[10px] text-gray-500 dark:text-white/40 truncate mt-0.5">
                               {isEventNotification ? notif.eventTitle : isTodoNotification ? notif.todoTitle : notif.postTitle}
                             </p>
-                            <p className="text-[9px] text-white/30 mt-1">
+                            <p className="text-[9px] text-gray-400 dark:text-white/30 mt-1">
                               {new Date(notif.createdAt).toLocaleString('ru-RU', { 
                                 day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' 
                               })}
@@ -1576,14 +1670,14 @@ export default function ContentPlanPage() {
         </div>
 
         {/* Search */}
-        <div className="relative mr-3">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+        <div className="relative mr-2 sm:mr-3 hidden sm:block">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-white/30" />
           <input
             type="text"
             placeholder="Поиск..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 pr-4 py-1.5 bg-white/5 border border-white/10 rounded-lg w-40 text-sm focus:outline-none focus:border-white/20 transition-colors"
+            className="pl-9 pr-4 py-1.5 bg-gray-100 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-lg w-40 text-sm focus:outline-none focus:border-gray-400 dark:focus:border-white/20 transition-colors"
           />
         </div>
       </header>
@@ -1611,7 +1705,7 @@ export default function ContentPlanPage() {
                   key={dateKey}
                   style={{ width: '260px', minWidth: '260px', flexShrink: 0 }}
                   className={`flex flex-col rounded-xl border transition-all ${
-                    isDropTarget ? 'ring-2 ring-purple-500/50 border-purple-500/50' : 'border-white/10'
+                    isDropTarget ? 'ring-2 ring-purple-500/50 border-purple-500/50' : 'border-gray-300 dark:border-white/10'
                   } ${
                     isToday ? 'border-purple-500/40' : ''
                   }`}
@@ -1623,21 +1717,21 @@ export default function ContentPlanPage() {
                   <div className={`px-2.5 py-1.5 rounded-t-xl border-b flex items-center justify-between ${
                     isToday 
                       ? 'bg-purple-500/20 border-purple-500/30' 
-                      : 'bg-[#1a1a1a] border-white/10'
+                      : 'bg-gray-100 dark:bg-[#1a1a1a] border-gray-200 dark:border-white/10'
                   }`}>
                     <div className="flex items-center gap-2">
-                      <span className={`text-lg font-bold ${isToday ? 'text-purple-400' : 'text-white'}`}>
+                      <span className={`text-lg font-bold ${isToday ? 'text-purple-600 dark:text-purple-400' : 'text-gray-900 dark:text-white'}`}>
                         {day.getDate()}
                       </span>
-                      <span className={`text-[10px] font-medium ${isToday ? 'text-purple-400/70' : 'text-white/40'}`}>
+                      <span className={`text-[10px] font-medium ${isToday ? 'text-purple-500 dark:text-purple-400/70' : 'text-gray-500 dark:text-white/40'}`}>
                         {day.toLocaleDateString('ru-RU', { month: 'short' })}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className={`text-[10px] font-medium ${isToday ? 'text-purple-400/70' : 'text-white/40'}`}>
+                      <span className={`text-[10px] font-medium ${isToday ? 'text-purple-500 dark:text-purple-400/70' : 'text-gray-500 dark:text-white/40'}`}>
                         {dayNames[idx]}
                       </span>
-                      <span className="text-[9px] text-white/30 bg-white/10 px-1.5 py-0.5 rounded font-medium">
+                      <span className="text-[9px] text-gray-500 dark:text-white/30 bg-gray-200 dark:bg-white/10 px-1.5 py-0.5 rounded font-medium">
                         {dayPosts.length}
                       </span>
                     </div>
@@ -1645,7 +1739,7 @@ export default function ContentPlanPage() {
 
                   {/* Cards Container */}
                   <div className={`flex-1 p-2.5 space-y-3 rounded-b-xl min-h-[100px] ${
-                    isToday ? 'bg-purple-500/5' : 'bg-[#141414]'
+                    isToday ? 'bg-purple-50 dark:bg-purple-500/5' : 'bg-gray-50 dark:bg-[#141414]'
                   }`}>
                     {dayPosts.map(post => {
                       const platformConfig = PLATFORM_CONFIG[post.platform] || { color: '#666', name: 'Unknown', icon: '' };
@@ -1660,16 +1754,16 @@ export default function ContentPlanPage() {
                             onDragStart={(e) => handleDragStart(e, post)}
                             onDragEnd={handleDragEnd}
                             onClick={() => openEditPost(post)}
-                            className={`relative p-2.5 rounded-lg bg-gradient-to-br from-[#1a1a1a] to-[#161616] border cursor-grab active:cursor-grabbing transition-all ${
+                            className={`relative p-2.5 rounded-lg bg-gradient-to-br from-white dark:from-[#1a1a1a] to-gray-50 dark:to-[#161616] border cursor-grab active:cursor-grabbing transition-all ${
                               draggedPost?.id === post.id 
-                                ? 'opacity-50 scale-95 border-white/20' 
-                                : 'border-white/10 hover:border-purple-500/30 hover:shadow-lg hover:shadow-purple-500/10'
+                                ? 'opacity-50 scale-95 border-gray-300 dark:border-white/20' 
+                                : 'border-gray-200 dark:border-white/10 hover:border-purple-400 dark:hover:border-purple-500/30 hover:shadow-lg hover:shadow-purple-500/10'
                             }`}
                           >
                             {/* Platform icon badge in card corner */}
                             <div 
                               className={`absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center z-10 border-2 shadow-md ${
-                                isToday ? 'border-purple-500/30' : 'border-[#141414]'
+                                isToday ? 'border-purple-200 dark:border-purple-500/30' : 'border-gray-100 dark:border-[#141414]'
                               }`}
                               style={{ backgroundColor: platformConfig.color }}
                               title={platformConfig.name}
@@ -1689,7 +1783,7 @@ export default function ContentPlanPage() {
                               )}
                             </div>
                             {/* Card Header */}
-                            <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/5">
+                            <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100 dark:border-white/5">
                               <div className="flex items-center gap-1.5">
                                 <GripVertical className="w-3 h-3 text-white/30 cursor-grab flex-shrink-0 hover:text-white/50" />
                                 <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-semibold ${STATUS_CONFIG[post.postStatus].bg} ${STATUS_CONFIG[post.postStatus].color}`}>
@@ -1700,7 +1794,7 @@ export default function ContentPlanPage() {
                                 </span>
                               </div>
                               {post.publishTime && (
-                                <span className="text-[10px] text-white/60 flex items-center gap-1 font-semibold">
+                                <span className="text-[10px] text-gray-500 dark:text-white/60 flex items-center gap-1 font-semibold">
                                   <Clock className="w-3 h-3" />
                                   {post.publishTime}
                                 </span>
@@ -1708,7 +1802,7 @@ export default function ContentPlanPage() {
                             </div>
 
                           {/* Title */}
-                          <div className="text-sm font-bold text-white line-clamp-2 mb-2 leading-tight">
+                          <div className="text-sm font-bold text-gray-900 dark:text-white line-clamp-2 mb-2 leading-tight">
                             {post.title}
                           </div>
 
@@ -1747,11 +1841,11 @@ export default function ContentPlanPage() {
 
                           {/* Text Preview */}
                           {post.postText && (
-                            <div className="text-[10px] text-white/40 line-clamp-2 mb-2 leading-relaxed italic" dangerouslySetInnerHTML={{ __html: post.postText.replace(/<[^>]*>/g, ' ').slice(0, 70) + '...' }} />
+                            <div className="text-[10px] text-gray-400 dark:text-white/40 line-clamp-2 mb-2 leading-relaxed italic" dangerouslySetInnerHTML={{ __html: post.postText.replace(/<[^>]*>/g, ' ').slice(0, 70) + '...' }} />
                           )}
 
                           {/* Footer */}
-                          <div className="flex items-center justify-between pt-2 mt-2 border-t border-white/5">
+                          <div className="flex items-center justify-between pt-2 mt-2 border-t border-gray-100 dark:border-white/5">
                             {/* Comments */}
                             <div className="flex items-center gap-1">
                               {post.comments && post.comments.length > 0 && (() => {
@@ -1780,14 +1874,14 @@ export default function ContentPlanPage() {
                             <div className="flex items-center gap-1">
                               <button
                                 onClick={(e) => copyPost(post, e)}
-                                className="w-6 h-6 flex items-center justify-center rounded-full bg-white/5 hover:bg-purple-500/20 border border-white/10 hover:border-purple-500/30 text-white/40 hover:text-purple-300 transition-all"
+                                className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 dark:bg-white/5 hover:bg-purple-100 dark:hover:bg-purple-500/20 border border-gray-200 dark:border-white/10 hover:border-purple-300 dark:hover:border-purple-500/30 text-gray-400 dark:text-white/40 hover:text-purple-500 dark:hover:text-purple-300 transition-all"
                                 title="Копировать"
                               >
                                 <Copy className="w-3 h-3" />
                               </button>
                               <button
                                 onClick={(e) => copyPostLink(post.id, e)}
-                                className="w-6 h-6 flex items-center justify-center rounded-full bg-white/5 hover:bg-purple-500/20 border border-white/10 hover:border-purple-500/30 text-white/40 hover:text-purple-300 transition-all"
+                                className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 dark:bg-white/5 hover:bg-purple-100 dark:hover:bg-purple-500/20 border border-gray-200 dark:border-white/10 hover:border-purple-300 dark:hover:border-purple-500/30 text-gray-400 dark:text-white/40 hover:text-purple-500 dark:hover:text-purple-300 transition-all"
                                 title="Скопировать ссылку"
                               >
                                 <Link2 className="w-3 h-3" />
@@ -1802,10 +1896,10 @@ export default function ContentPlanPage() {
                     {/* Add Button */}
                     <button
                       onClick={() => openAddPost(day)}
-                      className="w-full p-2 flex items-center justify-center gap-1.5 border border-dashed border-white/10 rounded-lg hover:border-white/20 hover:bg-white/[0.02] transition-all group"
+                      className="w-full p-2 flex items-center justify-center gap-1.5 border border-dashed border-gray-300 dark:border-white/10 rounded-lg hover:border-gray-400 dark:hover:border-white/20 hover:bg-gray-100 dark:hover:bg-white/[0.02] transition-all group"
                     >
-                      <Plus className="w-3.5 h-3.5 text-white/30 group-hover:text-white/50" />
-                      <span className="text-xs text-white/30 group-hover:text-white/50 font-medium">Добавить</span>
+                      <Plus className="w-3.5 h-3.5 text-gray-400 dark:text-white/30 group-hover:text-gray-600 dark:group-hover:text-white/50" />
+                      <span className="text-xs text-gray-400 dark:text-white/30 group-hover:text-gray-600 dark:group-hover:text-white/50 font-medium">Добавить</span>
                     </button>
                   </div>
                 </div>
@@ -1815,12 +1909,12 @@ export default function ContentPlanPage() {
         </div>
       ) : (
         /* Calendar View */
-        <div className="flex-1 overflow-auto p-4">
-          <div className="bg-[#1a1a1a] rounded-xl border border-white/10 overflow-hidden">
+        <div className="flex-1 overflow-auto p-2 sm:p-4">
+          <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
             {/* Calendar Header */}
-            <div className="grid grid-cols-7 border-b border-white/10">
+            <div className="grid grid-cols-7 border-b border-gray-200 dark:border-white/10">
               {WEEKDAYS.map(day => (
-                <div key={day} className="p-2 text-center text-xs font-medium text-white/50 border-r border-white/5 last:border-r-0">
+                <div key={day} className="p-1.5 sm:p-2 text-center text-[10px] sm:text-xs font-medium text-gray-500 dark:text-white/50 border-r border-gray-100 dark:border-white/5 last:border-r-0">
                   {day}
                 </div>
               ))}
@@ -1837,22 +1931,22 @@ export default function ContentPlanPage() {
                 return (
                   <div
                     key={idx}
-                    className={`group min-h-[140px] p-2 border-r border-b border-white/5 last:border-r-0 transition-all ${
-                      !isCurrentMonth ? 'bg-black/20' : ''
-                    } ${isDropTarget ? 'bg-purple-500/20 ring-2 ring-inset ring-purple-500/50' : ''} ${isToday ? 'bg-purple-500/5' : ''}`}
+                    className={`group min-h-[100px] sm:min-h-[140px] p-1.5 sm:p-2 border-r border-b border-gray-100 dark:border-white/5 last:border-r-0 transition-all ${
+                      !isCurrentMonth ? 'bg-gray-100 dark:bg-black/20' : 'bg-white dark:bg-transparent'
+                    } ${isDropTarget ? 'bg-purple-100 dark:bg-purple-500/20 ring-2 ring-inset ring-purple-500/50' : ''} ${isToday ? 'bg-purple-50 dark:bg-purple-500/5' : ''}`}
                     onDragOver={(e) => handleDragOver(e, dateKey)}
                     onDragLeave={handleDragLeave}
                     onDrop={(e) => handleDrop(e, date)}
                   >
                     {/* Day Number */}
-                    <div className="flex items-center justify-between mb-1 px-1">
-                      <span className={`text-xs font-medium ${
-                        isToday ? 'text-purple-400' : isCurrentMonth ? 'text-white/70' : 'text-white/30'
+                    <div className="flex items-center justify-between mb-1 px-0.5 sm:px-1">
+                      <span className={`text-[10px] sm:text-xs font-medium ${
+                        isToday ? 'text-purple-600 dark:text-purple-400' : isCurrentMonth ? 'text-gray-700 dark:text-white/70' : 'text-gray-400 dark:text-white/30'
                       }`}>
                         {date.getDate()}
                       </span>
                       {dayPosts.length > 0 && (
-                        <span className="text-[9px] text-white/40 bg-white/10 px-1 rounded">
+                        <span className="text-[9px] text-gray-500 dark:text-white/40 bg-gray-200 dark:bg-white/10 px-1 rounded">
                           {dayPosts.length}
                         </span>
                       )}
@@ -1874,15 +1968,14 @@ export default function ContentPlanPage() {
                             }`}
                             style={{ 
                               backgroundColor: `${platformConfig.color}15`, 
-                              borderColor: `${platformConfig.color}40`,
-                              color: 'white'
+                              borderColor: `${platformConfig.color}40`
                             }}
                             title={post.title}
                           >
                             {post.publishTime && (
-                              <span className="text-[9px] text-white/60 flex-shrink-0 font-medium">{post.publishTime}</span>
+                              <span className="text-[9px] text-gray-600 dark:text-white/60 flex-shrink-0 font-medium">{post.publishTime}</span>
                             )}
-                            <span className="truncate font-medium flex-1">{post.title}</span>
+                            <span className="truncate font-medium flex-1 text-gray-900 dark:text-white">{post.title}</span>
                             {/* Platform icon badge */}
                             <div 
                               className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
@@ -1905,7 +1998,7 @@ export default function ContentPlanPage() {
                         );
                       })}
                       {dayPosts.length > 3 && (
-                        <div className="text-[10px] text-white/50 px-2 py-0.5 bg-white/5 rounded text-center">
+                        <div className="text-[10px] text-gray-500 dark:text-white/50 px-2 py-0.5 bg-gray-100 dark:bg-white/5 rounded text-center">
                           +{dayPosts.length - 3} ещё
                         </div>
                       )}
@@ -1915,7 +2008,7 @@ export default function ContentPlanPage() {
                     {isCurrentMonth && (
                       <button
                         onClick={() => openAddPost(date)}
-                        className={`w-full mt-1 p-1 flex items-center justify-center text-white/20 hover:text-white/40 hover:bg-white/5 rounded transition-all ${dayPosts.length > 0 ? 'opacity-0 group-hover:opacity-100' : ''}`}
+                        className={`w-full mt-1 p-1 flex items-center justify-center text-gray-300 dark:text-white/20 hover:text-gray-500 dark:hover:text-white/40 hover:bg-gray-100 dark:hover:bg-white/5 rounded transition-all ${dayPosts.length > 0 ? 'opacity-0 group-hover:opacity-100' : ''}`}
                       >
                         <Plus className="w-3 h-3" />
                       </button>
@@ -1931,17 +2024,17 @@ export default function ContentPlanPage() {
       {/* Modal - 3-column layout like todos */}
       {showAddPost && (
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4"
           onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
         >
-          <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl w-full max-w-6xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl w-full max-w-6xl shadow-2xl flex flex-col max-h-[95vh] sm:max-h-[90vh] overflow-hidden">
             {/* Header */}
-            <div className="border-b border-white/10 px-5 py-3 flex items-center justify-between flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center">
-                  <Edit3 className="w-4 h-4 text-purple-400" />
+            <div className="border-b border-gray-200 dark:border-white/10 px-3 sm:px-5 py-2.5 sm:py-3 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-purple-100 dark:bg-purple-500/20 rounded-lg flex items-center justify-center">
+                  <Edit3 className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-purple-600 dark:text-purple-400" />
                 </div>
-                <h3 className="text-base font-semibold">
+                <h3 className="text-sm sm:text-base font-semibold">
                   {editingPost ? 'Редактировать публикацию' : 'Новая публикация'}
                 </h3>
                 {/* Действия с постом */}
@@ -1949,14 +2042,14 @@ export default function ContentPlanPage() {
                   <div className="flex items-center gap-1 ml-2">
                     <button
                       onClick={() => copyPostLink(editingPost.id)}
-                      className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-white/40 hover:text-white/70"
+                      className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/70"
                       title="Копировать ссылку"
                     >
                       <Link2 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => copyPost(editingPost)}
-                      className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-white/40 hover:text-white/70"
+                      className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/70"
                       title="Создать копию"
                     >
                       <Copy className="w-4 h-4" />
@@ -1966,16 +2059,16 @@ export default function ContentPlanPage() {
               </div>
               <button
                 onClick={closeModal}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
               >
-                <X className="w-4 h-4 text-white/50" />
+                <X className="w-4 h-4 text-gray-500 dark:text-white/50" />
               </button>
             </div>
             
             {/* 3-column content */}
-            <div className="flex flex-1 overflow-hidden flex-col lg:flex-row">
+            <div className="flex flex-1 overflow-y-auto lg:overflow-hidden flex-col lg:flex-row">
               {/* Left column - Fields */}
-              <div className="w-full lg:w-[380px] flex-shrink-0 p-4 overflow-y-auto border-b lg:border-b-0 lg:border-r border-white/10 space-y-4">
+              <div className="w-full lg:w-[380px] flex-shrink-0 p-3 sm:p-4 overflow-y-auto border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-white/10 space-y-3 sm:space-y-4">
                 {/* Title */}
                 <div>
                   <input
@@ -1983,14 +2076,14 @@ export default function ContentPlanPage() {
                     value={postForm.title}
                     onChange={(e) => setPostForm(prev => ({ ...prev, title: e.target.value }))}
                     placeholder="Заголовок публикации..."
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-base font-medium focus:outline-none focus:border-purple-500/50 transition-colors"
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-sm sm:text-base font-medium focus:outline-none focus:border-purple-500/50 transition-colors"
                     autoFocus
                   />
                 </div>
 
                 {/* Status Buttons */}
                 <div>
-                  <label className="block text-xs font-medium mb-2 text-white/50">Статус</label>
+                  <label className="block text-xs font-medium mb-2 text-gray-500 dark:text-white/50">Статус</label>
                   <div className="flex flex-wrap gap-1.5">
                     {Object.entries(STATUS_CONFIG).map(([key, config]) => (
                       <button
@@ -2006,7 +2099,7 @@ export default function ContentPlanPage() {
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                           postForm.postStatus === key
                             ? `${config.bg} ${config.color} ring-1 ring-current`
-                            : 'bg-white/5 text-white/50 hover:bg-white/10'
+                            : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-white/50 hover:bg-gray-200 dark:hover:bg-white/10'
                         }`}
                       >
                         {config.label}
@@ -2017,10 +2110,10 @@ export default function ContentPlanPage() {
 
                 {/* Platform Dropdown */}
                 <div className="relative">
-                  <label className="block text-xs font-medium mb-2 text-white/50">Канал</label>
+                  <label className="block text-xs font-medium mb-2 text-gray-500 dark:text-white/50">Канал</label>
                   <button
                     onClick={() => setOpenDropdown(openDropdown === 'platform' ? null : 'platform')}
-                    className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-white/20 transition-all"
+                    className="w-full px-3 py-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-gray-300 dark:hover:border-white/20 transition-all"
                   >
                     <div className="flex items-center gap-2">
                       {selectedPlatform && (
@@ -2035,18 +2128,20 @@ export default function ContentPlanPage() {
                                 className={(selectedPlatform === 'telegram' || selectedPlatform === 'vk') ? 'w-5 h-5 object-contain' : 'w-4 h-4 object-contain'}
                               />
                             </div>
+                          ) : selectedPlatform === 'site' ? (
+                            <Globe className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
                           ) : (
-                            <Mail className="w-4 h-4 text-emerald-400" />
+                            <Mail className="w-4 h-4 text-amber-500 dark:text-amber-400" />
                           )}
-                          <span className="text-white">{PLATFORM_CONFIG[selectedPlatform].name}</span>
+                          <span>{PLATFORM_CONFIG[selectedPlatform].name}</span>
                         </>
                       )}
-                      {!selectedPlatform && <span className="text-white/40">Выберите канал...</span>}
+                      {!selectedPlatform && <span className="text-gray-400 dark:text-white/40">Выберите канал...</span>}
                     </div>
-                    <ChevronDown className={`w-4 h-4 text-white/40 transition-transform ${openDropdown === 'platform' ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-4 h-4 text-gray-400 dark:text-white/40 transition-transform ${openDropdown === 'platform' ? 'rotate-180' : ''}`} />
                   </button>
                   {openDropdown === 'platform' && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden">
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 overflow-hidden">
                       {platforms.map(platform => {
                         const config = PLATFORM_CONFIG[platform];
                         const isLargeIcon = platform === 'telegram' || platform === 'vk';
@@ -2059,8 +2154,8 @@ export default function ContentPlanPage() {
                               setPostForm(prev => ({ ...prev, platform, contentType: defaultContentType }));
                               setOpenDropdown(null);
                             }}
-                            className={`w-full px-3 py-2.5 text-left flex items-center gap-2 hover:bg-white/5 transition-colors ${
-                              selectedPlatform === platform ? 'bg-white/5 text-white' : 'text-white/70'
+                            className={`w-full px-3 py-2.5 text-left flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${
+                              selectedPlatform === platform ? 'bg-gray-50 dark:bg-white/5' : 'text-gray-600 dark:text-white/70'
                             }`}
                           >
                             {config.icon ? (
@@ -2073,12 +2168,14 @@ export default function ContentPlanPage() {
                                   className={isLargeIcon ? 'w-5 h-5 object-contain' : 'w-4 h-4 object-contain'}
                                 />
                               </div>
+                            ) : platform === 'site' ? (
+                              <Globe className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
                             ) : (
-                              <Mail className="w-4 h-4 text-emerald-400" />
+                              <Mail className="w-4 h-4 text-amber-500 dark:text-amber-400" />
                             )}
                             <span className="text-sm">{config.name}</span>
                             {selectedPlatform === platform && (
-                              <Check className="w-3.5 h-3.5 text-purple-400 ml-auto" />
+                              <Check className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 ml-auto" />
                             )}
                           </button>
                         );
@@ -2090,19 +2187,19 @@ export default function ContentPlanPage() {
                 {/* Content Type */}
                 {selectedPlatform && getAvailableContentTypes().length > 1 && (
                   <div className="relative">
-                    <label className="block text-xs font-medium mb-2 text-white/50">Тип контента</label>
+                    <label className="block text-xs font-medium mb-2 text-gray-500 dark:text-white/50">Тип контента</label>
                     <button
                       onClick={() => setOpenDropdown(openDropdown === 'contentType' ? null : 'contentType')}
-                      className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-white/20 transition-all"
+                      className="w-full px-3 py-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-gray-300 dark:hover:border-white/20 transition-all"
                     >
                       <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-white/40" />
-                        <span className="text-white">{CONTENT_TYPE_LABELS[postForm.contentType]}</span>
+                        <FileText className="w-4 h-4 text-gray-400 dark:text-white/40" />
+                        <span>{CONTENT_TYPE_LABELS[postForm.contentType]}</span>
                       </div>
-                      <ChevronDown className={`w-4 h-4 text-white/40 transition-transform ${openDropdown === 'contentType' ? 'rotate-180' : ''}`} />
+                      <ChevronDown className={`w-4 h-4 text-gray-400 dark:text-white/40 transition-transform ${openDropdown === 'contentType' ? 'rotate-180' : ''}`} />
                     </button>
                     {openDropdown === 'contentType' && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden">
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 overflow-hidden">
                         {getAvailableContentTypes().map(type => (
                           <button
                             key={type.id}
@@ -2110,14 +2207,14 @@ export default function ContentPlanPage() {
                               setPostForm(prev => ({ ...prev, contentType: type.id as any }));
                               setOpenDropdown(null);
                             }}
-                            className={`w-full px-3 py-2.5 text-left flex items-center gap-2 hover:bg-white/5 transition-colors ${
-                              postForm.contentType === type.id ? 'bg-white/5 text-white' : 'text-white/70'
+                            className={`w-full px-3 py-2.5 text-left flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${
+                              postForm.contentType === type.id ? 'bg-gray-50 dark:bg-white/5' : 'text-gray-600 dark:text-white/70'
                             }`}
                           >
-                            <FileText className="w-4 h-4 text-white/40" />
+                            <FileText className="w-4 h-4 text-gray-400 dark:text-white/40" />
                             <span className="text-sm">{type.label}</span>
                             {postForm.contentType === type.id && (
-                              <Check className="w-3.5 h-3.5 text-purple-400 ml-auto" />
+                              <Check className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 ml-auto" />
                             )}
                           </button>
                         ))}
@@ -2128,31 +2225,31 @@ export default function ContentPlanPage() {
 
                 {/* Заказчик */}
                 <div className="relative">
-                  <label className="block text-[10px] font-medium text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
+                  <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
                     <User className="w-2.5 h-2.5" />
                     Заказчик
                   </label>
                   <button
                     type="button"
                     onClick={() => setOpenDropdown(openDropdown === 'assignedBy' ? null : 'assignedBy')}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-white/20 transition-all"
+                    className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-gray-300 dark:hover:border-white/20 transition-all"
                   >
-                    <span className={postForm.assignedById ? 'text-white' : 'text-white/40'}>
+                    <span className={postForm.assignedById ? '' : 'text-gray-400 dark:text-white/40'}>
                       {postForm.assignedById 
                         ? users.find(p => p.id === postForm.assignedById)?.name || 'Выберите заказчика'
                         : 'Выберите заказчика'}
                     </span>
-                    <ChevronDown className={`w-3 h-3 text-white/40 transition-transform ${openDropdown === 'assignedBy' ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-3 h-3 text-gray-400 dark:text-white/40 transition-transform ${openDropdown === 'assignedBy' ? 'rotate-180' : ''}`} />
                   </button>
                   {openDropdown === 'assignedBy' && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
                       <button
                         type="button"
                         onClick={() => {
                           setPostForm(prev => ({ ...prev, assignedById: '' }));
                           setOpenDropdown(null);
                         }}
-                        className="w-full px-3 py-1.5 text-left text-white/50 hover:bg-white/5 transition-colors text-xs border-b border-white/10"
+                        className="w-full px-3 py-1.5 text-left text-gray-500 dark:text-white/50 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-xs border-b border-gray-200 dark:border-white/10"
                       >
                         Очистить выбор
                       </button>
@@ -2164,15 +2261,15 @@ export default function ContentPlanPage() {
                             setPostForm(prev => ({ ...prev, assignedById: person.id }));
                             setOpenDropdown(null);
                           }}
-                          className={`w-full px-3 py-1.5 text-left hover:bg-white/5 transition-colors text-xs flex items-center justify-between ${
-                            postForm.assignedById === person.id ? 'bg-white/5 text-white' : 'text-white/70'
+                          className={`w-full px-3 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-xs flex items-center justify-between ${
+                            postForm.assignedById === person.id ? 'bg-gray-50 dark:bg-white/5' : 'text-gray-600 dark:text-white/70'
                           }`}
                         >
                           <span>{person.name}</span>
                         </button>
                       ))}
                       {users.filter(p => p.role === 'customer' || p.role === 'universal').length === 0 && (
-                        <div className="px-3 py-2 text-xs text-white/40">
+                        <div className="px-3 py-2 text-xs text-gray-400 dark:text-white/40">
                           Нет пользователей с ролью «заказчик»
                         </div>
                       )}
@@ -2182,20 +2279,20 @@ export default function ContentPlanPage() {
 
                 {/* Исполнители */}
                 <div className="relative">
-                  <label className="block text-[10px] font-medium text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
+                  <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
                     <Users className="w-2.5 h-2.5" />
                     Исполнители
                   </label>
                   <div
                     onClick={() => setOpenDropdown(openDropdown === 'assignedTo' ? null : 'assignedTo')}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-white/20 transition-all min-h-[38px] cursor-pointer"
+                    className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-gray-300 dark:hover:border-white/20 transition-all min-h-[38px] cursor-pointer"
                   >
                     <div className="flex flex-wrap gap-1">
                       {postForm.assignedToIds && postForm.assignedToIds.length > 0 ? (
                         postForm.assignedToIds.map(id => {
                           const person = users.find(p => p.id === id);
                           return person ? (
-                            <span key={id} className="text-xs bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded flex items-center gap-1">
+                            <span key={id} className="text-xs bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded flex items-center gap-1">
                               {person.name}
                               <button
                                 type="button"
@@ -2206,7 +2303,7 @@ export default function ContentPlanPage() {
                                     assignedToIds: prev.assignedToIds.filter(i => i !== id)
                                   }));
                                 }}
-                                className="hover:text-white"
+                                className="hover:text-green-800 dark:hover:text-white"
                               >
                                 <X className="w-2.5 h-2.5" />
                               </button>
@@ -2214,20 +2311,20 @@ export default function ContentPlanPage() {
                           ) : null;
                         })
                       ) : (
-                        <span className="text-white/40">Выберите исполнителей</span>
+                        <span className="text-gray-400 dark:text-white/40">Выберите исполнителей</span>
                       )}
                     </div>
-                    <ChevronDown className={`w-3 h-3 text-white/40 transition-transform flex-shrink-0 ${openDropdown === 'assignedTo' ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-3 h-3 text-gray-400 dark:text-white/40 transition-transform flex-shrink-0 ${openDropdown === 'assignedTo' ? 'rotate-180' : ''}`} />
                   </div>
                   {openDropdown === 'assignedTo' && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
                       <button
                         type="button"
                         onClick={() => {
                           setPostForm(prev => ({ ...prev, assignedToIds: [] }));
                           setOpenDropdown(null);
                         }}
-                        className="w-full px-3 py-1.5 text-left text-white/50 hover:bg-white/5 transition-colors text-xs border-b border-white/10"
+                        className="w-full px-3 py-1.5 text-left text-gray-500 dark:text-white/50 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-xs border-b border-gray-200 dark:border-white/10"
                       >
                         Очистить выбор
                       </button>
@@ -2249,23 +2346,23 @@ export default function ContentPlanPage() {
                               
                               setPostForm(prev => ({ ...prev, assignedToIds: newIds }));
                             }}
-                            className={`w-full px-3 py-2 text-left hover:bg-white/5 transition-colors text-xs flex items-center justify-between ${
-                              isSelected ? 'bg-green-500/10' : ''
+                            className={`w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-xs flex items-center justify-between ${
+                              isSelected ? 'bg-green-50 dark:bg-green-500/10' : ''
                             }`}
                           >
                             <div className="flex items-center gap-2">
                               <div className={`w-4 h-4 rounded border flex items-center justify-center ${
-                                isSelected ? 'bg-green-500 border-green-500' : 'border-white/30'
+                                isSelected ? 'bg-green-500 border-green-500' : 'border-gray-300 dark:border-white/30'
                               }`}>
                                 {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
                               </div>
-                              <span className={isSelected ? 'text-white' : 'text-white/70'}>{person.name}</span>
+                              <span className={isSelected ? '' : 'text-gray-600 dark:text-white/70'}>{person.name}</span>
                             </div>
                           </button>
                         );
                       })}
                       {users.filter(p => p.role === 'executor' || p.role === 'universal').length === 0 && (
-                        <div className="px-3 py-2 text-xs text-white/40">
+                        <div className="px-3 py-2 text-xs text-gray-400 dark:text-white/40">
                           Нет пользователей с ролью «исполнитель»
                         </div>
                       )}
@@ -2276,39 +2373,39 @@ export default function ContentPlanPage() {
                 {/* Date and Time */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium mb-2 text-white/50">Дата</label>
+                    <label className="block text-xs font-medium mb-2 text-gray-500 dark:text-white/50">Дата</label>
                     <input
                       type="date"
                       value={postForm.publishDate}
                       onChange={(e) => setPostForm(prev => ({ ...prev, publishDate: e.target.value }))}
-                      className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-purple-500/50 transition-colors [color-scheme:dark]"
+                      className="w-full px-3 py-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm focus:outline-none focus:border-purple-500/50 transition-colors dark:[color-scheme:dark]"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium mb-2 text-white/50">Время</label>
+                    <label className="block text-xs font-medium mb-2 text-gray-500 dark:text-white/50">Время</label>
                     <input
                       type="time"
                       value={postForm.publishTime}
                       onChange={(e) => setPostForm(prev => ({ ...prev, publishTime: e.target.value }))}
-                      className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-purple-500/50 transition-colors [color-scheme:dark]"
+                      className="w-full px-3 py-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm focus:outline-none focus:border-purple-500/50 transition-colors dark:[color-scheme:dark]"
                     />
                   </div>
                 </div>
 
                 {/* Link */}
                 <div className="relative">
-                  <label className="block text-[10px] font-medium text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
+                  <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
                     <Link2 className="w-2.5 h-2.5" />
                     Прикреплённая ссылка
                   </label>
                   {postForm.linkId ? (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                      <Link2 className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+                    <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg">
+                      <Link2 className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
                       <a 
                         href={postForm.linkUrl} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="text-xs text-blue-400 hover:text-blue-300 truncate flex-1"
+                        className="text-xs text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 truncate flex-1"
                         title={postForm.linkUrl}
                       >
                         {postForm.linkTitle || postForm.linkUrl}
@@ -2316,7 +2413,7 @@ export default function ContentPlanPage() {
                       <button
                         type="button"
                         onClick={() => setPostForm(prev => ({ ...prev, linkId: undefined, linkUrl: undefined, linkTitle: undefined }))}
-                        className="p-1 hover:bg-white/10 rounded text-white/40 hover:text-white flex-shrink-0"
+                        className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white flex-shrink-0"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -2324,7 +2421,7 @@ export default function ContentPlanPage() {
                         href={postForm.linkUrl} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="p-1 hover:bg-white/10 rounded text-white/40 hover:text-blue-400 flex-shrink-0"
+                        className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded text-gray-400 dark:text-white/40 hover:text-blue-500 dark:hover:text-blue-400 flex-shrink-0"
                         title="Открыть ссылку"
                       >
                         <ExternalLink className="w-3 h-3" />
@@ -2335,29 +2432,29 @@ export default function ContentPlanPage() {
                       <button
                         type="button"
                         onClick={() => setOpenDropdown(openDropdown === 'link' ? null : 'link')}
-                        className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-white/20 transition-all"
+                        className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-gray-300 dark:hover:border-white/20 transition-all"
                       >
-                        <span className="text-white/40 text-xs">Выбрать ссылку из базы...</span>
-                        <ChevronDown className={`w-3 h-3 text-white/40 transition-transform ${openDropdown === 'link' ? 'rotate-180' : ''}`} />
+                        <span className="text-gray-400 dark:text-white/40 text-xs">Выбрать ссылку из базы...</span>
+                        <ChevronDown className={`w-3 h-3 text-gray-400 dark:text-white/40 transition-transform ${openDropdown === 'link' ? 'rotate-180' : ''}`} />
                       </button>
                       {openDropdown === 'link' && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl z-50 max-h-60 overflow-hidden flex flex-col">
-                          <div className="p-2 border-b border-white/10">
-                            <div className="flex items-center gap-2 px-2 py-1.5 bg-white/5 rounded-lg border border-white/10">
-                              <Search className="w-3 h-3 text-white/40" />
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 max-h-60 overflow-hidden flex flex-col">
+                          <div className="p-2 border-b border-gray-200 dark:border-white/10">
+                            <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-50 dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10">
+                              <Search className="w-3 h-3 text-gray-400 dark:text-white/40" />
                               <input
                                 type="text"
                                 value={linksSearchQuery}
                                 onChange={(e) => setLinksSearchQuery(e.target.value)}
                                 placeholder="Поиск ссылки..."
-                                className="bg-transparent text-xs text-white placeholder-white/30 outline-none flex-1"
+                                className="bg-transparent text-xs placeholder-gray-400 dark:placeholder-white/30 outline-none flex-1"
                                 autoFocus
                               />
                             </div>
                           </div>
                           <div className="overflow-y-auto flex-1">
                             {availableLinks.length === 0 ? (
-                              <div className="px-3 py-4 text-center text-white/40 text-xs">
+                              <div className="px-3 py-4 text-center text-gray-400 dark:text-white/40 text-xs">
                                 Нет сохранённых ссылок
                               </div>
                             ) : (
@@ -2382,16 +2479,16 @@ export default function ContentPlanPage() {
                                       setOpenDropdown(null);
                                       setLinksSearchQuery('');
                                     }}
-                                    className="w-full px-3 py-2 text-left hover:bg-white/5 transition-colors flex items-center gap-2 border-b border-white/5 last:border-0"
+                                    className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex items-center gap-2 border-b border-gray-100 dark:border-white/5 last:border-0"
                                   >
                                     {link.favicon ? (
                                       <img src={link.favicon} alt="" className="w-4 h-4 rounded flex-shrink-0" />
                                     ) : (
-                                      <Link2 className="w-4 h-4 text-white/40 flex-shrink-0" />
+                                      <Link2 className="w-4 h-4 text-gray-400 dark:text-white/40 flex-shrink-0" />
                                     )}
                                     <div className="flex-1 min-w-0">
-                                      <div className="text-xs text-white truncate">{link.title}</div>
-                                      <div className="text-[10px] text-white/40 truncate">{link.url}</div>
+                                      <div className="text-xs truncate">{link.title}</div>
+                                      <div className="text-[10px] text-gray-400 dark:text-white/40 truncate">{link.url}</div>
                                     </div>
                                   </button>
                                 ))
@@ -2405,7 +2502,7 @@ export default function ContentPlanPage() {
 
                 {/* Created info */}
                 {editingPost && (
-                  <div className="pt-3 border-t border-white/10 text-[10px] text-white/30 space-y-1">
+                  <div className="pt-3 border-t border-gray-200 dark:border-white/10 text-[10px] text-gray-400 dark:text-white/30 space-y-1">
                     <div>Создано: {new Date(editingPost.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
                     {editingPost.createdBy && users.find(u => u.id === editingPost.createdBy) && (
                       <div className="flex items-center gap-1.5">
@@ -2423,13 +2520,13 @@ export default function ContentPlanPage() {
               </div>
 
               {/* Middle column - Description */}
-              <div className="flex-1 lg:flex-none lg:w-[420px] flex flex-col bg-[#0d0d0d] border-b lg:border-b-0 lg:border-r border-white/10">
+              <div className="flex-1 lg:flex-none lg:w-[420px] flex flex-col bg-gray-50 dark:bg-[#0d0d0d] border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-white/10">
                 {/* Description Header with Formatting */}
-                <div className="px-3 py-2 border-b border-white/10">
+                <div className="px-3 py-2 border-b border-gray-200 dark:border-white/10">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-purple-400" />
-                      <span className="text-xs font-medium text-white/70">Текст публикации</span>
+                      <FileText className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      <span className="text-xs font-medium text-gray-600 dark:text-white/70">Текст публикации</span>
                     </div>
                   </div>
                   {/* Панель форматирования */}
@@ -2443,7 +2540,7 @@ export default function ContentPlanPage() {
                           editor.focus();
                         }
                       }}
-                      className="p-2 hover:bg-white/10 rounded text-white/50 hover:text-white transition-colors"
+                      className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors"
                       title="Жирный (Ctrl+B)"
                     >
                       <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42zM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3v-3zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>
@@ -2457,7 +2554,7 @@ export default function ContentPlanPage() {
                           editor.focus();
                         }
                       }}
-                      className="p-2 hover:bg-white/10 rounded text-white/50 hover:text-white transition-colors"
+                      className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors"
                       title="Курсив (Ctrl+I)"
                     >
                       <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z"/></svg>
@@ -2471,7 +2568,7 @@ export default function ContentPlanPage() {
                           editor.focus();
                         }
                       }}
-                      className="p-2 hover:bg-white/10 rounded text-white/50 hover:text-white transition-colors"
+                      className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors"
                       title="Подчёркнутый (Ctrl+U)"
                     >
                       <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17c3.31 0 6-2.69 6-6V3h-2.5v8c0 1.93-1.57 3.5-3.5 3.5S8.5 12.93 8.5 11V3H6v8c0 3.31 2.69 6 6 6zm-7 2v2h14v-2H5z"/></svg>
@@ -2485,12 +2582,12 @@ export default function ContentPlanPage() {
                           editor.focus();
                         }
                       }}
-                      className="p-2 hover:bg-white/10 rounded text-white/50 hover:text-white transition-colors"
+                      className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors"
                       title="Зачёркнутый"
                     >
                       <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M10 19h4v-3h-4v3zM5 4v3h5v3h4V7h5V4H5zM3 14h18v-2H3v2z"/></svg>
                     </button>
-                    <div className="w-px h-4 bg-white/10 mx-1" />
+                    <div className="w-px h-4 bg-gray-200 dark:bg-white/10 mx-1" />
                     <button
                       type="button"
                       onClick={() => {
@@ -2500,7 +2597,7 @@ export default function ContentPlanPage() {
                           editor.focus();
                         }
                       }}
-                      className="p-2 hover:bg-white/10 rounded text-white/50 hover:text-white transition-colors"
+                      className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors"
                       title="Маркированный список"
                     >
                       <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z"/></svg>
@@ -2514,25 +2611,25 @@ export default function ContentPlanPage() {
                           editor.focus();
                         }
                       }}
-                      className="p-2 hover:bg-white/10 rounded text-white/50 hover:text-white transition-colors"
+                      className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors"
                       title="Нумерованный список"
                     >
                       <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 10.9V10H2v1zm5-6v2h14V5H7zm0 14h14v-2H7v2zm0-6h14v-2H7v2z"/></svg>
                     </button>
-                    <div className="w-px h-4 bg-white/10 mx-1" />
+                    <div className="w-px h-4 bg-gray-200 dark:bg-white/10 mx-1" />
                     {/* Кастомный dropdown для размера текста */}
                     <div className="relative">
                       <button
                         type="button"
                         onClick={() => setOpenDropdown(openDropdown === 'textSize' ? null : 'textSize')}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 hover:bg-white/10 rounded text-white/50 hover:text-white transition-colors text-xs"
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors text-xs"
                       >
                         <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M9 4v3h5v12h3V7h5V4H9zm-6 8h3v7h3v-7h3V9H3v3z"/></svg>
                         <span>Размер</span>
                         <ChevronDown className="w-2.5 h-2.5" />
                       </button>
                       {openDropdown === 'textSize' && (
-                        <div className="absolute top-full left-0 mt-1 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl z-50 min-w-[120px] overflow-hidden">
+                        <div className="absolute top-full left-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 min-w-[120px] overflow-hidden">
                           <button
                             type="button"
                             onClick={() => {
@@ -2543,9 +2640,9 @@ export default function ContentPlanPage() {
                               }
                               setOpenDropdown(null);
                             }}
-                            className="w-full px-3 py-2 text-left hover:bg-white/5 transition-colors flex items-center gap-2"
+                            className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex items-center gap-2"
                           >
-                            <span className="text-base font-bold text-white">Заголовок 1</span>
+                            <span className="text-base font-bold">Заголовок 1</span>
                           </button>
                           <button
                             type="button"
@@ -2557,9 +2654,9 @@ export default function ContentPlanPage() {
                               }
                               setOpenDropdown(null);
                             }}
-                            className="w-full px-3 py-2 text-left hover:bg-white/5 transition-colors flex items-center gap-2"
+                            className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex items-center gap-2"
                           >
-                            <span className="text-sm font-semibold text-white">Заголовок 2</span>
+                            <span className="text-sm font-semibold">Заголовок 2</span>
                           </button>
                           <button
                             type="button"
@@ -2571,11 +2668,11 @@ export default function ContentPlanPage() {
                               }
                               setOpenDropdown(null);
                             }}
-                            className="w-full px-3 py-2 text-left hover:bg-white/5 transition-colors flex items-center gap-2"
+                            className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex items-center gap-2"
                           >
-                            <span className="text-xs font-medium text-white">Заголовок 3</span>
+                            <span className="text-xs font-medium">Заголовок 3</span>
                           </button>
-                          <div className="h-px bg-white/10 my-1" />
+                          <div className="h-px bg-gray-200 dark:bg-white/10 my-1" />
                           <button
                             type="button"
                             onClick={() => {
@@ -2586,14 +2683,14 @@ export default function ContentPlanPage() {
                               }
                               setOpenDropdown(null);
                             }}
-                            className="w-full px-3 py-2 text-left hover:bg-white/5 transition-colors flex items-center gap-2"
+                            className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex items-center gap-2"
                           >
-                            <span className="text-xs text-white/70">Обычный текст</span>
+                            <span className="text-xs text-gray-600 dark:text-white/70">Обычный текст</span>
                           </button>
                         </div>
                       )}
                     </div>
-                    <div className="w-px h-4 bg-white/10 mx-1" />
+                    <div className="w-px h-4 bg-gray-200 dark:bg-white/10 mx-1" />
                     <button
                       type="button"
                       onClick={() => {
@@ -2606,7 +2703,7 @@ export default function ContentPlanPage() {
                           editor.focus();
                         }
                       }}
-                      className="p-2 hover:bg-white/10 rounded text-white/50 hover:text-white transition-colors"
+                      className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors"
                       title="Вставить ссылку"
                     >
                       <Link2 className="w-5 h-5" />
@@ -2620,7 +2717,7 @@ export default function ContentPlanPage() {
                           editor.focus();
                         }
                       }}
-                      className="p-2 hover:bg-white/10 rounded text-white/50 hover:text-white transition-colors"
+                      className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors"
                       title="Очистить форматирование"
                     >
                       <X className="w-5 h-5" />
@@ -2629,7 +2726,7 @@ export default function ContentPlanPage() {
                 </div>
                 
                 {/* WYSIWYG Editor */}
-                <div className="flex-1 p-2 overflow-hidden flex flex-col relative">
+                <div className="flex-1 p-2 overflow-y-auto flex flex-col relative">
                   <div
                     ref={descriptionEditorRef}
                     id="post-text-editor"
@@ -2716,13 +2813,13 @@ export default function ContentPlanPage() {
                         setShowMentionDropdown(false);
                       }
                     }}
-                    className="w-full flex-1 min-h-[200px] px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/30 overflow-y-auto focus:outline-none focus:border-purple-500/30 transition-all leading-relaxed [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-medium [&_h3]:mb-1 [&_ul]:list-disc [&_ul]:ml-4 [&_ol]:list-decimal [&_ol]:ml-4 [&_a]:text-blue-400 [&_a]:underline [&_a]:cursor-pointer [&_li]:ml-2 [&_div]:text-sm [&_div]:font-normal [&_p]:text-sm [&_p]:font-normal [&_b]:font-bold [&_strong]:font-bold [&_i]:italic [&_em]:italic [&_u]:underline"
+                    className="w-full flex-1 min-h-[200px] px-3 py-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-sm placeholder-gray-400 dark:placeholder-white/30 overflow-y-auto focus:outline-none focus:border-purple-400 dark:focus:border-purple-500/30 transition-all leading-relaxed [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-medium [&_h3]:mb-1 [&_ul]:list-disc [&_ul]:ml-4 [&_ol]:list-decimal [&_ol]:ml-4 [&_a]:text-blue-500 dark:[&_a]:text-blue-400 [&_a]:underline [&_a]:cursor-pointer [&_li]:ml-2 [&_div]:text-sm [&_div]:font-normal [&_p]:text-sm [&_p]:font-normal [&_b]:font-bold [&_strong]:font-bold [&_i]:italic [&_em]:italic [&_u]:underline"
                     style={{ minHeight: '200px' }}
                   />
                   
                   {/* Dropdown упоминаний */}
                   {showMentionDropdown && (
-                    <div className="absolute bottom-2 left-2 right-2 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl max-h-48 overflow-y-auto z-10">
+                    <div className="absolute bottom-2 left-2 right-2 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl max-h-48 overflow-y-auto z-10">
                       {users
                         .filter(p => !mentionFilter || p.name.toLowerCase().includes(mentionFilter.toLowerCase()))
                         .slice(0, 8)
@@ -2767,7 +2864,7 @@ export default function ContentPlanPage() {
                               setShowMentionDropdown(false);
                               descriptionEditorRef.current?.focus();
                             }}
-                            className="w-full px-3 py-2 text-left text-xs hover:bg-white/5 flex items-center gap-2 transition-colors border-b border-white/5 last:border-0"
+                            className="w-full px-3 py-2 text-left text-xs hover:bg-gray-50 dark:hover:bg-white/5 flex items-center gap-2 transition-colors border-b border-gray-100 dark:border-white/5 last:border-0"
                           >
                             <div 
                               className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px]"
@@ -2775,12 +2872,12 @@ export default function ContentPlanPage() {
                             >
                               {person.name.charAt(0)}
                             </div>
-                            <span className="text-white/80">{person.name}</span>
-                            <span className="text-[9px] text-white/30 ml-auto">{person.role === 'executor' ? 'Исполнитель' : person.role === 'customer' ? 'Заказчик' : 'Универсал'}</span>
+                            <span className="text-gray-700 dark:text-white/80">{person.name}</span>
+                            <span className="text-[9px] text-gray-400 dark:text-white/30 ml-auto">{person.role === 'executor' ? 'Исполнитель' : person.role === 'customer' ? 'Заказчик' : 'Универсал'}</span>
                           </button>
                         ))}
                       {users.filter(p => !mentionFilter || p.name.toLowerCase().includes(mentionFilter.toLowerCase())).length === 0 && (
-                        <div className="px-3 py-4 text-center text-white/40 text-xs">
+                        <div className="px-3 py-4 text-center text-gray-400 dark:text-white/40 text-xs">
                           Пользователи не найдены
                         </div>
                       )}
@@ -2788,7 +2885,7 @@ export default function ContentPlanPage() {
                   )}
                   
                   {descriptionEditorRef.current && !descriptionEditorRef.current.innerHTML && (
-                    <div className="absolute top-4 left-5 text-sm text-white/30 pointer-events-none">
+                    <div className="absolute top-4 left-5 text-sm text-gray-400 dark:text-white/30 pointer-events-none">
                       Введите текст публикации... (@упомянуть)
                     </div>
                   )}
@@ -2796,14 +2893,14 @@ export default function ContentPlanPage() {
               </div>
 
               {/* Right column - Comments */}
-              <div className="w-full lg:flex-1 flex flex-col bg-[#0d0d0d]">
+              <div className="w-full lg:flex-1 flex flex-col bg-gray-50 dark:bg-[#0d0d0d]">
                 {/* Comments Header */}
-                <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
+                <div className="px-3 py-2 border-b border-gray-200 dark:border-white/10 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <MessageCircle className="w-4 h-4 text-blue-400" />
-                    <span className="text-xs font-medium text-white/70">Комментарии</span>
+                    <MessageCircle className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+                    <span className="text-xs font-medium text-gray-600 dark:text-white/70">Комментарии</span>
                     {editingPost?.comments && editingPost.comments.length > 0 && (
-                      <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full">
+                      <span className="text-[10px] bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-full">
                         {editingPost.comments.length}
                       </span>
                     )}
@@ -2818,12 +2915,12 @@ export default function ContentPlanPage() {
                 {/* Comments List - Chat Style */}
                 <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[150px] lg:min-h-[200px]">
                   {!editingPost ? (
-                    <div className="flex flex-col items-center justify-center h-full text-white/30 py-8">
+                    <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-white/30 py-8">
                       <MessageCircle className="w-8 h-8 mb-2 opacity-50" />
                       <p className="text-xs">Комментарии доступны после сохранения</p>
                     </div>
                   ) : (!editingPost.comments || editingPost.comments.length === 0) ? (
-                    <div className="flex flex-col items-center justify-center h-full text-white/30 py-8">
+                    <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-white/30 py-8">
                       <MessageCircle className="w-8 h-8 mb-2 opacity-50" />
                       <p className="text-xs">Нет комментариев</p>
                       <p className="text-[10px] mt-1">Начните обсуждение</p>
@@ -2842,11 +2939,11 @@ export default function ContentPlanPage() {
                           <div className={`max-w-[90%] ${isMyComment ? 'order-2' : ''}`}>
                             <div className={`rounded-xl px-3 py-2 relative ${
                               isMyComment 
-                                ? 'bg-blue-500/20 rounded-br-sm' 
-                                : 'bg-white/5 rounded-bl-sm'
+                                ? 'bg-blue-100 dark:bg-blue-500/20 rounded-br-sm' 
+                                : 'bg-gray-100 dark:bg-white/5 rounded-bl-sm'
                             }`}>
                               {/* Автор комментария */}
-                              <p className={`text-[10px] font-medium mb-0.5 ${isMyComment ? 'text-blue-300' : 'text-blue-400'}`}>
+                              <p className={`text-[10px] font-medium mb-0.5 ${isMyComment ? 'text-blue-600 dark:text-blue-300' : 'text-blue-500 dark:text-blue-400'}`}>
                                 {author?.name || 'Неизвестный'}
                               </p>
                               
@@ -2855,7 +2952,7 @@ export default function ContentPlanPage() {
                                   <textarea
                                     value={editingCommentText}
                                     onChange={(e) => setEditingCommentText(e.target.value)}
-                                    className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-xs text-white resize-none focus:outline-none"
+                                    className="w-full px-2 py-1 bg-white dark:bg-white/10 border border-gray-300 dark:border-white/20 rounded text-xs resize-none focus:outline-none"
                                     rows={2}
                                     autoFocus
                                   />
@@ -2865,13 +2962,13 @@ export default function ContentPlanPage() {
                                         setEditingCommentId(null);
                                         setEditingCommentText('');
                                       }}
-                                      className="px-2 py-0.5 text-[10px] text-white/50 hover:text-white"
+                                      className="px-2 py-0.5 text-[10px] text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white"
                                     >
                                       Отмена
                                     </button>
                                     <button
                                       onClick={() => updateComment(editingPost.id, comment.id, editingCommentText)}
-                                      className="px-2 py-0.5 text-[10px] bg-blue-500/30 text-blue-400 rounded hover:bg-blue-500/40"
+                                      className="px-2 py-0.5 text-[10px] bg-blue-100 dark:bg-blue-500/30 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-200 dark:hover:bg-blue-500/40"
                                     >
                                       Сохранить
                                     </button>
@@ -2879,7 +2976,7 @@ export default function ContentPlanPage() {
                                 </div>
                               ) : (
                                 <>
-                                  <p className="text-xs text-white/90 whitespace-pre-wrap break-words"
+                                  <p className="text-xs text-gray-700 dark:text-white/90 whitespace-pre-wrap break-words"
                                      dangerouslySetInnerHTML={{ 
                                        __html: comment.text
                                          .replace(
@@ -2893,7 +2990,7 @@ export default function ContentPlanPage() {
                                      }}
                                   />
                                   <div className="flex items-center justify-between mt-1">
-                                    <p className="text-[9px] text-white/30">
+                                    <p className="text-[9px] text-gray-400 dark:text-white/30">
                                       {new Date(comment.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
                                     </p>
                                     {/* Действия с комментарием */}
@@ -2901,7 +2998,7 @@ export default function ContentPlanPage() {
                                       {/* Ответить */}
                                       <button
                                         onClick={() => startReply(comment)}
-                                        className="p-0.5 text-white/30 hover:text-blue-400 transition-colors"
+                                        className="p-0.5 text-gray-400 dark:text-white/30 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
                                         title="Ответить"
                                       >
                                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2916,7 +3013,7 @@ export default function ContentPlanPage() {
                                             setEditingCommentId(comment.id);
                                             setEditingCommentText(comment.text);
                                           }}
-                                          className="p-0.5 text-white/30 hover:text-yellow-400 transition-colors"
+                                          className="p-0.5 text-gray-400 dark:text-white/30 hover:text-yellow-500 dark:hover:text-yellow-400 transition-colors"
                                           title="Редактировать"
                                         >
                                           <Edit3 className="w-3 h-3" />
@@ -2931,7 +3028,7 @@ export default function ContentPlanPage() {
                                               deleteComment(editingPost.id, comment.id);
                                             }
                                           }}
-                                          className="p-0.5 text-white/30 hover:text-red-400 transition-colors"
+                                          className="p-0.5 text-gray-400 dark:text-white/30 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                                           title="Удалить"
                                         >
                                           <Trash2 className="w-3 h-3" />
@@ -2951,8 +3048,8 @@ export default function ContentPlanPage() {
 
                 {/* Ответ на комментарий */}
                 {replyingToComment && (
-                  <div className="px-2 py-1 border-t border-white/10 bg-blue-500/5 flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-[10px] text-blue-400">
+                  <div className="px-2 py-1 border-t border-gray-200 dark:border-white/10 bg-blue-50 dark:bg-blue-500/5 flex items-center justify-between">
+                    <div className="flex items-center gap-1 text-[10px] text-blue-500 dark:text-blue-400">
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                       </svg>
@@ -2963,7 +3060,7 @@ export default function ContentPlanPage() {
                         setReplyingToComment(null);
                         setNewComment('');
                       }}
-                      className="p-0.5 text-white/40 hover:text-white"
+                      className="p-0.5 text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -2972,7 +3069,7 @@ export default function ContentPlanPage() {
                 
                 {/* Add Comment - Chat Style */}
                 {editingPost && myAccountId ? (
-                  <div className="p-2 border-t border-white/10">
+                  <div className="p-2 border-t border-gray-200 dark:border-white/10">
                     <div className="relative">
                       <textarea
                         ref={commentInputRef}
@@ -2987,7 +3084,7 @@ export default function ContentPlanPage() {
                           }
                         }}
                         placeholder="Написать комментарий..."
-                        className="w-full px-3 py-2 pr-12 bg-white/5 border border-white/10 rounded-xl text-xs text-white placeholder-white/30 resize-none focus:outline-none focus:border-blue-500/30 transition-all"
+                        className="w-full px-3 py-2 pr-12 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-xs text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-white/30 resize-none focus:outline-none focus:border-blue-500/30 transition-all"
                         rows={1}
                         style={{
                           minHeight: '40px',
@@ -3013,15 +3110,15 @@ export default function ContentPlanPage() {
                           }
                         }}
                         disabled={!newComment.trim()}
-                        className="absolute right-2 bottom-2 w-8 h-8 flex items-center justify-center bg-blue-500 hover:bg-blue-600 disabled:bg-white/10 disabled:text-white/30 text-white rounded-full transition-all shadow-lg"
+                        className="absolute right-2 bottom-2 w-8 h-8 flex items-center justify-center bg-blue-500 hover:bg-blue-600 disabled:bg-gray-200 dark:disabled:bg-white/10 disabled:text-gray-400 dark:disabled:text-white/30 text-white rounded-full transition-all shadow-lg"
                       >
                         <Send className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
                 ) : editingPost ? (
-                  <div className="p-3 border-t border-white/10 bg-orange-500/5">
-                    <div className="flex items-center justify-center gap-2 text-orange-400">
+                  <div className="p-3 border-t border-gray-200 dark:border-white/10 bg-orange-50 dark:bg-orange-500/5">
+                    <div className="flex items-center justify-center gap-2 text-orange-500 dark:text-orange-400">
                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
                       <p className="text-[10px]">
                         Выберите профиль в настройках для комментирования
@@ -3033,30 +3130,30 @@ export default function ContentPlanPage() {
             </div>
             
             {/* Footer with save button */}
-            <div className="flex justify-between items-center px-4 py-2.5 border-t border-white/10 bg-white/[0.02] rounded-b-xl flex-shrink-0">
-              <div className="text-[10px] text-white/30">
+            <div className="flex justify-between items-center px-4 py-2.5 border-t border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02] rounded-b-xl flex-shrink-0">
+              <div className="text-[10px] text-gray-400 dark:text-white/30">
                 {!editingPost && 'Новая публикация'}
-                {isDirty && <span className="ml-2 text-amber-400">• Несохранённые изменения</span>}
+                {isDirty && <span className="ml-2 text-amber-500 dark:text-amber-400">• Несохранённые изменения</span>}
               </div>
               <div className="flex gap-2">
                 {editingPost && (
                   <button
                     onClick={() => deletePost(editingPost.id)}
-                    className="px-3 py-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors text-xs"
+                    className="px-3 py-1.5 text-red-500 dark:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors text-xs"
                   >
                     Удалить
                   </button>
                 )}
                 <button
                   onClick={closeModal}
-                  className="px-3 py-1.5 text-white/60 hover:text-white hover:bg-white/5 rounded-lg transition-all text-xs font-medium"
+                  className="px-3 py-1.5 text-gray-500 dark:text-white/60 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-all text-xs font-medium"
                 >
                   Отмена
                 </button>
                 <button
                   onClick={editingPost ? updatePost : addPost}
                   disabled={!postForm.title.trim() || !postForm.platform || !postForm.publishDate}
-                  className="px-3 py-1.5 bg-white/10 text-white rounded-lg hover:bg-white/15 transition-all text-xs font-medium border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-white rounded-lg hover:bg-gray-200 dark:hover:bg-white/15 transition-all text-xs font-medium border border-gray-200 dark:border-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {editingPost ? 'Сохранить изменения' : 'Создать публикацию'}
                 </button>
@@ -3095,8 +3192,8 @@ export default function ContentPlanPage() {
               </div>
               
               <div className="flex-1 min-w-0">
-                <span className="text-xs font-medium text-white truncate block">{toast.title}</span>
-                <div className="text-[10px] text-white/60 truncate">{toast.message}</div>
+                <span className="text-xs font-medium text-gray-900 dark:text-white truncate block">{toast.title}</span>
+                <div className="text-[10px] text-gray-500 dark:text-white/60 truncate">{toast.message}</div>
               </div>
 
               {toast.postId && (
@@ -3120,7 +3217,7 @@ export default function ContentPlanPage() {
               
               <button
                 onClick={() => removeToast(toast.id)}
-                className="text-white/30 hover:text-white/60 p-1 rounded transition-all flex-shrink-0"
+                className="text-gray-400 dark:text-white/30 hover:text-gray-600 dark:hover:text-white/60 p-1 rounded transition-all flex-shrink-0"
                 title="Закрыть"
               >
                 <X className="w-3.5 h-3.5" />
@@ -3132,7 +3229,7 @@ export default function ContentPlanPage() {
         {toasts.length > 1 && (
           <button
             onClick={() => setToasts([])}
-            className="pointer-events-auto text-[10px] text-white/40 hover:text-white/70 transition-colors self-end px-2 py-1"
+            className="pointer-events-auto text-[10px] text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/70 transition-colors self-end px-2 py-1"
           >
             Очистить все ({toasts.length})
           </button>

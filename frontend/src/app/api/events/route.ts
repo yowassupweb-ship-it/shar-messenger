@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs/promises';
+import fsPromises from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
 
 // Используем папку data внутри frontend
@@ -57,16 +58,16 @@ interface EventsData {
 
 async function ensureDataDir() {
   try {
-    await fs.access(DATA_DIR);
+    await fsPromises.access(DATA_DIR);
   } catch {
-    await fs.mkdir(DATA_DIR, { recursive: true });
+    await fsPromises.mkdir(DATA_DIR, { recursive: true });
   }
 }
 
 async function loadEvents(): Promise<EventsData> {
   await ensureDataDir();
   try {
-    const data = await fs.readFile(EVENTS_FILE, 'utf-8');
+    const data = await fsPromises.readFile(EVENTS_FILE, 'utf-8');
     return JSON.parse(data);
   } catch {
     return {
@@ -78,7 +79,7 @@ async function loadEvents(): Promise<EventsData> {
 
 async function saveEvents(data: EventsData): Promise<void> {
   await ensureDataDir();
-  await fs.writeFile(EVENTS_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  await fsPromises.writeFile(EVENTS_FILE, JSON.stringify(data, null, 2), 'utf-8');
 }
 
 // GET - получить все события
@@ -89,9 +90,37 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate');
     const type = searchParams.get('type');
     const tag = searchParams.get('tag');
+    const userId = searchParams.get('userId');
 
     const data = await loadEvents();
     let events = data.events;
+
+    // Проверяем, является ли пользователь суперадмином
+    let canSeeAll = false;
+    if (userId) {
+      try {
+        const backendDbPath = path.join(process.cwd(), '..', 'backend', 'database.json');
+        const backendDb = JSON.parse(fsSync.readFileSync(backendDbPath, 'utf-8'));
+        const currentUser = backendDb.users?.find((u: any) => u.id === userId);
+        canSeeAll = currentUser?.canSeeAllTasks === true;
+      } catch (err) {
+        console.error('Error loading user from backend:', err);
+      }
+    }
+
+    // Фильтрация по userId - показываем только события где пользователь участник или создатель
+    // Суперадмины видят все события
+    if (userId && !canSeeAll) {
+      events = events.filter(e => {
+        // Пользователь - создатель
+        if (e.createdBy === userId) return true;
+        // Пользователь - участник
+        if (e.participants && e.participants.includes(userId)) return true;
+        // События без участников видны всем (публичные)
+        if (!e.participants || e.participants.length === 0) return true;
+        return false;
+      });
+    }
 
     // Фильтрация по датам
     if (startDate) {

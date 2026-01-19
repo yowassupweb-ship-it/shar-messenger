@@ -43,8 +43,11 @@ export async function POST(request: NextRequest) {
       password, 
       role = 'user', 
       todoRole = 'executor',
+      canSeeAllTasks = false,
       position = '',
       department = '',
+      telegramId = '',
+      telegramUsername = '',
       enabledTools = [] 
     } = body
     
@@ -76,8 +79,11 @@ export async function POST(request: NextRequest) {
       password: password, // В реальном приложении нужно хешировать!
       role,
       todoRole,
+      canSeeAllTasks: role === 'admin' ? canSeeAllTasks : false,
       position,
       department,
+      telegramId,
+      telegramUsername,
       enabledTools,
       createdAt: new Date().toISOString()
     }

@@ -2,9 +2,11 @@
 
 import { useState, useEffect, Suspense, lazy, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MessageCircle, CheckSquare, Calendar, Users, ArrowLeft, MoreVertical, Shield, FileText, Languages, Sparkles, Link2, Box, Globe, Megaphone, LogOut, Sun, Moon, GripVertical, X } from 'lucide-react';
+import { MessageCircle, CheckSquare, Calendar, Users, ArrowLeft, MoreVertical, Shield, FileText, Languages, Sparkles, Link2, Box, Globe, Megaphone, LogOut, Sun, Moon, GripVertical, X, Settings, User, ChevronUp, Type, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
+import Avatar from '@/components/Avatar';
+import AvatarUpload from '@/components/AvatarUpload';
 
 // Типы для инструментов
 interface Tool {
@@ -33,6 +35,7 @@ const ALL_TOOLS: Tool[] = [
   { id: 'slovolov-pro', name: 'Словолов PRO', href: '/slovolov-pro', icon: <Box className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-cyan-500 to-blue-600' },
   { id: 'content-plan', name: 'Контент-план', href: '/content-plan', icon: <Megaphone className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-purple-500 to-violet-600' },
   { id: 'links', name: 'База ссылок', href: '/links', icon: <Globe className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-sky-500 to-blue-600' },
+  { id: 'chat-settings', name: 'Настройки', href: '/chat-settings', icon: <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-gray-500 to-slate-600' },
   { id: 'admin', name: 'Администрирование', href: '/admin', icon: <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-amber-500 to-orange-600', adminOnly: true },
 ];
 
@@ -44,12 +47,80 @@ export default function AccountPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [unreadChatsCount, setUnreadChatsCount] = useState(0);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  
+  // Состояния для выпадающего меню аккаунта
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
+  
+  // Настройки чата
+  const [chatSettings, setChatSettings] = useState({
+    bubbleStyle: 'modern' as 'modern' | 'classic' | 'minimal',
+    fontSize: 14, // размер в пикселях
+    bubbleColor: '#34c759', // цвет для темной темы
+    bubbleColorLight: '#007aff', // цвет для светлой темы
+    colorPreset: 0
+  });
   
   // Состояния для drag & drop инструментов
   const [pinnedTools, setPinnedTools] = useState<string[]>([]);
   const [draggingTool, setDraggingTool] = useState<string | null>(null);
   const [isDragOverBar, setIsDragOverBar] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
+
+  // Загрузка настроек чата с сервера
+  useEffect(() => {
+    const loadChatSettings = async () => {
+      try {
+        const myAccountStr = localStorage.getItem('myAccount');
+        if (myAccountStr) {
+          const myAccount = JSON.parse(myAccountStr);
+          const res = await fetch(`/api/users/${myAccount.id}`);
+          if (res.ok) {
+            const user = await res.json();
+            if (user.chatSettings) {
+              setChatSettings(user.chatSettings);
+              localStorage.setItem('chatSettings', JSON.stringify(user.chatSettings));
+              return;
+            }
+          }
+        }
+        // Fallback на localStorage
+        const savedSettings = localStorage.getItem('chatSettings');
+        if (savedSettings) {
+          setChatSettings(JSON.parse(savedSettings));
+        }
+      } catch {
+        const savedSettings = localStorage.getItem('chatSettings');
+        if (savedSettings) {
+          try { setChatSettings(JSON.parse(savedSettings)); } catch {}
+        }
+      }
+    };
+    loadChatSettings();
+  }, []);
+
+  // Сохранение настроек чата на сервер
+  const saveChatSettings = async (newSettings: typeof chatSettings) => {
+    setChatSettings(newSettings);
+    localStorage.setItem('chatSettings', JSON.stringify(newSettings));
+    // Dispatch event для обновления в других компонентах
+    window.dispatchEvent(new CustomEvent('chatSettingsChanged', { detail: newSettings }));
+    
+    // Сохраняем на сервер
+    try {
+      const myAccountStr = localStorage.getItem('myAccount');
+      if (myAccountStr) {
+        const myAccount = JSON.parse(myAccountStr);
+        await fetch(`/api/users/${myAccount.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatSettings: newSettings })
+        });
+      }
+    } catch (error) {
+      console.error('Failed to save chat settings to server:', error);
+    }
+  };
 
   // Загрузка количества непрочитанных чатов
   const loadUnreadCount = async () => {
@@ -183,24 +254,27 @@ export default function AccountPage() {
         try {
           const account = JSON.parse(myAccountStr);
           
-          // Если имя уже есть в localStorage
-          if (account.name) {
-            setCurrentUser({ name: account.name, role: userRole });
-          } else if (account.id) {
-            // Загружаем данные пользователя с сервера
+          if (account.id) {
+            // Всегда загружаем данные пользователя с сервера чтобы получить актуальный аватар
             const res = await fetch(`/api/users/${account.id}`);
             if (res.ok) {
               const user = await res.json();
-              // Сохраняем имя в localStorage для будущего использования
+              // Сохраняем в localStorage для будущего использования
               localStorage.setItem('myAccount', JSON.stringify({ id: account.id, name: user.name }));
-              setCurrentUser({ name: user.name, role: userRole });
-            } else {
-              // Fallback на username
-              const username = localStorage.getItem('username');
-              if (username) {
-                setCurrentUser({ name: username, role: userRole });
-              }
+              setCurrentUser({ 
+                id: account.id,
+                name: user.name, 
+                email: user.email,
+                avatar: user.avatar,
+                role: userRole 
+              });
+            } else if (account.name) {
+              // Fallback если сервер недоступен
+              setCurrentUser({ id: account.id, name: account.name, role: userRole });
             }
+          } else if (account.name) {
+            // Если нет ID но есть имя
+            setCurrentUser({ name: account.name, role: userRole });
           }
         } catch {
           const username = localStorage.getItem('username');
@@ -334,14 +408,22 @@ export default function AccountPage() {
                 <div
                   key={tool.id}
                   draggable={isDesktop}
-                  onDragStart={(e) => handleDragStart(e, tool.id)}
+                  onDragStart={(e) => {
+                    e.stopPropagation();
+                    handleDragStart(e, tool.id);
+                  }}
                   onDragEnd={handleDragEnd}
-                  className={`relative cursor-grab active:cursor-grabbing ${draggingTool === tool.id ? 'opacity-50' : ''}`}
+                  className={`relative ${isDesktop ? 'cursor-grab active:cursor-grabbing' : ''} ${draggingTool === tool.id ? 'opacity-50' : ''}`}
                 >
                   <Link
                     href={tool.href}
                     className="flex flex-col items-center gap-2 group"
                     draggable={false}
+                    onClick={(e) => {
+                      if (draggingTool) {
+                        e.preventDefault();
+                      }
+                    }}
                   >
                     <div className="relative">
                       <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-gradient-to-br ${tool.gradient} flex items-center justify-center group-hover:scale-110 transition-all shadow-lg`}>
@@ -359,6 +441,53 @@ export default function AccountPage() {
                 </div>
               ))}
             </div>
+
+            {/* Быстрые действия - Уведомления и Избранное */}
+            <div className="mt-8 max-w-5xl mx-auto">
+              <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-4">Быстрые действия</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {/* Уведомления */}
+                <button
+                  onClick={async () => {
+                    try {
+                      const myAccountStr = localStorage.getItem('myAccount');
+                      if (!myAccountStr) return;
+                      const myAccount = JSON.parse(myAccountStr);
+                      router.push(`/account?tab=messages&chat=notifications_${myAccount.id}`);
+                    } catch {}
+                  }}
+                  className="flex flex-col items-center gap-3 p-5 bg-[var(--bg-secondary)] rounded-2xl hover:bg-[var(--bg-tertiary)] transition-colors group"
+                >
+                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                    <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+                      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+                    </svg>
+                  </div>
+                  <span className="text-sm font-medium text-[var(--text-primary)]">Уведомления</span>
+                </button>
+                
+                {/* Избранное */}
+                <button
+                  onClick={async () => {
+                    try {
+                      const myAccountStr = localStorage.getItem('myAccount');
+                      if (!myAccountStr) return;
+                      const myAccount = JSON.parse(myAccountStr);
+                      router.push(`/account?tab=messages&chat=favorites_${myAccount.id}`);
+                    } catch {}
+                  }}
+                  className="flex flex-col items-center gap-3 p-5 bg-[var(--bg-secondary)] rounded-2xl hover:bg-[var(--bg-tertiary)] transition-colors group"
+                >
+                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                    <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="0">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                  </div>
+                  <span className="text-sm font-medium text-[var(--text-primary)]">Избранное</span>
+                </button>
+              </div>
+            </div>
           </div>
         );
       
@@ -368,7 +497,7 @@ export default function AccountPage() {
   };
 
   return (
-    <div className={`min-h-screen theme-text flex flex-col transition-colors duration-300 ${activeTab === 'messages' ? '' : 'theme-bg'}`}>
+    <div className={`h-screen theme-text flex flex-col transition-colors duration-300 overflow-hidden ${activeTab === 'messages' ? '' : 'theme-bg'}`}>
       {/* Header - скрыт для вкладок задач, контактов, календаря и сообщений */}
       {activeTab !== 'tasks' && activeTab !== 'contacts' && activeTab !== 'calendar' && activeTab !== 'messages' && (
         <header className="h-12 theme-bg-secondary border-b border-[var(--border-primary)] flex items-center px-4 flex-shrink-0 glass-navbar">
@@ -399,24 +528,26 @@ export default function AccountPage() {
       )}
 
       {/* Main Content */}
-      <div className={`flex-1 ${activeTab === 'messages' ? '' : 'pb-24 md:pb-12 overflow-auto'}`}>
-        {renderContent()}
+      <div className={`flex-1 overflow-hidden ${activeTab === 'messages' ? '' : 'pb-24 md:pb-16'}`}>
+        <div className="h-full overflow-y-auto">
+          {renderContent()}
+        </div>
       </div>
 
       {/* Mobile Bottom Navigation Bar - стеклянные кнопки */}
-      <div className={`md:hidden fixed bottom-0 left-0 right-0 flex justify-center pb-6 px-4 z-40 pointer-events-none ${isChatOpen ? 'hidden' : ''}`}>
-        <div className="flex items-center gap-3 pointer-events-auto backdrop-blur-xl bg-gradient-to-b from-white/10 to-white/5 border border-white/20 rounded-full px-4 py-2 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_4px_20px_rgba(0,0,0,0.3)]">
+      <div className={`bottom-nav-fixed md:hidden fixed bottom-0 left-0 right-0 flex justify-center pb-4 px-3 z-40 pointer-events-none select-none ${isChatOpen ? 'hidden' : ''}`}>
+        <div className="flex items-center gap-2 pointer-events-auto backdrop-blur-xl bg-gradient-to-b from-white/10 to-white/5 border border-white/20 rounded-full px-3 py-1.5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_4px_20px_rgba(0,0,0,0.3)]">
           <button
             onClick={() => handleTabChange('messages')}
-            className={`relative w-11 h-11 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
+            className={`relative w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
               activeTab === 'messages'
-                ? 'bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] border border-[var(--accent-primary)]/30'
+                ? 'bg-[#007aff]/20 text-[#007aff] border border-[#007aff]/30'
                 : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10'
             }`}
           >
-            <MessageCircle className="w-5 h-5" strokeWidth={2} />
+            <MessageCircle className="w-4 h-4" strokeWidth={2} />
             {unreadChatsCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
                 {unreadChatsCount > 99 ? '99+' : unreadChatsCount}
               </span>
             )}
@@ -424,57 +555,58 @@ export default function AccountPage() {
 
           <button
             onClick={() => handleTabChange('tasks')}
-            className={`w-11 h-11 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
+            className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
               activeTab === 'tasks'
-                ? 'bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] border border-[var(--accent-primary)]/30'
+                ? 'bg-[#007aff]/20 text-[#007aff] border border-[#007aff]/30'
                 : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10'
             }`}
           >
-            <CheckSquare className="w-5 h-5" strokeWidth={2} />
+            <CheckSquare className="w-4 h-4" strokeWidth={2} />
           </button>
 
           <button
             onClick={() => handleTabChange('calendar')}
-            className={`w-11 h-11 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
+            className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
               activeTab === 'calendar'
-                ? 'bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] border border-[var(--accent-primary)]/30'
+                ? 'bg-[#007aff]/20 text-[#007aff] border border-[#007aff]/30'
                 : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10'
             }`}
           >
-            <Calendar className="w-5 h-5" strokeWidth={2} />
+            <Calendar className="w-4 h-4" strokeWidth={2} />
           </button>
 
           <button
             onClick={() => handleTabChange('contacts')}
-            className={`w-11 h-11 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
+            className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
               activeTab === 'contacts'
-                ? 'bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] border border-[var(--accent-primary)]/30'
+                ? 'bg-[#007aff]/20 text-[#007aff] border border-[#007aff]/30'
                 : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10'
             }`}
           >
-            <Users className="w-5 h-5" strokeWidth={2} />
+            <Users className="w-4 h-4" strokeWidth={2} />
           </button>
 
           <button
             onClick={() => handleTabChange('tools')}
-            className={`w-11 h-11 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
+            className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
               activeTab === 'tools'
-                ? 'bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] border border-[var(--accent-primary)]/30'
+                ? 'bg-[#007aff]/20 text-[#007aff] border border-[#007aff]/30'
                 : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10'
             }`}
           >
-            <MoreVertical className="w-5 h-5" strokeWidth={2} />
+            <MoreVertical className="w-4 h-4" strokeWidth={2} />
           </button>
         </div>
       </div>
 
       {/* Desktop Bottom Status Bar - glassmorphism style with drop zone */}
       <div 
-        className={`hidden md:flex fixed bottom-0 left-0 right-0 h-12 backdrop-blur-xl border-t z-40 items-center justify-between px-4 transition-all duration-200 ${
+        className={`hidden md:flex fixed bottom-0 left-0 right-0 h-[48px] backdrop-blur-xl border-t z-40 items-center justify-between px-4 transition-all duration-200 ${
           isDragOverBar 
             ? 'bg-[var(--accent-primary)]/20 border-[var(--accent-primary)]/50' 
             : 'bg-[var(--bg-glass)] border-[var(--border-glass)]'
         }`}
+        style={{ fontSize: '12px' }}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -483,7 +615,7 @@ export default function AccountPage() {
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => handleTabChange('messages')}
-            className={`relative px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-xs font-medium transition-all ${
+            className={`relative px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
               activeTab === 'messages'
                 ? 'bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] border border-[var(--accent-primary)]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
@@ -500,7 +632,7 @@ export default function AccountPage() {
 
           <button
             onClick={() => handleTabChange('tasks')}
-            className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-xs font-medium transition-all ${
+            className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
               activeTab === 'tasks'
                 ? 'bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] border border-[var(--accent-primary)]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
@@ -512,7 +644,7 @@ export default function AccountPage() {
 
           <button
             onClick={() => handleTabChange('calendar')}
-            className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-xs font-medium transition-all ${
+            className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
               activeTab === 'calendar'
                 ? 'bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] border border-[var(--accent-primary)]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
@@ -524,7 +656,7 @@ export default function AccountPage() {
 
           <button
             onClick={() => handleTabChange('contacts')}
-            className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-xs font-medium transition-all ${
+            className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
               activeTab === 'contacts'
                 ? 'bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] border border-[var(--accent-primary)]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
@@ -536,7 +668,7 @@ export default function AccountPage() {
 
           <button
             onClick={() => handleTabChange('tools')}
-            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+            className={`w-[32px] h-[32px] rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
               activeTab === 'tools'
                 ? 'bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] border border-[var(--accent-primary)]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-secondary)] hover:text-[var(--text-primary)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
@@ -605,19 +737,136 @@ export default function AccountPage() {
           {/* Divider */}
           <div className="w-px h-6 bg-white/20" />
 
-          {/* User Info */}
+          {/* User Info - кликабельно для открытия меню */}
           {currentUser && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-[20px] bg-gradient-to-b from-white/10 to-white/5 border border-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]">
-              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-[10px] font-bold text-white">
-                {currentUser.name?.split(' ').map((word: string) => word[0]?.toUpperCase()).join('') || 'U'}
-              </div>
-              <span className="text-xs text-[var(--text-secondary)] max-w-[120px] truncate">
-                {currentUser.name}
-              </span>
+            <div className="relative">
+              <button
+                onClick={() => setShowAccountMenu(!showAccountMenu)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-[20px] bg-gradient-to-b from-white/10 to-white/5 border border-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)] hover:from-white/15 hover:to-white/10 transition-all cursor-pointer"
+              >
+                <Avatar
+                  type="user"
+                  name={currentUser.name || 'User'}
+                  src={currentUser.avatar}
+                  size="xs"
+                />
+                <span className="text-xs text-[var(--text-secondary)] max-w-[120px] truncate">
+                  {currentUser.name}
+                </span>
+              </button>
+              
+              {/* Выпадающее меню */}
+              {showAccountMenu && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setShowAccountMenu(false)}
+                  />
+                  <div className="absolute bottom-full right-0 mb-2 w-48 bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-xl shadow-2xl z-50 overflow-hidden">
+                    <button
+                      onClick={() => {
+                        setShowAccountMenu(false);
+                        window.location.href = '/chat-settings';
+                      }}
+                      className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[var(--bg-tertiary)] transition-colors text-left"
+                    >
+                      <Settings className="w-4 h-4 text-[var(--text-secondary)]" />
+                      <span className="text-sm text-[var(--text-primary)]">Настройки</span>
+                    </button>
+                    <div className="h-px bg-[var(--border-primary)]" />
+                    <button
+                      onClick={() => {
+                        setShowAccountMenu(false);
+                        localStorage.removeItem('myAccount');
+                        localStorage.removeItem('username');
+                        localStorage.removeItem('userRole');
+                        window.location.href = '/login';
+                      }}
+                      className="w-full px-4 py-3 flex items-center gap-3 hover:bg-red-500/10 transition-colors text-left"
+                    >
+                      <LogOut className="w-4 h-4 text-red-400" />
+                      <span className="text-sm text-red-400">Выйти</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
       </div>
+
+      {/* Profile Modal */}
+      {showProfileModal && currentUser && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setShowProfileModal(false)}
+        >
+          <div 
+            className="bg-[var(--bg-secondary)] rounded-2xl w-full max-w-md shadow-2xl border border-[var(--border-primary)]"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Профиль</h2>
+              <button
+                onClick={() => setShowProfileModal(false)}
+                className="p-2 rounded-full hover:bg-[var(--bg-tertiary)] transition-colors"
+              >
+                <X className="w-5 h-5 text-[var(--text-secondary)]" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-6">
+              {/* Avatar Upload */}
+              <div className="flex flex-col items-center gap-4">
+                <AvatarUpload
+                  currentAvatar={currentUser.avatar}
+                  userId={currentUser.id}
+                  userName={currentUser.name}
+                  onAvatarChange={(newAvatarUrl) => {
+                    setCurrentUser((prev: any) => ({
+                      ...prev,
+                      avatar: newAvatarUrl
+                    }));
+                  }}
+                />
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Нажмите на камеру, чтобы загрузить фото
+                </p>
+              </div>
+
+              {/* User Info */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs text-[var(--text-secondary)] mb-1">Имя</label>
+                  <div className="text-[var(--text-primary)] font-medium">{currentUser.name}</div>
+                </div>
+                <div>
+                  <label className="block text-xs text-[var(--text-secondary)] mb-1">Email</label>
+                  <div className="text-[var(--text-primary)]">{currentUser.email}</div>
+                </div>
+                {currentUser.role && (
+                  <div>
+                    <label className="block text-xs text-[var(--text-secondary)] mb-1">Роль</label>
+                    <div className="text-[var(--text-primary)] capitalize">{currentUser.role}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-[var(--border-primary)]">
+              <button
+                onClick={() => setShowProfileModal(false)}
+                className="w-full py-2.5 rounded-xl bg-[var(--accent-primary)] text-white font-medium hover:opacity-90 transition-opacity"
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

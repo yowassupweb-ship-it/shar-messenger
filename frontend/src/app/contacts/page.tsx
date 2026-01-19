@@ -12,6 +12,7 @@ interface Contact {
   email?: string;
   position?: string;
   department?: string;
+  workSchedule?: string;
   role: 'admin' | 'user';
   todoRole?: 'executor' | 'customer' | 'universal';
   telegramId?: string;
@@ -99,7 +100,11 @@ export default function ContactsPage() {
 
   const createTaskInList = (listId: string) => {
     if (!selectedContact) return;
-    router.push(`/todos?createTask=true&listId=${listId}&assignTo=${selectedContact.id}&assignToName=${encodeURIComponent(selectedContact.name || selectedContact.username || '')}`);
+    
+    const taskTitle = prompt('Введите название задачи:');
+    if (!taskTitle || !taskTitle.trim()) return;
+    
+    router.push(`/todos?createTask=true&listId=${listId}&assignTo=${selectedContact.id}&assignToName=${encodeURIComponent(selectedContact.name || selectedContact.username || '')}&taskTitle=${encodeURIComponent(taskTitle.trim())}`);
   };
 
   const filteredContacts = contacts.filter(contact => {
@@ -114,31 +119,22 @@ export default function ContactsPage() {
     );
   });
 
-  const getRoleBadge = (role: string) => {
-    if (role === 'admin') {
-      return <span className="px-2 py-1 bg-purple-500/20 text-purple-400 rounded-lg text-xs font-medium">Админ</span>;
+  // Группировка контактов по отделам
+  const contactsByDepartment = filteredContacts.reduce((acc, contact) => {
+    const dept = contact.department || 'Без отдела';
+    if (!acc[dept]) {
+      acc[dept] = [];
     }
-    return <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-lg text-xs font-medium">Пользователь</span>;
-  };
+    acc[dept].push(contact);
+    return acc;
+  }, {} as Record<string, Contact[]>);
 
-  const getTodoRoleBadge = (todoRole?: string) => {
-    if (!todoRole) return null;
-    const colors = {
-      executor: 'bg-green-500/20 text-green-400',
-      customer: 'bg-blue-500/20 text-blue-400',
-      universal: 'bg-purple-500/20 text-purple-400'
-    };
-    const labels = {
-      executor: 'Исполнитель',
-      customer: 'Заказчик',
-      universal: 'Универсальный'
-    };
-    return (
-      <span className={`px-2 py-1 ${colors[todoRole as keyof typeof colors]} rounded-lg text-xs font-medium`}>
-        {labels[todoRole as keyof typeof labels]}
-      </span>
-    );
-  };
+  // Сортировка отделов (сначала с названием, потом "Без отдела")
+  const sortedDepartments = Object.keys(contactsByDepartment).sort((a, b) => {
+    if (a === 'Без отдела') return 1;
+    if (b === 'Без отдела') return -1;
+    return a.localeCompare(b, 'ru');
+  });
 
   if (loading) {
     return (
@@ -149,12 +145,12 @@ export default function ContactsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col">
+    <div className="h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col">
       {/* Header */}
       <header className="h-12 bg-[var(--bg-secondary)] border-b border-[var(--border-secondary)] flex items-center px-4 flex-shrink-0">
         <Link
           href="/"
-          className="flex items-center justify-center w-8 h-8 rounded-lg text-[var(--text-muted)] hover:text-white/70 hover:bg-[var(--bg-glass)] transition-all mr-3"
+          className="no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-all mr-3 border border-[var(--border-glass)] backdrop-blur-sm"
           title="На главную"
         >
           <ArrowLeft className="w-4 h-4" strokeWidth={2} />
@@ -163,6 +159,7 @@ export default function ContactsPage() {
         <div className="flex items-center gap-2 mr-4">
           <User className="w-4 h-4 text-[var(--text-secondary)]" />
           <span className="font-medium text-sm">Контакты</span>
+          <span className="text-xs text-[var(--text-muted)]">({filteredContacts.length})</span>
         </div>
 
         {/* Search */}
@@ -175,123 +172,129 @@ export default function ContactsPage() {
             className="w-full pl-3 pr-3 py-1.5 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] text-xs placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
           />
         </div>
+        
+        {/* Статистика по отделам */}
+        <div className="hidden lg:flex items-center gap-2 ml-4">
+          <span className="text-xs text-[var(--text-muted)]">{sortedDepartments.length} отделов</span>
+        </div>
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 p-3 overflow-auto">
+      <div className="flex-1 p-3 overflow-y-auto pb-20">
         <div className="max-w-6xl mx-auto">
 
-        {/* Contacts List - компактный построчный вид */}
-        <div className="space-y-2">
-          {filteredContacts.map(contact => (
-            <div
-              key={contact.id}
-              className="bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl p-3 hover:bg-[var(--bg-glass-hover)] transition-all flex items-center gap-3"
-            >
-              {/* Avatar */}
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-sm font-bold flex-shrink-0">
-                {(contact.name || contact.username || 'U')[0].toUpperCase()}
+        {/* Contacts grouped by department */}
+        <div className="space-y-6">
+          {sortedDepartments.map(department => (
+            <div key={department} className="space-y-2">
+              {/* Department Header */}
+              <div className="flex items-center gap-3 px-2 py-2 sticky top-0 bg-[var(--bg-primary)] z-10">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-purple-500/30 flex items-center justify-center">
+                    <Shield className="w-4 h-4 text-purple-400" />
+                  </div>
+                  <div>
+                    <h2 className="font-semibold text-sm text-[var(--text-primary)]">{department}</h2>
+                    <p className="text-[10px] text-[var(--text-muted)]">{contactsByDepartment[department].length} сотрудник{contactsByDepartment[department].length === 1 ? '' : contactsByDepartment[department].length < 5 ? 'а' : 'ов'}</p>
+                  </div>
+                </div>
+                <div className="flex-1 h-px bg-gradient-to-r from-[var(--border-color)] to-transparent"></div>
               </div>
 
-              {/* Main Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-sm truncate">
-                    {contact.name || contact.username || 'Без имени'}
-                  </h3>
-                </div>
-                
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--text-secondary)]">
-                  {contact.position && (
-                    <span className="flex items-center gap-1">
-                      <Briefcase className="w-3 h-3" />
-                      {contact.position}
-                    </span>
-                  )}
-                  {contact.department && (
-                    <span className="flex items-center gap-1">
-                      <Shield className="w-3 h-3" />
-                      {contact.department}
-                    </span>
-                  )}
-                  {contact.email && (
-                    <span className="flex items-center gap-1">
-                      <Mail className="w-3 h-3" />
-                      {contact.email}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-2 flex-shrink-0">
-                {contact.telegramId && (
-                  <button
-                    onClick={() => window.open(`https://t.me/${contact.telegramId}`, '_blank')}
-                    className="flex items-center justify-center gap-1 px-3 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-lg text-xs font-medium transition-all"
-                    title="Написать в Telegram"
+              {/* Department Contacts */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {contactsByDepartment[department].map(contact => (
+                  <div
+                    key={contact.id}
+                    className="bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl p-3 hover:bg-[var(--bg-glass-hover)] transition-all group"
                   >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Telegram</span>
-                  </button>
-                )}
-                <button
-                  onClick={async () => {
-                    // Создаем чат и переходим к нему
-                    try {
-                      // Получаем текущего пользователя из API
-                      const myAccountStr = localStorage.getItem('myAccount');
-                      if (!myAccountStr) {
-                        return;
-                      }
-                      
-                      const myAccount = JSON.parse(myAccountStr);
-                      
-                      // Проверяем, что у нас есть ID пользователя
-                      if (!myAccount.id) {
-                        return;
-                      }
-                      
-                      // Если пишем себе - открываем Избранное
-                      if (contact.id === myAccount.id) {
-                        router.push(`/account?tab=messages&chat=favorites_${myAccount.id}`);
-                        return;
-                      }
-                      
-                      const res = await fetch('/api/chats', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          participantIds: [myAccount.id, contact.id],
-                          isGroup: false
-                        })
-                      });
-                      
-                      if (res.ok) {
-                        const chat = await res.json();
-                        router.push(`/account?tab=messages&chat=${chat.id}`);
-                      }
-                    } catch (error) {
-                      // Игнорируем ошибки создания чата
-                    }
-                  }}
-                  className="flex items-center justify-center gap-1 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-xs font-medium transition-all"
-                  title="Написать сообщение"
-                >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Сообщение</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setSelectedContact(contact);
-                    setShowListModal(true);
-                  }}
-                  className="flex items-center justify-center gap-1 px-3 py-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded-lg text-xs font-medium transition-all"
-                  title="Поставить задачу"
-                >
-                  <CheckSquare className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Задача</span>
-                </button>
+                    <div className="flex items-center gap-3">
+                      {/* Avatar */}
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                        {(contact.name || contact.username || 'U')[0].toUpperCase()}
+                      </div>
+
+                      {/* Main Info */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-sm truncate">
+                          {contact.name || contact.username || 'Без имени'}
+                        </h3>
+                        <p className="text-xs text-[var(--text-muted)] truncate">
+                          {[contact.position, contact.department, contact.workSchedule].filter(Boolean).join(' · ') || 'Нет данных'}
+                        </p>
+                      </div>
+
+                      {/* Quick Actions - всегда видны на мобильных, при наведении на десктопе */}
+                      <div className="flex gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                        {contact.email && (
+                          <a 
+                            href={`mailto:${contact.email}`}
+                            className="w-8 h-8 rounded-full bg-blue-500/15 hover:bg-blue-500/25 flex items-center justify-center transition-colors border border-blue-500/20"
+                            title={contact.email}
+                          >
+                            <Mail className="w-3.5 h-3.5 text-blue-400" />
+                          </a>
+                        )}
+                        {contact.telegramId && (
+                          <a 
+                            href={`https://t.me/${contact.telegramId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-8 h-8 rounded-full bg-cyan-500/15 hover:bg-cyan-500/25 flex items-center justify-center transition-colors border border-cyan-500/20"
+                            title={`@${contact.telegramId}`}
+                          >
+                            <svg className="w-3.5 h-3.5 text-cyan-400" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                            </svg>
+                          </a>
+                        )}
+                        <button
+                          onClick={async () => {
+                            try {
+                              const myAccountStr = localStorage.getItem('myAccount');
+                              if (!myAccountStr) return;
+                              const myAccount = JSON.parse(myAccountStr);
+                              if (!myAccount.id) return;
+                              
+                              if (contact.id === myAccount.id) {
+                                router.push(`/account?tab=messages&chat=favorites_${myAccount.id}`);
+                                return;
+                              }
+                              
+                              const res = await fetch('/api/chats', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  participantIds: [myAccount.id, contact.id],
+                                  isGroup: false
+                                })
+                              });
+                              
+                              if (res.ok) {
+                                const chat = await res.json();
+                                router.push(`/account?tab=messages&chat=${chat.id}`);
+                              }
+                            } catch (error) {}
+                          }}
+                          className="w-8 h-8 rounded-full bg-purple-500/15 hover:bg-purple-500/25 flex items-center justify-center transition-colors border border-purple-500/20"
+                          title="Написать сообщение"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5 text-purple-400" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedContact(contact);
+                            setShowListModal(true);
+                          }}
+                          className="w-8 h-8 rounded-full bg-green-500/15 hover:bg-green-500/25 flex items-center justify-center transition-colors border border-green-500/20"
+                          title="Поставить задачу"
+                        >
+                          <CheckSquare className="w-3.5 h-3.5 text-green-400" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
@@ -334,7 +337,19 @@ export default function ContactsPage() {
               {!showNewListForm ? (
                 <>
                   <div className="space-y-2">
-                    {lists.map((list) => (
+                    {(() => {
+                      const myAccountStr = localStorage.getItem('myAccount');
+                      if (!myAccountStr) return [];
+                      const myAccount = JSON.parse(myAccountStr);
+                      return lists
+                        .filter(list => {
+                          // Показываем только списки к которым есть доступ
+                          if (!myAccount) return false;
+                          const isCreator = list.creatorId === myAccount.id;
+                          const hasAccess = list.allowedUsers?.includes(myAccount.id);
+                          return isCreator || hasAccess;
+                        });
+                    })().map((list) => (
                       <button
                         key={list.id}
                         onClick={() => {

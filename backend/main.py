@@ -3520,12 +3520,106 @@ def send_notification_message(user_id: str, notification_data: dict):
         "createdAt": datetime.now().isoformat(),
         "updatedAt": None,
         "isEdited": False,
-        "isSystemMessage": True
+        "isSystemMessage": True,
+        # Дополнительные данные для перехода
+        "linkedChatId": notification_data.get('linkedChatId'),
+        "linkedMessageId": notification_data.get('linkedMessageId'),
+        "linkedTaskId": notification_data.get('linkedTaskId'),
+        "linkedPostId": notification_data.get('linkedPostId'),
+        "notificationType": notification_data.get('notificationType', 'info')  # info, task, comment, status, assignment
     }
     
     db.add_message(new_message)
     
     return new_message
+
+
+# Типы уведомлений
+class NotificationType:
+    NEW_TASK = "new_task"
+    TASK_UPDATED = "task_updated"
+    TASK_STATUS_CHANGED = "task_status_changed"
+    NEW_EXECUTOR = "new_executor"
+    REMOVED_EXECUTOR = "removed_executor"
+    NEW_COMMENT = "new_comment"
+    MENTION = "mention"
+    POST_UPDATED = "post_updated"
+    POST_STATUS_CHANGED = "post_status_changed"
+    POST_NEW_COMMENT = "post_new_comment"
+
+
+def create_notification_content(notification_type: str, data: dict) -> str:
+    """Создать текст уведомления с Emoji"""
+    
+    from_user = data.get('fromUserName', 'Кто-то')
+    task_title = data.get('taskTitle', data.get('postTitle', 'Без названия'))
+    old_status = data.get('oldStatus', '')
+    new_status = data.get('newStatus', '')
+    executor_name = data.get('executorName', '')
+    
+    templates = {
+        NotificationType.NEW_TASK: f"📋 <b>Новая задача</b>\n\n{from_user} назначил(а) вам задачу:\n«{task_title}»",
+        NotificationType.TASK_UPDATED: f"✏️ <b>Задача изменена</b>\n\n{from_user} изменил(а) задачу:\n«{task_title}»",
+        NotificationType.TASK_STATUS_CHANGED: f"🔄 <b>Статус изменён</b>\n\n{from_user} изменил(а) статус задачи «{task_title}»:\n{old_status} → {new_status}",
+        NotificationType.NEW_EXECUTOR: f"👥 <b>Новый исполнитель</b>\n\n{executor_name} добавлен в задачу:\n«{task_title}»",
+        NotificationType.REMOVED_EXECUTOR: f"👤 <b>Исполнитель удалён</b>\n\n{executor_name} удалён из задачи:\n«{task_title}»",
+        NotificationType.NEW_COMMENT: f"💬 <b>Новый комментарий</b>\n\n{from_user} прокомментировал(а) задачу:\n«{task_title}»",
+        NotificationType.MENTION: f"📢 <b>Вас упомянули</b>\n\n{from_user} упомянул(а) вас в комментарии к задаче:\n«{task_title}»",
+        NotificationType.POST_UPDATED: f"✏️ <b>Публикация изменена</b>\n\n{from_user} изменил(а) публикацию:\n«{task_title}»",
+        NotificationType.POST_STATUS_CHANGED: f"🔄 <b>Статус публикации</b>\n\n{from_user} изменил(а) статус публикации «{task_title}»:\n{old_status} → {new_status}",
+        NotificationType.POST_NEW_COMMENT: f"💬 <b>Комментарий к публикации</b>\n\n{from_user} прокомментировал(а) публикацию:\n«{task_title}»",
+    }
+    
+    return templates.get(notification_type, f"🔔 {from_user}: {task_title}")
+
+
+@app.post("/api/notifications/send-to-users")
+def send_notification_to_multiple_users(notification_data: dict = Body(...)):
+    """Отправить уведомление нескольким пользователям в их чаты уведомлений"""
+    import uuid
+    
+    user_ids = notification_data.get('userIds', [])
+    notification_type = notification_data.get('type', 'info')
+    data = notification_data.get('data', {})
+    
+    print(f"[Notifications] Sending to users: {user_ids}, type: {notification_type}")
+    
+    # Генерируем контент уведомления
+    content = create_notification_content(notification_type, data)
+    print(f"[Notifications] Content: {content}")
+    
+    results = []
+    for user_id in user_ids:
+        try:
+            notifications_chat = get_or_create_notifications_chat(user_id)
+            print(f"[Notifications] Chat for {user_id}: {notifications_chat.get('id', 'NO ID')}")
+            
+            new_message = {
+                "id": str(uuid.uuid4()),
+                "chatId": notifications_chat['id'],
+                "authorId": "system",
+                "authorName": "Система",
+                "content": content,
+                "mentions": [],
+                "replyToId": None,
+                "createdAt": datetime.now().isoformat(),
+                "updatedAt": None,
+                "isEdited": False,
+                "isSystemMessage": True,
+                "linkedTaskId": data.get('taskId'),
+                "linkedPostId": data.get('postId'),
+                "notificationType": notification_type
+            }
+            
+            db.add_message(new_message)
+            print(f"[Notifications] Message sent: {new_message['id']}")
+            results.append({"userId": user_id, "success": True, "messageId": new_message['id']})
+        except Exception as e:
+            print(f"[Notifications] Error for {user_id}: {str(e)}")
+            results.append({"userId": user_id, "success": False, "error": str(e)})
+    
+    print(f"[Notifications] Results: {results}")
+    return {"results": results, "count": len([r for r in results if r['success']])}
 
 
 if __name__ == "__main__":

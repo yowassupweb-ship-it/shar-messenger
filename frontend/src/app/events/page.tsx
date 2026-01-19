@@ -320,8 +320,10 @@ export default function EventsPage() {
 
   // Загрузка данных
   const loadData = useCallback(async () => {
+    if (!myAccountId) return;
+    
     try {
-      const res = await fetch('/api/events');
+      const res = await fetch(`/api/events?userId=${myAccountId}`);
       const data = await res.json();
       setEvents(data.events || []);
       if (data.types?.length) {
@@ -332,7 +334,7 @@ export default function EventsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [myAccountId]);
 
   useEffect(() => {
     loadUsers();

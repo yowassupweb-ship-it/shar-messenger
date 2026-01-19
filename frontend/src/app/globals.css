@@ -1,5 +1,38 @@
 @import "tailwindcss";
 
+/* Override dark mode to use class instead of prefers-color-scheme */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Tailwind v4 theme colors */
+@theme {
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  --color-gray-950: #030712;
+  
+  --color-white: #ffffff;
+  --color-black: #000000;
+  
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-green-500: #22c55e;
+  --color-green-600: #16a34a;
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+  --color-yellow-500: #eab308;
+  --color-orange-500: #f97316;
+  --color-purple-500: #a855f7;
+  --color-indigo-500: #6366f1;
+  --color-indigo-600: #4f46e5;
+}
+
 /* Apple Emoji Font Priority */
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI", "Segoe UI Symbol", "Noto Color Emoji", sans-serif;
@@ -21,10 +54,44 @@ body {
 
 /* CSS Variables for Themes */
 :root {
-  /* Dark Theme (default) */
-  --bg-primary: #0a0a0a;
-  --bg-secondary: #0d0d0d;
-  --bg-tertiary: #1a1a1a;
+  /* Light theme is now the default */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f2f2f7;
+  --bg-tertiary: #e5e5ea;
+  --bg-glass: rgba(0, 0, 0, 0.04);
+  --bg-glass-hover: rgba(0, 0, 0, 0.08);
+  --bg-glass-active: rgba(0, 0, 0, 0.12);
+  
+  --border-primary: rgba(0, 0, 0, 0.15);
+  --border-secondary: rgba(0, 0, 0, 0.08);
+  --border-color: rgba(0, 0, 0, 0.1);
+  --border-light: rgba(0, 0, 0, 0.2);
+  --border-glass: rgba(0, 0, 0, 0.08);
+  
+  --text-primary: #111111;
+  --text-secondary: #1f2937;
+  --text-tertiary: #374151;
+  --text-muted: #6b7280;
+  
+  /* iMessage blue */
+  --accent-primary: #007aff;
+  --accent-secondary: #0a84ff;
+  --accent-gradient: linear-gradient(135deg, #007aff, #0a84ff);
+  
+  /* iMessage bubble colors */
+  --bubble-own: #007aff;
+  --bubble-other: #e5e5ea;
+  
+  --shadow-glass: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
+  
+  --blur-glass: 20px;
+}
+
+[data-theme="dark"], .dark {
+  --bg-primary: #000000;
+  --bg-secondary: #1c1c1e;
+  --bg-tertiary: #2c2c2e;
   --bg-glass: rgba(255, 255, 255, 0.05);
   --bg-glass-hover: rgba(255, 255, 255, 0.08);
   --bg-glass-active: rgba(255, 255, 255, 0.12);
@@ -38,43 +105,19 @@ body {
   --text-primary: #ffffff;
   --text-secondary: rgba(255, 255, 255, 0.7);
   --text-tertiary: rgba(255, 255, 255, 0.5);
-  --text-muted: rgba(255, 255, 255, 0.3);
+  --text-muted: rgba(255, 255, 255, 0.4);
   
-  --accent-primary: #06b6d4;
-  --accent-secondary: #0ea5e9;
-  --accent-gradient: linear-gradient(135deg, #06b6d4, #0ea5e9);
+  /* iMessage green for own messages */
+  --accent-primary: #34c759;
+  --accent-secondary: #30d158;
+  --accent-gradient: linear-gradient(135deg, #34c759, #30d158);
+  
+  /* iMessage bubble colors */
+  --bubble-own: #34c759;
+  --bubble-other: #2c2c2e;
   
   --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.4);
   --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.3);
-  
-  --blur-glass: 20px;
-}
-
-[data-theme="light"] {
-  --bg-primary: #f5f5f7;
-  --bg-secondary: #ffffff;
-  --bg-tertiary: #e8e8ed;
-  --bg-glass: rgba(255, 255, 255, 0.7);
-  --bg-glass-hover: rgba(255, 255, 255, 0.8);
-  --bg-glass-active: rgba(255, 255, 255, 0.9);
-  
-  --border-primary: rgba(0, 0, 0, 0.1);
-  --border-secondary: rgba(0, 0, 0, 0.05);
-  --border-color: rgba(0, 0, 0, 0.1);
-  --border-light: rgba(0, 0, 0, 0.2);
-  --border-glass: rgba(0, 0, 0, 0.1);
-  
-  --text-primary: #1d1d1f;
-  --text-secondary: rgba(0, 0, 0, 0.7);
-  --text-tertiary: rgba(0, 0, 0, 0.5);
-  --text-muted: rgba(0, 0, 0, 0.3);
-  
-  --accent-primary: #0891b2;
-  --accent-secondary: #0284c7;
-  --accent-gradient: linear-gradient(135deg, #0891b2, #0284c7);
-  
-  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.1);
-  --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.08);
   
   --blur-glass: 20px;
 }
@@ -86,12 +129,30 @@ body {
     padding: 0;
   }
 
+  html {
+    height: 100%;
+  }
+
   body {
     background: var(--bg-primary);
     color: var(--text-primary);
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
     font-size: 13px;
     transition: background-color 0.3s ease, color 0.3s ease;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  /* Mobile only - fix viewport for keyboard */
+  @media (max-width: 768px) {
+    html {
+      overflow: hidden;
+    }
+    
+    body {
+      position: fixed;
+      width: 100%;
+    }
   }
 
   /* Remove default blue outline */
@@ -255,18 +316,18 @@ input[type="number"] {
   padding: 8px 16px;
   cursor: pointer;
   border-bottom: 2px solid transparent;
-  color: #888;
+  color: var(--text-muted);
   transition: all 0.15s ease;
   text-decoration: none;
 }
 
 .tab:hover {
-  color: #e0e0e0;
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  background: var(--bg-glass);
 }
 
 .tab-active {
-  color: #e0e0e0;
+  color: var(--text-primary);
   border-bottom-color: #4a9eff;
   background: rgba(74, 158, 255, 0.1);
 }
@@ -310,16 +371,16 @@ input[type="number"] {
 }
 
 .btn-secondary {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
-  color: #e0e0e0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.1) inset, 0 -1px 0 rgba(0, 0, 0, 0.2) inset;
+  background: var(--bg-glass);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  box-shadow: var(--shadow-card);
 }
 
 .btn-secondary:hover {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.10) 100%);
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(255, 255, 255, 0.15) inset, 0 -1px 0 rgba(0, 0, 0, 0.2) inset;
+  background: var(--bg-glass-hover);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-glass);
 }
 
 .btn-secondary:active {
@@ -352,11 +413,11 @@ input[type="number"] {
 
 /* Input styles */
 .input {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-glass);
+  border: 1px solid var(--border-primary);
   border-radius: 10px;
   padding: 8px 14px;
-  color: #e0e0e0;
+  color: var(--text-primary);
   font-size: 12px;
   transition: all 0.2s ease;
 }
@@ -364,18 +425,18 @@ input[type="number"] {
 .input:focus {
   outline: none;
   border-color: #4a9eff;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-glass-hover);
   box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.15);
 }
 
 .input::placeholder {
-  color: #666;
+  color: var(--text-muted);
 }
 
 /* Cards */
 .card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-glass);
+  border: 1px solid var(--border-secondary);
   border-radius: 16px;
   overflow: hidden;
   backdrop-filter: blur(10px);
@@ -383,7 +444,7 @@ input[type="number"] {
 
 .card-header {
   padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--border-secondary);
   font-weight: 500;
 }
 
@@ -394,13 +455,13 @@ input[type="number"] {
 /* List items */
 .list-item {
   padding: 8px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--border-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .list-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-glass);
 }
 
 .list-item-active {
@@ -446,7 +507,7 @@ input[type="number"] {
 .spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid #333;
+  border: 2px solid var(--border-primary);
   border-top-color: #4a9eff;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -701,6 +762,136 @@ input[type="date"]::-webkit-datetime-edit {
   background: rgba(0, 0, 0, 0.25);
 }
 
+/* Light theme - reduced shadows for better readability */
+[data-theme="light"] .shadow-lg,
+[data-theme="light"] .shadow-xl,
+[data-theme="light"] .shadow-2xl {
+  --tw-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  --tw-shadow-colored: 0 1px 3px var(--tw-shadow-color), 0 1px 2px var(--tw-shadow-color) !important;
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow) !important;
+}
+
+/* Light theme - fix text colors that use white/opacity */
+[data-theme="light"] .text-white\/50,
+[data-theme="light"] .text-white\/40,
+[data-theme="light"] .text-white\/30,
+[data-theme="light"] .text-white\/60,
+[data-theme="light"] .text-white\/70 {
+  color: var(--text-secondary) !important;
+}
+
+/* Light theme - iMessage style */
+/* Own messages - solid blue */
+[data-theme="light"] .bg-\[var\(--accent-primary\)\] {
+  background-color: #007aff !important;
+}
+
+/* Other blue elements - no transparency */
+[data-theme="light"] .bg-blue-500\/20:not(.from-blue-500),
+[data-theme="light"] .bg-blue-600\/20:not(.from-blue-500) {
+  background-color: #e3f2fd !important;
+  border: 1px solid #90caf9 !important;
+}
+
+[data-theme="light"] .bg-blue-500\/10 {
+  background-color: #e8f4fc !important;
+}
+
+/* Cyan elements - no transparency */
+[data-theme="light"] .bg-cyan-500\/20,
+[data-theme="light"] .bg-cyan-500\/10 {
+  background-color: #e0f7fa !important;
+}
+
+[data-theme="light"] .border-cyan-500\/20 {
+  border-color: #4dd0e1 !important;
+}
+
+/* Green elements - no transparency */
+[data-theme="light"] .bg-green-500\/20,
+[data-theme="light"] .bg-green-500\/10 {
+  background-color: #e8f5e9 !important;
+}
+
+[data-theme="light"] .border-green-500\/20 {
+  border-color: #81c784 !important;
+}
+
+/* Purple elements - no transparency */
+[data-theme="light"] .bg-purple-500\/20,
+[data-theme="light"] .bg-purple-500\/10 {
+  background-color: #f3e5f5 !important;
+}
+
+[data-theme="light"] .border-purple-500\/20 {
+  border-color: #ba68c8 !important;
+}
+
+/* Amber/Orange elements - no transparency */
+[data-theme="light"] .bg-amber-500\/20,
+[data-theme="light"] .bg-amber-500\/10,
+[data-theme="light"] .bg-orange-500\/20,
+[data-theme="light"] .bg-orange-500\/10 {
+  background-color: #fff8e1 !important;
+}
+
+[data-theme="light"] .border-orange-500\/20 {
+  border-color: #ffb74d !important;
+}
+
+/* Pink elements - no transparency */
+[data-theme="light"] .bg-pink-500\/20,
+[data-theme="light"] .bg-pink-500\/10 {
+  background-color: #fce4ec !important;
+}
+
+[data-theme="light"] .border-pink-500\/20 {
+  border-color: #f06292 !important;
+}
+
+/* Light theme - incoming messages (bg-tertiary) - iMessage gray */
+[data-theme="light"] .bg-\[var\(--bg-tertiary\)\] {
+  background-color: #e5e5ea !important;
+}
+
+/* Light theme - task cards and dropdowns */
+[data-theme="light"] .bg-\[\#1a1a1a\],
+[data-theme="light"] .bg-\[\#151515\],
+[data-theme="light"] .bg-\[\#1f1f1f\] {
+  background-color: var(--bg-secondary) !important;
+}
+
+[data-theme="light"] .from-\[\#1a1a1a\],
+[data-theme="light"] .to-\[\#151515\] {
+  --tw-gradient-from: var(--bg-secondary) !important;
+  --tw-gradient-to: var(--bg-tertiary) !important;
+}
+
+/* Light theme - borders with white opacity */
+[data-theme="light"] .border-white\/10,
+[data-theme="light"] .border-white\/20,
+[data-theme="light"] .border-white\/5 {
+  border-color: var(--border-color) !important;
+}
+
+/* Light theme - remove shadows from message input and buttons, add "chin" effect */
+[data-theme="light"] textarea,
+[data-theme="light"] .shadow-\[0_4px_20px_-4px_rgba\(0\,0\,0\,0\.4\)\,-8px_0_20px_-10px_rgba\(0\,0\,0\,0\.3\)\,8px_0_20px_-10px_rgba\(0\,0\,0\,0\.3\)\,0_8px_25px_-8px_rgba\(0\,0\,0\,0\.4\)\] {
+  box-shadow: none !important;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.15) !important;
+}
+
+[data-theme="light"] .shadow-\[0_4px_20px_-4px_rgba\(0\,0\,0\,0\.4\)\,0_0_15px_-5px_rgba\(0\,0\,0\,0\.3\)\] {
+  box-shadow: none !important;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Light theme - input area container */
+[data-theme="light"] .backdrop-blur-xl.bg-\[var\(--bg-secondary\)\]\/60 {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
 /* Mobile size increase - 20% larger on mobile */
 @media (max-width: 768px) {
   /* Base font size increase */
@@ -745,12 +936,29 @@ input[type="date"]::-webkit-datetime-edit {
   }
   
   /* Small text increase */
-  .text-xs {
+  .text-xs:not(.emoji-content) {
     font-size: 0.85rem !important;
   }
   
-  .text-sm {
+  .text-sm:not(.emoji-content) {
     font-size: 0.95rem !important;
+  }
+  
+  /* Emoji sizes - preserve large emoji display */
+  .text-3xl.emoji-content {
+    font-size: 1.875rem !important;
+  }
+  
+  .text-4xl.emoji-content, .md\:text-4xl.emoji-content {
+    font-size: 2.25rem !important;
+  }
+  
+  .text-5xl.emoji-content {
+    font-size: 3rem !important;
+  }
+  
+  .text-7xl.emoji-content, .md\:text-7xl.emoji-content {
+    font-size: 4.5rem !important;
   }
   
   .text-\[10px\], .text-\[9px\], .text-\[8px\] {
@@ -884,8 +1092,23 @@ input[type="radio"] {
 }
 
 /* Disable mobile scale for specific elements */
-.no-mobile-scale {
+.no-mobile-scale,
+.bottom-nav-fixed {
   transform: none !important;
+  font-size: 13px !important;
+}
+
+/* Bottom navigation - fixed size regardless of page zoom */
+.bottom-nav-fixed {
+  zoom: 1 !important;
+  -webkit-text-size-adjust: none !important;
+  -moz-text-size-adjust: none !important;
+  text-size-adjust: none !important;
+}
+
+.bottom-nav-fixed * {
+  transform: none !important;
+  zoom: 1 !important;
 }
 
 /* Message animations */

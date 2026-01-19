@@ -13,22 +13,41 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('dark');
+  const [theme, setThemeState] = useState<Theme>('light');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     const savedTheme = localStorage.getItem('theme') as Theme;
-    if (savedTheme) {
-      setThemeState(savedTheme);
-    } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
-      setThemeState('light');
+    let initialTheme: Theme = 'light';
+    // Используем сохранённую тему только если она явно указана
+    if (savedTheme === 'dark') {
+      initialTheme = 'dark';
+    } else {
+      // По умолчанию всегда светлая тема, игнорируем системные настройки
+      initialTheme = 'light';
     }
+    setThemeState(initialTheme);
+    // Применяем класс сразу при загрузке
+    document.documentElement.setAttribute('data-theme', initialTheme);
+    if (initialTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    // DEBUG: выводим текущую тему в консоль
+    console.log('[ThemeProvider] Initial theme:', initialTheme, 'savedTheme:', savedTheme);
   }, []);
 
   useEffect(() => {
     if (mounted) {
       document.documentElement.setAttribute('data-theme', theme);
+      // Добавляем/удаляем класс dark для Tailwind
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
       localStorage.setItem('theme', theme);
     }
   }, [theme, mounted]);

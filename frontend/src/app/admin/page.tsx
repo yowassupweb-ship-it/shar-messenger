@@ -85,7 +85,9 @@ export default function AdminPage() {
     role: 'user' as 'admin' | 'user',
     todoRole: 'executor' as 'executor' | 'customer' | 'universal',
     position: '',
-    department: ''
+    department: '',
+    telegramId: '',
+    canSeeAllTasks: false
   });
   
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -245,14 +247,16 @@ export default function AdminPage() {
           role: newUser.role,
           todoRole: newUser.todoRole,
           position: newUser.position,
-          department: newUser.department
+          department: newUser.department,
+          telegramId: newUser.telegramId,
+          canSeeAllTasks: newUser.canSeeAllTasks
         })
       });
 
       if (response.ok) {
         showToast('Пользователь создан', 'success');
         setShowUserModal(false);
-        setNewUser({ username: '', name: '', email: '', password: '', role: 'user', todoRole: 'executor', position: '', department: '' });
+        setNewUser({ username: '', name: '', email: '', password: '', role: 'user', todoRole: 'executor', position: '', department: '', telegramId: '', canSeeAllTasks: false });
         loadUsers();
       } else {
         const data = await response.json();
@@ -367,7 +371,7 @@ export default function AdminPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0d0d0d]">
+    <div className="min-h-screen bg-[#0d0d0d] overflow-y-auto">
       {/* Toast */}
       {toast && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl border backdrop-blur-xl flex items-center gap-2 shadow-2xl ${
@@ -752,7 +756,7 @@ export default function AdminPage() {
             <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between sticky top-0 bg-[#1a1a1a] z-10">
               <h2 className="text-lg font-semibold text-white">Создать пользователя</h2>
               <button
-                onClick={() => { setShowUserModal(false); setNewUser({ username: '', name: '', email: '', password: '', role: 'user', todoRole: 'executor', position: '', department: '' }); }}
+                onClick={() => { setShowUserModal(false); setNewUser({ username: '', name: '', email: '', password: '', role: 'user', todoRole: 'executor', position: '', department: '', telegramId: '', canSeeAllTasks: false }); }}
                 className="p-2 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-all"
               >
                 <X className="w-4 h-4" />
@@ -844,6 +848,29 @@ export default function AdminPage() {
                   </select>
                   <p className="text-[10px] text-white/30 mt-1">Определяет, какие задачи может создавать и выполнять пользователь</p>
                 </div>
+                <div>
+                  <label className="block text-xs text-white/50 mb-2">Telegram ID</label>
+                  <input
+                    type="text"
+                    value={newUser.telegramId}
+                    onChange={(e) => setNewUser({...newUser, telegramId: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                    placeholder="123456789"
+                  />
+                  <p className="text-[10px] text-white/30 mt-1">Для авторизации через Telegram и уведомлений</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newUser.canSeeAllTasks}
+                      onChange={(e) => setNewUser({...newUser, canSeeAllTasks: e.target.checked})}
+                      className="w-4 h-4 rounded border-white/20 bg-white/5 text-cyan-500 focus:ring-cyan-500/50"
+                    />
+                    <span className="text-sm text-white/70">Видит все задачи</span>
+                  </label>
+                  <p className="text-[10px] text-white/30">Суперадмин - видит все задачи и события в системе</p>
+                </div>
               </div>
               <div className="flex gap-3 pt-6">
                 <button
@@ -853,7 +880,7 @@ export default function AdminPage() {
                   Создать
                 </button>
                 <button
-                  onClick={() => { setShowUserModal(false); setNewUser({ username: '', name: '', email: '', password: '', role: 'user', todoRole: 'executor', position: '', department: '' }); }}
+                  onClick={() => { setShowUserModal(false); setNewUser({ username: '', name: '', email: '', password: '', role: 'user', todoRole: 'executor', position: '', department: '', telegramId: '', canSeeAllTasks: false }); }}
                   className="px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white/70 hover:bg-white/10 transition-all"
                 >
                   Отмена
