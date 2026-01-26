@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageCircle, Send, ArrowLeft, Users, Search, Plus, MoreVertical, Check, Edit3, Trash2, Reply, Pin, PinOff, X, Paperclip, FileText, Link as LinkIcon, Calendar, Image, File, Info, Grid, List, Play, Music, Download, CheckSquare, Mail, Phone, Upload, Smile, Star, Bell } from 'lucide-react';
+import { MessageCircle, Send, ArrowLeft, Users, Search, Plus, MoreVertical, Check, Edit3, Trash2, Reply, Pin, PinOff, X, Paperclip, FileText, Link as LinkIcon, Calendar, Image, File, Info, Grid, List, Play, Music, Download, CheckSquare, Mail, Phone, Upload, Smile, Star, Bell, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
 import Avatar from '@/components/Avatar';
+import EmojiPicker from '@/components/EmojiPicker';
 
 interface User {
   id: string;
@@ -95,7 +96,7 @@ function LinkPreview({ url, isMyMessage }: { url: string; isMyMessage: boolean }
 
   if (loading) {
     return (
-      <div className={`mt-2 block p-3 rounded-lg border ${isMyMessage ? 'bg-blue-600/20 border-blue-500/30' : 'bg-[var(--bg-secondary)] border-[var(--border-color)]'} animate-pulse`}>
+      <div className={`mt-2 mb-5 block p-3 rounded-lg border ${isMyMessage ? 'bg-blue-600/20 border-blue-500/30' : 'bg-[var(--bg-secondary)] border-[var(--border-color)]'} animate-pulse`}>
         <div className="h-4 bg-white/10 rounded w-3/4 mb-2"></div>
         <div className="h-3 bg-white/10 rounded w-1/2"></div>
       </div>
@@ -108,7 +109,7 @@ function LinkPreview({ url, isMyMessage }: { url: string; isMyMessage: boolean }
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className={`mt-2 block p-3 rounded-lg border ${isMyMessage ? 'bg-blue-600/20 border-blue-500/30' : 'bg-[var(--bg-secondary)] border-[var(--border-color)]'} hover:opacity-80 transition-opacity`}
+        className={`mt-2 mb-5 block p-3 rounded-lg border ${isMyMessage ? 'bg-blue-600/20 border-blue-500/30' : 'bg-[var(--bg-secondary)] border-[var(--border-color)]'} hover:opacity-80 transition-opacity`}
       >
         <div className="flex items-start gap-2">
           <LinkIcon className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
@@ -123,7 +124,7 @@ function LinkPreview({ url, isMyMessage }: { url: string; isMyMessage: boolean }
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className={`mt-2 block rounded-lg border overflow-hidden ${isMyMessage ? 'bg-blue-600/20 border-blue-500/30' : 'bg-[var(--bg-secondary)] border-[var(--border-color)]'} hover:opacity-90 transition-opacity`}
+      className={`mt-2 mb-5 block rounded-lg border overflow-hidden ${isMyMessage ? 'bg-blue-600/20 border-blue-500/30' : 'bg-[var(--bg-secondary)] border-[var(--border-color)]'} hover:opacity-90 transition-opacity`}
     >
       {preview.image && (
         <div className="w-full h-32 bg-black/20 overflow-hidden">
@@ -198,6 +199,8 @@ export default function MessagesPage() {
   const [participantSearchQuery, setParticipantSearchQuery] = useState('');
   const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
+  const [isChatListCollapsed, setIsChatListCollapsed] = useState(false); // Сворачивание списка чатов
+  const [hoveredChatId, setHoveredChatId] = useState<string | null>(null); // Для тултипа свёрнутого списка
   const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 });
   const [showForwardModal, setShowForwardModal] = useState(false);
   const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
@@ -212,11 +215,28 @@ export default function MessagesPage() {
   const [newChatName, setNewChatName] = useState('');
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentImageUrl, setCurrentImageUrl] = useState<string>('');
+  const [typingUsers, setTypingUsers] = useState<Record<string, string[]>>({}); // chatId -> userId[]
+  const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [imageZoom, setImageZoom] = useState(1);
+  const [imageGallery, setImageGallery] = useState<string[]>([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [showTextFormatMenu, setShowTextFormatMenu] = useState(false);
+  const [formatMenuPosition, setFormatMenuPosition] = useState({ top: 0, left: 0 });
+  const [textSelection, setTextSelection] = useState({ start: 0, end: 0, text: '' });
+  const [notificationSound] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const audio = new Audio();
+      audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBiuBzvLZiTUIGWi77OSfTRAMUKfj8LZjGwY4ktjyzHksBSR3x/DdkEAKFF607OunVRQJRp/g8r5sIQYrgc3y2Yk1CBlou+zkn00QDFC';
+      return audio;
+    }
+    return null;
+  });
   
   // Настройки чата
   const [chatSettings, setChatSettings] = useState({
     bubbleStyle: 'modern' as 'modern' | 'classic' | 'minimal',
-    fontSize: 14, // размер в пикселях
+    fontSize: 14, // размер в пикселях для десктопа
+    fontSizeMobile: 13, // размер в пикселях для мобильных
     bubbleColor: '#22a94d', // цвет для темной темы (iMessage зеленый)
     bubbleColorLight: '#007aff', // цвет для светлой темы
     colorPreset: 0
@@ -244,6 +264,12 @@ export default function MessagesPage() {
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const isUserActiveRef = useRef(false); // Флаг активности пользователя
+  const lastActivityTimeRef = useRef(Date.now());
+  const mentionDebounceRef = useRef<NodeJS.Timeout | null>(null); // Debounce для обработки упоминаний
+  const messageDebounceRef = useRef<NodeJS.Timeout | null>(null); // Debounce для newMessage
+  const resizeDebounceRef = useRef<NodeJS.Timeout | null>(null); // Debounce для auto-resize
+  const selectionDebounceRef = useRef<NodeJS.Timeout | null>(null); // Debounce для handleTextSelection
 
   // Функция скролла к конкретному сообщению
   const scrollToMessage = (messageId: string) => {
@@ -257,16 +283,44 @@ export default function MessagesPage() {
       }, 2000);
     }
   };
+  
+  const scrollToFirstUnread = () => {
+    if (!selectedChat || !currentUser) return;
+    const lastReadMessageId = selectedChat.readMessagesByUser?.[currentUser.id];
+    if (!lastReadMessageId) {
+      // Если нет прочитанных - скроллим к первому сообщению
+      if (messages.length > 0) {
+        const firstMessageEl = messageRefs.current[messages[0].id];
+        firstMessageEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      return;
+    }
+    
+    const lastReadIndex = messages.findIndex(m => m.id === lastReadMessageId);
+    if (lastReadIndex !== -1 && lastReadIndex < messages.length - 1) {
+      const firstUnreadMessage = messages[lastReadIndex + 1];
+      const firstUnreadEl = messageRefs.current[firstUnreadMessage.id];
+      if (firstUnreadEl) {
+        firstUnreadEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Подсветка первого непрочитанного
+        firstUnreadEl.classList.add('bg-cyan-500/20');
+        setTimeout(() => {
+          firstUnreadEl.classList.remove('bg-cyan-500/20');
+        }, 2000);
+      }
+    }
+  };
 
   // Функция выбора чата с обновлением URL и localStorage
   const selectChat = (chat: Chat | null) => {
+    const currentMessage = messageInputRef.current?.value || '';
     // Сохраняем черновик текущего чата
-    if (selectedChat && newMessage.trim()) {
+    if (selectedChat && currentMessage.trim()) {
       setChatDrafts(prev => ({
         ...prev,
-        [selectedChat.id]: newMessage
+        [selectedChat.id]: currentMessage
       }));
-    } else if (selectedChat && !newMessage.trim()) {
+    } else if (selectedChat && !currentMessage.trim()) {
       // Удаляем черновик если пустой
       setChatDrafts(prev => {
         const newDrafts = { ...prev };
@@ -284,7 +338,9 @@ export default function MessagesPage() {
     if (chat && chatDrafts[chat.id]) {
       setNewMessage(chatDrafts[chat.id]);
     } else {
-      setNewMessage('');
+      if (messageInputRef.current) {
+        messageInputRef.current.value = '';
+      }
     }
     
     if (typeof window !== 'undefined') {
@@ -305,12 +361,21 @@ export default function MessagesPage() {
   useEffect(() => {
     const savedSettings = localStorage.getItem('chatSettings');
     if (savedSettings) {
-      setChatSettings(JSON.parse(savedSettings));
+      const settings = JSON.parse(savedSettings);
+      setChatSettings(settings);
+      // Устанавливаем CSS переменную для desktop font size при загрузке
+      if (settings.fontSize) {
+        document.documentElement.style.setProperty('--desktop-font-size', `${settings.fontSize}px`);
+      }
     }
     
     // Слушатель изменений настроек
     const handleSettingsChange = (e: CustomEvent) => {
       setChatSettings(e.detail);
+      // Обновляем CSS переменную для desktop font size
+      if (e.detail.fontSize) {
+        document.documentElement.style.setProperty('--desktop-font-size', `${e.detail.fontSize}px`);
+      }
     };
     
     window.addEventListener('chatSettingsChanged', handleSettingsChange as EventListener);
@@ -324,6 +389,49 @@ export default function MessagesPage() {
     loadUsers();
   }, []);
 
+  // Периодическое обновление статуса пользователя и загрузка статусов других пользователей
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    // Обновляем свой статус сразу
+    updateUserStatus();
+    
+    // Обновляем статус каждые 30 секунд
+    const statusInterval = setInterval(() => {
+      // Не запрашиваем данные если вкладка не активна
+      if (typeof document !== 'undefined' && document.hidden) return;
+      updateUserStatus();
+    }, 30000);
+    
+    // Загружаем статусы других пользователей каждые 10 секунд
+    const usersStatusInterval = setInterval(() => {
+      // Не запрашиваем данные если вкладка не активна
+      if (typeof document !== 'undefined' && document.hidden) return;
+      loadUserStatuses();
+    }, 10000);
+    
+    // Обновляем статус при выходе со страницы
+    const handleBeforeUnload = async () => {
+      await fetch(`/api/users/${currentUser.id}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          isOnline: false,
+          lastSeen: new Date().toISOString()
+        }),
+        keepalive: true
+      });
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      clearInterval(statusInterval);
+      clearInterval(usersStatusInterval);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [currentUser]);
+
   useEffect(() => {
     if (currentUser) {
       loadChats();
@@ -334,11 +442,18 @@ export default function MessagesPage() {
     if (selectedChat) {
       loadMessages(selectedChat.id, false);
       
-      // Polling для обновления сообщений каждые 3 секунды
+      // Polling для обновления сообщений каждые 5 секунд (только если пользователь не активен)
       const chatId = selectedChat.id;
       const interval = setInterval(() => {
-        loadMessages(chatId, true);
-      }, 3000);
+        // Не запрашиваем данные если вкладка не активна
+        if (typeof document !== 'undefined' && document.hidden) return;
+        
+        // Не обновляем если пользователь активен (печатает или взаимодействует)
+        const timeSinceLastActivity = Date.now() - lastActivityTimeRef.current;
+        if (!isUserActiveRef.current || timeSinceLastActivity > 2000) {
+          loadMessages(chatId, true);
+        }
+      }, 5000);
       
       return () => clearInterval(interval);
     }
@@ -381,6 +496,43 @@ export default function MessagesPage() {
       }
     }
   }, [chats]);
+  
+  // Отслеживание глобальной активности пользователя для предотвращения обновлений
+  useEffect(() => {
+    const handleMouseDown = () => {
+      isUserActiveRef.current = true;
+      lastActivityTimeRef.current = Date.now();
+    };
+    
+    const handleMouseUp = () => {
+      setTimeout(() => {
+        isUserActiveRef.current = false;
+      }, 500);
+    };
+    
+    const handleDragStart = () => {
+      isUserActiveRef.current = true;
+      lastActivityTimeRef.current = Date.now();
+    };
+    
+    const handleDragEnd = () => {
+      setTimeout(() => {
+        isUserActiveRef.current = false;
+      }, 1000);
+    };
+    
+    document.addEventListener('mousedown', handleMouseDown);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('dragstart', handleDragStart);
+    document.addEventListener('dragend', handleDragEnd);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('dragstart', handleDragStart);
+      document.removeEventListener('dragend', handleDragEnd);
+    };
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -499,6 +651,39 @@ export default function MessagesPage() {
       console.error('Error loading users:', error);
     }
   };
+  
+  const updateUserStatus = async () => {
+    if (!currentUser) return;
+    try {
+      await fetch(`/api/users/${currentUser.id}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          isOnline: true,
+          lastSeen: new Date().toISOString()
+        })
+      });
+    } catch (error) {
+      console.error('Error updating user status:', error);
+    }
+  };
+  
+  const loadUserStatuses = async () => {
+    try {
+      const res = await fetch('/api/users/statuses');
+      if (res.ok) {
+        const statuses = await res.json();
+        setUsers(prevUsers => 
+          prevUsers.map(user => {
+            const status = statuses.find((s: any) => s.id === user.id);
+            return status ? { ...user, isOnline: status.isOnline, lastSeen: status.lastSeen } : user;
+          })
+        );
+      }
+    } catch (error) {
+      console.error('Error loading user statuses:', error);
+    }
+  };
 
   // Функция генерации короткого ID из имени
   const generateShortId = (name: string): string => {
@@ -557,12 +742,111 @@ export default function MessagesPage() {
         const data = await res.json();
         const linksArray = data.links || [];
         setLinks(linksArray);
-        console.log('Loaded links for user:', currentUser.id, linksArray);
       }
     } catch (error) {
       console.error('Error loading links:', error);
       setLinks([]);
     }
+  };
+
+  // Функции форматирования текста
+  const handleTextSelection = () => {
+    if (!messageInputRef.current) return;
+    
+    // Debounce для предотвращения блокировки на каждое движение мыши
+    if (selectionDebounceRef.current) {
+      clearTimeout(selectionDebounceRef.current);
+    }
+    
+    selectionDebounceRef.current = setTimeout(() => {
+      if (!messageInputRef.current) return;
+      
+      const start = messageInputRef.current.selectionStart;
+      const end = messageInputRef.current.selectionEnd;
+      const selectedText = messageInputRef.current.value.substring(start, end);
+      
+      // Показываем меню только если выделено больше 3 символов
+      if (selectedText && start !== end && selectedText.length > 3) {
+        setTextSelection({ start, end, text: selectedText });
+        
+        // Используем requestAnimationFrame для getBoundingClientRect (избегаем блокировки)
+        requestAnimationFrame(() => {
+          if (!messageInputRef.current) return;
+          const textarea = messageInputRef.current;
+          const rect = textarea.getBoundingClientRect();
+          setFormatMenuPosition({
+            top: rect.top - 50,
+            left: rect.left + (rect.width / 2)
+          });
+          setShowTextFormatMenu(true);
+        });
+      } else {
+        setShowTextFormatMenu(false);
+      }
+    }, 200); // Увеличен debounce до 200ms для лучшего INP
+  };
+
+  const formatMessageText = (text: string): string => {
+    let formatted = text;
+    
+    // Жирный текст: **text**
+    formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    
+    // Курсив: *text*
+    formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    
+    // Подчеркнутый: __text__
+    formatted = formatted.replace(/__(.+?)__/g, '<u>$1</u>');
+    
+    // Ссылки: [text](url)
+    formatted = formatted.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">$1</a>');
+    
+    return formatted;
+  };
+
+  const applyFormatting = (formatType: 'bold' | 'italic' | 'underline' | 'link') => {
+    if (!messageInputRef.current) return;
+    
+    const { start, end, text } = textSelection;
+    let formattedText = '';
+    
+    switch (formatType) {
+      case 'bold':
+        formattedText = `**${text}**`;
+        break;
+      case 'italic':
+        formattedText = `*${text}*`;
+        break;
+      case 'underline':
+        formattedText = `__${text}__`;
+        break;
+      case 'link':
+        const url = prompt('Введите URL:');
+        if (url) {
+          formattedText = `[${text}](${url})`;
+        } else {
+          return;
+        }
+        break;
+    }
+    
+    // Работаем напрямую с textarea через ref
+    const currentValue = messageInputRef.current.value;
+    const newText = currentValue.substring(0, start) + formattedText + currentValue.substring(end);
+    messageInputRef.current.value = newText;
+    
+    // Обновляем state для синхронизации
+    setNewMessage(newText);
+    setShowTextFormatMenu(false);
+    
+    // Возвращаем фокус на textarea
+    setTimeout(() => {
+      if (messageInputRef.current) {
+        messageInputRef.current.focus();
+        const newCursorPos = start + formattedText.length;
+        messageInputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 0);
   };
 
   const loadChats = async () => {
@@ -581,6 +865,21 @@ export default function MessagesPage() {
         
         const hasNotificationsChat = data.some((chat: any) => chat.isNotificationsChat || chat.isSystemChat);
         const hasFavoritesChat = data.some((chat: any) => chat.isFavoritesChat);
+        
+        // Обновляем состояние закрепления для системных чатов из localStorage
+        data = data.map((chat: any) => {
+          const isSystemChat = chat.isFavoritesChat || chat.isNotificationsChat || chat.isSystemChat;
+          if (isSystemChat) {
+            return {
+              ...chat,
+              pinnedByUser: { 
+                ...(chat.pinnedByUser || {}),
+                [currentUser.id]: getSystemChatPinState(chat.id) 
+              }
+            };
+          }
+          return chat;
+        });
         
         if (!hasFavoritesChat) {
           const favoritesChatId = `favorites_${currentUser.id}`;
@@ -616,7 +915,34 @@ export default function MessagesPage() {
           }
         }
         
-        setChats(data);
+        // Оптимизация: сравниваем данные перед обновлением state
+        // Сохраняем локальные изменения pinnedByUser при обновлении
+        setChats(prevChats => {
+          // Если данные не изменились, не обновляем state
+          if (prevChats.length > 0 && JSON.stringify(prevChats) === JSON.stringify(data)) {
+            return prevChats;
+          }
+          
+          // Сохраняем локальное состояние закрепления при обновлении
+          if (prevChats.length > 0) {
+            return data.map((newChat: any) => {
+              const oldChat = prevChats.find(c => c.id === newChat.id);
+              if (oldChat?.pinnedByUser) {
+                // Сохраняем локальное состояние закрепления
+                return {
+                  ...newChat,
+                  pinnedByUser: {
+                    ...newChat.pinnedByUser,
+                    ...oldChat.pinnedByUser
+                  }
+                };
+              }
+              return newChat;
+            });
+          }
+          
+          return data;
+        });
         
         // Отладочный лог для групповых чатов
         const groupChats = data.filter((c: any) => c.isGroup);
@@ -671,7 +997,25 @@ export default function MessagesPage() {
         // Проверяем есть ли НОВЫЕ сообщения (сравниваем количество)
         const hasNewMessages = data.length > messages.length;
         
-        setMessages(data);
+        // Звуковое уведомление ОТКЛЮЧЕНО - раздражает пользователей
+        // if (isPolling && hasNewMessages && notificationSound && data.length > 0) {
+        //   const lastMessage = data[data.length - 1];
+        //   if (lastMessage.authorId !== currentUser?.id) {
+        //     // Проверяем настройки уведомлений для этого чата
+        //     const notificationsEnabled = localStorage.getItem(`chat_notifications_${chatId}`) !== 'false';
+        //     if (notificationsEnabled) {
+        //       notificationSound.play().catch(e => console.log('Звук заблокирован браузером'));
+        //     }
+        //   }
+        // }
+        
+        // Оптимизация: не обновляем messages если данные не изменились
+        setMessages(prevMessages => {
+          if (isPolling && JSON.stringify(prevMessages) === JSON.stringify(data)) {
+            return prevMessages;
+          }
+          return data;
+        });
         
         // Скролл к последнему сообщению:
         // - При первой загрузке всегда
@@ -703,8 +1047,22 @@ export default function MessagesPage() {
             const updatedChat = allChats.find((c: Chat) => c.id === chatId);
             if (updatedChat) {
               setSelectedChat(prev => prev ? { ...prev, readMessagesByUser: updatedChat.readMessagesByUser } : null);
-              // Обновляем список чатов для badge
-              setChats(allChats);
+              // Обновляем список чатов для badge - сохраняем локальные pinnedByUser
+              setChats(prevChats => {
+                return allChats.map((newChat: Chat) => {
+                  const oldChat = prevChats.find(c => c.id === newChat.id);
+                  if (oldChat?.pinnedByUser) {
+                    return {
+                      ...newChat,
+                      pinnedByUser: {
+                        ...newChat.pinnedByUser,
+                        ...oldChat.pinnedByUser
+                      }
+                    };
+                  }
+                  return newChat;
+                });
+              });
             }
           }
         } else if (!isPolling) {
@@ -774,9 +1132,23 @@ export default function MessagesPage() {
     }
   };
 
+  const sendTypingIndicator = async (chatId: string) => {
+    if (!currentUser) return;
+    try {
+      await fetch(`/api/chats/${chatId}/typing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id })
+      });
+    } catch (error) {
+      console.error('Error sending typing indicator:', error);
+    }
+  };
+
   const sendMessage = async () => {
+    const messageText = messageInputRef.current?.value || '';
     // Проверяем: должен быть либо текст, либо вложения
-    if ((!newMessage.trim() && attachments.length === 0) || !selectedChat || !currentUser || !selectedChat.id) return;
+    if ((!messageText.trim() && attachments.length === 0) || !selectedChat || !currentUser || !selectedChat.id) return;
 
     try {
       const res = await fetch(`/api/chats/${selectedChat.id}/messages`, {
@@ -784,7 +1156,7 @@ export default function MessagesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           authorId: currentUser.id,
-          content: newMessage,
+          content: messageText,
           mentions: [],
           replyToId: replyToMessage?.id,
           attachments: attachments.length > 0 ? attachments : undefined
@@ -794,14 +1166,12 @@ export default function MessagesPage() {
       if (res.ok) {
         const newMsg = await res.json();
         setMessages(prev => [...prev, newMsg]);
-        setNewMessage('');
-        setReplyToMessage(null);
-        setAttachments([]);
-        
-        // Сбрасываем высоту textarea
         if (messageInputRef.current) {
+          messageInputRef.current.value = '';
           messageInputRef.current.style.height = '44px';
         }
+        setReplyToMessage(null);
+        setAttachments([]);
         
         // Удаляем черновик после отправки
         if (selectedChat) {
@@ -814,10 +1184,11 @@ export default function MessagesPage() {
         
         loadChats();
         
-        // Возвращаем фокус на поле ввода чтобы клавиатура не закрывалась на мобильных
-        setTimeout(() => {
-          messageInputRef.current?.focus();
-        }, 50);
+        // Сохраняем фокус на поле ввода (клавиатура остается открытой)
+        // Без setTimeout - клавиатура остается открытой
+        if (messageInputRef.current === document.activeElement) {
+          // Фокус уже на инпуте - ничего не делаем
+        }
         
         setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -987,42 +1358,53 @@ export default function MessagesPage() {
     }
   };
 
-  // Переслать сообщение
+  // Переслать сообщение(я)
   const forwardMessage = async () => {
-    if (!forwardingMessage || selectedChatsForForward.length === 0) return;
+    if (selectedChatsForForward.length === 0) return;
+    
+    // Если есть множественный выбор, пересылаем выбранные сообщения
+    const messagesToForward = (isSelectionMode && selectedMessages.size > 0
+      ? Array.from(selectedMessages).map(id => messages.find(m => m.id === id)).filter((m): m is Message => !!m)
+      : forwardingMessage ? [forwardingMessage] : []);
+    
+    if (messagesToForward.length === 0) return;
     
     try {
-      console.log('Forwarding message:', forwardingMessage.id, 'to chats:', selectedChatsForForward);
+      console.log('Forwarding messages:', messagesToForward.map(m => m.id), 'to chats:', selectedChatsForForward);
       
-      const res = await fetch(
-        `/api/chats/${forwardingMessage.chatId}/messages/${forwardingMessage.id}/forward`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ targetChatIds: selectedChatsForForward })
-        }
-      );
-      
-      console.log('Forward response status:', res.status);
-      const data = await res.json();
-      console.log('Forward response data:', data);
-      
-      if (res.ok) {
-        setShowForwardModal(false);
-        setForwardingMessage(null);
-        setSelectedChatsForForward([]);
-        loadChats();
+      // Пересылаем каждое сообщение
+      for (const message of messagesToForward) {
+        const res = await fetch(
+          `/api/chats/${message.chatId}/messages/${message.id}/forward`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ targetChatIds: selectedChatsForForward })
+          }
+        );
         
-        // Если мы пересылаем в текущий открытый чат, обновляем сообщения
-        if (selectedChat && selectedChatsForForward.includes(selectedChat.id)) {
-          loadMessages(selectedChat.id);
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.detail || 'Ошибка при пересылке');
         }
-      } else {
-        alert('Ошибка при пересылке сообщения: ' + (data.detail || 'Неизвестная ошибка'));
       }
+      
+      setShowForwardModal(false);
+      setForwardingMessage(null);
+      setSelectedChatsForForward([]);
+      setIsSelectionMode(false);
+      setSelectedMessages(new Set());
+      loadChats();
+      
+      // Если мы пересылаем в текущий открытый чат, обновляем сообщения
+      if (selectedChat && selectedChatsForForward.includes(selectedChat.id)) {
+        loadMessages(selectedChat.id);
+      }
+      
+      alert(`Успешно переслано ${messagesToForward.length} сообщени${messagesToForward.length === 1 ? 'е' : messagesToForward.length < 5 ? 'я' : 'й'}`);
     } catch (error) {
       console.error('Error forwarding message:', error);
-      alert('Ошибка при пересылке сообщения');
+      alert('Ошибка при пересылке сообщения: ' + error);
     }
   };
 
@@ -1138,8 +1520,8 @@ export default function MessagesPage() {
     );
   });
 
-  // Фильтрация чатов по поисковому запросу
-  const filterChatsBySearch = (chatList: Chat[]) => {
+  // Фильтрация чатов по поисковому запросу - мемоизирована
+  const filterChatsBySearch = useCallback((chatList: Chat[]) => {
     if (!searchQuery) return chatList;
     const query = searchQuery.toLowerCase();
     return chatList.filter(chat => {
@@ -1152,66 +1534,384 @@ export default function MessagesPage() {
         p.username?.toLowerCase().includes(query)
       );
     });
-  };
+  }, [searchQuery, users, currentUser?.id]);
 
-  // Разделяем чаты на закрепленные и обычные
-  const allPinnedChats = chats.filter(chat => chat.pinnedByUser?.[currentUser?.id || '']);
-  const allUnpinnedChats = chats.filter(chat => !chat.pinnedByUser?.[currentUser?.id || '']);
-  
-  // Применяем поиск
-  const pinnedChats = filterChatsBySearch(allPinnedChats);
-  const unpinnedChats = filterChatsBySearch(allUnpinnedChats);
+  // Разделяем чаты на закрепленные и обычные - мемоизировано для стабильности
+  const { pinnedChats, unpinnedChats } = useMemo(() => {
+    const userId = currentUser?.id || '';
+    const allPinnedChats = chats.filter(chat => chat.pinnedByUser?.[userId] === true);
+    const allUnpinnedChats = chats.filter(chat => !chat.pinnedByUser?.[userId]);
+    
+    return {
+      pinnedChats: filterChatsBySearch(allPinnedChats),
+      unpinnedChats: filterChatsBySearch(allUnpinnedChats)
+    };
+  }, [chats, currentUser?.id, filterChatsBySearch]);
 
   return (
     <div className="h-[100dvh] bg-[var(--bg-primary)] text-[var(--text-primary)] flex overflow-hidden rounded-[25px]">
-      {/* Левая панель - список чатов */}
-      <div className={`w-full ${selectedChat ? 'hidden md:flex' : 'flex'} md:w-80 border-r border-[var(--border-color)] flex-col h-full min-h-0`}>
+      {/* Левая панель - список чатов (единый блок с разными состояниями) */}
+      <div className={`
+        ${selectedChat ? 'hidden md:flex' : 'flex'} 
+        w-full ${isChatListCollapsed ? 'md:w-[72px]' : 'md:w-80'} 
+        border-r border-[var(--border-color)] flex-col h-full min-h-0 transition-all duration-200
+      `}>
         {/* Header */}
-        <div className="h-12 backdrop-blur-xl bg-[var(--bg-secondary)]/60 border-b border-white/10 flex items-center px-3 gap-2 flex-shrink-0">
-          <Link
-            href="/account?tab=messages"
-            className="no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-all md:hidden border border-[var(--border-glass)] backdrop-blur-sm"
-          >
-            <ArrowLeft className="w-4 h-4" strokeWidth={2} />
-          </Link>
-          <span className="font-medium text-sm">Сообщения</span>
-          {currentUser?.isOnline && (
-            <span className="text-[10px] text-green-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
-              в сети
-            </span>
+        <div className={`h-12 backdrop-blur-xl bg-[var(--bg-secondary)]/60 border-b border-white/10 flex items-center ${isChatListCollapsed ? 'md:justify-center md:px-2' : ''} px-3 gap-2 flex-shrink-0`}>
+          {isChatListCollapsed ? (
+            /* Свернутый хедер - только на десктопе */
+            <>
+              {/* Мобильный хедер (как обычно) */}
+              <div className="flex md:hidden items-center gap-2 w-full">
+                <Link
+                  href="/account?tab=messages"
+                  className="no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-all border border-[var(--border-glass)] backdrop-blur-sm"
+                >
+                  <ArrowLeft className="w-4 h-4" strokeWidth={2} />
+                </Link>
+                <span className="font-medium text-sm">Сообщения</span>
+                <button
+                  onClick={() => setShowNewChatModal(true)}
+                  className="no-mobile-scale ml-auto flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] transition-all border border-[var(--border-glass)] backdrop-blur-sm"
+                  title="Новый чат"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+              {/* Десктоп свёрнутый хедер - кнопка разворачивания */}
+              <button
+                onClick={() => setIsChatListCollapsed(false)}
+                className="hidden md:flex w-10 h-10 rounded-full bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] items-center justify-center transition-all border border-[var(--border-glass)]"
+                title="Развернуть"
+              >
+                <ChevronRight className="w-5 h-5 text-[var(--text-muted)]" />
+              </button>
+            </>
+          ) : (
+            /* Развернутый хедер */
+            <>
+              <Link
+                href="/account?tab=messages"
+                className="no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-all md:hidden border border-[var(--border-glass)] backdrop-blur-sm"
+              >
+                <ArrowLeft className="w-4 h-4" strokeWidth={2} />
+              </Link>
+              <span className="font-medium text-sm">Сообщения</span>
+              <div className="ml-auto flex items-center gap-1">
+                <button
+                  onClick={() => setIsChatListCollapsed(true)}
+                  className="no-mobile-scale hidden md:flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] transition-all border border-[var(--border-glass)] backdrop-blur-sm"
+                  title="Свернуть"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setShowNewChatModal(true)}
+                  className="no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] transition-all border border-[var(--border-glass)] backdrop-blur-sm"
+                  title="Новый чат"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            </>
           )}
-          <button
-            onClick={() => setShowNewChatModal(true)}
-            className="no-mobile-scale ml-auto flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] transition-all border border-[var(--border-glass)] backdrop-blur-sm"
-            title="Новый чат"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
         </div>
 
-        {/* Search */}
-        <div className="p-3 border-b border-[var(--border-color)] flex-shrink-0">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
-            <input
-              type="text"
-              placeholder="Поиск чатов..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-[25px] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-light)]"
-            />
+        {/* Search / New Chat Button */}
+        {isChatListCollapsed ? (
+          <>
+            {/* Мобильный поиск (как обычно) */}
+            <div className="p-3 border-b border-[var(--border-color)] flex-shrink-0 md:hidden">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+                <input
+                  type="text"
+                  placeholder="Поиск чатов..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-[25px] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-light)]"
+                />
+              </div>
+            </div>
+            {/* Десктоп свёрнутые кнопки: поиск и новый чат */}
+            <div className="py-2 hidden md:flex flex-col items-center gap-2 border-b border-[var(--border-color)]">
+              <button
+                onClick={() => setIsChatListCollapsed(false)}
+                className="w-10 h-10 rounded-full bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center transition-all border border-[var(--border-glass)]"
+                title="Поиск"
+              >
+                <Search className="w-5 h-5 text-[var(--text-muted)]" />
+              </button>
+              <button
+                onClick={() => setShowNewChatModal(true)}
+                className="w-10 h-10 rounded-full bg-blue-500 hover:bg-blue-600 flex items-center justify-center transition-all"
+                title="Новый чат"
+              >
+                <Plus className="w-5 h-5 text-white" />
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="p-3 border-b border-[var(--border-color)] flex-shrink-0">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+              <input
+                type="text"
+                placeholder="Поиск чатов..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-[25px] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-light)]"
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Chats list */}
         <div className="flex-1 min-h-0 overflow-y-auto pb-20 md:pb-20">
           {chats.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-[var(--text-muted)] px-4 py-8">
-              <MessageCircle className="w-12 h-12 mb-3 opacity-50" />
-              <p className="text-sm text-center">Нет чатов</p>
-              <p className="text-xs mt-1 text-center">Создайте новый чат чтобы начать общение</p>
+            <div className={`flex flex-col items-center justify-center h-full text-[var(--text-muted)] ${isChatListCollapsed ? 'md:px-1 px-4' : 'px-4'} py-8`}>
+              <MessageCircle className={`${isChatListCollapsed ? 'md:w-8 md:h-8 w-12 h-12' : 'w-12 h-12'} mb-3 opacity-50`} />
+              {isChatListCollapsed ? (
+                <div className="md:hidden">
+                  <p className="text-sm text-center">Нет чатов</p>
+                  <p className="text-xs mt-1 text-center">Создайте новый чат чтобы начать общение</p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-center">Нет чатов</p>
+                  <p className="text-xs mt-1 text-center">Создайте новый чат чтобы начать общение</p>
+                </>
+              )}
             </div>
+          ) : isChatListCollapsed ? (
+            <>
+              {/* Свернутый список - только аватарки (только desktop) */}
+              <div className="hidden md:block py-2 space-y-1">
+                {[...pinnedChats, ...unpinnedChats].map(chat => {
+                  const avatarData = getChatAvatarData(chat);
+                  const otherParticipantId = !chat.isGroup ? chat.participantIds.find(id => id !== currentUser?.id) : undefined;
+                  const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : undefined;
+                  const hasUnread = (chat.unreadCount || 0) > 0;
+                  const isSelected = selectedChat?.id === chat.id;
+                  const isHovered = hoveredChatId === chat.id;
+                  return (
+                    <div
+                      key={chat.id}
+                      className="relative"
+                      onMouseEnter={() => setHoveredChatId(chat.id)}
+                      onMouseLeave={() => setHoveredChatId(null)}
+                    >
+                      <button
+                        onClick={() => selectChat(chat)}
+                        className={`w-full flex justify-center py-1 relative ${isSelected ? 'bg-[var(--bg-tertiary)]' : 'hover:bg-[var(--bg-tertiary)]/50'}`}
+                      >
+                        <div className="relative">
+                          <Avatar
+                            src={avatarData.avatar}
+                            name={avatarData.name}
+                            type={avatarData.type}
+                            size="lg"
+                            isOnline={otherUser?.isOnline}
+                          />
+                          {hasUnread && (
+                            <div className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-cyan-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-[var(--bg-secondary)]">
+                              {chat.unreadCount! > 9 ? '9+' : chat.unreadCount}
+                            </div>
+                          )}
+                          {isSelected && (
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 w-1 h-8 bg-cyan-500 rounded-r-full" />
+                          )}
+                        </div>
+                      </button>
+                      {/* Кастомный тултип */}
+                      {isHovered && (
+                        <div 
+                          className="absolute left-[72px] top-0 z-50 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg shadow-xl p-3 min-w-[200px] max-w-[280px]"
+                          style={{ pointerEvents: 'none' }}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            {chat.pinnedByUser?.[currentUser?.id || ''] && <Pin className="w-3 h-3 text-cyan-400 flex-shrink-0" />}
+                            {chat.isGroup && <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />}
+                            <span className="font-medium text-sm text-[var(--text-primary)] truncate">{getChatTitle(chat)}</span>
+                          </div>
+                          {chat.lastMessage && (
+                            <p className="text-xs text-[var(--text-muted)] line-clamp-2 mb-1">
+                              <span className="text-[var(--text-secondary)]">{chat.lastMessage.authorName}:</span> {chat.lastMessage.content}
+                            </p>
+                          )}
+                          {hasUnread && (
+                            <div className="flex items-center gap-1.5 mt-2">
+                              <div className="w-4 h-4 rounded-full bg-cyan-500 text-white text-[9px] font-bold flex items-center justify-center">
+                                {chat.unreadCount! > 9 ? '9+' : chat.unreadCount}
+                              </div>
+                              <span className="text-[10px] text-cyan-400">непрочитанных</span>
+                            </div>
+                          )}
+                          {/* Стрелочка */}
+                          <div className="absolute left-0 top-3 -translate-x-full w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[6px] border-r-[var(--border-color)]" />
+                          <div className="absolute left-[1px] top-3 -translate-x-full w-0 h-0 border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent border-r-[5px] border-r-[var(--bg-secondary)]" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Полный список для mobile когда collapsed */}
+              <div className="md:hidden">
+                {/* Закрепленные чаты */}
+                {pinnedChats.length > 0 && (
+                  <div>
+                    <div className="px-3 py-2 text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">
+                      Закрепленные
+                    </div>
+                    <div className="divide-y divide-[var(--border-color)]">
+                      {pinnedChats.map(chat => (
+                        <div
+                          key={chat.id}
+                          className={`relative group ${
+                            selectedChat?.id === chat.id ? 'bg-[var(--bg-tertiary)]' : ''
+                          }`}
+                        >
+                          <button
+                            onClick={() => selectChat(chat)}
+                            className="w-full p-3 hover:bg-[var(--bg-tertiary)] transition-all text-left pr-10"
+                          >
+                            <div className="flex items-start gap-3">
+                              {(() => {
+                                const avatarData = getChatAvatarData(chat);
+                                const otherParticipantId = !chat.isGroup ? chat.participantIds.find(id => id !== currentUser?.id) : undefined;
+                                const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : undefined;
+                                return (
+                                  <Avatar
+                                    src={avatarData.avatar}
+                                    name={avatarData.name}
+                                    type={avatarData.type}
+                                    size="md"
+                                    isOnline={otherUser?.isOnline}
+                                  />
+                                );
+                              })()}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                    {!chat.isFavoritesChat && !chat.isSystemChat && !chat.isNotificationsChat && (
+                                      <Pin className="w-3 h-3 text-cyan-400 flex-shrink-0" />
+                                    )}
+                                    {chat.isGroup && (
+                                      <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />
+                                    )}
+                                    <h3 className="font-medium text-sm truncate">{getChatTitle(chat)}</h3>
+                                  </div>
+                                  {chat.lastMessage && (
+                                    <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap ml-auto">
+                                      {new Date(chat.lastMessage.createdAt).toLocaleTimeString('ru-RU', { 
+                                        hour: '2-digit', 
+                                        minute: '2-digit' 
+                                      })}
+                                    </span>
+                                  )}
+                                </div>
+                                {chatDrafts[chat.id] ? (
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-xs text-red-400 truncate flex-1">
+                                      <span className="font-medium">Черновик:</span> {chatDrafts[chat.id]}
+                                    </p>
+                                  </div>
+                                ) : chat.lastMessage ? (
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-xs text-[var(--text-secondary)] truncate flex-1">
+                                      {chat.lastMessage.authorName}: {chat.lastMessage.content}
+                                    </p>
+                                    {(chat.unreadCount || 0) > 0 && (
+                                      <div className="flex-shrink-0 w-5 h-5 rounded-full bg-cyan-500 text-white text-[10px] font-bold flex items-center justify-center">
+                                        {chat.unreadCount}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : null}
+                              </div>
+                            </div>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Обычные чаты (mobile collapsed) */}
+                <div>
+                  {pinnedChats.length > 0 && unpinnedChats.length > 0 && (
+                    <div className="px-3 py-2 text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">
+                      Все чаты
+                    </div>
+                  )}
+                  <div className="divide-y divide-[var(--border-color)]">
+                    {unpinnedChats.map(chat => (
+                      <div
+                        key={chat.id}
+                        className={`relative group ${
+                          selectedChat?.id === chat.id ? 'bg-[var(--bg-tertiary)]' : ''
+                        }`}
+                      >
+                        <button
+                          onClick={() => selectChat(chat)}
+                          className="w-full p-3 hover:bg-[var(--bg-tertiary)] transition-all text-left pr-10"
+                        >
+                          <div className="flex items-start gap-3">
+                            {(() => {
+                              const avatarData = getChatAvatarData(chat);
+                              return (
+                                <Avatar
+                                  src={avatarData.avatar}
+                                  name={avatarData.name}
+                                  type={avatarData.type}
+                                  size="md"
+                                />
+                              );
+                            })()}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                  {chat.isGroup && (
+                                    <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />
+                                  )}
+                                  <h3 className="font-medium text-sm truncate">{getChatTitle(chat)}</h3>
+                                </div>
+                                {chat.lastMessage && (
+                                  <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap ml-auto">
+                                    {new Date(chat.lastMessage.createdAt).toLocaleTimeString('ru-RU', { 
+                                      hour: '2-digit', 
+                                      minute: '2-digit' 
+                                    })}
+                                  </span>
+                                )}
+                              </div>
+                              {chatDrafts[chat.id] ? (
+                                <div className="flex items-center gap-2">
+                                  <p className="text-xs text-red-400 truncate flex-1">
+                                    <span className="font-medium">Черновик:</span> {chatDrafts[chat.id]}
+                                  </p>
+                                </div>
+                              ) : chat.lastMessage ? (
+                                <div className="flex items-center gap-2">
+                                  <p className="text-xs text-[var(--text-secondary)] truncate flex-1">
+                                    {chat.lastMessage.authorName}: {chat.lastMessage.content}
+                                  </p>
+                                  {(chat.unreadCount || 0) > 0 && (
+                                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-cyan-500 text-white text-[10px] font-bold flex items-center justify-center">
+                                      {chat.unreadCount}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </>
           ) : (
             <>
               {/* Закрепленные чаты */}
@@ -1235,12 +1935,15 @@ export default function MessagesPage() {
                           <div className="flex items-start gap-3">
                             {(() => {
                               const avatarData = getChatAvatarData(chat);
+                              const otherParticipantId = !chat.isGroup ? chat.participantIds.find(id => id !== currentUser?.id) : undefined;
+                              const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : undefined;
                               return (
                                 <Avatar
                                   src={avatarData.avatar}
                                   name={avatarData.name}
                                   type={avatarData.type}
                                   size="md"
+                                  isOnline={otherUser?.isOnline}
                                 />
                               );
                             })()}
@@ -1327,12 +2030,15 @@ export default function MessagesPage() {
                           <div className="flex items-start gap-3">
                             {(() => {
                               const avatarData = getChatAvatarData(chat);
+                              const otherParticipantId = !chat.isGroup ? chat.participantIds.find(id => id !== currentUser?.id) : undefined;
+                              const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : undefined;
                               return (
                                 <Avatar
                                   src={avatarData.avatar}
                                   name={avatarData.name}
                                   type={avatarData.type}
                                   size="md"
+                                  isOnline={otherUser?.isOnline}
                                 />
                               );
                             })()}
@@ -1400,9 +2106,12 @@ export default function MessagesPage() {
       {selectedChat ? (
         <div className={`flex-1 min-h-0 flex overflow-hidden ${selectedChat ? 'block' : 'hidden md:block'}`}>
           {/* Контейнер чата */}
-          <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
+          <div className="flex-1 min-h-0 flex flex-col relative">
           {/* Chat header */}
-          <div className="sticky top-0 z-20 h-12 backdrop-blur-xl bg-[var(--bg-secondary)]/95 border-b border-white/10 flex items-center px-3 gap-2 flex-shrink-0">
+          <div 
+            className="fixed md:sticky top-0 left-0 right-0 z-20 mx-0 md:mx-2 mt-0 md:mt-2 h-12 backdrop-blur-xl border-0 md:border border-gray-200/60 dark:border-white/10 md:rounded-[50px] flex items-center px-4 gap-2 flex-shrink-0 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1),-8px_0_20px_-10px_rgba(0,0,0,0.05),8px_0_20px_-10px_rgba(0,0,0,0.05),0_8px_25px_-8px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4),-8px_0_20px_-10px_rgba(0,0,0,0.3),8px_0_20px_-10px_rgba(0,0,0,0.3),0_8px_25px_-8px_rgba(0,0,0,0.4)]"
+            style={{ backgroundColor: 'rgba(var(--bg-secondary-rgb, 26, 29, 36), 0.95)' }}
+          >
             {isSelectionMode ? (
               <>
                 <button
@@ -1440,16 +2149,11 @@ export default function MessagesPage() {
                   {/* Переслать */}
                   <button
                     onClick={() => {
-                      const firstSelectedMessage = messages.find(m => selectedMessages.has(m.id));
-                      if (firstSelectedMessage) {
-                        setForwardingMessage(firstSelectedMessage);
-                        setShowForwardModal(true);
-                        setIsSelectionMode(false);
-                        setSelectedMessages(new Set());
-                      }
+                      // Открываем модал пересылки, НЕ сбрасывая режим выбора
+                      setShowForwardModal(true);
                     }}
                     className="w-8 h-8 rounded-full backdrop-blur-xl bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 flex items-center justify-center transition-all group/btn"
-                    title="Переслать"
+                    title={`Переслать (${selectedMessages.size})`}
                   >
                     <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12h18m0 0l-6-6m6 6l-6 6" />
@@ -1539,6 +2243,16 @@ export default function MessagesPage() {
               </div>
               <div className="flex-1 min-w-0 text-left">
                 <h2 className="font-medium text-sm truncate">{getChatTitle(selectedChat)}</h2>
+                {typingUsers[selectedChat.id]?.filter(id => id !== currentUser?.id).length > 0 ? (
+                  <p className="text-[10px] text-cyan-400 flex items-center gap-1">
+                    <span className="inline-flex gap-0.5">
+                      <span className="w-1 h-1 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1 h-1 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1 h-1 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </span>
+                    <span className="ml-0.5">печатает...</span>
+                  </p>
+                ) : (
                 <p className="text-[10px] text-[var(--text-muted)]">
                   {selectedChat.isFavoritesChat ? 'Ваши избранные сообщения' : selectedChat.isSystemChat || selectedChat.isNotificationsChat ? 'Системные уведомления' : selectedChat.isGroup ? `${selectedChat.participantIds.length} участник${selectedChat.participantIds.length === 1 ? '' : selectedChat.participantIds.length < 5 ? 'а' : 'ов'}` : (() => {
                     // Получаем собеседника
@@ -1562,8 +2276,12 @@ export default function MessagesPage() {
                     return 'не в сети';
                   })()}
                 </p>
+                )}
               </div>
             </button>
+            
+            {/* Кнопка прокрутки к непрочитанным - СКРЫТА, мешала UI */}
+            
             {/* Кнопка меню чата */}
             <div className="relative">
               <button
@@ -1604,6 +2322,22 @@ export default function MessagesPage() {
                       </>
                     )}
                   </button>
+                  
+                  {/* Настройки уведомлений */}
+                  <div className="border-t border-white/10 my-1" />
+                  <button
+                    onClick={() => {
+                      const currentState = localStorage.getItem(`chat_notifications_${selectedChat.id}`) !== 'false';
+                      localStorage.setItem(`chat_notifications_${selectedChat.id}`, String(!currentState));
+                      setShowChatMenu(false);
+                      alert(currentState ? 'Уведомления выключены' : 'Уведомления включены');
+                    }}
+                    className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-white hover:bg-white/10 transition-colors"
+                  >
+                    <Bell className="w-4 h-4" />
+                    {localStorage.getItem(`chat_notifications_${selectedChat.id}`) === 'false' ? 'Включить уведомления' : 'Выключить уведомления'}
+                  </button>
+                  
                   {!selectedChat.isSystemChat && !selectedChat.isNotificationsChat && !selectedChat.isFavoritesChat && (
                     <>
                       <div className="border-t border-white/10 my-1" />
@@ -1650,7 +2384,7 @@ export default function MessagesPage() {
           )}
 
           {/* Messages */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-4 pb-32 md:pb-40">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 pt-14 md:pt-4 pb-24 md:pb-32">
             <div className="min-h-full px-2 md:px-4 lg:px-8">
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
@@ -1744,19 +2478,118 @@ export default function MessagesPage() {
                     </div>
                     )}
                     {/* Avatar - только на десктопе */}
-                    <div className="hidden md:flex flex-shrink-0 mr-2">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${
-                        isMyMessage 
-                          ? 'bg-[var(--accent-primary)]'
-                          : message.isSystemMessage
-                            ? 'bg-gradient-to-br from-amber-500 to-orange-600'
-                            : 'bg-gradient-to-br from-gray-400 to-gray-500'
-                      }`}>
-                        {(message.authorName || 'U')[0].toUpperCase()}
-                      </div>
+                    <div className="hidden md:flex flex-shrink-0 mr-2 self-start">
+                      <Avatar
+                        name={message.authorName || 'User'}
+                        size="sm"
+                        type={message.isSystemMessage ? 'notifications' : 'user'}
+                      />
                     </div>
+
+                    {/* Attachments вынесены на уровень аватарки - только когда нет текста */}
+                    {message.attachments && message.attachments.length > 0 && message.attachments.filter(att => att.type !== 'image').length > 0 && !message.content.trim() && (
+                      <div className="flex flex-col gap-2 mr-2">
+                        {message.attachments.filter(att => att.type !== 'image').map((att, idx) => (
+                          <div key={idx}>
+                            {att.type === 'task' && (
+                              <button 
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  const taskId = att.taskId || att.id;
+                                  if (taskId) {
+                                    requestAnimationFrame(() => {
+                                      router.push(`/todos?task=${taskId}`);
+                                    });
+                                  }
+                                }}
+                                className="inline-flex items-center gap-2 px-2 py-1.5 md:px-3 md:py-2 bg-cyan-500/10 dark:bg-cyan-500/10 rounded-lg md:rounded-xl border border-cyan-500/50 dark:border-cyan-500/30 hover:bg-cyan-500/20 dark:hover:bg-cyan-500/20 transition-colors"
+                              >
+                                <div className="w-6 h-6 md:w-8 md:h-8 rounded bg-cyan-500/20 dark:bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
+                                  <FileText className="w-3 h-3 md:w-4 md:h-4 text-cyan-600 dark:text-cyan-400" />
+                                </div>
+                                <div className="flex flex-col items-start min-w-0">
+                                  <span className="text-[9px] md:text-[10px] text-cyan-600 dark:text-cyan-400/70 uppercase">Задача</span>
+                                  <span className="text-xs md:text-sm font-medium text-cyan-700 dark:text-cyan-300 truncate max-w-[120px] md:max-w-[200px]">{att.name}</span>
+                                </div>
+                              </button>
+                            )}
+                            {att.type === 'event' && (
+                              <button 
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  if (att.id) {
+                                    requestAnimationFrame(() => {
+                                      router.push(`/account?tab=calendar&event=${att.id}`);
+                                    });
+                                  }
+                                }}
+                                className="inline-flex items-center gap-2 px-2 py-1.5 md:px-3 md:py-2 bg-green-500/10 dark:bg-green-500/10 rounded-lg md:rounded-xl border border-green-500/50 dark:border-green-500/30 hover:bg-green-500/20 dark:hover:bg-green-500/20 transition-colors"
+                              >
+                                <div className="w-6 h-6 md:w-8 md:h-8 rounded bg-green-500/20 dark:bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                                  <Calendar className="w-3 h-3 md:w-4 md:h-4 text-green-600 dark:text-green-400" />
+                                </div>
+                                <div className="flex flex-col items-start min-w-0">
+                                  <span className="text-[9px] md:text-[10px] text-green-600 dark:text-green-400/70 uppercase">Событие</span>
+                                  <span className="text-xs md:text-sm font-medium text-green-700 dark:text-green-300 truncate max-w-[120px] md:max-w-[200px]">{att.name}</span>
+                                </div>
+                              </button>
+                            )}
+                            {att.type === 'link' && (
+                              <button 
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  if (att.url) {
+                                    requestAnimationFrame(() => {
+                                      window.open(att.url, '_blank');
+                                    });
+                                  }
+                                }}
+                                className="inline-flex flex-col items-start gap-1 px-3 py-2 bg-purple-500/10 dark:bg-purple-500/10 rounded-xl border-2 border-purple-500/50 dark:border-purple-500/30 hover:bg-purple-500/20 dark:hover:bg-purple-500/20 transition-colors"
+                              >
+                                <span className="text-[10px] text-purple-600 dark:text-purple-400/70">Ссылка</span>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-8 h-8 rounded-lg bg-purple-500/20 dark:bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                                    <LinkIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                                  </div>
+                                  <span className="text-sm font-medium text-purple-700 dark:text-purple-300 truncate max-w-[160px] md:max-w-[240px]">{att.name}</span>
+                                </div>
+                              </button>
+                            )}
+                            {att.type === 'file' && (
+                              <div className="inline-flex flex-col items-start gap-1 px-3 py-2 bg-orange-500/10 dark:bg-orange-500/10 rounded-xl border-2 border-orange-500/50 dark:border-orange-500/30">
+                                <span className="text-[10px] text-orange-600 dark:text-orange-400/70">Файл</span>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-8 h-8 rounded-lg bg-orange-500/20 dark:bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                                    <File className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                                  </div>
+                                  <span className="text-sm font-medium text-[var(--text-primary)] truncate max-w-[160px] md:max-w-[240px]">{att.name}</span>
+                                  <button className="text-xs font-medium text-orange-600 dark:text-orange-400 hover:text-orange-500 dark:hover:text-orange-300 flex-shrink-0">
+                                    Скачать
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Время для сообщений только с attachments без текста */}
+                    {message.attachments && message.attachments.length > 0 && message.attachments.filter(att => att.type !== 'image').length > 0 && !message.content.trim() && (
+                      <span className="flex items-center gap-0.5 select-none text-[9px] md:text-[11px] text-[var(--text-muted)] flex-shrink-0 self-end pb-1">
+                        {new Date(message.createdAt).toLocaleTimeString('ru-RU', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                        {message.isEdited && <span className="ml-1">(изм.)</span>}
+                        {isMyMessage && !message.isDeleted && (
+                          <Check className="w-2.5 h-2.5 md:w-3.5 md:h-3.5 ml-0.5" />
+                        )}
+                      </span>
+                    )}
+
                     <div 
-                      className={`max-w-[80%] md:max-w-[75%] lg:max-w-[65%] relative ${message.linkedChatId && !isSelectionMode ? 'cursor-pointer' : ''}`}
+                      className={`max-w-[80%] md:max-w-[75%] lg:max-w-[65%] relative flex flex-col overflow-hidden ${message.linkedChatId && !isSelectionMode ? 'cursor-pointer' : ''}`}
                       onClick={(e) => {
                         if (!isSelectionMode) {
                           // Клик на системное сообщение с ссылкой на чат - переход к чату
@@ -1771,17 +2604,28 @@ export default function MessagesPage() {
                     >
                       {/* Reply indicator - кликабельный */}
                       {replyTo && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            scrollToMessage(replyTo.id);
-                          }}
-                          className={`text-[10px] text-[var(--text-muted)] mb-1 px-3 hover:text-blue-400 transition-colors ${isMyMessage ? 'text-right w-full' : 'text-left'}`}
-                        >
-                          <Reply className="w-3 h-3 inline mr-1" />
-                          Ответ на: {replyTo.content.substring(0, 50)}...
-                        </button>
+                        <div className="mb-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              scrollToMessage(replyTo.id);
+                            }}
+                            className="text-[10px] text-[var(--text-muted)] px-3 hover:text-blue-400 transition-colors inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap"
+                            style={{ maxWidth: isMyMessage ? '200px' : '280px' }}
+                          >
+                            <Reply className="w-3 h-3 inline mr-1" />
+                            Ответ на: {replyTo.content.substring(0, 50)}...
+                          </button>
+                        </div>
                       )}
+                      
+                      {/* Определяем переменные вне IIFE для использования в разметке */}
+                      {(() => {
+                        const content = message.content.trim();
+                        const hasBasicChars = /[0-9a-zA-Zа-яА-ЯёЁ#*\-_+=<>!?@$%^&()\[\]{}|\\/:;"'.,`~]/.test(content);
+                        const realEmojis = content.match(/(?:\p{Emoji_Presentation}|\p{Extended_Pictographic})(?:\u{FE0F})?(?:\u{200D}(?:\p{Emoji_Presentation}|\p{Extended_Pictographic})(?:\u{FE0F})?)*/gu) || [];
+                        return null;
+                      })()}
                       
                       {(() => {
                         // Определяем тип контента: только эмоджи или текст
@@ -1797,24 +2641,29 @@ export default function MessagesPage() {
                         // Проверяем, является ли сообщение только картинкой (без текста)
                         const hasOnlyImages = !message.content.trim() && message.attachments?.every(att => att.type === 'image');
                         const hasImages = message.attachments?.some(att => att.type === 'image');
+                        const hasOnlyAttachments = !message.content.trim() && message.attachments && message.attachments.length > 0 && !hasOnlyImages;
+                        const hasAttachments = !message.content.trim() && message.attachments && message.attachments.filter(att => att.type !== 'image').length > 0;
+                        (window as any)._currentMessageState = { hasOnlyImages, isOnlyEmojis, hasAttachments };
                         
                         const isLargeEmoji = emojiCount === 1;
                         const isMediumEmoji = emojiCount >= 2 && emojiCount <= 5;
-                        // Не показываем бабл для эмодзи И для сообщений только с картинками
-                        const hasBackground = !isOnlyEmojis && !hasOnlyImages;
+                        // Не показываем бабл для эмодзи, для сообщений только с картинками И для сообщений только с attachments без текста
+                        const hasBackground = !isOnlyEmojis && !hasOnlyImages && !hasOnlyAttachments;
                         
                         // Настройки стилей - компактные на мобильных как в Telegram
                         const bubbleRadius = chatSettings.bubbleStyle === 'minimal' ? 'rounded-lg' : chatSettings.bubbleStyle === 'classic' ? 'rounded-2xl' : 'rounded-[18px]';
-                        // Мобильный размер шрифта чуть меньше
-                        const mobileFontSize = Math.max(chatSettings.fontSize - 1, 13);
-                        const fontSizeStyle = { fontSize: `${mobileFontSize}px`, lineHeight: '1.3' };
-                        const fontSizeStyleDesktop = { fontSize: `${chatSettings.fontSize}px` };
+                        // Используем отдельные настройки для мобильных и десктопа
+                        const mobileFontSize = chatSettings.fontSizeMobile || 13;
+                        const desktopFontSize = chatSettings.fontSize || 14;
+                        const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+                        const fontSizeStyle = { fontSize: `${isDesktop ? desktopFontSize : mobileFontSize}px`, lineHeight: isDesktop ? '1.5' : '1.3' };
                         
                         return (
+                          <>
                           <div
                             className={`${
                               hasBackground
-                                ? `${bubbleRadius} px-2.5 pt-1 pb-4 md:px-3.5 md:pt-2 md:pb-5 relative min-w-[60px] md:min-w-[80px] ${
+                                ? `${bubbleRadius} px-2.5 py-1.5 md:px-3 md:py-2 relative min-w-[60px] md:min-w-[80px] ${
                                     isMyMessage
                                       ? `text-white ${isLastInGroup ? 'rounded-br-sm' : ''}`
                                       : message.isSystemMessage
@@ -1826,7 +2675,7 @@ export default function MessagesPage() {
                             style={isMyMessage && hasBackground ? { backgroundColor: theme === 'dark' ? chatSettings.bubbleColor : chatSettings.bubbleColorLight } : undefined}
                           >
                             {!isMyMessage && hasBackground && (
-                              <p className={`text-[10px] font-medium mb-0.5 select-none ${message.isSystemMessage ? 'text-orange-600 dark:text-purple-400' : 'text-[var(--accent-primary)]'} flex items-center gap-1.5`}>
+                              <p className={`text-[10px] font-medium mb-0.5 select-none ${message.isSystemMessage ? 'text-orange-600 dark:text-purple-400' : 'text-[var(--accent-primary)] dark:text-gray-300'} flex items-center gap-1.5`}>
                                 <span>{message.authorName}</span>
                                 {selectedChat?.isGroup && message.authorId === selectedChat.creatorId && (
                                   <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-500 text-[9px]">
@@ -1846,22 +2695,36 @@ export default function MessagesPage() {
                             ) : (
                               <>
                                 {isLargeEmoji ? (
-                                  <p 
-                                    className="text-5xl md:text-7xl my-1 emoji-content"
-                                    dangerouslySetInnerHTML={{ __html: message.content }}
-                                  />
+                                  <div className="relative">
+                                    <p 
+                                      className="text-5xl md:text-7xl my-1 emoji-content emoji-native"
+                                      dangerouslySetInnerHTML={{ __html: message.content }}
+                                    />
+                                    {/* Время под эмодзи */}
+                                    <span className={`block text-right text-[9px] md:text-[11px] mt-1 ${isMyMessage ? 'text-[var(--text-muted)]' : 'text-[var(--text-muted)]'}`}>
+                                      {new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                                      {message.isEdited && <span className="ml-1">(изм.)</span>}
+                                    </span>
+                                  </div>
                                 ) : isMediumEmoji ? (
-                                  <p 
-                                    className="text-3xl md:text-4xl my-1 emoji-content"
-                                    dangerouslySetInnerHTML={{ __html: message.content }}
-                                  />
+                                  <div className="relative">
+                                    <p 
+                                      className="text-3xl md:text-4xl my-1 emoji-content emoji-native"
+                                      dangerouslySetInnerHTML={{ __html: message.content }}
+                                    />
+                                    {/* Время под эмодзи */}
+                                    <span className={`block text-right text-[9px] md:text-[11px] mt-1 ${isMyMessage ? 'text-[var(--text-muted)]' : 'text-[var(--text-muted)]'}`}>
+                                      {new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                                      {message.isEdited && <span className="ml-1">(изм.)</span>}
+                                    </span>
+                                  </div>
                                 ) : (
                                   <span className="inline">
                                     <span
-                                      className={`${isMyMessage ? myBubbleTextClass : 'text-[var(--text-primary)]'} whitespace-pre-wrap break-words ${isEditing ? 'bg-blue-500/10 -mx-2 -my-1 px-2 py-1 rounded border border-blue-400/30' : ''}`}
+                                      className={`${isMyMessage ? myBubbleTextClass : 'text-[var(--text-primary)]'} whitespace-pre-wrap break-all [overflow-wrap:anywhere] ${isEditing ? 'bg-blue-500/10 -mx-2 -my-1 px-2 py-1 rounded border border-blue-400/30' : ''}`}
                                       style={fontSizeStyle}
                                       dangerouslySetInnerHTML={{
-                                        __html: message.content
+                                        __html: formatMessageText(message.content)
                                           .replace(
                                             /(https?:\/\/[^\s<>"']+)/gi,
                                             `<a href="$1" target="_blank" rel="noopener noreferrer" class="${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-700 hover:text-gray-900' : 'text-white/80 hover:text-white') : 'text-blue-400 hover:text-blue-300'} underline">$1</a>`
@@ -1873,13 +2736,13 @@ export default function MessagesPage() {
                                       }}
                                     />
                                     {/* Невидимый спейсер для времени */}
-                                    <span className="inline-block w-[60px] md:w-[70px]">&nbsp;</span>
+                                    <span className="inline-block w-[80px] md:w-[90px]">&nbsp;</span>
                                   </span>
                                 )}
 
-                            {/* Предпросмотр изображений и ссылок из текста */}
-                            {(() => {
-                              const urls = message.content.match(/(https?:\/\/[^\s<>"']+)/gi) || [];
+                                {/* Предпросмотр изображений и ссылок из текста */}
+                                {(() => {
+                                  const urls = message.content.match(/(https?:\/\/[^\s<>"']+)/gi) || [];
                               // Улучшенная проверка - расширение может быть в любом месте URL
                               const imageExtPattern = /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|tiff?)(\?|$|#)/i;
                               const imageUrls = urls.filter(url => imageExtPattern.test(url));
@@ -1921,217 +2784,131 @@ export default function MessagesPage() {
                                 </>
                               );
                             })()}
-                            
-                            {/* Attachments */}
-                            {message.attachments && message.attachments.length > 0 && (
-                              <div className="mt-2 space-y-2">
-                                {message.attachments.map((att, idx) => (
-                                  <div key={idx} className="rounded-lg overflow-hidden">
+
+                            {/* Attachments внутри bubble - когда есть текст */}
+                            {message.attachments && message.attachments.length > 0 && message.attachments.filter(att => att.type !== 'image').length > 0 && message.content.trim() && (
+                              <div className="flex flex-col gap-2 mt-2 mb-5 w-full">
+                                {message.attachments.filter(att => att.type !== 'image').map((att, idx) => (
+                                  <div key={idx} className="w-full">
                                     {att.type === 'task' && (
-                                      <div className="flex items-center gap-1.5 p-1.5 bg-cyan-50 dark:bg-cyan-500/10 rounded-lg border border-cyan-200 dark:border-cyan-500/20">
-                                        <div className="w-5 h-5 rounded-md bg-cyan-100 dark:bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
-                                          <FileText className="w-2.5 h-2.5 text-cyan-600 dark:text-cyan-400" />
+                                      <button 
+                                        onClick={() => {
+                                          const taskId = att.taskId || att.id;
+                                          if (taskId) window.location.href = `/todos?task=${taskId}`;
+                                        }}
+                                        className="w-full flex items-center gap-2 px-2 py-1.5 md:px-3 md:py-2 bg-cyan-500/10 dark:bg-cyan-500/10 rounded-lg md:rounded-xl border border-cyan-500/50 dark:border-cyan-500/30 hover:bg-cyan-500/20 dark:hover:bg-cyan-500/20 transition-colors"
+                                      >
+                                        <div className="w-6 h-6 md:w-8 md:h-8 rounded bg-cyan-500/20 dark:bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
+                                          <FileText className="w-3 h-3 md:w-4 md:h-4 text-cyan-600 dark:text-cyan-400" />
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-[10px] font-medium text-[var(--text-primary)] truncate">{att.name}</p>
+                                        <div className="flex flex-col items-start min-w-0 flex-1">
+                                          <span className="text-[9px] md:text-[10px] text-cyan-600 dark:text-cyan-400/70 uppercase">Задача</span>
+                                          <span className="text-xs md:text-sm font-medium text-cyan-700 dark:text-cyan-300 truncate w-full">{att.name}</span>
                                         </div>
-                                        <button 
-                                          onClick={() => {
-                                            const taskId = att.taskId || att.id;
-                                            if (taskId) window.location.href = `/todos?task=${taskId}`;
-                                          }}
-                                          className="text-[9px] font-medium text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 flex-shrink-0 px-1.5"
-                                        >
-                                          Открыть
-                                        </button>
-                                      </div>
+                                      </button>
                                     )}
                                     {att.type === 'event' && (
-                                      <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-500/10 rounded-lg border border-green-200 dark:border-green-500/20">
-                                        <div className="w-6 h-6 rounded-md bg-green-100 dark:bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                                          <Calendar className="w-3 h-3 text-green-600 dark:text-green-400" />
+                                      <button 
+                                        onClick={() => { if (att.id) window.location.href = `/account?tab=calendar&event=${att.id}`; }}
+                                        className="w-full flex items-center gap-2 px-2 py-1.5 md:px-3 md:py-2 bg-green-500/10 dark:bg-green-500/10 rounded-lg md:rounded-xl border border-green-500/50 dark:border-green-500/30 hover:bg-green-500/20 dark:hover:bg-green-500/20 transition-colors"
+                                      >
+                                        <div className="w-6 h-6 md:w-8 md:h-8 rounded bg-green-500/20 dark:bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                                          <Calendar className="w-3 h-3 md:w-4 md:h-4 text-green-600 dark:text-green-400" />
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-[11px] font-medium text-[var(--text-primary)] truncate">{att.name}</p>
+                                        <div className="flex flex-col items-start min-w-0 flex-1">
+                                          <span className="text-[9px] md:text-[10px] text-green-600 dark:text-green-400/70 uppercase">Событие</span>
+                                          <span className="text-xs md:text-sm font-medium text-green-700 dark:text-green-300 truncate w-full">{att.name}</span>
                                         </div>
-                                        <button 
-                                          onClick={() => { if (att.id) window.location.href = `/account?tab=calendar&event=${att.id}`; }}
-                                          className="text-[10px] font-medium text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 flex-shrink-0"
-                                        >
-                                          Открыть
-                                        </button>
-                                      </div>
+                                      </button>
                                     )}
                                     {att.type === 'link' && (
-                                      <div className="flex items-center gap-2 p-2 bg-purple-50 dark:bg-purple-500/10 rounded-lg border border-purple-200 dark:border-purple-500/20">
-                                        <div className="w-6 h-6 rounded-md bg-purple-100 dark:bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                                          <LinkIcon className="w-3 h-3 text-purple-600 dark:text-purple-400" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-[11px] font-medium text-[var(--text-primary)] truncate">{att.name}</p>
-                                        </div>
-                                        <button 
-                                          onClick={() => { if (att.url) window.open(att.url, '_blank'); }}
-                                          className="text-[10px] font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 flex-shrink-0"
-                                        >
-                                          Перейти
-                                        </button>
-                                      </div>
-                                    )}
-                                    {att.type === 'image' && (
-                                      <div className="relative inline-block">
-                                        {att.url ? (
-                                          <div className="flex flex-col">
-                                            <img 
-                                              src={att.url}
-                                              alt={att.name}
-                                              className={`w-full max-w-[calc(100vw-60px)] md:max-w-[360px] object-cover max-h-[400px] md:max-h-[420px] cursor-pointer hover:opacity-90 transition-opacity ${hasOnlyImages ? 'rounded-t-xl' : 'rounded-xl'}`}
-                                              onClick={() => {
-                                                setCurrentImageUrl(att.url);
-                                                setShowImageModal(true);
-                                              }}
-                                            />
-                                            {/* Подбородок под картинкой для сообщений только с картинками */}
-                                            {hasOnlyImages && (
-                                              <div 
-                                                className={`flex items-center justify-between gap-1.5 px-2 py-0.5 rounded-b-xl ${isMyMessage ? '' : 'bg-[var(--bg-tertiary)]'}`}
-                                                style={isMyMessage ? { backgroundColor: theme === 'dark' ? chatSettings.bubbleColor : chatSettings.bubbleColorLight } : undefined}
-                                              >
-                                                {/* Кнопка сохранения */}
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    const link = document.createElement('a');
-                                                    link.href = att.url || '';
-                                                    link.download = att.name || 'image';
-                                                    link.target = '_blank';
-                                                    link.click();
-                                                  }}
-                                                  className={`${isMyMessage ? 'text-white/70 hover:text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'} transition-colors`}
-                                                >
-                                                  <Download className="w-3 h-3" />
-                                                </button>
-                                                <div className="flex items-center gap-0.5">
-                                                  <span className={`text-[9px] md:text-[11px] ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80') : 'text-[var(--text-muted)]'}`}>
-                                                    {new Date(message.createdAt).toLocaleTimeString('ru-RU', {
-                                                      hour: '2-digit',
-                                                      minute: '2-digit'
-                                                    })}
-                                                  </span>
-                                                  {isMyMessage && (
-                                                    <Check className={`w-2.5 h-2.5 md:w-3.5 md:h-3.5 ${useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80'}`} />
-                                                  )}
-                                                </div>
-                                              </div>
-                                            )}
+                                      <button 
+                                        onClick={() => { if (att.url) window.open(att.url, '_blank'); }}
+                                        className="w-full flex flex-col items-start gap-1 px-3 py-2 bg-purple-500/10 dark:bg-purple-500/10 rounded-xl border-2 border-purple-500/50 dark:border-purple-500/30 hover:bg-purple-500/20 dark:hover:bg-purple-500/20 transition-colors"
+                                      >
+                                        <span className="text-[10px] text-purple-600 dark:text-purple-400/70">Ссылка</span>
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-8 h-8 rounded-lg bg-purple-500/20 dark:bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                                            <LinkIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                                           </div>
-                                        ) : (
-                                          <div className="flex items-center gap-2 p-2 bg-pink-50 dark:bg-pink-500/10 rounded-lg border border-pink-200 dark:border-pink-500/20">
-                                            <div className="w-6 h-6 rounded-md bg-pink-100 dark:bg-pink-500/20 flex items-center justify-center flex-shrink-0">
-                                              <Image className="w-3 h-3 text-pink-600 dark:text-pink-400" />
-                                            </div>
-                                            <p className="text-[11px] font-medium text-[var(--text-primary)] truncate flex-1">{att.name}</p>
-                                          </div>
-                                        )}
-                                      </div>
+                                          <span className="text-sm font-medium text-purple-700 dark:text-purple-300 truncate flex-1">{att.name}</span>
+                                        </div>
+                                      </button>
                                     )}
                                     {att.type === 'file' && (
-                                      <div className="flex items-center gap-2 p-2 bg-orange-50 dark:bg-orange-500/10 rounded-lg border border-orange-200 dark:border-orange-500/20">
-                                        <div className="w-6 h-6 rounded-md bg-orange-100 dark:bg-orange-500/20 flex items-center justify-center flex-shrink-0">
-                                          <File className="w-3 h-3 text-orange-600 dark:text-orange-400" />
+                                      <div className="w-full flex flex-col items-start gap-1 px-3 py-2 bg-orange-500/10 dark:bg-orange-500/10 rounded-xl border-2 border-orange-500/50 dark:border-orange-500/30">
+                                        <span className="text-[10px] text-orange-600 dark:text-orange-400/70">Файл</span>
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-8 h-8 rounded-lg bg-orange-500/20 dark:bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                                            <File className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                                          </div>
+                                          <span className="text-sm font-medium text-[var(--text-primary)] truncate flex-1">{att.name}</span>
+                                          <button className="text-xs font-medium text-orange-600 dark:text-orange-400 hover:text-orange-500 dark:hover:text-orange-300 flex-shrink-0">
+                                            Скачать
+                                          </button>
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-[11px] font-medium text-[var(--text-primary)] truncate">{att.name}</p>
-                                        </div>
-                                        <button className="text-[10px] font-medium text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 flex-shrink-0">
-                                          Скачать
-                                        </button>
                                       </div>
                                     )}
                                   </div>
                                 ))}
                               </div>
                             )}
-                            
-                            {/* Время и галочки - абсолютно позиционированы справа внизу как в Telegram */}
-                            {!hasOnlyImages && (
-                            <span className="absolute bottom-0.5 right-2 flex items-center gap-0.5 select-none pointer-events-auto">
-                              <span className={`text-[9px] md:text-[11px] select-none ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80') : 'text-[var(--text-muted)]'}`}>
-                                {new Date(message.createdAt).toLocaleTimeString('ru-RU', {
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                                {message.isEdited && <span className="ml-1">(изм.)</span>}
-                              </span>
-                              {/* Read status checkmarks - только для своих сообщений */}
-                              {isMyMessage && !message.isDeleted && selectedChat?.isGroup && (
-                                <button
-                                  onClick={() => {
-                                    setReadByMessage(message);
-                                    setShowReadByModal(true);
-                                  }}
-                                  className="flex items-center hover:opacity-70 transition-opacity cursor-pointer"
-                                  title="Посмотреть кто прочитал"
-                                >
-                                  {(() => {
-                                    // Проверяем прочитали ли все участники (кроме автора)
-                                    const otherParticipants = selectedChat?.participantIds.filter(id => id !== message.authorId) || [];
-                                    const readByAll = otherParticipants.length > 0 && otherParticipants.every(participantId => {
-                                      const lastReadTime = selectedChat?.readMessagesByUser?.[participantId];
-                                      if (!lastReadTime) return false;
-                                      return new Date(lastReadTime) >= new Date(message.createdAt);
-                                    });
-                                    
-                                    const checkClass = useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80';
-                                    if (readByAll) {
-                                      // Две галочки - прочитано
-                                              return (
-                                            <span className="flex -space-x-2">
-                                              <Check className={`w-2.5 h-2.5 md:w-3.5 md:h-3.5 ${checkClass}`} />
-                                              <Check className={`w-2.5 h-2.5 md:w-3.5 md:h-3.5 ${checkClass}`} />
-                                            </span>
-                                          );
-                                    } else {
-                                      // Одна галочка - отправлено
-                                      return <Check className={`w-2.5 h-2.5 md:w-3.5 md:h-3.5 ${checkClass}`} />;
-                                    }
-                                  })()}
-                                </button>
-                              )}
-                              {isMyMessage && !message.isDeleted && !selectedChat?.isGroup && (
-                                <span className="flex items-center">
-                                  {(() => {
-                                    // Проверяем прочитали ли все участники (кроме автора)
-                                    const otherParticipants = selectedChat?.participantIds.filter(id => id !== message.authorId) || [];
-                                    const readByAll = otherParticipants.length > 0 && otherParticipants.every(participantId => {
-                                      const lastReadTime = selectedChat?.readMessagesByUser?.[participantId];
-                                      if (!lastReadTime) return false;
-                                      return new Date(lastReadTime) >= new Date(message.createdAt);
-                                    });
-                                    
-                                    const checkClass = useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80';
-                                    if (readByAll) {
-                                      // Две галочки - прочитано
-                                              return (
-                                            <span className="flex -space-x-2">
-                                              <Check className={`w-2.5 h-2.5 md:w-3.5 md:h-3.5 ${checkClass}`} />
-                                              <Check className={`w-2.5 h-2.5 md:w-3.5 md:h-3.5 ${checkClass}`} />
-                                            </span>
-                                          );
-                                    } else {
-                                      // Одна галочка - отправлено
-                                      return <Check className={`w-2.5 h-2.5 md:w-3.5 md:h-3.5 ${checkClass}`} />;
-                                    }
-                                  })()}
-                                </span>
-                              )}
-                            </span>
+
+                            {/* Изображения из attachments - внутри bubble */}
+                            {message.attachments && message.attachments.filter(att => att.type === 'image').length > 0 && (
+                              <div className="mt-2 mb-1">
+                                <div className={`grid gap-1 ${message.attachments.filter(att => att.type === 'image').length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                                  {message.attachments.filter(att => att.type === 'image').map((att, idx) => (
+                                    <div 
+                                      key={idx}
+                                      className="relative group rounded-lg overflow-hidden bg-black/20 cursor-pointer"
+                                      onClick={() => {
+                                        setCurrentImageUrl(att.url);
+                                        setShowImageModal(true);
+                                      }}
+                                    >
+                                      <img 
+                                        src={att.url} 
+                                        alt={att.name || 'Изображение'}
+                                        className="w-full h-auto max-h-64 object-cover hover:opacity-90 transition-opacity rounded-lg"
+                                        style={{ maxWidth: message.attachments!.filter(a => a.type === 'image').length === 1 ? '300px' : '200px' }}
+                                        onError={(e) => {
+                                          const target = e.target as HTMLImageElement;
+                                          target.style.display = 'none';
+                                        }}
+                                      />
+                                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center rounded-lg">
+                                        <Download className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
                             )}
+                            
+                                {/* Время и галочки - только для сообщений БЕЗ вложений */}
+                                {!hasOnlyImages && !isOnlyEmojis && !hasAttachments && (
+                                    <span className="absolute bottom-0.5 right-2 flex items-center gap-0.5 select-none pointer-events-auto">
+                                      <span className={`text-[9px] md:text-[11px] select-none ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80') : 'text-[var(--text-muted)]'}`}>
+                                        {new Date(message.createdAt).toLocaleTimeString('ru-RU', {
+                                          hour: '2-digit',
+                                          minute: '2-digit'
+                                        })}
+                                        {message.isEdited && <span className="ml-1">(изм.)</span>}
+                                      </span>
+                                      {isMyMessage && !message.isDeleted && (
+                                        <Check className={`w-2.5 h-2.5 md:w-3.5 md:h-3.5 ${useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80'}`} />
+                                      )}
+                                    </span>
+                                )}
                               </>
                             )}
                           </div>
+
+                        </>
                         );
                       })()}
+
                     </div>
                   </div>
                 );
@@ -2144,7 +2921,7 @@ export default function MessagesPage() {
 
           {/* Message input */}
           <div 
-            className={`fixed md:absolute bottom-0 left-0 right-0 md:bottom-[46px] px-1 md:px-3 py-1 pb-[env(safe-area-inset-bottom,0px)] md:py-2 z-30 md:z-auto bg-[var(--bg-primary)] md:bg-transparent transition-all duration-300 ${
+            className={`fixed md:absolute bottom-0 left-0 right-0 md:bottom-[46px] px-2 md:px-3 py-2 pb-[env(safe-area-inset-bottom,0px)] md:py-2 z-30 md:z-auto transition-all duration-300 ${
               isDragging ? 'scale-[1.02]' : ''
             }`}
             onDragOver={(e) => {
@@ -2253,27 +3030,12 @@ export default function MessagesPage() {
                 
                 {/* Emoji Picker Dropdown */}
                 {showEmojiPicker && (
-                  <>
-                    <div 
-                      className="fixed inset-0 z-40" 
-                      onClick={() => setShowEmojiPicker(false)}
-                    />
-                    <div className="absolute bottom-full left-0 mb-2 bg-[#0f1117] border border-[var(--border-color)] rounded-xl shadow-2xl z-50 p-2 w-80">
-                      <div className="grid grid-cols-8 gap-1 max-h-64 overflow-y-auto">
-                        {['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐', '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '👍', '👎', '👊', '✊', '🤛', '🤜', '🤞', '✌️', '🤟', '🤘', '👌', '🤌', '🤏', '👈', '👉', '👆', '👇', '☝️', '✋', '🤚', '🖐️', '🖖', '👋', '🤙', '💪', '🦾', '🖕', '✍️', '🙏', '🦶', '🦵', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄', '💋', '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❤️‍🔥', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', '🔀', '🔁', '🔂', '▶️', '⏩', '⏭️', '⏯️', '◀️', '⏪', '⏮️', '🔼', '⏫', '🔽', '⏬', '⏸️', '⏹️', '⏺️', '⏏️', '🎦', '🔅', '🔆', '📶', '📳', '📴', '♀️', '♂️', '⚧️', '✖️', '➕', '➖', '➗', '♾️', '‼️', '⁉️', '❓', '❔', '❕', '❗', '〰️', '💱', '💲', '⚕️', '♻️', '⚜️', '🔱', '📛', '🔰', '⭐', '🌟', '✨', '⚡', '💥', '🔥', '💫', '💦', '💨', '🌈', '☀️', '🌤️', '⛅', '🌥️', '☁️', '🌦️', '🌧️', '⛈️', '🌩️', '🌨️', '❄️', '☃️', '⛄', '🌬️', '💨', '🌪️', '🌫️', '☂️', '☔', '💧', '💦', '🌊'].map((emoji, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => {
-                              setNewMessage(prev => prev + emoji);
-                            }}
-                            className="text-xl p-1.5 rounded-md hover:bg-white/10 transition-colors"
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </>
+                  <EmojiPicker
+                    onEmojiSelect={(emoji) => {
+                      setNewMessage(prev => prev + emoji);
+                    }}
+                    onClose={() => setShowEmojiPicker(false)}
+                  />
                 )}
               </div>
               )}
@@ -2291,10 +3053,14 @@ export default function MessagesPage() {
               <input
                 ref={fileInputRef}
                 type="file"
+                multiple
+                accept="image/*"
                 className="hidden"
                 onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
+                  const files = Array.from(e.target.files || []);
+                  if (files.length === 0) return;
+                  
+                  for (const file of files) {
                     // Загружаем файл на сервер
                     const formData = new FormData();
                     formData.append('file', file);
@@ -2320,7 +3086,7 @@ export default function MessagesPage() {
                       alert('Ошибка загрузки файла');
                     }
                   }
-                  // Сбрасываем input чтобы можно было загрузить тот же файл снова
+                  // Сбрасываем input чтобы можно было загрузить те же файлы снова
                   e.target.value = '';
                 }}
               />
@@ -2349,66 +3115,97 @@ export default function MessagesPage() {
                 
                 {/* Reply indicator над инпутом */}
                 {replyToMessage && !editingMessageId && (
-                  <div className="mb-1 px-3 py-1.5 backdrop-blur-xl bg-[var(--bg-secondary)]/80 border border-white/10 rounded-t-[18px] flex items-center justify-between">
+                  <div className="mx-1 mb-1 px-3 py-2 backdrop-blur-xl bg-[var(--bg-secondary)]/80 border border-white/10 rounded-[35px] flex items-center justify-between gap-2">
                     <button
                       onClick={() => scrollToMessage(replyToMessage.id)}
-                      className="flex items-center gap-2 text-left hover:opacity-80 transition-opacity"
+                      className="flex items-center gap-2 text-left hover:opacity-80 transition-opacity min-w-0 flex-1"
                     >
-                      <Reply className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
-                      <div className="overflow-hidden">
-                        <p className="text-[10px] text-blue-400 font-medium">{replyToMessage.authorName}</p>
-                        <p className="text-[11px] text-[var(--text-secondary)] truncate">
-                          {replyToMessage.content.substring(0, 60)}{replyToMessage.content.length > 60 ? '...' : ''}
+                      <Reply className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                      <div className="overflow-hidden min-w-0">
+                        <p className="text-[10px] text-blue-400 font-medium truncate">{replyToMessage.authorName}</p>
+                        <p className="text-[11px] text-[var(--text-secondary)] truncate max-w-[200px]">
+                          {replyToMessage.content.length > 40 ? replyToMessage.content.substring(0, 40) + '...' : replyToMessage.content}
                         </p>
                       </div>
                     </button>
                     <button
                       onClick={() => setReplyToMessage(null)}
-                      className="w-5 h-5 rounded-full hover:bg-white/10 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
+                      className="w-6 h-6 rounded-full hover:bg-white/10 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
                     >
-                      <X className="w-3 h-3" />
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 )}
                 
                 <textarea
                   ref={messageInputRef}
-                  value={newMessage}
+                  defaultValue=""
+                  onSelect={handleTextSelection}
+                  onFocus={() => {
+                    isUserActiveRef.current = true;
+                    lastActivityTimeRef.current = Date.now();
+                  }}
+                  onBlur={() => {
+                    setTimeout(() => {
+                      isUserActiveRef.current = false;
+                    }, 500);
+                  }}
                   onChange={(e) => {
-                    const value = e.target.value;
-                    setNewMessage(value);
+                    const target = e.target as HTMLTextAreaElement;
+                    const value = target.value;
+                    lastActivityTimeRef.current = Date.now();
                     
-                    // Обработка @ для упоминаний (только в группах)
-                    if (selectedChat?.isGroup) {
-                      const cursorPos = e.target.selectionStart;
-                      const textBeforeCursor = value.substring(0, cursorPos);
-                      const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
+                    // Debounce для setNewMessage - увеличен до 300ms для лучшего INP
+                    if (messageDebounceRef.current) {
+                      clearTimeout(messageDebounceRef.current);
+                    }
+                    messageDebounceRef.current = setTimeout(() => {
+                      setNewMessage(value);
                       
-                      if (lastAtSymbol !== -1 && lastAtSymbol === textBeforeCursor.length - 1) {
-                        // Только что ввели @
-                        setShowMentionSuggestions(true);
-                        setMentionQuery('');
-                      } else if (lastAtSymbol !== -1) {
-                        const afterAt = textBeforeCursor.substring(lastAtSymbol + 1);
-                        // Проверяем что после @ нет пробелов
-                        if (!afterAt.includes(' ') && afterAt.length > 0) {
+                      // Обработка упоминаний только после обновления state
+                      if (selectedChat?.isGroup) {
+                        const cursorPos = target.selectionStart;
+                        const textBeforeCursor = value.substring(0, cursorPos);
+                        const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
+                        
+                        if (lastAtSymbol !== -1 && lastAtSymbol === textBeforeCursor.length - 1) {
                           setShowMentionSuggestions(true);
-                          setMentionQuery(afterAt.toLowerCase());
-                        } else if (afterAt.includes(' ') || afterAt === '') {
+                          setMentionQuery('');
+                        } else if (lastAtSymbol !== -1) {
+                          const afterAt = textBeforeCursor.substring(lastAtSymbol + 1);
+                          if (!afterAt.includes(' ') && afterAt.length > 0) {
+                            setShowMentionSuggestions(true);
+                            setMentionQuery(afterAt.toLowerCase());
+                          } else {
+                            setShowMentionSuggestions(false);
+                          }
+                        } else {
                           setShowMentionSuggestions(false);
                         }
-                      } else {
-                        setShowMentionSuggestions(false);
                       }
-                    }
+                    }, 300);
                     
-                    // Auto-resize до 6 строк
-                    const target = e.target;
-                    target.style.height = 'auto';
-                    const lineHeight = 20;
-                    const maxHeight = lineHeight * 6;
-                    const newHeight = Math.min(target.scrollHeight, maxHeight);
-                    target.style.height = newHeight + 'px';
+                    // Auto-resize с debounce для минимальной блокировки
+                    if (resizeDebounceRef.current) {
+                      clearTimeout(resizeDebounceRef.current);
+                    }
+                    // Немедленный resize для первого символа
+                    if (value.length <= 1 || value.length % 10 === 0) {
+                      target.style.height = 'auto';
+                      const lineHeight = 20;
+                      const maxHeight = lineHeight * 6;
+                      const newHeight = Math.min(target.scrollHeight, maxHeight);
+                      target.style.height = newHeight + 'px';
+                    } else {
+                      // Debounced resize для остальных случаев
+                      resizeDebounceRef.current = setTimeout(() => {
+                        target.style.height = 'auto';
+                        const lineHeight = 20;
+                        const maxHeight = lineHeight * 6;
+                        const newHeight = Math.min(target.scrollHeight, maxHeight);
+                        target.style.height = newHeight + 'px';
+                      }, 50);
+                    }
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -2435,8 +3232,11 @@ export default function MessagesPage() {
                         // Enter - отправка или сохранение
                         e.preventDefault();
                         if (editingMessageId) {
-                          updateMessage(editingMessageId, newMessage);
-                          setNewMessage(savedMessageText);  // Восстанавливаем сохранённый текст
+                          const messageText = messageInputRef.current?.value || '';
+                          updateMessage(editingMessageId, messageText);
+                          if (messageInputRef.current) {
+                            messageInputRef.current.value = savedMessageText;
+                          }
                           setSavedMessageText('');
                         } else {
                           sendMessage();
@@ -2445,8 +3245,60 @@ export default function MessagesPage() {
                     } else if (e.key === 'Escape' && editingMessageId) {
                       // Escape - отмена редактирования
                       setEditingMessageId(null);
-                      setNewMessage(savedMessageText);  // Восстанавливаем сохранённый текст
+                      if (messageInputRef.current) {
+                        messageInputRef.current.value = savedMessageText;
+                      }
                       setSavedMessageText('');
+                    }
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.style.borderColor = 'rgb(59, 130, 246)';
+                    e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.style.borderColor = '';
+                    e.currentTarget.style.backgroundColor = '';
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.style.borderColor = '';
+                    e.currentTarget.style.backgroundColor = '';
+                    
+                    const files = e.dataTransfer.files;
+                    if (files && files.length > 0) {
+                      const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+                      if (imageFiles.length > 0) {
+                        // Добавляем изображения в список для отправки
+                        const newAttachments = imageFiles.map(file => ({
+                          file,
+                          preview: URL.createObjectURL(file),
+                          type: 'image' as const
+                        }));
+                        setAttachments(prev => [...prev, ...newAttachments]);
+                      }
+                    }
+                  }}
+                  onPaste={(e) => {
+                    const items = e.clipboardData.items;
+                    for (let i = 0; i < items.length; i++) {
+                      const item = items[i];
+                      if (item.type.indexOf('image') !== -1) {
+                        e.preventDefault();
+                        const blob = item.getAsFile();
+                        if (blob) {
+                          setAttachments(prev => [...prev, {
+                            file: blob,
+                            preview: URL.createObjectURL(blob),
+                            type: 'image' as const
+                          }]);
+                        }
+                        break;
+                      }
                     }
                   }}
                   placeholder={selectedChat?.isNotificationsChat ? "Чат только для чтения" : editingMessageId ? "Редактируйте сообщение..." : "Сообщение..."}
@@ -2480,9 +3332,12 @@ export default function MessagesPage() {
                         <button
                           key={user.id}
                           onClick={() => {
-                            const cursorPos = messageInputRef.current?.selectionStart || 0;
-                            const textBeforeCursor = newMessage.substring(0, cursorPos);
-                            const textAfterCursor = newMessage.substring(cursorPos);
+                            const textarea = messageInputRef.current;
+                            if (!textarea) return;
+                            const cursorPos = textarea.selectionStart || 0;
+                            const currentText = textarea.value;
+                            const textBeforeCursor = currentText.substring(0, cursorPos);
+                            const textAfterCursor = currentText.substring(cursorPos);
                             const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
                             
                             const mentionText = user.shortId || user.username || user.name || 'user';
@@ -2491,7 +3346,7 @@ export default function MessagesPage() {
                               '@' + mentionText + ' ' + 
                               textAfterCursor;
                             
-                            setNewMessage(newText);
+                            textarea.value = newText;
                             setShowMentionSuggestions(false);
                             messageInputRef.current?.focus();
                           }}
@@ -2519,11 +3374,14 @@ export default function MessagesPage() {
               {editingMessageId ? (
                 <button
                   onClick={() => {
-                    updateMessage(editingMessageId, newMessage);
-                    setNewMessage(savedMessageText);  // Восстанавливаем сохранённый текст
+                    const messageText = messageInputRef.current?.value || '';
+                    updateMessage(editingMessageId, messageText);
+                    if (messageInputRef.current) {
+                      messageInputRef.current.value = savedMessageText;
+                    }
                     setSavedMessageText('');
                   }}
-                  disabled={!newMessage.trim()}
+                  disabled={false}
                   className="w-11 h-11 rounded-full backdrop-blur-xl bg-green-500 hover:bg-green-600 border border-white/10 disabled:bg-[var(--bg-secondary)]/60 disabled:border-white/10 disabled:cursor-not-allowed flex items-center justify-center text-white disabled:text-[var(--text-muted)] transition-all flex-shrink-0 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4),0_0_15px_-5px_rgba(0,0,0,0.3)]"
                 >
                   <Check className="w-4 h-4" />
@@ -2531,7 +3389,7 @@ export default function MessagesPage() {
               ) : (
                 <button
                   onClick={sendMessage}
-                  disabled={(!newMessage.trim() && attachments.length === 0) || selectedChat?.isNotificationsChat}
+                  disabled={selectedChat?.isNotificationsChat}
                   className="w-11 h-11 rounded-full backdrop-blur-xl bg-blue-500 hover:bg-blue-600 border border-white/10 disabled:bg-[var(--bg-secondary)]/60 disabled:border-white/10 disabled:cursor-not-allowed flex items-center justify-center text-white disabled:text-[var(--text-muted)] transition-all flex-shrink-0 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4),0_0_15px_-5px_rgba(0,0,0,0.3)]"
                 >
                   <Send className="w-4 h-4" />
@@ -2540,6 +3398,58 @@ export default function MessagesPage() {
             </div>
             )}
           </div>
+
+          {/* Text Formatting Menu */}
+          {showTextFormatMenu && (
+            <>
+              <div 
+                className="fixed inset-0 z-40" 
+                onClick={() => setShowTextFormatMenu(false)}
+              />
+              <div 
+                className="fixed z-50 flex items-center gap-1 bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl p-1"
+                style={{
+                  top: `${formatMenuPosition.top}px`,
+                  left: `${formatMenuPosition.left}px`,
+                  transform: 'translateX(-50%)',
+                  borderRadius: '35px'
+                }}
+              >
+                <button
+                  onClick={() => applyFormatting('bold')}
+                  className="w-8 h-8 flex items-center justify-center hover:bg-[var(--bg-tertiary)] transition-colors"
+                  style={{ borderRadius: '20px' }}
+                  title="Жирный (** **)"
+                >
+                  <span className="font-bold text-sm">B</span>
+                </button>
+                <button
+                  onClick={() => applyFormatting('italic')}
+                  className="w-8 h-8 flex items-center justify-center hover:bg-[var(--bg-tertiary)] transition-colors"
+                  style={{ borderRadius: '20px' }}
+                  title="Курсив (* *)"
+                >
+                  <span className="italic text-sm">I</span>
+                </button>
+                <button
+                  onClick={() => applyFormatting('underline')}
+                  className="w-8 h-8 flex items-center justify-center hover:bg-[var(--bg-tertiary)] transition-colors"
+                  style={{ borderRadius: '20px' }}
+                  title="Подчеркнутый (__ __)"
+                >
+                  <span className="underline text-sm">U</span>
+                </button>
+                <button
+                  onClick={() => applyFormatting('link')}
+                  className="w-8 h-8 flex items-center justify-center hover:bg-[var(--bg-tertiary)] transition-colors"
+                  style={{ borderRadius: '20px' }}
+                  title="Гиперссылка"
+                >
+                  <LinkIcon className="w-4 h-4" />
+                </button>
+              </div>
+            </>
+          )}
           </div>
 
           {/* Chat Info Panel - Профиль собеседника */}
@@ -2667,60 +3577,67 @@ export default function MessagesPage() {
                     </div>
 
                     {/* Tab buttons */}
-                    <div className="flex border-b border-[var(--border-color)]">
-                      <button
-                        onClick={() => setChatInfoTab('profile')}
-                        className={`flex-1 py-2.5 text-xs font-medium transition-all ${
-                          chatInfoTab === 'profile' 
-                            ? 'text-cyan-400 border-b-2 border-cyan-400' 
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                        }`}
-                      >
-                        Задачи
-                      </button>
-                      {/* Вкладка Участники для групповых чатов */}
-                      {selectedChat?.isGroup && (
+                    <div className="overflow-x-auto border-b border-[var(--border-color)]" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
+                      <style jsx>{`
+                        div::-webkit-scrollbar {
+                          display: none;
+                        }
+                      `}</style>
+                      <div className="flex min-w-max">
                         <button
-                          onClick={() => setChatInfoTab('participants')}
-                          className={`flex-1 py-2.5 text-xs font-medium transition-all ${
-                            chatInfoTab === 'participants' 
+                          onClick={() => setChatInfoTab('profile')}
+                          className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap ${
+                            chatInfoTab === 'profile' 
                               ? 'text-cyan-400 border-b-2 border-cyan-400' 
                               : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                           }`}
                         >
-                          Участники
+                          Задачи
                         </button>
-                      )}
-                      <button
-                        onClick={() => setChatInfoTab('media')}
-                        className={`flex-1 py-2.5 text-xs font-medium transition-all ${
-                          chatInfoTab === 'media' 
-                            ? 'text-cyan-400 border-b-2 border-cyan-400' 
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                        }`}
-                      >
-                        Медиа
-                      </button>
-                      <button
-                        onClick={() => setChatInfoTab('files')}
-                        className={`flex-1 py-2.5 text-xs font-medium transition-all ${
-                          chatInfoTab === 'files' 
-                            ? 'text-cyan-400 border-b-2 border-cyan-400' 
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                        }`}
-                      >
-                        Файлы
-                      </button>
-                      <button
-                        onClick={() => setChatInfoTab('links')}
-                        className={`flex-1 py-2.5 text-xs font-medium transition-all ${
-                          chatInfoTab === 'links' 
-                            ? 'text-cyan-400 border-b-2 border-cyan-400' 
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                        }`}
-                      >
-                        Ссылки
-                      </button>
+                        {/* Вкладка Участники для групповых чатов */}
+                        {selectedChat?.isGroup && (
+                          <button
+                            onClick={() => setChatInfoTab('participants')}
+                            className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap ${
+                              chatInfoTab === 'participants' 
+                                ? 'text-cyan-400 border-b-2 border-cyan-400' 
+                                : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                            }`}
+                          >
+                            Участники
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setChatInfoTab('media')}
+                          className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap ${
+                            chatInfoTab === 'media' 
+                              ? 'text-cyan-400 border-b-2 border-cyan-400' 
+                              : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                          }`}
+                        >
+                          Медиа
+                        </button>
+                        <button
+                          onClick={() => setChatInfoTab('files')}
+                          className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap ${
+                            chatInfoTab === 'files' 
+                              ? 'text-cyan-400 border-b-2 border-cyan-400' 
+                              : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                          }`}
+                        >
+                          Файлы
+                        </button>
+                        <button
+                          onClick={() => setChatInfoTab('links')}
+                          className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap ${
+                            chatInfoTab === 'links' 
+                              ? 'text-cyan-400 border-b-2 border-cyan-400' 
+                              : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                          }`}
+                        >
+                          Ссылки
+                        </button>
+                      </div>
                     </div>
 
                     {/* Content */}
@@ -3728,7 +4645,7 @@ export default function MessagesPage() {
       )}
 
       {/* Forward Message Modal */}
-      {showForwardModal && forwardingMessage && (
+      {showForwardModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl w-full max-w-md">
             <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
@@ -3736,7 +4653,7 @@ export default function MessagesPage() {
                 <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
-                Переслать сообщение
+                Переслать {isSelectionMode && selectedMessages.size > 0 ? `${selectedMessages.size} сообщени${selectedMessages.size === 1 ? 'е' : selectedMessages.size < 5 ? 'я' : 'й'}` : 'сообщение'}
               </h3>
               <button
                 onClick={() => {
@@ -3751,15 +4668,36 @@ export default function MessagesPage() {
             </div>
             
             <div className="p-4">
-              <div className="mb-4 p-3 bg-[var(--bg-tertiary)] rounded-lg">
-                <p className="text-xs text-[var(--text-muted)] mb-1">Сообщение:</p>
-                <p className="text-sm text-[var(--text-primary)] line-clamp-3">{forwardingMessage.content}</p>
-              </div>
+              {/* Превью первого сообщения (если есть) */}
+              {(() => {
+                const firstMessage = isSelectionMode && selectedMessages.size > 0
+                  ? messages.find(m => selectedMessages.has(m.id))
+                  : forwardingMessage;
+                
+                return firstMessage && (
+                  <div className="mb-4 p-3 bg-[var(--bg-tertiary)] rounded-lg">
+                    <p className="text-xs text-[var(--text-muted)] mb-1">
+                      {isSelectionMode && selectedMessages.size > 1 
+                        ? `Первое из ${selectedMessages.size} сообщений:`
+                        : 'Сообщение:'}
+                    </p>
+                    <p className="text-sm text-[var(--text-primary)] line-clamp-3">{firstMessage.content}</p>
+                  </div>
+                );
+              })()}
               
               <p className="text-sm text-[var(--text-secondary)] mb-3">Выберите чаты:</p>
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {chats
-                  .filter(chat => !chat.isNotificationsChat && chat.id !== forwardingMessage.chatId)
+                  .filter(chat => {
+                    // Фильтруем уведомления и текущий чат
+                    if (chat.isNotificationsChat) return false;
+                    // Если пересылаем одно сообщение, исключаем чат сообщения
+                    if (forwardingMessage) return chat.id !== forwardingMessage.chatId;
+                    // Если множественный выбор, исключаем текущий чат (если открыт)
+                    if (isSelectionMode && selectedChat) return chat.id !== selectedChat.id;
+                    return true;
+                  })
                   .sort((a, b) => {
                     // Избранное всегда первым
                     if (a.isFavoritesChat) return -1;
@@ -3899,14 +4837,20 @@ export default function MessagesPage() {
         </div>
       )}
 
-      {/* Image Modal - Telegram-style image viewer */}
+      {/* Image Modal - Telegram-style image viewer with zoom */}
       {showImageModal && currentImageUrl && (
         <div 
           className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center backdrop-blur-sm"
-          onClick={() => setShowImageModal(false)}
+          onClick={() => {
+            setShowImageModal(false);
+            setImageZoom(1);
+          }}
         >
           <button
-            onClick={() => setShowImageModal(false)}
+            onClick={() => {
+              setShowImageModal(false);
+              setImageZoom(1);
+            }}
             className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all z-10"
           >
             <X className="w-6 h-6 text-white" />
@@ -3928,12 +4872,65 @@ export default function MessagesPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
           </button>
-          <img 
-            src={currentImageUrl}
-            alt="Full size"
-            className="max-w-[90vw] max-h-[90vh] object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
+          
+          {/* Zoom controls */}
+          <div className="absolute top-4 left-4 flex gap-2 z-10">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setImageZoom(prev => Math.max(0.5, prev - 0.25));
+              }}
+              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
+              title="Уменьшить"
+            >
+              <span className="text-white text-xl font-bold">−</span>
+            </button>
+            <div className="px-3 h-10 rounded-full bg-white/10 flex items-center justify-center text-white text-sm font-medium min-w-[60px]">
+              {Math.round(imageZoom * 100)}%
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setImageZoom(prev => Math.min(3, prev + 0.25));
+              }}
+              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
+              title="Увеличить"
+            >
+              <span className="text-white text-xl font-bold">+</span>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setImageZoom(1);
+              }}
+              className="px-3 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all text-white text-sm"
+              title="Сбросить"
+            >
+              100%
+            </button>
+          </div>
+          
+          <div className="overflow-auto max-w-[95vw] max-h-[95vh]" onClick={(e) => e.stopPropagation()}>
+            <img 
+              src={currentImageUrl}
+              alt="Full size"
+              className="object-contain transition-transform duration-200"
+              style={{ 
+                transform: `scale(${imageZoom})`,
+                cursor: imageZoom > 1 ? 'move' : 'default',
+                maxWidth: '90vw',
+                maxHeight: '90vh'
+              }}
+              onWheel={(e) => {
+                e.stopPropagation();
+                if (e.deltaY < 0) {
+                  setImageZoom(prev => Math.min(3, prev + 0.1));
+                } else {
+                  setImageZoom(prev => Math.max(0.5, prev - 0.1));
+                }
+              }}
+            />
+          </div>
         </div>
       )}
     </div>

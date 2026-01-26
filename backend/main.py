@@ -1477,6 +1477,22 @@ class UserUpdate(BaseModel):
     department: Optional[str] = None  # Отдел
     enabledTools: Optional[List[str]] = None
 
+@app.post("/api/users/batch")
+def create_users_batch(users: List[Dict[str, Any]] = Body(...)):
+    """Массовое создание пользователей"""
+    created_users = []
+    
+    for user_data in users:
+        # Проверяем, не существует ли уже пользователь
+        existing = db.get_user_by_id(user_data.get('id'))
+        if existing:
+            continue
+            
+        created_user = db.add_user(user_data)
+        created_users.append(created_user)
+    
+    return {"created": len(created_users), "users": created_users}
+
 @app.get("/api/users")
 def get_users():
     """Получить список всех пользователей"""
@@ -1515,6 +1531,48 @@ def delete_user(user_id: str):
     if not result:
         raise HTTPException(status_code=404, detail="User not found")
     return {"status": "deleted"}
+
+@app.post("/api/users/{user_id}/status")
+def update_user_status(user_id: str, status_data: Dict[str, Any]):
+    """Обновить статус пользователя (онлайн/оффлайн и lastSeen)"""
+    update_data = {}
+    if "isOnline" in status_data:
+        update_data["isOnline"] = status_data["isOnline"]
+    if "lastSeen" in status_data:
+        update_data["lastSeen"] = status_data["lastSeen"]
+    
+    result = db.update_user(user_id, update_data)
+    if not result:
+        raise HTTPException(status_code=404, detail="User not found")
+    return result
+
+@app.get("/api/users/statuses")
+def get_user_statuses():
+    """Получить статусы всех пользователей"""
+    users = db.get_users()
+    statuses = []
+    now = datetime.now()
+    
+    for user in users:
+        is_online = False
+        last_seen = user.get("lastSeen")
+        
+        # Проверяем онлайн ли пользователь (если lastSeen был в последние 60 секунд)
+        if last_seen:
+            try:
+                last_seen_date = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+                diff = (now - last_seen_date).total_seconds()
+                is_online = diff < 60  # Онлайн если активность была менее минуты назад
+            except:
+                pass
+        
+        statuses.append({
+            "id": user["id"],
+            "isOnline": is_online,
+            "lastSeen": last_seen
+        })
+    
+    return statuses
 
 @app.put("/api/users/{user_id}/tools")
 def update_user_tools(user_id: str, tools: Dict[str, List[str]]):
@@ -3023,6 +3081,8 @@ def delete_direct_parser_api_key(key_id: str):
 def get_todos(userId: Optional[str] = None):
     """Получить список задач"""
     todos = db.data.get('todos', [])
+    lists = db.data.get('todoLists', [])
+    categories = db.data.get('todoCategories', [])
     
     # Если указан userId, фильтруем задачи
     if userId:
@@ -3032,7 +3092,11 @@ def get_todos(userId: Optional[str] = None):
                userId in (todo.get('assignedTo', []) if isinstance(todo.get('assignedTo'), list) else [todo.get('assignedTo')])
         ]
     
-    return {"todos": todos}
+    return {
+        "todos": todos,
+        "lists": lists,
+        "categories": categories
+    }
 
 @app.post("/api/todos")
 def create_todo(todo_data: dict = Body(...)):
@@ -3064,12 +3128,16 @@ def create_todo(todo_data: dict = Body(...)):
 def get_links(userId: Optional[str] = None):
     """Получить список ссылок"""
     links = db.data.get('links', [])
+    lists = db.data.get('linkLists', [])
     
     # Если указан userId, фильтруем ссылки
     if userId:
         links = [link for link in links if link.get('userId') == userId]
     
-    return {"links": links}
+    return {
+        "links": links,
+        "lists": lists
+    }
 
 @app.post("/api/links")
 def create_link(link_data: dict = Body(...)):
@@ -3138,7 +3206,7 @@ def get_chats(user_id: Optional[str] = None):
     favorites_chat = next((c for c in chats if c.get('isFavoritesChat') and user_id in c.get('participantIds', [])), None)
     if not favorites_chat:
         favorites_chat = {
-            "id": f"favorites-{user_id}",
+            "id": f"favorites_{user_id}",
             "title": "Избранное",
             "isGroup": False,
             "isFavoritesChat": True,

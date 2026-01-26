@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense, lazy, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MessageCircle, CheckSquare, Calendar, Users, ArrowLeft, MoreVertical, Shield, FileText, Languages, Sparkles, Link2, Box, Globe, Megaphone, LogOut, Sun, Moon, GripVertical, X, Settings, User, ChevronUp, Type, MessageSquare } from 'lucide-react';
+import { MessageCircle, CheckSquare, Calendar, Users, MoreVertical, Shield, FileText, Languages, Sparkles, Link2, Box, Globe, Megaphone, Sun, Moon, GripVertical, X, Settings, User, ChevronUp, Type, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
 import Avatar from '@/components/Avatar';
@@ -23,8 +23,9 @@ const TodosBoard = lazy(() => import('../../components/TodosBoard'));
 const ContactsBoard = lazy(() => import('../../components/ContactsBoard'));
 const CalendarBoard = lazy(() => import('../../components/CalendarBoard'));
 const MessagesBoard = lazy(() => import('../../components/MessagesBoard'));
+const LinksBoard = lazy(() => import('../../components/LinksBoard'));
 
-type TabType = 'messages' | 'tasks' | 'calendar' | 'contacts' | 'tools';
+type TabType = 'messages' | 'tasks' | 'calendar' | 'contacts' | 'tools' | 'links';
 
 // Список всех инструментов
 const ALL_TOOLS: Tool[] = [
@@ -55,7 +56,8 @@ export default function AccountPage() {
   // Настройки чата
   const [chatSettings, setChatSettings] = useState({
     bubbleStyle: 'modern' as 'modern' | 'classic' | 'minimal',
-    fontSize: 14, // размер в пикселях
+    fontSize: 14, // размер в пикселях для десктопа
+    fontSizeMobile: 13, // размер в пикселях для мобильных
     bubbleColor: '#34c759', // цвет для темной темы
     bubbleColorLight: '#007aff', // цвет для светлой темы
     colorPreset: 0
@@ -124,6 +126,9 @@ export default function AccountPage() {
 
   // Загрузка количества непрочитанных чатов
   const loadUnreadCount = async () => {
+    // Не запрашиваем данные если вкладка не активна
+    if (typeof document !== 'undefined' && document.hidden) return;
+    
     try {
       const myAccountStr = localStorage.getItem('myAccount');
       if (!myAccountStr) return;
@@ -294,7 +299,7 @@ export default function AccountPage() {
 
     // Проверяем URL параметр для активной вкладки
     const tab = searchParams.get('tab') as TabType;
-    if (tab && ['messages', 'tasks', 'calendar', 'contacts', 'tools'].includes(tab)) {
+    if (tab && ['messages', 'tasks', 'calendar', 'contacts', 'tools', 'links'].includes(tab)) {
       setActiveTab(tab);
     }
     
@@ -318,7 +323,7 @@ export default function AccountPage() {
         setIsChatOpen(isMessagesTab && hasChatSelected);
       }
     };
-    const interval = setInterval(checkChatOpen, 300);
+    const interval = setInterval(checkChatOpen, 1000); // Уменьшено с 300ms
     return () => clearInterval(interval);
   }, [activeTab]);
 
@@ -380,9 +385,20 @@ export default function AccountPage() {
           </Suspense>
         );
       
+      case 'links':
+        return (
+          <Suspense fallback={
+            <div className="flex items-center justify-center h-full">
+              <div className="text-white/50">Загрузка ссылок...</div>
+            </div>
+          }>
+            <LinksBoard />
+          </Suspense>
+        );
+      
       case 'tools':
         return (
-          <div className="p-4 sm:p-6">
+          <div className="p-4 sm:p-6 pb-24">
             <div className="flex flex-col items-center mb-6 max-w-5xl mx-auto">
               <div className="flex items-center justify-between w-full">
                 <h2 className="text-2xl font-bold text-center flex-1">Инструменты</h2>
@@ -487,6 +503,41 @@ export default function AccountPage() {
                   <span className="text-sm font-medium text-[var(--text-primary)]">Избранное</span>
                 </button>
               </div>
+
+              {/* Настройки шрифта */}
+              <div className="w-full mt-8 bg-[var(--bg-secondary)] rounded-2xl p-5">
+                <h3 className="text-lg font-semibold mb-4">Размер шрифта сообщений</h3>
+                
+                <div className="flex gap-4">
+                  {/* Мобильный */}
+                  <div className="flex-1">
+                    <label className="text-sm text-[var(--text-muted)] mb-2 block">Телефон</label>
+                    <input
+                      type="range"
+                      min="12"
+                      max="18"
+                      value={chatSettings.fontSizeMobile}
+                      onChange={(e) => saveChatSettings({ ...chatSettings, fontSizeMobile: parseInt(e.target.value) })}
+                      className="w-full accent-blue-500"
+                    />
+                    <div className="text-center text-sm font-medium mt-1">{chatSettings.fontSizeMobile}px</div>
+                  </div>
+
+                  {/* Десктоп */}
+                  <div className="flex-1">
+                    <label className="text-sm text-[var(--text-muted)] mb-2 block">Компьютер</label>
+                    <input
+                      type="range"
+                      min="12"
+                      max="20"
+                      value={chatSettings.fontSize}
+                      onChange={(e) => saveChatSettings({ ...chatSettings, fontSize: parseInt(e.target.value) })}
+                      className="w-full accent-blue-500"
+                    />
+                    <div className="text-center text-sm font-medium mt-1">{chatSettings.fontSize}px</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         );
@@ -498,38 +549,9 @@ export default function AccountPage() {
 
   return (
     <div className={`h-screen theme-text flex flex-col transition-colors duration-300 overflow-hidden ${activeTab === 'messages' ? '' : 'theme-bg'}`}>
-      {/* Header - скрыт для вкладок задач, контактов, календаря и сообщений */}
-      {activeTab !== 'tasks' && activeTab !== 'contacts' && activeTab !== 'calendar' && activeTab !== 'messages' && (
-        <header className="h-12 theme-bg-secondary border-b border-[var(--border-primary)] flex items-center px-4 flex-shrink-0 glass-navbar">
-          <Link
-            href="/"
-            className="flex items-center justify-center w-8 h-8 rounded-lg theme-text-muted hover:theme-text-secondary hover:bg-[var(--bg-glass-hover)] transition-all mr-3"
-            title="На главную"
-          >
-            <ArrowLeft className="w-4 h-4" strokeWidth={2} />
-          </Link>
-          
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-sm">Аккаунт</span>
-          </div>
-
-          {currentUser && (
-            <div className="ml-auto flex items-center gap-3">
-              <button
-                onClick={handleLogout}
-                className="flex items-center justify-center w-8 h-8 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                title="Выйти"
-              >
-                <LogOut className="w-4 h-4" strokeWidth={2} />
-              </button>
-            </div>
-          )}
-        </header>
-      )}
-
       {/* Main Content */}
-      <div className={`flex-1 overflow-hidden ${activeTab === 'messages' ? '' : 'pb-24 md:pb-16'}`}>
-        <div className="h-full overflow-y-auto">
+      <div className={`flex-1 overflow-hidden ${activeTab === 'messages' || activeTab === 'tasks' ? '' : 'pb-24 md:pb-16'}`}>
+        <div className={`h-full ${activeTab === 'tasks' ? '' : 'overflow-y-auto'}`}>
           {renderContent()}
         </div>
       </div>
@@ -587,6 +609,17 @@ export default function AccountPage() {
           </button>
 
           <button
+            onClick={() => handleTabChange('links')}
+            className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
+              activeTab === 'links'
+                ? 'bg-[#007aff]/20 text-[#007aff] border border-[#007aff]/30'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10'
+            }`}
+          >
+            <Globe className="w-4 h-4" strokeWidth={2} />
+          </button>
+
+          <button
             onClick={() => handleTabChange('tools')}
             className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
               activeTab === 'tools'
@@ -603,7 +636,7 @@ export default function AccountPage() {
       <div 
         className={`hidden md:flex fixed bottom-0 left-0 right-0 h-[48px] backdrop-blur-xl border-t z-40 items-center justify-between px-4 transition-all duration-200 ${
           isDragOverBar 
-            ? 'bg-[var(--accent-primary)]/20 border-[var(--accent-primary)]/50' 
+            ? 'bg-[#007aff]/20 border-[#007aff]/50' 
             : 'bg-[var(--bg-glass)] border-[var(--border-glass)]'
         }`}
         style={{ fontSize: '12px' }}
@@ -617,7 +650,7 @@ export default function AccountPage() {
             onClick={() => handleTabChange('messages')}
             className={`relative px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
               activeTab === 'messages'
-                ? 'bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] border border-[var(--accent-primary)]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
+                ? 'bg-[#007aff]/20 text-[#007aff] border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
             }`}
           >
@@ -634,7 +667,7 @@ export default function AccountPage() {
             onClick={() => handleTabChange('tasks')}
             className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
               activeTab === 'tasks'
-                ? 'bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] border border-[var(--accent-primary)]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
+                ? 'bg-[#007aff]/20 text-[#007aff] border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
             }`}
           >
@@ -646,7 +679,7 @@ export default function AccountPage() {
             onClick={() => handleTabChange('calendar')}
             className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
               activeTab === 'calendar'
-                ? 'bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] border border-[var(--accent-primary)]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
+                ? 'bg-[#007aff]/20 text-[#007aff] border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
             }`}
           >
@@ -658,7 +691,7 @@ export default function AccountPage() {
             onClick={() => handleTabChange('contacts')}
             className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
               activeTab === 'contacts'
-                ? 'bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] border border-[var(--accent-primary)]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
+                ? 'bg-[#007aff]/20 text-[#007aff] border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
             }`}
           >
@@ -667,10 +700,22 @@ export default function AccountPage() {
           </button>
 
           <button
+            onClick={() => handleTabChange('links')}
+            className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
+              activeTab === 'links'
+                ? 'bg-[#007aff]/20 text-[#007aff] border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
+                : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>Ссылки</span>
+          </button>
+
+          <button
             onClick={() => handleTabChange('tools')}
             className={`w-[32px] h-[32px] rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
               activeTab === 'tools'
-                ? 'bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] border border-[var(--accent-primary)]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
+                ? 'bg-[#007aff]/20 text-[#007aff] border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-secondary)] hover:text-[var(--text-primary)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
             }`}
             title="Инструменты"
@@ -721,10 +766,10 @@ export default function AccountPage() {
 
         {/* Right side - Theme toggle and User info */}
         <div className="flex items-center gap-3">
-          {/* Theme Toggle */}
+          {/* Theme Toggle - only mobile */}
           <button
             onClick={toggleTheme}
-            className="w-8 h-8 rounded-full flex items-center justify-center transition-all bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]"
+            className="md:hidden w-8 h-8 rounded-full flex items-center justify-center transition-all bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]"
             title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
           >
             {theme === 'dark' ? (
@@ -734,23 +779,24 @@ export default function AccountPage() {
             )}
           </button>
 
-          {/* Divider */}
-          <div className="w-px h-6 bg-white/20" />
+          {/* Divider - only mobile */}
+          <div className="md:hidden w-px h-6 bg-white/20" />
 
           {/* User Info - кликабельно для открытия меню */}
           {currentUser && (
             <div className="relative">
               <button
                 onClick={() => setShowAccountMenu(!showAccountMenu)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-[20px] bg-gradient-to-b from-white/10 to-white/5 border border-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)] hover:from-white/15 hover:to-white/10 transition-all cursor-pointer"
+                className="flex items-center gap-2 px-3 md:px-1.5 py-1.5 rounded-[20px] bg-gradient-to-b from-white/10 to-white/5 border border-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)] hover:from-white/15 hover:to-white/10 transition-all cursor-pointer"
               >
                 <Avatar
                   type="user"
                   name={currentUser.name || 'User'}
                   src={currentUser.avatar}
                   size="xs"
+                  isOnline={true}
                 />
-                <span className="text-xs text-[var(--text-secondary)] max-w-[120px] truncate">
+                <span className="md:hidden text-xs text-[var(--text-secondary)] max-w-[120px] truncate">
                   {currentUser.name}
                 </span>
               </button>
@@ -765,6 +811,26 @@ export default function AccountPage() {
                   <div className="absolute bottom-full right-0 mb-2 w-48 bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-xl shadow-2xl z-50 overflow-hidden">
                     <button
                       onClick={() => {
+                        toggleTheme();
+                        setShowAccountMenu(false);
+                      }}
+                      className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[var(--bg-tertiary)] transition-colors text-left"
+                    >
+                      {theme === 'dark' ? (
+                        <>
+                          <Sun className="w-4 h-4 text-[var(--text-secondary)]" />
+                          <span className="text-sm text-[var(--text-primary)]">Светлая тема</span>
+                        </>
+                      ) : (
+                        <>
+                          <Moon className="w-4 h-4 text-[var(--text-secondary)]" />
+                          <span className="text-sm text-[var(--text-primary)]">Тёмная тема</span>
+                        </>
+                      )}
+                    </button>
+                    <div className="h-px bg-[var(--border-primary)]" />
+                    <button
+                      onClick={() => {
                         setShowAccountMenu(false);
                         window.location.href = '/chat-settings';
                       }}
@@ -772,20 +838,6 @@ export default function AccountPage() {
                     >
                       <Settings className="w-4 h-4 text-[var(--text-secondary)]" />
                       <span className="text-sm text-[var(--text-primary)]">Настройки</span>
-                    </button>
-                    <div className="h-px bg-[var(--border-primary)]" />
-                    <button
-                      onClick={() => {
-                        setShowAccountMenu(false);
-                        localStorage.removeItem('myAccount');
-                        localStorage.removeItem('username');
-                        localStorage.removeItem('userRole');
-                        window.location.href = '/login';
-                      }}
-                      className="w-full px-4 py-3 flex items-center gap-3 hover:bg-red-500/10 transition-colors text-left"
-                    >
-                      <LogOut className="w-4 h-4 text-red-400" />
-                      <span className="text-sm text-red-400">Выйти</span>
                     </button>
                   </div>
                 </>

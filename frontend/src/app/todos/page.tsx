@@ -1,4 +1,8 @@
+
 'use client';
+
+// Корректируем selectedColumnIndex если список изменился
+// (перенесено ниже, после объявления хуков)
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -46,6 +50,8 @@ import {
   Archive,
   RotateCcw,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Link2,
   ExternalLink,
   MessageCircle,
@@ -369,7 +375,19 @@ export default function TodosPage() {
   const [showListMenu, setShowListMenu] = useState<string | null>(null);  // Для выпадающего меню "..."
   const [listSettingsDropdown, setListSettingsDropdown] = useState<'executor' | 'customer' | null>(null);
   const [mobileView, setMobileView] = useState<'board' | 'single'>(typeof window !== 'undefined' && window.innerWidth < 768 ? 'single' : 'board');
-  const [selectedColumnIndex, setSelectedColumnIndex] = useState(0);
+  const [selectedColumnIndex, setSelectedColumnIndex] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('todos_selected_column');
+      if (stored !== null) return Number(stored);
+    }
+    return 0;
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('todos_selected_column', String(selectedColumnIndex));
+    }
+  }, [selectedColumnIndex]);
   
   // Modal tabs and comments state
   const [modalTab, setModalTab] = useState<'details' | 'comments'>('details');
@@ -464,6 +482,8 @@ export default function TodosPage() {
   // Загрузка уведомлений из API
   const loadNotifications = useCallback(async (playSound = false) => {
     if (!myAccountId) return;
+    // Не запрашиваем данные если вкладка не активна
+    if (typeof document !== 'undefined' && document.hidden) return;
     
     try {
       const res = await fetch(`/api/notifications?userId=${myAccountId}`);
@@ -483,8 +503,10 @@ export default function TodosPage() {
             }
             
             // Показываем toast для каждого нового уведомления с группировкой
-            const existingIds = new Set(notifications.map(n => n.id));
-            const newNotifs = data.filter(n => !n.read && !existingIds.has(n.id));
+            // Используем setNotifications с коллбэком чтобы получить текущие уведомления
+            setNotifications(prevNotifications => {
+              const existingIds = new Set(prevNotifications.map(n => n.id));
+              const newNotifs = data.filter(n => !n.read && !existingIds.has(n.id));
             
             // Группируем уведомления по типу и задаче
             const groups = new Map<string, typeof newNotifs>();
@@ -536,17 +558,23 @@ export default function TodosPage() {
                 return [...prev.slice(-4), toast]; // Максимум 5 toast
               });
             });
+            
+              return data; // Возвращаем новые данные
+            });
+          } else {
+            setNotifications(data);
           }
           
           lastNotificationCountRef.current = newUnreadCount;
+        } else {
+          // Если нет новых уведомлений, просто обновляем данные
+          setNotifications(data);
         }
-        
-        setNotifications(data);
       }
     } catch (error) {
       console.error('Error loading notifications:', error);
     }
-  }, [myAccountId, notifications, soundEnabled]);
+  }, [myAccountId, soundEnabled]); // Убрали notifications из зависимостей чтобы избежать бесконечного цикла
 
   // Сохранение уведомления в API
   const saveNotification = useCallback(async (notification: Notification) => {
@@ -588,6 +616,8 @@ export default function TodosPage() {
     const assignTo = searchParams.get('assignTo');
     const assignToName = searchParams.get('assignToName');
     const taskTitle = searchParams.get('taskTitle');
+    const authorId = searchParams.get('authorId');
+    const authorName = searchParams.get('authorName');
     const from = searchParams.get('from');
     
     // Сохраняем URL откуда пришли для возврата
@@ -595,16 +625,18 @@ export default function TodosPage() {
       setReturnUrl(from);
     }
     
-    if (createTask === 'true' && listId && assignTo && people.length > 0 && lists.length > 0 && !hasOpenedFromUrlRef.current) {
-      hasOpenedFromUrlRef.current = true;
-      
+    if (createTask === 'true' && listId && assignTo && people.length > 0 && lists.length > 0) {
       // Убираем параметры из URL
-      router.replace('/account?tab=tasks', { scroll: false });
+      router.replace('/todos', { scroll: false });
       
       // Находим список и открываем полную модалку создания
       setTimeout(() => {
         const targetList = lists.find(l => l.id === listId);
         if (targetList && !editingTodo) {
+          // Находим имена для заказчика и исполнителя
+          const assignedByPerson = people.find(p => p.id === (authorId || myAccountId));
+          const assignedToPerson = people.find(p => p.id === assignTo);
+          
           // Создаём новую задачу с предзаполненными данными
           const newTodo: Todo = {
             id: `temp-${Date.now()}`,
@@ -616,7 +648,9 @@ export default function TodosPage() {
             completed: false,
             order: 0,
             assignedToId: assignTo,
-            assignedById: myAccountId || undefined,
+            assignedTo: assignedToPerson?.name || assignToName || '',
+            assignedById: authorId || myAccountId || undefined,
+            assignedBy: assignedByPerson?.name || authorName || '',
             tags: [],
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
@@ -632,6 +666,9 @@ export default function TodosPage() {
   // Polling задач каждые 3 секунды для real-time синхронизации
   useEffect(() => {
     const pollTodos = async () => {
+      // Не запрашиваем данные если вкладка не активна
+      if (typeof document !== 'undefined' && document.hidden) return;
+      
       try {
         const userId = myAccountId;
         const res = await fetch(`/api/todos${userId ? `?userId=${userId}` : ''}`);
@@ -759,8 +796,8 @@ export default function TodosPage() {
       }
     };
 
-    // Polling каждые 3 секунды
-    const interval = setInterval(pollTodos, 3000);
+    // Polling каждые 10 секунд (уменьшено с 3s для производительности)
+    const interval = setInterval(pollTodos, 10000);
     
     return () => clearInterval(interval);
   }, [myAccountId, soundEnabled, editingTodo?.id]);
@@ -1686,15 +1723,21 @@ export default function TodosPage() {
   // Обновление задачи
   const updateTodo = async (todo: Todo) => {
     try {
-      // Получаем текущую версию задачи для сравнения статуса
-      const currentTodo = todos.find(t => t.id === todo.id);
+      // Проверяем, является ли задача новой (temp-id)
+      const isNewTodo = todo.id.startsWith('temp-');
+      
+      // Получаем текущую версию задачи для сравнения статуса (только для существующих задач)
+      const currentTodo = !isNewTodo ? todos.find(t => t.id === todo.id) : null;
       const statusChanged = currentTodo && currentTodo.status !== todo.status;
       const oldStatus = currentTodo?.status;
       
       const res = await fetch('/api/todos', {
-        method: 'PUT',
+        method: isNewTodo ? 'POST' : 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(todo)
+        body: JSON.stringify(isNewTodo ? {
+          ...todo,
+          id: undefined, // Удаляем temp-id для создания
+        } : todo)
       });
       
       if (res.ok) {
@@ -1720,7 +1763,17 @@ export default function TodosPage() {
           createTaskNotification(todo, 'assignment');
         }
         
-        setTodos(prev => prev.map(t => t.id === todo.id ? updated : t));
+        // Для новых задач - добавляем, для существующих - обновляем
+        if (isNewTodo) {
+          setTodos(prev => [...prev, updated]);
+          // Отправляем уведомление о создании
+          if (todo.assignedToId) {
+            createTaskNotification(updated, 'assignment');
+          }
+        } else {
+          setTodos(prev => prev.map(t => t.id === todo.id ? updated : t));
+        }
+        
         closeTodoModal();
       }
     } catch (error) {
@@ -2727,56 +2780,93 @@ export default function TodosPage() {
       </header>
 
       {/* Mobile Column Switcher - только на мобильных */}
-      <div className="md:hidden flex-shrink-0 bg-[#e7e7e7] dark:bg-[var(--bg-tertiary)] border-b border-gray-300 dark:border-[var(--border-color)]">
-        <div 
-          className="flex gap-2 px-3 py-2.5 items-center overflow-x-auto touch-pan-x"
-          style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-        >
-          {/* Кнопка добавления списка */}
+      <div className="md:hidden flex-shrink-0 bg-white/50 dark:bg-[var(--bg-tertiary)] backdrop-blur-md border-b border-gray-200/50 dark:border-[var(--border-color)]/50">
+        <div className="flex items-center gap-1 px-2 py-3">
+          {/* Левая стрелка */}
           <button
-            onClick={() => setShowAddList(true)}
-            className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-          {lists.filter(l => !l.archived).sort((a, b) => a.order - b.order)
-            .filter(list => {
-              if (!canSeeAllTasks && myAccountId) {
-                const isOwnList = list.creatorId === myAccountId || (list.allowedUsers && list.allowedUsers.includes(myAccountId));
-                if (!isOwnList) {
-                  const listTodos = getTodosForList(list.id, showArchive);
-                  if (listTodos.length === 0) return false;
-                }
+            onClick={() => {
+              const nonArchivedLists = lists.filter(l => !l.archived).sort((a, b) => a.order - b.order);
+              if (selectedColumnIndex > 0) {
+                setSelectedColumnIndex(selectedColumnIndex - 1);
               }
-              return true;
-            })
-            .map((list, index) => {
-              const listTodos = getTodosForList(list.id, showArchive);
+            }}
+            disabled={selectedColumnIndex === 0}
+            className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+              selectedColumnIndex === 0
+                ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                : 'text-blue-500 dark:text-blue-400 bg-white/80 dark:bg-[var(--bg-secondary)]/80 shadow-sm hover:shadow-md active:scale-95'
+            }`}
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+
+          {/* Скроллящийся список */}
+          <div 
+            className="flex-1 flex gap-2 items-center overflow-x-auto overflow-y-hidden"
+            style={{
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+              WebkitOverflowScrolling: 'touch',
+              touchAction: 'pan-x'
+            }}
+          >
+            <style jsx>{`
+              div::-webkit-scrollbar {
+                display: none;
+              }
+            `}</style>
+            
+            {/* Кнопка добавления списка */}
+            <button
+              onClick={() => setShowAddList(true)}
+              className="flex-shrink-0 w-10 h-10 rounded-full bg-white/80 dark:bg-[var(--bg-secondary)]/80 backdrop-blur-sm shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center text-blue-500 dark:text-blue-400 transition-all border border-blue-200 dark:border-blue-500/30"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+            
+            {/* Показываем ТОЛЬКО активную вкладку */}
+            {(() => {
+              const sortedLists = lists.filter(l => !l.archived).sort((a, b) => a.order - b.order);
+              const activeList = sortedLists[selectedColumnIndex];
+              if (!activeList) return null;
+              const listTodos = getTodosForList(activeList.id, showArchive);
               return (
-                <button
-                  key={list.id}
-                  onClick={() => setSelectedColumnIndex(index)}
-                  className={`flex-shrink-0 px-4 py-1.5 text-sm font-medium transition-all flex items-center gap-1.5 whitespace-nowrap ${
-                    selectedColumnIndex === index
-                      ? 'bg-[var(--accent-primary)] text-white shadow-sm'
-                      : 'bg-white border border-gray-200 text-gray-900 dark:bg-[var(--bg-glass)] dark:border-[var(--border-color)] dark:text-[var(--text-secondary)]'
-                  }`}
-                  style={{ borderRadius: '50px' }}
+                <div
+                  className="flex-shrink-0 px-5 py-2.5 text-sm font-semibold bg-gradient-to-br text-white shadow-lg rounded-2xl flex items-center gap-2 whitespace-nowrap"
+                  style={{ backgroundImage: `linear-gradient(135deg, ${activeList.color}, ${activeList.color}dd)` }}
                 >
-                  <span 
-                    className="w-2 h-2 rounded-full flex-shrink-0" 
-                    style={{ backgroundColor: list.color }}
-                  />
-                  <span className="max-w-[80px] truncate">{list.name}</span>
-                  <span className="text-[10px] opacity-60 ml-0.5">{listTodos.length}</span>
-                </button>
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-white/80" />
+                  <span className="max-w-[120px] truncate">{activeList.name}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 text-white">
+                    {listTodos.length}
+                  </span>
+                </div>
               );
-            })}
+            })()}
+          </div>
+
+          {/* Правая стрелка */}
+          <button
+            onClick={() => {
+              const nonArchivedLists = lists.filter(l => !l.archived).sort((a, b) => a.order - b.order);
+              if (selectedColumnIndex < nonArchivedLists.length - 1) {
+                setSelectedColumnIndex(selectedColumnIndex + 1);
+              }
+            }}
+            disabled={selectedColumnIndex >= lists.filter(l => !l.archived).length - 1}
+            className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+              selectedColumnIndex >= lists.filter(l => !l.archived).length - 1
+                ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                : 'text-blue-500 dark:text-blue-400 bg-white/80 dark:bg-[var(--bg-secondary)]/80 shadow-sm hover:shadow-md active:scale-95'
+            }`}
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
       {/* Kanban Board */}
-      <div className="flex-1 min-h-0 pb-20 md:pb-4 overflow-y-auto md:overflow-y-auto">
+      <div className="flex-1 min-h-0 pb-36 md:pb-16 overflow-y-auto md:overflow-y-auto">
         <div 
           ref={boardRef}
           className="px-1 sm:px-4 py-2 sm:py-4 flex flex-col md:flex-row gap-2 sm:gap-4 md:overflow-x-auto scrollbar-hide"
@@ -2809,8 +2899,8 @@ export default function TodosPage() {
             const isDropTarget = dragOverListId === list.id && draggedTodo?.listId !== list.id;
             const isListDropTarget = dragOverListOrder === list.order && draggedList?.id !== list.id;
             
-            // На мобильных показываем только выбранную колонку
-            const isMobileHidden = typeof window !== 'undefined' && window.innerWidth < 768 && index !== selectedColumnIndex;
+            // На мобильных показываем только выбранную колонку (используем CSS для правильного SSR)
+            const isNotSelectedOnMobile = index !== selectedColumnIndex;
             
             return (
               <div
@@ -2827,7 +2917,7 @@ export default function TodosPage() {
                   }
                 }}
                 className={`flex-shrink-0 w-full md:w-80 flex flex-col rounded-xl transition-all ${
-                  isMobileHidden ? 'hidden md:flex' : ''
+                  isNotSelectedOnMobile ? 'hidden md:flex' : 'flex'
                 } ${
                   isDropTarget ? 'ring-2 ring-white/30 ring-opacity-50' : ''
                 } ${isListDropTarget ? 'ring-2 ring-blue-500/50' : ''} ${draggedList?.id === list.id ? 'opacity-50 scale-95' : ''}`}
@@ -2836,19 +2926,19 @@ export default function TodosPage() {
               >
                 {/* List Header */}
                 <div 
-                  className="bg-[#e5e5e5] dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-t-xl p-2 sm:p-2.5 flex-shrink-0"
+                  draggable={typeof window !== 'undefined' && window.innerWidth >= 768}
+                  onDragStart={(e) => handleListDragStart(e, list)}
+                  onDragEnd={handleListDragEnd}
+                  className="bg-[#e5e5e5] dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-t-xl p-2 sm:p-2.5 flex-shrink-0 md:cursor-grab md:active:cursor-grabbing"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between pointer-events-none">
                     <div className="flex items-center gap-1.5 sm:gap-1.5">
                       {/* Drag handle - только на десктопе */}
                       <div
-                        draggable
-                        onDragStart={(e) => handleListDragStart(e, list)}
-                        onDragEnd={handleListDragEnd}
-                        className="hidden md:block p-0.5 -ml-1 rounded hover:bg-[var(--bg-glass-hover)] cursor-grab active:cursor-grabbing transition-colors"
+                        className="hidden md:block p-0.5 -ml-1 rounded transition-colors opacity-0 group-hover:opacity-40"
                         title="Перетащите для изменения порядка"
                       >
-                        <GripVertical className="w-3.5 h-3.5 sm:w-3 sm:h-3 opacity-40" />
+                        <GripVertical className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
                       </div>
                       <div 
                         className="w-2.5 h-2.5 sm:w-2.5 sm:h-2.5 rounded-full flex-shrink-0"
@@ -2876,13 +2966,13 @@ export default function TodosPage() {
                               setEditingListId(null);
                             }
                           }}
-                          className="bg-[var(--bg-secondary)] border border-[var(--border-light)] rounded px-2 py-0.5 text-sm font-medium focus:outline-none focus:border-blue-500/50 w-28"
+                          className="bg-[var(--bg-secondary)] border border-[var(--border-light)] rounded px-2 py-0.5 text-sm font-medium focus:outline-none focus:border-blue-500/50 w-28 pointer-events-auto"
                           autoFocus
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
                         <h3 
-                          className="font-medium text-sm sm:text-sm truncate cursor-pointer text-gray-900 dark:text-white hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                          className="font-medium text-sm sm:text-sm truncate cursor-pointer text-gray-900 dark:text-white hover:text-blue-500 dark:hover:text-blue-400 transition-colors pointer-events-auto"
                           onClick={(e) => {
                             e.stopPropagation();
                             setEditingListId(list.id);
@@ -2908,7 +2998,7 @@ export default function TodosPage() {
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center gap-0.5">
+                    <div className="flex items-center gap-0.5 pointer-events-auto">
                       <button
                         onClick={() => setAddingToList(list.id)}
                         className="flex-shrink-0 w-7 h-7 bg-[var(--bg-glass)] hover:bg-green-500/30 rounded-full transition-all duration-200 text-green-400 flex items-center justify-center border border-[var(--border-glass)] backdrop-blur-sm"
@@ -2926,7 +3016,7 @@ export default function TodosPage() {
                           <MoreVertical className="w-3.5 h-3.5" />
                         </button>
                         {showListMenu === list.id && (
-                          <div className="absolute right-0 top-full mt-1 w-44 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl z-50 py-1">
+                          <div className="absolute right-0 top-full mt-1 w-44 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl z-50 py-1 pointer-events-auto">
                             <button
                               onClick={() => { setShowListMenu(null); setShowListSettings(list.id); }}
                               className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-blue-400 hover:bg-blue-500/10 transition-colors"
@@ -3041,7 +3131,7 @@ export default function TodosPage() {
                   {listTodos.map(todo => (
                     <div
                       key={todo.id}
-                      draggable
+                      draggable={typeof window !== 'undefined' && window.innerWidth >= 768}
                       onDragStart={(e) => handleDragStart(e, todo)}
                       onDragEnd={handleDragEnd}
                       onDragOver={(e) => handleTodoDragOver(e, todo.id)}
@@ -3049,7 +3139,7 @@ export default function TodosPage() {
                       onMouseEnter={(e) => handleTodoMouseEnter(e, todo)}
                       onMouseLeave={handleTodoMouseLeave}
                       className={`
-                        group bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-lg p-2.5 sm:p-2.5 cursor-grab active:cursor-grabbing
+                        group bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-lg p-2.5 sm:p-2.5 md:cursor-grab md:active:cursor-grabbing
                         transition-all duration-200 hover:shadow-lg hover:border-gray-400 dark:hover:border-[var(--border-light)] border-l-3 ${PRIORITY_COLORS[todo.priority]}
                         ${todo.completed ? 'opacity-70' : ''}
                         ${draggedTodo?.id === todo.id ? 'opacity-50 scale-95' : ''}
@@ -3057,9 +3147,9 @@ export default function TodosPage() {
                         shadow-md
                       `}
                     >
-                      <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3 pointer-events-none">
                         {/* Grip handle */}
-                        <div className="mt-0.5 opacity-0 group-hover:opacity-40 transition-opacity duration-200 cursor-grab text-gray-400 dark:text-white/50">
+                        <div className="mt-0.5 opacity-0 group-hover:opacity-40 transition-opacity duration-200 text-gray-400 dark:text-white/50">
                           <GripVertical className="w-3 h-3" />
                         </div>
                         
@@ -3067,7 +3157,7 @@ export default function TodosPage() {
                         <button
                           onClick={() => toggleTodo(todo)}
                           className={`
-                            w-5 h-5 sm:w-4 sm:h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all
+                            w-5 h-5 sm:w-4 sm:h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all pointer-events-auto
                             ${todo.completed 
                               ? 'bg-green-500 border-green-500 text-white' 
                               : 'border-gray-300 dark:border-[var(--border-color)] hover:border-green-500'
@@ -3153,7 +3243,7 @@ export default function TodosPage() {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                className="flex items-center gap-0.5 text-[9px] text-blue-400 hover:text-blue-300"
+                                className="flex items-center gap-0.5 text-[9px] text-blue-400 hover:text-blue-300 pointer-events-auto"
                                 title={todo.linkTitle || todo.linkUrl}
                               >
                                 <Link2 className="w-2.5 h-2.5" />
@@ -3164,7 +3254,7 @@ export default function TodosPage() {
                         </div>
                         
                         {/* Actions */}
-                        <div className="flex items-center gap-1 flex-shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-200">
+                        <div className="flex items-center gap-1 flex-shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-200 pointer-events-auto">
                           <button
                             onClick={() => openTodoModal(todo)}
                             className="flex-shrink-0 w-7 h-7 bg-gray-100 dark:bg-[var(--bg-glass)] hover:bg-gray-200 dark:hover:bg-[var(--bg-glass-hover)] rounded-full transition-all duration-200 flex items-center justify-center border border-gray-300 dark:border-[var(--border-glass)] backdrop-blur-sm text-gray-600 dark:text-[var(--text-secondary)]"
@@ -3172,15 +3262,14 @@ export default function TodosPage() {
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
-                          {todo.completed && (
-                            <button
-                              onClick={() => toggleArchiveTodo(todo.id, true)}
-                              className="flex-shrink-0 w-7 h-7 bg-gray-100 dark:bg-[var(--bg-glass)] hover:bg-orange-100 dark:hover:bg-orange-500/20 rounded-full text-orange-500 dark:text-orange-400 transition-all duration-200 flex items-center justify-center border border-gray-300 dark:border-[var(--border-glass)] backdrop-blur-sm"
-                              title="В архив"
-                            >
-                              <Archive className="w-3.5 h-3.5" />
-                            </button>
-                          )}
+                          <button
+                            onClick={() => toggleArchiveTodo(todo.id, true)}
+                            className="flex-shrink-0 w-7 h-7 bg-gray-100 dark:bg-[var(--bg-glass)] hover:bg-orange-100 dark:hover:bg-orange-500/20 rounded-full text-orange-500 dark:text-orange-400 transition-all duration-200 flex items-center justify-center border border-gray-300 dark:border-[var(--border-glass)] backdrop-blur-sm"
+                            title="В архив"
+                            style={{ display: todo.completed ? 'flex' : 'none' }}
+                          >
+                            <Archive className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             onClick={() => deleteTodo(todo.id)}
                             className="flex-shrink-0 w-7 h-7 bg-gray-100 dark:bg-[var(--bg-glass)] hover:bg-red-100 dark:hover:bg-red-500/20 rounded-full text-red-500 dark:text-red-400 transition-all duration-200 flex items-center justify-center border border-gray-300 dark:border-[var(--border-glass)] backdrop-blur-sm"
@@ -3195,7 +3284,7 @@ export default function TodosPage() {
 
                   {/* Empty state */}
                   {listTodos.length === 0 && addingToList !== list.id && (
-                    <div className="flex flex-col items-center justify-center py-8 text-gray-500 dark:text-white/60">
+                    <div className="flex flex-col items-center justify-center py-8 text-gray-500 dark:text-white/60 pointer-events-none">
                       <Inbox className="w-8 h-8 mb-2 text-gray-400 dark:text-white/50" />
                       <p className="text-sm">Нет задач</p>
                     </div>
@@ -3210,7 +3299,7 @@ export default function TodosPage() {
             <div className="hidden md:block flex-shrink-0 w-80">
               <button
                 onClick={() => setShowAddList(true)}
-                className="w-full h-20 border-2 border-dashed border-gray-300 dark:border-[var(--border-color)] rounded-xl flex items-center justify-center gap-2 text-gray-400 dark:text-[var(--text-muted)] hover:border-gray-400 dark:hover:border-[var(--border-light)] hover:text-gray-500 dark:hover:text-[var(--text-secondary)] hover:bg-gray-50 dark:hover:bg-[var(--bg-glass)] transition-all"
+                className="w-full h-20 border-2 border-dashed border-gray-300 dark:border-[var(--border-color)] rounded-xl flex items-center justify-center gap-2 text-gray-400 dark:text-[var(--text-muted)] hover:border-gray-400 dark:hover:border-[var(--border-light)] hover:text-gray-500 dark:hover:text-[var(--text-secondary)] hover:bg-gray-50 dark:hover:bg-[var(--bg-glass)] transition-all pointer-events-auto"
               >
                 <Plus className="w-5 h-5" />
                 <span>Добавить список</span>
@@ -4138,15 +4227,9 @@ export default function TodosPage() {
                 </div>
                 
                 {/* Заголовок с кнопками форматирования */}
-                <div className="px-2 sm:px-3 py-1.5 sm:py-2 border-b border-gray-200 dark:border-[var(--border-color)]">
-                  <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-                    <div className="flex items-center gap-1.5 sm:gap-2">
-                      <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-500 dark:text-purple-400" />
-                      <span className="text-xs font-medium text-gray-700 dark:text-[var(--text-secondary)]">Описание</span>
-                    </div>
-                  </div>
-                  {/* Панель форматирования - уменьшенные иконки на мобильных */}
-                  <div className="flex items-center gap-0.5 sm:gap-1 flex-wrap">
+                <div className="px-2 sm:px-3 py-1 sm:py-1.5 border-b border-gray-200 dark:border-[var(--border-color)]">
+                  {/* Панель форматирования - компактная */}
+                  <div className="flex items-center gap-0.5 flex-wrap">
                     <button
                       type="button"
                       onClick={() => {
@@ -4156,10 +4239,10 @@ export default function TodosPage() {
                           editor.focus();
                         }
                       }}
-                      className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
+                      className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
                       title="Жирный (Ctrl+B)"
                     >
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42zM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3v-3zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42zM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3v-3zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>
                     </button>
                     <button
                       type="button"
@@ -4170,10 +4253,10 @@ export default function TodosPage() {
                           editor.focus();
                         }
                       }}
-                      className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
+                      className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
                       title="Курсив (Ctrl+I)"
                     >
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z"/></svg>
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z"/></svg>
                     </button>
                     <button
                       type="button"
@@ -4184,10 +4267,10 @@ export default function TodosPage() {
                           editor.focus();
                         }
                       }}
-                      className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
+                      className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
                       title="Подчёркнутый (Ctrl+U)"
                     >
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17c3.31 0 6-2.69 6-6V3h-2.5v8c0 1.93-1.57 3.5-3.5 3.5S8.5 12.93 8.5 11V3H6v8c0 3.31 2.69 6 6 6zm-7 2v2h14v-2H5z"/></svg>
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17c3.31 0 6-2.69 6-6V3h-2.5v8c0 1.93-1.57 3.5-3.5 3.5S8.5 12.93 8.5 11V3H6v8c0 3.31 2.69 6 6 6zm-7 2v2h14v-2H5z"/></svg>
                     </button>
                     <button
                       type="button"
@@ -4198,12 +4281,12 @@ export default function TodosPage() {
                           editor.focus();
                         }
                       }}
-                      className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
+                      className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
                       title="Зачёркнутый"
                     >
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M10 19h4v-3h-4v3zM5 4v3h5v3h4V7h5V4H5zM3 14h18v-2H3v2z"/></svg>
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M10 19h4v-3h-4v3zM5 4v3h5v3h4V7h5V4H5zM3 14h18v-2H3v2z"/></svg>
                     </button>
-                    <div className="w-px h-3 sm:h-4 bg-gray-200 dark:bg-[var(--bg-glass-hover)] mx-0.5 sm:mx-1" />
+                    <div className="w-px h-3 bg-gray-200 dark:bg-[var(--bg-glass-hover)] mx-0.5" />
                     <button
                       type="button"
                       onClick={() => {
@@ -4213,10 +4296,10 @@ export default function TodosPage() {
                           editor.focus();
                         }
                       }}
-                      className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
+                      className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
                       title="Маркированный список"
                     >
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z"/></svg>
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z"/></svg>
                     </button>
                     <button
                       type="button"
@@ -4227,22 +4310,22 @@ export default function TodosPage() {
                           editor.focus();
                         }
                       }}
-                      className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
+                      className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
                       title="Нумерованный список"
                     >
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 10.9V10H2v1zm5-6v2h14V5H7zm0 14h14v-2H7v2zm0-6h14v-2H7v2z"/></svg>
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 10.9V10H2v1zm5-6v2h14V5H7zm0 14h14v-2H7v2zm0-6h14v-2H7v2z"/></svg>
                     </button>
-                    <div className="hidden sm:block w-px h-4 bg-gray-200 dark:bg-[var(--bg-glass-hover)] mx-1" />
+                    <div className="hidden sm:block w-px h-3 bg-gray-200 dark:bg-[var(--bg-glass-hover)] mx-0.5" />
                     {/* Кастомный dropdown для размера текста */}
                     <div className="relative hidden sm:block">
                       <button
                         type="button"
                         onClick={() => setOpenDropdown(openDropdown === 'textSize' ? null : 'textSize')}
-                        className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 sm:py-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors text-xs"
+                        className="flex items-center gap-1 px-1.5 py-1 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors text-xs"
                       >
-                        <svg className="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M9 4v3h5v12h3V7h5V4H9zm-6 8h3v7h3v-7h3V9H3v3z"/></svg>
-                        <span className="hidden sm:inline">Размер</span>
-                        <ChevronDown className="w-2.5 h-2.5" />
+                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M9 4v3h5v12h3V7h5V4H9zm-6 8h3v7h3v-7h3V9H3v3z"/></svg>
+                        <span className="hidden sm:inline text-[10px]">Размер</span>
+                        <ChevronDown className="w-2 h-2" />
                       </button>
                       {openDropdown === 'textSize' && (
                         <div className="absolute top-full left-0 mt-1 bg-white dark:bg-[var(--bg-tertiary)] border border-gray-200 dark:border-[var(--border-color)] rounded-lg shadow-xl z-50 min-w-[120px] overflow-hidden">
@@ -4310,7 +4393,7 @@ export default function TodosPage() {
                         </div>
                       )}
                     </div>
-                    <div className="hidden sm:block w-px h-4 bg-gray-200 dark:bg-[var(--bg-glass-hover)] mx-1" />
+                    <div className="hidden sm:block w-px h-3 bg-gray-200 dark:bg-[var(--bg-glass-hover)] mx-0.5" />
                     <button
                       type="button"
                       onClick={() => {
@@ -4323,10 +4406,10 @@ export default function TodosPage() {
                           editor.focus();
                         }
                       }}
-                      className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
+                      className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
                       title="Вставить ссылку"
                     >
-                      <Link2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                      <Link2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </button>
                     <button
                       type="button"
@@ -4339,10 +4422,10 @@ export default function TodosPage() {
                           editor.focus();
                         }
                       }}
-                      className="hidden sm:block p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
+                      className="hidden sm:block p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
                       title="Добавить чек-лист"
                     >
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                       </svg>
                     </button>
@@ -4355,47 +4438,23 @@ export default function TodosPage() {
                           editor.focus();
                         }
                       }}
-                      className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
+                      className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
                       title="Очистить форматирование"
                     >
-                      <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                      <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </button>
                   </div>
                 </div>
                 
-                {/* WYSIWYG редактор */}
-                <div className="flex-1 p-1.5 sm:p-2 overflow-hidden flex flex-col relative">
-                  <div
-                    ref={descriptionEditorRef}
-                    id="description-editor"
-                    contentEditable
-                    suppressContentEditableWarning
-                    onBlur={(e) => {
-                      const target = e.target as HTMLDivElement;
-                      setEditingTodo(prev => prev ? { ...prev, description: target.innerHTML } : null);
-                    }}
-                    onClick={(e) => {
-                      // Обрабатываем клики по ссылкам
-                      const target = e.target as HTMLElement;
-                      if (target.tagName === 'A' && target.getAttribute('href')) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        window.open(target.getAttribute('href')!, '_blank', 'noopener,noreferrer');
-                      }
-                    }}
-                    onPaste={(e) => {
-                      e.preventDefault();
-                      const text = e.clipboardData.getData('text/html') || e.clipboardData.getData('text/plain');
-                      document.execCommand('insertHTML', false, text);
-                    }}
-                    className="w-full flex-1 min-h-[150px] sm:min-h-[200px] px-2 sm:px-3 py-2 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl text-sm text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 overflow-y-auto focus:outline-none focus:border-blue-500/30 transition-all leading-relaxed [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-medium [&_h3]:mb-1 [&_ul]:list-disc [&_ul]:ml-4 [&_ol]:list-decimal [&_ol]:ml-4 [&_a]:text-blue-500 dark:[&_a]:text-blue-400 [&_a]:underline [&_a]:cursor-pointer [&_li]:ml-2 [&_div]:text-sm [&_div]:font-normal [&_p]:text-sm [&_p]:font-normal"
-                    style={{ minHeight: '150px' }}
+                {/* Однострочный редактор описания */}
+                <div className="p-1.5 sm:p-2">
+                  <input
+                    type="text"
+                    value={editingTodo?.description || ''}
+                    onChange={(e) => setEditingTodo(prev => prev ? { ...prev, description: e.target.value } : null)}
+                    placeholder="Добавьте описание задачи..."
+                    className="w-full px-2 sm:px-3 py-2 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl text-sm text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 focus:outline-none focus:border-blue-500/30 transition-all"
                   />
-                  {descriptionEditorRef.current && !descriptionEditorRef.current.innerHTML && (
-                    <div className="absolute top-4 left-5 text-sm text-[var(--text-muted)] pointer-events-none">
-                      Добавьте описание задачи...
-                    </div>
-                  )}
                 </div>
 
                 {/* Вложения */}

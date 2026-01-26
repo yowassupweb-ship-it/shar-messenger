@@ -30,6 +30,7 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
 }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,6 +51,7 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
     }
 
     setError(null);
+    setSelectedFile(file);
     
     // Показываем превью
     const reader = new FileReader();
@@ -57,12 +59,16 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
       setPreviewUrl(e.target?.result as string);
     };
     reader.readAsDataURL(file);
+  }, []);
+
+  const handleSaveAvatar = useCallback(async () => {
+    if (!selectedFile) return;
 
     // Загружаем файл
     setIsUploading(true);
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', selectedFile);
       formData.append('userId', userId);
 
       const res = await fetch('/api/avatars', {
@@ -74,14 +80,13 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
         const data = await res.json();
         onAvatarChange?.(data.avatarUrl);
         setPreviewUrl(null);
+        setSelectedFile(null);
       } else {
         const errorData = await res.json();
         setError(errorData.error || 'Ошибка загрузки');
-        setPreviewUrl(null);
       }
     } catch (err) {
       setError('Ошибка при загрузке файла');
-      setPreviewUrl(null);
     } finally {
       setIsUploading(false);
       // Сбрасываем input чтобы можно было загрузить тот же файл повторно
@@ -89,7 +94,15 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
         fileInputRef.current.value = '';
       }
     }
-  }, [userId, onAvatarChange]);
+  }, [selectedFile, userId, onAvatarChange]);
+
+  const handleCancelPreview = useCallback(() => {
+    setPreviewUrl(null);
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, []);
 
   const handleRemoveAvatar = useCallback(async () => {
     if (!currentAvatar) return;
@@ -179,8 +192,26 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
         <p className="text-xs text-red-500 text-center max-w-[150px]">{error}</p>
       )}
 
+      {/* Кнопки сохранения/отмены при превью */}
+      {previewUrl && !isUploading && (
+        <div className="flex gap-2">
+          <button
+            onClick={handleCancelPreview}
+            className="px-4 py-2 rounded-lg bg-gray-500 hover:bg-gray-600 text-white text-sm font-medium transition-colors"
+          >
+            Отмена
+          </button>
+          <button
+            onClick={handleSaveAvatar}
+            className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium transition-colors"
+          >
+            Сохранить
+          </button>
+        </div>
+      )}
+
       {/* Подсказка */}
-      {!error && !isUploading && (
+      {!error && !isUploading && !previewUrl && (
         <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
           JPG, PNG, GIF, WebP до 5MB
         </p>

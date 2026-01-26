@@ -60,6 +60,10 @@ class Database:
         with open(self.db_path, 'w', encoding='utf-8') as f:
             json.dump(self.data, f, ensure_ascii=False, indent=2)
     
+    def save_to_disk(self):
+        """Alias for _save for backward compatibility"""
+        self._save()
+    
     def _get_default_structure(self) -> Dict[str, Any]:
         """Структура БД по умолчанию"""
         return {

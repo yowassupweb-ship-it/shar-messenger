@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Выбор даты тура</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: #fff;
+            padding: 20px;
+        }
+
+        .table-container {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            width: 100%;
+            max-width: 810px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead th {
+            padding: 16px 12px;
+            text-align: left;
+            font-weight: 500;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #ff6b35;
+            border-bottom: 3px solid #ff6b35;
+        }
+
+        tbody tr {
+            transition: background-color 0.15s ease;
+            cursor: pointer;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 107, 53, 0.04);
+        }
+
+        tbody tr.selected {
+            background: rgba(255, 107, 53, 0.08);
+        }
+
+        tbody td {
+            padding: 16px 12px;
+            vertical-align: middle;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+            color: #333;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .date-cell {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .radio-wrapper {
+            position: relative;
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        .radio-wrapper input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+            z-index: 1;
+            margin: 0;
+        }
+
+        .radio-custom {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ff6b35;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .radio-custom::after {
+            content: '';
+            width: 10px;
+            height: 10px;
+            background: #ff6b35;
+            border-radius: 50%;
+            transform: scale(0);
+            transition: transform 0.15s ease;
+        }
+
+        .radio-wrapper input[type="radio"]:checked + .radio-custom::after {
+            transform: scale(1);
+        }
+
+        .date-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .date-range {
+            font-weight: 500;
+            color: #333;
+            white-space: nowrap;
+        }
+
+        .days {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .location-cell {
+            line-height: 1.5;
+        }
+
+        .metro {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .metro-line-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 2px;
+        }
+
+        .metro-line {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .scheme-link {
+            display: inline-block;
+            flex-shrink: 0;
+            white-space: nowrap;
+            color: #ff6b35;
+            text-decoration: none;
+            font-size: 12px;
+            padding: 3px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 50px;
+            transition: all 0.2s;
+        }
+
+        .scheme-link:hover {
+            background: #ff6b35;
+            color: #fff;
+            border-color: #ff6b35;
+        }
+
+        .time-cell {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .seats-cell {
+            text-align: center;
+        }
+
+        .seats-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            background: #22c55e;
+            color: #fff;
+            font-weight: 600;
+            font-size: 14px;
+            border-radius: 50%;
+        }
+
+        .price-cell {
+            font-weight: 600;
+            font-size: 18px;
+            color: #ff6b35;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .price-cell .price-prefix {
+            font-weight: 400;
+        }
+
+        .price-cell .price-suffix {
+            font-weight: 400;
+            font-size: 0.75em;
+        }
+
+        .show-more {
+            text-align: center;
+            padding: 16px;
+        }
+
+        .show-more a {
+            display: inline-block;
+            color: #ff6b35;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 10px 24px;
+            border: 1px solid #ff6b35;
+            border-radius: 24px;
+            transition: all 0.2s;
+        }
+
+        .show-more a:hover {
+            background: #ff6b35;
+            color: #fff;
+        }
+
+        /* Мобильная адаптация */
+        @media (max-width: 768px) {
+            * {
+                -webkit-tap-highlight-color: transparent;
+            }
+
+            body {
+                padding: 8px;
+                background: #f5f5f5;
+            }
+
+            .table-container {
+                border-radius: 8px;
+                background: transparent;
+                box-shadow: none;
+            }
+
+            table, thead, tbody, th, td, tr {
+                display: block;
+            }
+
+            thead {
+                display: none;
+            }
+
+            tbody tr {
+                padding: 18px;
+                margin-bottom: 12px;
+                border: 2px solid #e0e0e0;
+                border-radius: 10px;
+                position: relative;
+                background: #fff;
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+                min-height: 160px;
+                transition: border-color 0.15s ease, background-color 0.15s ease;
+            }
+
+            tbody tr.selected {
+                border-color: #ff6b35;
+                background: rgba(255, 107, 53, 0.04);
+            }
+
+            tbody td {
+                padding: 0;
+                border-bottom: none;
+            }
+
+            /* Дата - первая строка */
+            tbody td:first-child {
+                padding-bottom: 8px;
+                margin-bottom: 8px;
+            }
+
+            .date-cell {
+                width: 100%;
+            }
+
+            .time-cell::before {
+                content: 'Время отправления: ';
+                color: #888;
+                font-weight: 400;
+            }
+
+            .seats-cell::before {
+                content: 'Мест: ';
+                color: #888;
+                font-weight: 400;
+            }
+
+            .seats-badge {
+                width: auto;
+                height: auto;
+                background: transparent;
+                color: #333;
+                font-size: 16px;
+                font-weight: 500;
+                border-radius: 0;
+            }
+
+            /* Цена - верхний правый угол */
+            .price-cell {
+                position: absolute !important;
+                top: 18px;
+                right: 14px;
+                font-size: 18px;
+                font-weight: 700;
+            }
+
+            /* Время и места - строка под датой, над местом */
+            .time-cell {
+                display: inline !important;
+                font-size: 16px;
+            }
+
+            .seats-cell {
+                display: inline !important;
+                margin-left: 16px;
+                font-size: 16px;
+            }
+
+            /* Дата - крупнее */
+            .date-range {
+                font-size: 18px;
+            }
+
+            .days {
+                font-size: 15px;
+            }
+
+            /* Место сбора - внизу */
+            .location-cell {
+                display: block !important;
+                margin-top: 0;
+                padding-top: 0;
+                padding-bottom: 35px;
+            }
+
+            .location-cell::before {
+                content: 'Место встречи:';
+                display: block;
+                color: #888;
+                font-weight: 400;
+                font-size: 13px;
+                margin-bottom: 2px;
+            }
+
+            .location-cell .metro {
+                display: inline;
+                font-size: 14px;
+            }
+
+            .location-cell .metro-line-row {
+                display: inline;
+                margin-left: 0;
+            }
+
+            .location-cell .metro-line-row .metro-line {
+                display: inline;
+                font-size: 14px;
+                margin-left: 6px;
+            }
+
+            /* Схема - кнопка в нижнем правом углу, побольше */
+            .location-cell .metro-line-row .scheme-link {
+                position: absolute;
+                bottom: 12px;
+                right: 12px;
+                font-size: 13px;
+                padding: 8px 20px;
+            }
+
+            .show-more {
+                padding: 12px;
+            }
+        }
+
+        @media (max-width: 430px) {
+            .date-range {
+                font-size: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Даты</th>
+                    <th>Место сбора</th>
+                    <th style="position: relative; left: -15px;">Отправление</th>
+                    <th>Мест</th>
+                    <th>Цена</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="selected" onclick="selectRow(this)">
+                    <td>
+                        <div class="date-cell">
+                            <label class="radio-wrapper">
+                                <input type="radio" name="tour-date" checked>
+                                <div class="radio-custom"></div>
+                            </label>
+                            <div class="date-info">
+                                <span class="date-range">02.01.26 — 04.01.26</span>
+                                <span class="days">чт-сб</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="location-cell">
+                        <div class="metro">м. Курская</div>
+                        <div class="metro-line-row">
+                            <a href="#" class="scheme-link">Схема</a>
+                            <span class="metro-line">Арбатско-Покровская</span>
+                        </div>
+                    </td>
+                    <td class="time-cell">7:00</td>
+                    <td class="seats-cell"><span class="seats-badge">28</span></td>
+                    <td class="price-cell">от 25 900 ₽<span class="price-suffix">/чел.</span></td>
+                </tr>
+                <tr onclick="selectRow(this)">
+                    <td>
+                        <div class="date-cell">
+                            <label class="radio-wrapper">
+                                <input type="radio" name="tour-date">
+                                <div class="radio-custom"></div>
+                            </label>
+                            <div class="date-info">
+                                <span class="date-range">02.01.26 — 04.01.26</span>
+                                <span class="days">чт-сб</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="location-cell">
+                        <div class="metro">м. Электрозаводская</div>
+                        <div class="metro-line-row">
+                            <a href="#" class="scheme-link">Схема</a>
+                            <span class="metro-line">Арбатско-Покровская</span>
+                        </div>
+                    </td>
+                    <td class="time-cell">7:00</td>
+                    <td class="seats-cell"><span class="seats-badge">28</span></td>
+                    <td class="price-cell"><span class="price-prefix">от </span>25 900 ₽<span class="price-suffix">/чел.</span></td>
+                </tr>
+                <tr onclick="selectRow(this)">
+                    <td>
+                        <div class="date-cell">
+                            <label class="radio-wrapper">
+                                <input type="radio" name="tour-date">
+                                <div class="radio-custom"></div>
+                            </label>
+                            <div class="date-info">
+                                <span class="date-range">02.01.26 — 04.01.26</span>
+                                <span class="days">чт-сб</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="location-cell">
+                        <div class="metro">Гостиница «Ленинградская»</div>
+                        <div class="metro-line-row">
+                            <a href="#" class="scheme-link">Схема</a>
+                            <span class="metro-line">у входа</span>
+                        </div>
+                    </td>
+                    <td class="time-cell">7:00</td>
+                    <td class="seats-cell"><span class="seats-badge">28</span></td>
+                    <td class="price-cell"><span class="price-prefix">от </span>25 900 ₽<span class="price-suffix">/чел.</span></td>
+                </tr>
+                <tr onclick="selectRow(this)">
+                    <td>
+                        <div class="date-cell">
+                            <label class="radio-wrapper">
+                                <input type="radio" name="tour-date">
+                                <div class="radio-custom"></div>
+                            </label>
+                            <div class="date-info">
+                                <span class="date-range">02.01.26 — 04.01.26</span>
+                                <span class="days">чт-сб</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="location-cell">
+                        <div class="metro">г. Смоленск</div>
+                        <div class="metro-line-row">
+                            <span class="metro-line">Автовокзал, пл. Победы</span>
+                        </div>
+                    </td>
+                    <td class="time-cell">6:00</td>
+                    <td class="seats-cell"><span class="seats-badge">32</span></td>
+                    <td class="price-cell"><span class="price-prefix">от </span>22 900 ₽<span class="price-suffix">/чел.</span></td>
+                </tr>
+                <tr onclick="selectRow(this)">
+                    <td>
+                        <div class="date-cell">
+                            <label class="radio-wrapper">
+                                <input type="radio" name="tour-date">
+                                <div class="radio-custom"></div>
+                            </label>
+                            <div class="date-info">
+                                <span class="date-range">05.01.26 — 07.01.26</span>
+                                <span class="days">вс-вт</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="location-cell">
+                        <div class="metro">г. Смоленск</div>
+                        <div class="metro-line-row">
+                            <span class="metro-line">ж/д вокзал, центральный вход</span>
+                        </div>
+                    </td>
+                    <td class="time-cell">6:30</td>
+                    <td class="seats-cell"><span class="seats-badge">28</span></td>
+                    <td class="price-cell"><span class="price-prefix">от </span>23 500 ₽<span class="price-suffix">/чел.</span></td>
+                </tr>
+                <tr onclick="selectRow(this)">
+                    <td>
+                        <div class="date-cell">
+                            <label class="radio-wrapper">
+                                <input type="radio" name="tour-date">
+                                <div class="radio-custom"></div>
+                            </label>
+                            <div class="date-info">
+                                <span class="date-range">09.01.26 — 11.01.26</span>
+                                <span class="days">чт-сб</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="location-cell">
+                        <div class="metro">г. Брянск</div>
+                    </td>
+                    <td class="time-cell">—</td>
+                    <td class="seats-cell"><span class="seats-badge">24</span></td>
+                    <td class="price-cell"><span class="price-prefix">от </span>21 900 ₽<span class="price-suffix">/чел.</span></td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="show-more">
+            <a href="#" onclick="showMoreDates(event)">Показать ещё даты</a>
+        </div>
+    </div>
+
+    <script>
+        function selectRow(row) {
+            document.querySelectorAll('tbody tr').forEach(r => r.classList.remove('selected'));
+            row.classList.add('selected');
+            row.querySelector('input[type="radio"]').checked = true;
+        }
+
+        const extraDates = [
+            { date: '05.01.26 — 07.01.26', days: 'вс-вт', metro: 'м. Курская', line: 'Арбатско-Покровская', time: '8:00', seats: 24, price: '26 500 ₽', hasScheme: true },
+            { date: '05.01.26 — 07.01.26', days: 'вс-вт', metro: 'м. Электрозаводская', line: 'Арбатско-Покровская', time: '8:00', seats: 24, price: '26 500 ₽', hasScheme: true },
+            { date: '09.01.26 — 11.01.26', days: 'чт-сб', metro: 'г. Смоленск', line: 'ТЦ «Галактика», парковка', time: '5:00', seats: 30, price: '20 900 ₽', hasScheme: false },
+            { date: '09.01.26 — 11.01.26', days: 'чт-сб', metro: 'г. Калуга', line: 'Автовокзал, платформа 3', time: '5:30', seats: 26, price: '21 500 ₽', hasScheme: false },
+            { date: '12.01.26 — 14.01.26', days: 'вс-вт', metro: 'г. Тула', line: 'ж/д вокзал, центральный вход', time: '6:00', seats: 28, price: '22 900 ₽', hasScheme: false },
+            { date: '12.01.26 — 14.01.26', days: 'вс-вт', metro: 'Гостиница «Ленинградская»', line: 'у входа', time: '7:30', seats: 20, price: '27 900 ₽', hasScheme: true }
+        ];
+
+        let datesShown = false;
+
+        function showMoreDates(e) {
+            e.preventDefault();
+            const tbody = document.querySelector('tbody');
+            const showMoreLink = document.querySelector('.show-more a');
+
+            if (!datesShown) {
+                extraDates.forEach(item => {
+                    const tr = document.createElement('tr');
+                    tr.onclick = function() { selectRow(this); };
+                    const schemeHtml = item.hasScheme ? '<a href="#" class="scheme-link">Схема</a>' : '';
+                    tr.innerHTML = `
+                        <td>
+                            <div class="date-cell">
+                                <label class="radio-wrapper">
+                                    <input type="radio" name="tour-date">
+                                    <div class="radio-custom"></div>
+                                </label>
+                                <div class="date-info">
+                                    <span class="date-range">${item.date}</span>
+                                    <span class="days">${item.days}</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="location-cell">
+                            <div class="metro">${item.metro}</div>
+                            <div class="metro-line-row">
+                                ${schemeHtml}
+                                <span class="metro-line">${item.line}</span>
+                            </div>
+                        </td>
+                        <td class="time-cell">${item.time}</td>
+                        <td class="seats-cell"><span class="seats-badge">${item.seats}</span></td>
+                        <td class="price-cell"><span class="price-prefix">от </span>${item.price}<span class="price-suffix">/чел.</span></td>
+                    `;
+                    tr.style.opacity = '0';
+                    tbody.appendChild(tr);
+                    setTimeout(() => { tr.style.transition = 'opacity 0.3s'; tr.style.opacity = '1'; }, 10);
+                });
+                showMoreLink.textContent = 'Скрыть даты';
+                datesShown = true;
+            } else {
+                const rows = tbody.querySelectorAll('tr');
+                for (let i = rows.length - 1; i >= 6; i--) {
+                    rows[i].remove();
+                }
+                showMoreLink.textContent = 'Показать ещё даты';
+                datesShown = false;
+            }
+        }
+    </script>
+</body>
+</html>

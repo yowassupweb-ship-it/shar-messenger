@@ -10,6 +10,8 @@ interface Preset {
   name: string
   source: string
   medium: string
+  term?: string
+  content?: string
   color: string
   description: string
 }
@@ -89,6 +91,8 @@ export default function UTMGeneratorPage() {
     name: '',
     source: '',
     medium: '',
+    term: '',
+    content: '',
     description: '',
     color: PRESET_COLORS[0].color
   })
@@ -200,6 +204,8 @@ export default function UTMGeneratorPage() {
   const applyPreset = useCallback((preset: Preset) => {
     setSource(preset.source)
     setMedium(preset.medium)
+    if (preset.term) setTerm(preset.term)
+    if (preset.content) setContent(preset.content)
     setSelectedPreset(preset.id)
     setTrackingPlatform(preset.id === 'tg' ? 'telegram' : preset.source)
     showToast(`Применён: ${preset.name}`, 'success')
@@ -410,6 +416,22 @@ export default function UTMGeneratorPage() {
                       className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
                     />
                   </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={newPreset.term || ''}
+                      onChange={(e) => setNewPreset({ ...newPreset, term: e.target.value })}
+                      placeholder="term"
+                      className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
+                    />
+                    <input
+                      type="text"
+                      value={newPreset.content || ''}
+                      onChange={(e) => setNewPreset({ ...newPreset, content: e.target.value })}
+                      placeholder="content"
+                      className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
+                    />
+                  </div>
                   <input
                     type="text"
                     value={newPreset.description || ''}
@@ -464,6 +486,22 @@ export default function UTMGeneratorPage() {
                             value={editingPreset.medium}
                             onChange={(e) => setEditingPreset({ ...editingPreset, medium: e.target.value })}
                             placeholder="medium"
+                            className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-1">
+                          <input
+                            type="text"
+                            value={editingPreset.term || ''}
+                            onChange={(e) => setEditingPreset({ ...editingPreset, term: e.target.value })}
+                            placeholder="term"
+                            className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+                          />
+                          <input
+                            type="text"
+                            value={editingPreset.content || ''}
+                            onChange={(e) => setEditingPreset({ ...editingPreset, content: e.target.value })}
+                            placeholder="content"
                             className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
                           />
                         </div>
@@ -702,7 +740,7 @@ export default function UTMGeneratorPage() {
               </div>
 
               <div>
-                <label className="block text-[10px] text-gray-400 dark:text-white/40 mb-1">campaign</label>
+                <label className="block text-[10px] text-gray-400 dark:text-white/40 mb-1">campaign *</label>
                 <input
                   type="text"
                   value={campaign}
@@ -710,6 +748,29 @@ export default function UTMGeneratorPage() {
                   placeholder="summer_sale"
                   className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] text-gray-400/70 dark:text-white/30 mb-1">term</label>
+                  <input
+                    type="text"
+                    value={term}
+                    onChange={(e) => setTerm(e.target.value)}
+                    placeholder="keyword"
+                    className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400/70 dark:text-white/30 mb-1">content</label>
+                  <input
+                    type="text"
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder="banner_1"
+                    className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#4a9eff]/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
+                  />
+                </div>
               </div>
 
               <button

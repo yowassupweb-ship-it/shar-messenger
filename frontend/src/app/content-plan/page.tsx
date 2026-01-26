@@ -243,6 +243,10 @@ export default function ContentPlanPage() {
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [mentionFilter, setMentionFilter] = useState('');
   
+  // Link URL input modal
+  const [showLinkUrlModal, setShowLinkUrlModal] = useState(false);
+  const [linkUrlInput, setLinkUrlInput] = useState('');
+  
   // Удаление toast
   const removeToast = useCallback((toastId: string) => {
     setToasts(prev => prev.filter(t => t.id !== toastId));
@@ -261,6 +265,9 @@ export default function ContentPlanPage() {
   // Функции для работы с уведомлениями
   const loadNotifications = useCallback(async () => {
     if (!myAccountId) return;
+    // Не запрашиваем данные если вкладка не активна
+    if (typeof document !== 'undefined' && document.hidden) return;
+    
     try {
       const res = await fetch(`/api/notifications?userId=${myAccountId}`);
       if (res.ok) {
@@ -441,6 +448,9 @@ export default function ContentPlanPage() {
     if (!editingPost) return;
     
     const pollComments = async () => {
+      // Не запрашиваем данные если вкладка не активна
+      if (typeof document !== 'undefined' && document.hidden) return;
+      
       try {
         const res = await fetch('/api/content-plan');
         if (res.ok) {
@@ -477,7 +487,7 @@ export default function ContentPlanPage() {
       }
     };
     
-    const interval = setInterval(pollComments, 2000); // Чаще - каждые 2 секунды
+    const interval = setInterval(pollComments, 10000); // Уменьшено с 2s для производительности
     return () => clearInterval(interval);
   }, [editingPost?.id]); // Только от id, не от comments
 
@@ -486,6 +496,9 @@ export default function ContentPlanPage() {
     if (editingPost) return; // Если модалка открыта - пропускаем
     
     const pollForNotifications = async () => {
+      // Не запрашиваем данные если вкладка не активна
+      if (typeof document !== 'undefined' && document.hidden) return;
+      
       try {
         const res = await fetch('/api/content-plan');
         if (res.ok) {
@@ -534,7 +547,7 @@ export default function ContentPlanPage() {
       }
     };
 
-    const interval = setInterval(pollForNotifications, 3000);
+    const interval = setInterval(pollForNotifications, 10000); // Уменьшено с 3s
     return () => clearInterval(interval);
   }, [myAccountId, editingPost, users, addToast]);
 
@@ -2529,204 +2542,155 @@ export default function ContentPlanPage() {
                       <span className="text-xs font-medium text-gray-600 dark:text-white/70">Текст публикации</span>
                     </div>
                   </div>
-                  {/* Панель форматирования */}
-                  <div className="flex items-center gap-1 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const editor = document.getElementById('post-text-editor');
-                        if (editor) {
-                          document.execCommand('bold', false);
-                          editor.focus();
-                        }
-                      }}
-                      className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors"
-                      title="Жирный (Ctrl+B)"
-                    >
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42zM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3v-3zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>
+                  {/* Compact formatting toolbar - single row */}
+                  <div className="flex items-center gap-0.5 overflow-x-auto pb-1">
+                    <button type="button" onClick={() => { document.execCommand('bold', false); document.getElementById('post-text-editor')?.focus(); }} className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors" title="Жирный">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42zM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3v-3zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const editor = document.getElementById('post-text-editor');
-                        if (editor) {
-                          document.execCommand('italic', false);
-                          editor.focus();
-                        }
-                      }}
-                      className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors"
-                      title="Курсив (Ctrl+I)"
-                    >
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z"/></svg>
+                    <button type="button" onClick={() => { document.execCommand('italic', false); document.getElementById('post-text-editor')?.focus(); }} className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors" title="Курсив">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z"/></svg>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const editor = document.getElementById('post-text-editor');
-                        if (editor) {
-                          document.execCommand('underline', false);
-                          editor.focus();
-                        }
-                      }}
-                      className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors"
-                      title="Подчёркнутый (Ctrl+U)"
-                    >
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17c3.31 0 6-2.69 6-6V3h-2.5v8c0 1.93-1.57 3.5-3.5 3.5S8.5 12.93 8.5 11V3H6v8c0 3.31 2.69 6 6 6zm-7 2v2h14v-2H5z"/></svg>
+                    <button type="button" onClick={() => { document.execCommand('underline', false); document.getElementById('post-text-editor')?.focus(); }} className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors" title="Подчёркнутый">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17c3.31 0 6-2.69 6-6V3h-2.5v8c0 1.93-1.57 3.5-3.5 3.5S8.5 12.93 8.5 11V3H6v8c0 3.31 2.69 6 6 6zm-7 2v2h14v-2H5z"/></svg>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const editor = document.getElementById('post-text-editor');
-                        if (editor) {
-                          document.execCommand('strikeThrough', false);
-                          editor.focus();
-                        }
-                      }}
-                      className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors"
-                      title="Зачёркнутый"
-                    >
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M10 19h4v-3h-4v3zM5 4v3h5v3h4V7h5V4H5zM3 14h18v-2H3v2z"/></svg>
+                    <button type="button" onClick={() => { document.execCommand('strikeThrough', false); document.getElementById('post-text-editor')?.focus(); }} className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors" title="Зачёркнутый">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M10 19h4v-3h-4v3zM5 4v3h5v3h4V7h5V4H5zM3 14h18v-2H3v2z"/></svg>
                     </button>
-                    <div className="w-px h-4 bg-gray-200 dark:bg-white/10 mx-1" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const editor = document.getElementById('post-text-editor');
-                        if (editor) {
-                          document.execCommand('insertUnorderedList', false);
-                          editor.focus();
-                        }
-                      }}
-                      className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors"
-                      title="Маркированный список"
-                    >
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z"/></svg>
+                    <div className="w-px h-4 bg-gray-200 dark:bg-white/10 mx-0.5" />
+                    <button type="button" onClick={() => { document.execCommand('insertUnorderedList', false); document.getElementById('post-text-editor')?.focus(); }} className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors" title="Список">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z"/></svg>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const editor = document.getElementById('post-text-editor');
-                        if (editor) {
-                          document.execCommand('insertOrderedList', false);
-                          editor.focus();
-                        }
-                      }}
-                      className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors"
-                      title="Нумерованный список"
-                    >
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 10.9V10H2v1zm5-6v2h14V5H7zm0 14h14v-2H7v2zm0-6h14v-2H7v2z"/></svg>
+                    <button type="button" onClick={() => { document.execCommand('insertOrderedList', false); document.getElementById('post-text-editor')?.focus(); }} className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors" title="Нумерация">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 10.9V10H2v1zm5-6v2h14V5H7zm0 14h14v-2H7v2zm0-6h14v-2H7v2z"/></svg>
                     </button>
-                    <div className="w-px h-4 bg-gray-200 dark:bg-white/10 mx-1" />
-                    {/* Кастомный dropdown для размера текста */}
+                    <div className="w-px h-4 bg-gray-200 dark:bg-white/10 mx-0.5" />
                     <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setOpenDropdown(openDropdown === 'textSize' ? null : 'textSize')}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors text-xs"
-                      >
-                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M9 4v3h5v12h3V7h5V4H9zm-6 8h3v7h3v-7h3V9H3v3z"/></svg>
-                        <span>Размер</span>
+                      <button type="button" onClick={() => setOpenDropdown(openDropdown === 'textSize' ? null : 'textSize')} className="flex items-center gap-0.5 p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors" title="Размер">
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M9 4v3h5v12h3V7h5V4H9zm-6 8h3v7h3v-7h3V9H3v3z"/></svg>
                         <ChevronDown className="w-2.5 h-2.5" />
                       </button>
                       {openDropdown === 'textSize' && (
-                        <div className="absolute top-full left-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 min-w-[120px] overflow-hidden">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const editor = document.getElementById('post-text-editor');
-                              if (editor) {
-                                document.execCommand('formatBlock', false, '<h1>');
-                                editor.focus();
-                              }
-                              setOpenDropdown(null);
-                            }}
-                            className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex items-center gap-2"
-                          >
-                            <span className="text-base font-bold">Заголовок 1</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const editor = document.getElementById('post-text-editor');
-                              if (editor) {
-                                document.execCommand('formatBlock', false, '<h2>');
-                                editor.focus();
-                              }
-                              setOpenDropdown(null);
-                            }}
-                            className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex items-center gap-2"
-                          >
-                            <span className="text-sm font-semibold">Заголовок 2</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const editor = document.getElementById('post-text-editor');
-                              if (editor) {
-                                document.execCommand('formatBlock', false, '<h3>');
-                                editor.focus();
-                              }
-                              setOpenDropdown(null);
-                            }}
-                            className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex items-center gap-2"
-                          >
-                            <span className="text-xs font-medium">Заголовок 3</span>
-                          </button>
-                          <div className="h-px bg-gray-200 dark:bg-white/10 my-1" />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const editor = document.getElementById('post-text-editor');
-                              if (editor) {
-                                document.execCommand('formatBlock', false, '<div>');
-                                editor.focus();
-                              }
-                              setOpenDropdown(null);
-                            }}
-                            className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex items-center gap-2"
-                          >
-                            <span className="text-xs text-gray-600 dark:text-white/70">Обычный текст</span>
-                          </button>
+                        <div className="absolute top-full left-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 min-w-[100px] overflow-hidden">
+                          <button type="button" onClick={() => { document.execCommand('formatBlock', false, '<h1>'); document.getElementById('post-text-editor')?.focus(); setOpenDropdown(null); }} className="w-full px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-white/5 text-sm font-bold">H1</button>
+                          <button type="button" onClick={() => { document.execCommand('formatBlock', false, '<h2>'); document.getElementById('post-text-editor')?.focus(); setOpenDropdown(null); }} className="w-full px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-white/5 text-xs font-semibold">H2</button>
+                          <button type="button" onClick={() => { document.execCommand('formatBlock', false, '<h3>'); document.getElementById('post-text-editor')?.focus(); setOpenDropdown(null); }} className="w-full px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-white/5 text-xs font-medium">H3</button>
+                          <button type="button" onClick={() => { document.execCommand('formatBlock', false, '<div>'); document.getElementById('post-text-editor')?.focus(); setOpenDropdown(null); }} className="w-full px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-white/5 text-xs text-gray-500">Текст</button>
                         </div>
                       )}
                     </div>
-                    <div className="w-px h-4 bg-gray-200 dark:bg-white/10 mx-1" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const editor = document.getElementById('post-text-editor');
-                        if (editor) {
-                          const url = prompt('Введите URL ссылки:');
-                          if (url) {
-                            document.execCommand('createLink', false, url);
-                          }
-                          editor.focus();
-                        }
-                      }}
-                      className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors"
-                      title="Вставить ссылку"
-                    >
-                      <Link2 className="w-5 h-5" />
+                    <div className="w-px h-4 bg-gray-200 dark:bg-white/10 mx-0.5" />
+                    <button type="button" onClick={() => { setLinkUrlInput(''); setShowLinkUrlModal(true); }} className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors" title="Ссылка">
+                      <Link2 className="w-4 h-4" />
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const editor = document.getElementById('post-text-editor');
-                        if (editor) {
-                          document.execCommand('removeFormat', false);
-                          editor.focus();
-                        }
-                      }}
-                      className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors"
-                      title="Очистить форматирование"
-                    >
-                      <X className="w-5 h-5" />
+                    <button type="button" onClick={() => { document.execCommand('removeFormat', false); document.getElementById('post-text-editor')?.focus(); }} className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors" title="Очистить">
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
                 
                 {/* WYSIWYG Editor */}
                 <div className="flex-1 p-2 overflow-y-auto flex flex-col relative">
+                  {/* Uploaded media preview - Telegram-style grid up to 6 photos */}
+                  {postForm.mediaUrls.length > 0 && (
+                    <div className="mb-3 rounded-xl overflow-hidden border border-gray-200 dark:border-white/10">
+                      {(() => {
+                        const urls = postForm.mediaUrls.slice(0, 6);
+                        const count = urls.length;
+                        
+                        // Telegram-style layouts
+                        if (count === 1) {
+                          return (
+                            <div className="relative group">
+                              <img src={urls[0]} alt="" className="w-full max-h-[280px] object-cover" />
+                              <button type="button" onClick={() => setPostForm(prev => ({ ...prev, mediaUrls: prev.mediaUrls.filter((_, i) => i !== 0) }))} className="absolute top-2 right-2 w-7 h-7 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-4 h-4 text-white" /></button>
+                            </div>
+                          );
+                        }
+                        
+                        if (count === 2) {
+                          return (
+                            <div className="grid grid-cols-2 gap-0.5">
+                              {urls.map((url, idx) => (
+                                <div key={idx} className="relative group">
+                                  <img src={url} alt="" className="w-full h-[140px] object-cover" />
+                                  <button type="button" onClick={() => setPostForm(prev => ({ ...prev, mediaUrls: prev.mediaUrls.filter((_, i) => i !== idx) }))} className="absolute top-2 right-2 w-6 h-6 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3.5 h-3.5 text-white" /></button>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                        
+                        if (count === 3) {
+                          return (
+                            <div className="grid grid-cols-3 gap-0.5" style={{ gridTemplateRows: '140px 70px' }}>
+                              <div className="relative group row-span-2 col-span-2">
+                                <img src={urls[0]} alt="" className="w-full h-full object-cover" />
+                                <button type="button" onClick={() => setPostForm(prev => ({ ...prev, mediaUrls: prev.mediaUrls.filter((_, i) => i !== 0) }))} className="absolute top-2 right-2 w-6 h-6 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3.5 h-3.5 text-white" /></button>
+                              </div>
+                              {urls.slice(1).map((url, idx) => (
+                                <div key={idx} className="relative group">
+                                  <img src={url} alt="" className="w-full h-full object-cover" />
+                                  <button type="button" onClick={() => setPostForm(prev => ({ ...prev, mediaUrls: prev.mediaUrls.filter((_, i) => i !== idx + 1) }))} className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3 h-3 text-white" /></button>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                        
+                        if (count === 4) {
+                          return (
+                            <div className="grid grid-cols-2 gap-0.5">
+                              {urls.map((url, idx) => (
+                                <div key={idx} className="relative group">
+                                  <img src={url} alt="" className="w-full h-[100px] object-cover" />
+                                  <button type="button" onClick={() => setPostForm(prev => ({ ...prev, mediaUrls: prev.mediaUrls.filter((_, i) => i !== idx) }))} className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3 h-3 text-white" /></button>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                        
+                        if (count === 5) {
+                          return (
+                            <div className="grid grid-cols-6 gap-0.5" style={{ gridTemplateRows: '120px 80px' }}>
+                              <div className="relative group col-span-3">
+                                <img src={urls[0]} alt="" className="w-full h-full object-cover" />
+                                <button type="button" onClick={() => setPostForm(prev => ({ ...prev, mediaUrls: prev.mediaUrls.filter((_, i) => i !== 0) }))} className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3 h-3 text-white" /></button>
+                              </div>
+                              <div className="relative group col-span-3">
+                                <img src={urls[1]} alt="" className="w-full h-full object-cover" />
+                                <button type="button" onClick={() => setPostForm(prev => ({ ...prev, mediaUrls: prev.mediaUrls.filter((_, i) => i !== 1) }))} className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3 h-3 text-white" /></button>
+                              </div>
+                              {urls.slice(2).map((url, idx) => (
+                                <div key={idx} className="relative group col-span-2">
+                                  <img src={url} alt="" className="w-full h-full object-cover" />
+                                  <button type="button" onClick={() => setPostForm(prev => ({ ...prev, mediaUrls: prev.mediaUrls.filter((_, i) => i !== idx + 2) }))} className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3 h-3 text-white" /></button>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                        
+                        // 6 photos: 3 + 3
+                        return (
+                          <div className="grid grid-cols-3 gap-0.5">
+                            {urls.map((url, idx) => (
+                              <div key={idx} className="relative group">
+                                <img src={url} alt="" className="w-full h-[80px] object-cover" />
+                                <button type="button" onClick={() => setPostForm(prev => ({ ...prev, mediaUrls: prev.mediaUrls.filter((_, i) => i !== idx) }))} className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3 h-3 text-white" /></button>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                      {postForm.mediaUrls.length > 6 && (
+                        <div className="text-center text-xs text-white/40 py-1 bg-white/5">
+                          +{postForm.mediaUrls.length - 6} ещё
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
                   <div
                     ref={descriptionEditorRef}
                     id="post-text-editor"
@@ -2786,10 +2750,83 @@ export default function ContentPlanPage() {
                         window.open(target.getAttribute('href')!, '_blank', 'noopener,noreferrer');
                       }
                     }}
-                    onPaste={(e) => {
+                    onDragOver={(e) => {
                       e.preventDefault();
-                      const text = e.clipboardData.getData('text/html') || e.clipboardData.getData('text/plain');
-                      document.execCommand('insertHTML', false, text);
+                      e.stopPropagation();
+                      e.currentTarget.style.borderColor = 'rgb(147, 51, 234)';
+                      e.currentTarget.style.backgroundColor = 'rgba(147, 51, 234, 0.05)';
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.currentTarget.style.borderColor = '';
+                      e.currentTarget.style.backgroundColor = '';
+                    }}
+                    onDrop={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.currentTarget.style.borderColor = '';
+                      e.currentTarget.style.backgroundColor = '';
+                      
+                      const files = e.dataTransfer.files;
+                      if (files && files.length > 0) {
+                        const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+                        if (imageFiles.length > 0) {
+                          // Upload images and add to mediaUrls
+                          for (const file of imageFiles) {
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            try {
+                              const uploadRes = await fetch('/api/upload', {
+                                method: 'POST',
+                                body: formData
+                              });
+                              if (uploadRes.ok) {
+                                const { url } = await uploadRes.json();
+                                setPostForm(prev => ({ ...prev, mediaUrls: [...prev.mediaUrls, url] }));
+                              }
+                            } catch (error) {
+                              console.error('Error uploading image:', error);
+                            }
+                          }
+                        }
+                      }
+                    }}
+                    onPaste={async (e) => {
+                      // Check for images in clipboard
+                      const items = e.clipboardData.items;
+                      let hasImage = false;
+                      for (let i = 0; i < items.length; i++) {
+                        const item = items[i];
+                        if (item.type.indexOf('image') !== -1) {
+                          hasImage = true;
+                          e.preventDefault();
+                          const blob = item.getAsFile();
+                          if (blob) {
+                            const formData = new FormData();
+                            formData.append('file', blob, 'pasted-image.png');
+                            try {
+                              const uploadRes = await fetch('/api/upload', {
+                                method: 'POST',
+                                body: formData
+                              });
+                              if (uploadRes.ok) {
+                                const { url } = await uploadRes.json();
+                                setPostForm(prev => ({ ...prev, mediaUrls: [...prev.mediaUrls, url] }));
+                              }
+                            } catch (error) {
+                              console.error('Error uploading pasted image:', error);
+                            }
+                          }
+                          break;
+                        }
+                      }
+                      // If no image, paste as text/html
+                      if (!hasImage) {
+                        e.preventDefault();
+                        const text = e.clipboardData.getData('text/html') || e.clipboardData.getData('text/plain');
+                        document.execCommand('insertHTML', false, text);
+                      }
                     }}
                     onKeyDown={(e) => {
                       // Ctrl+B for bold
@@ -3156,6 +3193,77 @@ export default function ContentPlanPage() {
                   className="px-3 py-1.5 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-white rounded-lg hover:bg-gray-200 dark:hover:bg-white/15 transition-all text-xs font-medium border border-gray-200 dark:border-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {editingPost ? 'Сохранить изменения' : 'Создать публикацию'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Link URL Input Modal */}
+      {showLinkUrlModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-white/10">
+              <h3 className="text-sm font-semibold">Вставить ссылку</h3>
+              <button 
+                onClick={() => setShowLinkUrlModal(false)} 
+                className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4 text-gray-500 dark:text-white/60" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-white/60 mb-1.5">URL ссылки</label>
+                <input
+                  type="url"
+                  value={linkUrlInput}
+                  onChange={(e) => setLinkUrlInput(e.target.value)}
+                  placeholder="https://example.com"
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm focus:outline-none focus:border-purple-400 dark:focus:border-purple-500/30"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && linkUrlInput) {
+                      const editor = document.getElementById('post-text-editor');
+                      if (editor) {
+                        document.execCommand('createLink', false, linkUrlInput);
+                        editor.focus();
+                      }
+                      setShowLinkUrlModal(false);
+                      setLinkUrlInput('');
+                    }
+                    if (e.key === 'Escape') {
+                      setShowLinkUrlModal(false);
+                    }
+                  }}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLinkUrlModal(false)}
+                  className="px-4 py-2 text-sm text-gray-600 dark:text-white/60 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (linkUrlInput) {
+                      const editor = document.getElementById('post-text-editor');
+                      if (editor) {
+                        document.execCommand('createLink', false, linkUrlInput);
+                        editor.focus();
+                      }
+                      setShowLinkUrlModal(false);
+                      setLinkUrlInput('');
+                    }
+                  }}
+                  disabled={!linkUrlInput}
+                  className="px-4 py-2 text-sm bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Вставить
                 </button>
               </div>
             </div>

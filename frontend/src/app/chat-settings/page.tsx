@@ -21,13 +21,13 @@ const COLOR_PRESETS = [
 const ToggleSwitch = ({ checked, onChange }: { checked: boolean; onChange: (val: boolean) => void }) => (
   <button
     onClick={() => onChange(!checked)}
-    className={`relative w-[51px] h-[31px] rounded-full transition-colors duration-200 ${
+    className={`relative inline-flex w-[51px] h-[31px] rounded-full transition-colors duration-200 flex-shrink-0 ${
       checked ? 'bg-[#34c759]' : 'bg-[#e9e9eb] dark:bg-[#39393d]'
     }`}
   >
     <span 
-      className={`absolute top-[2px] w-[27px] h-[27px] rounded-full bg-white shadow-md transition-transform duration-200 ${
-        checked ? 'translate-x-[22px]' : 'translate-x-[2px]'
+      className={`absolute top-[2px] left-[2px] w-[27px] h-[27px] rounded-full bg-white shadow-md transition-transform duration-200 ${
+        checked ? 'translate-x-[20px]' : 'translate-x-0'
       }`}
     />
   </button>
@@ -98,6 +98,7 @@ export default function ChatSettingsPage() {
   const [chatSettings, setChatSettings] = useState({
     bubbleStyle: 'modern' as 'modern' | 'classic' | 'minimal',
     fontSize: 14,
+    fontSizeMobile: 13,
     bubbleColor: '#22a94d',
     bubbleColorLight: '#007aff',
     colorPreset: 0
@@ -173,19 +174,18 @@ export default function ChatSettingsPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-[#f2f2f7] dark:bg-[#000000] text-[var(--text-primary)]">
-      {/* iOS-style Header */}
-      <header className="bg-[#f2f2f7]/80 dark:bg-[#000000]/80 backdrop-blur-xl border-b border-[#c6c6c8]/30 dark:border-[#38383a] sticky top-0 z-10">
-        <div className="h-11 flex items-center px-4">
+    <div className="h-screen flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
+      {/* Header */}
+      <header className="backdrop-blur-xl bg-[var(--bg-secondary)]/80 border-b border-[var(--border-color)] sticky top-0 z-10">
+        <div className="h-14 flex items-center px-4 gap-3">
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-0.5 text-[#007aff] text-[17px]"
+            className="flex items-center justify-center w-9 h-9 rounded-full bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] transition-all"
           >
-            <ArrowLeft className="w-5 h-5" strokeWidth={2.5} />
-            <span>Назад</span>
+            <ArrowLeft className="w-5 h-5 text-[var(--text-primary)]" />
           </button>
+          <h1 className="text-xl font-semibold">Настройки чата</h1>
         </div>
-        <h1 className="text-[34px] font-bold px-4 pb-2">Настройки</h1>
       </header>
 
       <div className="flex-1 overflow-y-auto pb-20">
@@ -241,16 +241,31 @@ export default function ChatSettingsPage() {
             <Row
               icon={<Type className="w-4 h-4 text-white" />}
               iconBg="bg-[#007aff]"
-              label="Размер текста"
+              label="Размер текста (Desktop)"
               value={`${chatSettings.fontSize}px`}
+            >
+              <input
+                type="range"
+                min="12"
+                max="20"
+                value={chatSettings.fontSize}
+                onChange={(e) => saveSettings({ ...chatSettings, fontSize: parseInt(e.target.value) })}
+                className="w-24 h-1 bg-[#e9e9eb] dark:bg-[#39393d] rounded-full appearance-none cursor-pointer accent-[#007aff] mr-2"
+              />
+            </Row>
+            <Row
+              icon={<Type className="w-4 h-4 text-white" />}
+              iconBg="bg-[#ff9500]"
+              label="Размер текста (Mobile)"
+              value={`${chatSettings.fontSizeMobile}px`}
               isLast
             >
               <input
                 type="range"
                 min="11"
                 max="18"
-                value={chatSettings.fontSize}
-                onChange={(e) => saveSettings({ ...chatSettings, fontSize: parseInt(e.target.value) })}
+                value={chatSettings.fontSizeMobile}
+                onChange={(e) => saveSettings({ ...chatSettings, fontSizeMobile: parseInt(e.target.value) })}
                 className="w-24 h-1 bg-[#e9e9eb] dark:bg-[#39393d] rounded-full appearance-none cursor-pointer accent-[#007aff] mr-2"
               />
             </Row>
