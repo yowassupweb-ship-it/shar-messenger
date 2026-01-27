@@ -1541,6 +1541,7 @@ class UserCreate(BaseModel):
     enabledTools: List[str] = []
 
 class UserUpdate(BaseModel):
+    username: Optional[str] = None  # Логин пользователя
     name: Optional[str] = None
     email: Optional[str] = None
     password: Optional[str] = None
@@ -1550,8 +1551,12 @@ class UserUpdate(BaseModel):
     department: Optional[str] = None  # Отдел
     phone: Optional[str] = None  # Телефон
     workSchedule: Optional[str] = None  # График работы
+    telegramId: Optional[str] = None  # Telegram ID
+    telegramUsername: Optional[str] = None  # Telegram username
     enabledTools: Optional[List[str]] = None
     avatar: Optional[str] = None  # URL аватара пользователя
+    canSeeAllTasks: Optional[bool] = None  # Может видеть все задачи
+    isActive: Optional[bool] = None  # Активен ли пользователь
 
 @app.post("/api/users/batch")
 def create_users_batch(users: List[Dict[str, Any]] = Body(...)):
