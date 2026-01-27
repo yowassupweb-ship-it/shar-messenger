@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { User, Mail, Phone, Briefcase, Shield, Calendar, MessageCircle, CheckSquare, ArrowLeft, Plus, X, Inbox } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Avatar from '@/components/Avatar';
 
 interface Contact {
   id: string;
@@ -13,10 +14,15 @@ interface Contact {
   position?: string;
   department?: string;
   workSchedule?: string;
+  phone?: string;
+  avatar?: string;
   role: 'admin' | 'user';
   todoRole?: 'executor' | 'customer' | 'universal';
   telegramId?: string;
+  telegramUsername?: string;
   createdAt: string;
+  isOnline?: boolean;
+  lastSeen?: string;
 }
 
 interface TodoList {
@@ -32,6 +38,8 @@ export default function ContactsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showListModal, setShowListModal] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [showContactCard, setShowContactCard] = useState(false);
+  const [viewingContact, setViewingContact] = useState<Contact | null>(null);
   const [lists, setLists] = useState<TodoList[]>([]);
   const [showNewListForm, setShowNewListForm] = useState(false);
   const [newListName, setNewListName] = useState('');
@@ -148,7 +156,7 @@ export default function ContactsPage() {
   }
 
   return (
-    <div className="h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col">
+    <div className="h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col overflow-hidden">
       {/* Header */}
       <header className="h-12 bg-[var(--bg-secondary)] border-b border-[var(--border-secondary)] flex items-center px-4 flex-shrink-0">
         <Link
@@ -182,12 +190,12 @@ export default function ContactsPage() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="flex-1 p-3 overflow-y-auto">
+      {/* Main Content - только один скролл */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-3">
         <div className="max-w-6xl mx-auto">
 
         {/* Contacts grouped by department */}
-        <div className="space-y-6">
+        <div className="space-y-6 pb-4">
           {sortedDepartments.map(department => (
             <div key={department} className="space-y-2">
               {/* Department Header */}
@@ -209,13 +217,21 @@ export default function ContactsPage() {
                 {contactsByDepartment[department].map(contact => (
                   <div
                     key={contact.id}
-                    className="bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl p-3 hover:bg-[var(--bg-glass-hover)] transition-all group"
+                    onClick={() => {
+                      setViewingContact(contact);
+                      setShowContactCard(true);
+                    }}
+                    className="bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl p-3 hover:bg-[var(--bg-glass-hover)] transition-all group cursor-pointer"
                   >
                     <div className="flex items-center gap-3">
                       {/* Avatar */}
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-sm font-bold flex-shrink-0">
-                        {(contact.name || contact.username || 'U')[0].toUpperCase()}
-                      </div>
+                      <Avatar
+                        type="user"
+                        name={contact.name || contact.username || ''}
+                        src={contact.avatar}
+                        size="md"
+                        isOnline={contact.isOnline}
+                      />
 
                       {/* Main Info */}
                       <div className="flex-1 min-w-0">
@@ -448,6 +464,203 @@ export default function ContactsPage() {
                   <p className="text-xs mt-1">Создайте первый список</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модалка карточки контакта */}
+      {showContactCard && viewingContact && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => {
+            setShowContactCard(false);
+            setViewingContact(null);
+          }}
+        >
+          <div 
+            className="bg-gradient-to-b from-[var(--bg-secondary)] to-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header with Avatar */}
+            <div className="relative h-32 bg-gradient-to-br from-cyan-500/30 to-blue-600/30">
+              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2">
+                <div className="relative">
+                  <Avatar
+                    type="user"
+                    name={viewingContact.name || viewingContact.username || ''}
+                    src={viewingContact.avatar}
+                    size="2xl"
+                    isOnline={viewingContact.isOnline}
+                  />
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowContactCard(false);
+                  setViewingContact(null);
+                }}
+                className="absolute top-3 right-3 p-2 rounded-full bg-black/20 hover:bg-black/40 transition-colors"
+              >
+                <X className="w-4 h-4 text-white" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="pt-14 pb-6 px-6">
+              {/* Name & Status */}
+              <div className="text-center mb-6">
+                <h2 className="text-xl font-semibold text-[var(--text-primary)]">
+                  {viewingContact.name || viewingContact.username || 'Без имени'}
+                </h2>
+                {viewingContact.position && (
+                  <p className="text-sm text-[var(--text-secondary)] mt-1">{viewingContact.position}</p>
+                )}
+                <div className="flex items-center justify-center gap-2 mt-2">
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${
+                    viewingContact.isOnline 
+                      ? 'bg-green-500/20 text-green-400' 
+                      : 'bg-gray-500/20 text-gray-400'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${viewingContact.isOnline ? 'bg-green-400' : 'bg-gray-400'}`} />
+                    {viewingContact.isOnline ? 'В сети' : 'Не в сети'}
+                  </span>
+                  {viewingContact.role === 'admin' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-500/20 text-amber-400">
+                      <Shield className="w-3 h-3" />
+                      Админ
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Info Grid */}
+              <div className="space-y-3">
+                {viewingContact.email && (
+                  <div className="flex items-center gap-3 p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl">
+                    <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                      <Mail className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-[var(--text-muted)]">Email</p>
+                      <p className="text-sm text-[var(--text-primary)] truncate">{viewingContact.email}</p>
+                    </div>
+                    <a 
+                      href={`mailto:${viewingContact.email}`}
+                      className="p-2 hover:bg-blue-500/20 rounded-lg transition-colors"
+                    >
+                      <Mail className="w-4 h-4 text-blue-400" />
+                    </a>
+                  </div>
+                )}
+
+                {viewingContact.phone && (
+                  <div className="flex items-center gap-3 p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl">
+                    <div className="w-9 h-9 rounded-lg bg-green-500/20 flex items-center justify-center">
+                      <Phone className="w-4 h-4 text-green-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-[var(--text-muted)]">Телефон</p>
+                      <p className="text-sm text-[var(--text-primary)]">{viewingContact.phone}</p>
+                    </div>
+                    <a 
+                      href={`tel:${viewingContact.phone}`}
+                      className="p-2 hover:bg-green-500/20 rounded-lg transition-colors"
+                    >
+                      <Phone className="w-4 h-4 text-green-400" />
+                    </a>
+                  </div>
+                )}
+
+                {viewingContact.department && (
+                  <div className="flex items-center gap-3 p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl">
+                    <div className="w-9 h-9 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                      <Briefcase className="w-4 h-4 text-purple-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-[var(--text-muted)]">Отдел</p>
+                      <p className="text-sm text-[var(--text-primary)]">{viewingContact.department}</p>
+                    </div>
+                  </div>
+                )}
+
+                {viewingContact.workSchedule && (
+                  <div className="flex items-center gap-3 p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl">
+                    <div className="w-9 h-9 rounded-lg bg-orange-500/20 flex items-center justify-center">
+                      <Calendar className="w-4 h-4 text-orange-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-[var(--text-muted)]">График работы</p>
+                      <p className="text-sm text-[var(--text-primary)]">{viewingContact.workSchedule}</p>
+                    </div>
+                  </div>
+                )}
+
+                {viewingContact.telegramUsername && (
+                  <div className="flex items-center gap-3 p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl">
+                    <div className="w-9 h-9 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                      <MessageCircle className="w-4 h-4 text-cyan-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-[var(--text-muted)]">Telegram</p>
+                      <p className="text-sm text-[var(--text-primary)]">{viewingContact.telegramUsername}</p>
+                    </div>
+                    <a 
+                      href={`https://t.me/${viewingContact.telegramUsername.replace('@', '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 hover:bg-cyan-500/20 rounded-lg transition-colors"
+                    >
+                      <MessageCircle className="w-4 h-4 text-cyan-400" />
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 mt-6">
+                <button
+                  onClick={async () => {
+                    try {
+                      const myAccountStr = localStorage.getItem('myAccount');
+                      if (!myAccountStr) return;
+                      const myAccount = JSON.parse(myAccountStr);
+                      if (!myAccount.id || viewingContact.id === myAccount.id) return;
+                      
+                      const res = await fetch('/api/chats', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          participantIds: [myAccount.id, viewingContact.id],
+                          isGroup: false
+                        })
+                      });
+                      
+                      if (res.ok) {
+                        const chat = await res.json();
+                        router.push(`/account?tab=messages&chat=${chat.id}`);
+                      }
+                    } catch (error) {
+                      console.error('Error opening chat:', error);
+                    }
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Написать
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedContact(viewingContact);
+                    setShowContactCard(false);
+                    setShowListModal(true);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-green-500/20 hover:bg-green-500/30 text-green-400 font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <CheckSquare className="w-4 h-4" />
+                  Задача
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -10,6 +10,7 @@ interface Preset {
   name: string
   source: string
   medium: string
+  campaign?: string
   term?: string
   content?: string
   color: string
@@ -91,6 +92,7 @@ export default function UTMGeneratorPage() {
     name: '',
     source: '',
     medium: '',
+    campaign: '',
     term: '',
     content: '',
     description: '',
@@ -143,12 +145,15 @@ export default function UTMGeneratorPage() {
       name: newPreset.name,
       source: newPreset.source,
       medium: newPreset.medium,
+      campaign: newPreset.campaign || undefined,
+      term: newPreset.term || undefined,
+      content: newPreset.content || undefined,
       description: newPreset.description || '',
       color: newPreset.color || PRESET_COLORS[0].color
     }
     
     savePresets([...presets, preset])
-    setNewPreset({ name: '', source: '', medium: '', description: '', color: PRESET_COLORS[0].color })
+    setNewPreset({ name: '', source: '', medium: '', campaign: '', term: '', content: '', description: '', color: PRESET_COLORS[0].color })
     setIsAddingPreset(false)
     showToast('Пресет добавлен', 'success')
   }, [newPreset, presets, savePresets])
@@ -204,6 +209,7 @@ export default function UTMGeneratorPage() {
   const applyPreset = useCallback((preset: Preset) => {
     setSource(preset.source)
     setMedium(preset.medium)
+    if (preset.campaign) setCampaign(preset.campaign)
     if (preset.term) setTerm(preset.term)
     if (preset.content) setContent(preset.content)
     setSelectedPreset(preset.id)
@@ -416,6 +422,13 @@ export default function UTMGeneratorPage() {
                       className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
                     />
                   </div>
+                  <input
+                    type="text"
+                    value={newPreset.campaign || ''}
+                    onChange={(e) => setNewPreset({ ...newPreset, campaign: e.target.value })}
+                    placeholder="campaign"
+                    className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50 placeholder:text-gray-400 dark:placeholder:text-white/30"
+                  />
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       type="text"
@@ -489,6 +502,13 @@ export default function UTMGeneratorPage() {
                             className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
                           />
                         </div>
+                        <input
+                          type="text"
+                          value={editingPreset.campaign || ''}
+                          onChange={(e) => setEditingPreset({ ...editingPreset, campaign: e.target.value })}
+                          placeholder="campaign"
+                          className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+                        />
                         <div className="grid grid-cols-2 gap-1">
                           <input
                             type="text"

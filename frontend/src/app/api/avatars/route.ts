@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
+import { writeFile, mkdir, unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import { readDB, writeDB } from '@/lib/db';
@@ -12,6 +12,28 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 // Разрешенные типы файлов
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+// Функция для удаления старой аватарки с диска
+async function deleteOldAvatar(oldAvatarUrl: string | undefined): Promise<void> {
+  if (!oldAvatarUrl) return;
+  
+  try {
+    // Извлекаем имя файла из URL: /api/avatars/file/filename.jpg -> filename.jpg
+    const match = oldAvatarUrl.match(/\/api\/avatars\/file\/(.+)$/);
+    if (match && match[1]) {
+      const oldFileName = match[1];
+      const oldFilePath = path.join(AVATARS_DIR, oldFileName);
+      
+      if (existsSync(oldFilePath)) {
+        await unlink(oldFilePath);
+        console.log(`[Avatar API] Deleted old avatar: ${oldFileName}`);
+      }
+    }
+  } catch (err) {
+    console.error(`[Avatar API] Error deleting old avatar:`, err);
+    // Не прерываем процесс если не удалось удалить старый файл
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,6 +70,12 @@ export async function POST(request: NextRequest) {
       await mkdir(AVATARS_DIR, { recursive: true });
     }
 
+    // Получаем старую аватарку для удаления
+    const db = await readDB();
+    const users = db.users || [];
+    const user = users.find((u: any) => u.id === userId);
+    const oldAvatarUrl = user?.avatar;
+
     // Генерируем уникальное имя файла
     const fileExtension = file.name.split('.').pop() || 'jpg';
     const fileName = `${userId}_${Date.now()}.${fileExtension}`;
@@ -61,16 +89,48 @@ export async function POST(request: NextRequest) {
     // URL для доступа к файлу через API
     const avatarUrl = `/api/avatars/file/${fileName}`;
 
-    // Обновляем пользователя в базе данных
-    const db = await readDB();
-    const users = db.users || [];
-    const userIndex = users.findIndex((u: any) => u.id === userId);
+    // Удаляем старую аватарку с диска
+    await deleteOldAvatar(oldAvatarUrl);
 
-    if (userIndex !== -1) {
-      users[userIndex].avatar = avatarUrl;
-      users[userIndex].updatedAt = new Date().toISOString();
-      db.users = users;
-      await writeDB(db);
+    // Обновляем пользователя в базе данных
+    console.log(`[Avatar API] Updating user ${userId} with avatar ${avatarUrl}`);
+    
+    // Используем более надежный метод обновления с повторной проверкой
+    let retries = 3;
+    let success = false;
+    
+    while (retries > 0 && !success) {
+      try {
+        const db = await readDB();
+        const users = db.users || [];
+        const userIndex = users.findIndex((u: any) => u.id === userId);
+        
+        if (userIndex !== -1) {
+          console.log(`[Avatar API] Found user: ${users[userIndex].name}, attempt ${4 - retries}`);
+          users[userIndex].avatar = avatarUrl;
+          users[userIndex].updatedAt = new Date().toISOString();
+          db.users = users;
+          await writeDB(db);
+          
+          // Verify the write
+          const verifyDb = await readDB();
+          const verifyUser = verifyDb.users?.find((u: any) => u.id === userId);
+          if (verifyUser?.avatar === avatarUrl) {
+            console.log(`[Avatar API] User avatar updated and verified successfully`);
+            success = true;
+          } else {
+            console.log(`[Avatar API] Verification failed, retrying...`);
+            retries--;
+          }
+        } else {
+          console.log(`[Avatar API] User not found with ID: ${userId}`);
+          break;
+        }
+      } catch (err) {
+        console.error(`[Avatar API] Error updating user:`, err);
+        retries--;
+        await new Promise(resolve => setTimeout(resolve, 100)); // Wait before retry
+      }
     }
 
     console.log(`Avatar uploaded for user ${userId}: ${avatarUrl}`);

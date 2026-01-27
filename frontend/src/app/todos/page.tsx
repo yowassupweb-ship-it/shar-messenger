@@ -117,6 +117,7 @@ interface Person {
   telegramId?: string;
   telegramUsername?: string;
   role: 'executor' | 'customer' | 'universal';
+  department?: string;  // Отдел пользователя
   // Настройки уведомлений
   notifyOnNewTask?: boolean;  // Уведомление о новой задаче
   notifyOnStatusChange?: boolean;  // Уведомление при смене статуса
@@ -228,6 +229,7 @@ interface TodoList {
   defaultAddToCalendar?: boolean;
   creatorId?: string;
   allowedUsers?: string[];
+  allowedDepartments?: string[];  // Разрешённые отделы
 }
 
 const PRIORITY_COLORS = {
@@ -360,6 +362,7 @@ export default function TodosPage() {
   const [executorFilter, setExecutorFilter] = useState<string>('all');
   const [showExecutorFilter, setShowExecutorFilter] = useState(false);
   const [myAccountId, setMyAccountId] = useState<string | null>(null);
+  const [myDepartment, setMyDepartment] = useState<string | null>(null);  // Отдел текущего пользователя
   const [canSeeAllTasks, setCanSeeAllTasks] = useState<boolean>(false);  // По умолчанию false - видны только свои задачи
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [addingToList, setAddingToList] = useState<string | null>(null);
@@ -1022,6 +1025,9 @@ export default function TodosPage() {
           // Используем ID пользователя напрямую как ID профиля в задачах
           setMyAccountId(userData.id);
           localStorage.setItem('todos_myAccountId', userData.id);
+          
+          // Сохраняем отдел пользователя
+          setMyDepartment(userData.department || null);
           
           // Устанавливаем права на просмотр всех задач (по умолчанию false)
           setCanSeeAllTasks(userData.canSeeAllTasks === true);
@@ -2105,7 +2111,9 @@ export default function TodosPage() {
           archived: list.archived,
           defaultExecutorId: list.defaultExecutorId,
           defaultCustomerId: list.defaultCustomerId,
-          defaultAddToCalendar: list.defaultAddToCalendar
+          defaultAddToCalendar: list.defaultAddToCalendar,
+          allowedDepartments: list.allowedDepartments,
+          allowedUsers: list.allowedUsers
         })
       });
       
@@ -2470,16 +2478,25 @@ export default function TodosPage() {
   };
 
   // Фильтрация задач по поиску, статусу, исполнителю и правам доступа
-  const filterTodos = (todoList: Todo[]) => {
+  const filterTodos = (todoList: Todo[], listId?: string) => {
+    // Проверяем, имеет ли пользователь ПОЛНЫЙ доступ к столбцу (создатель, в allowedUsers или в allowedDepartments)
+    const list = listId ? lists.find(l => l.id === listId) : null;
+    const hasFullListAccess = list && (
+      list.creatorId === myAccountId ||
+      (list.allowedUsers && list.allowedUsers.includes(myAccountId || '')) ||
+      (myDepartment && list.allowedDepartments && list.allowedDepartments.includes(myDepartment))
+    );
+    
     return todoList.filter(todo => {
       if (!showCompleted && todo.completed) return false;
       
       // Фильтр по правам доступа (если не может видеть все задачи)
       if (!canSeeAllTasks && myAccountId) {
-        // Показываем только задачи, где пользователь исполнитель (включая множественных) или заказчик
+        // Показываем задачи, где пользователь исполнитель, заказчик, ИЛИ имеет полный доступ к столбцу
         const isExecutor = todo.assignedToId === myAccountId || todo.assignedToIds?.includes(myAccountId);
         const isCustomer = todo.assignedById === myAccountId;
-        if (!isExecutor && !isCustomer) return false;
+        // Если нет полного доступа к столбцу - показываем только свои задачи
+        if (!hasFullListAccess && !isExecutor && !isCustomer) return false;
       }
       
       // Фильтр по статусу
@@ -2505,7 +2522,7 @@ export default function TodosPage() {
   // Получение задач для списка (исключая архивные)
   const getTodosForList = (listId: string, includeArchived: boolean = false) => {
     const listTodos = todos.filter(t => t.listId === listId && (includeArchived || !t.archived));
-    return filterTodos(listTodos).sort((a, b) => {
+    return filterTodos(listTodos, listId).sort((a, b) => {
       // Сначала незавершённые
       if (a.completed !== b.completed) return a.completed ? 1 : -1;
       // Потом по приоритету
@@ -2528,9 +2545,9 @@ export default function TodosPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col text-gray-900 dark:text-white bg-[#ededed] dark:bg-[var(--bg-primary)] overflow-hidden">
+    <div className="h-screen flex flex-col text-gray-900 dark:text-white bg-[var(--bg-primary)] overflow-hidden">
       {/* Header */}
-      <header className="h-12 bg-[#e3e3e3] dark:bg-[var(--bg-tertiary)] border-b border-gray-300 dark:border-[var(--border-secondary)] flex items-center px-2 sm:px-4 flex-shrink-0 sticky top-0 z-40">
+      <header className="h-12 backdrop-blur-xl bg-[var(--bg-secondary)]/60 border-b border-white/10 flex items-center px-2 sm:px-4 flex-shrink-0 sticky top-0 z-40">
         {/* Search - на мобилке иконка, на десктопе поле */}
         {/* Mobile search toggle */}
         <button
@@ -2878,15 +2895,22 @@ export default function TodosPage() {
         >
           {lists.filter(l => !l.archived).sort((a, b) => a.order - b.order)
             // При поиске показываем только списки с результатами
-            // Для пользователей без полного доступа скрываем пустые столбцы, КРОМЕ своих списков
+            // Показываем столбцы: свои, с полным доступом (allowedUsers/allowedDepartments), или где есть назначенные задачи
             .filter(list => {
               if (!canSeeAllTasks && myAccountId) {
-                // Показываем свои списки всегда (даже пустые)
-                const isOwnList = list.creatorId === myAccountId || (list.allowedUsers && list.allowedUsers.includes(myAccountId));
-                if (!isOwnList) {
+                // Проверяем полный доступ к столбцу
+                const hasFullAccess = list.creatorId === myAccountId || 
+                  (list.allowedUsers && list.allowedUsers.includes(myAccountId)) ||
+                  (myDepartment && list.allowedDepartments && list.allowedDepartments.includes(myDepartment));
+                // Если есть полный доступ - показываем столбец всегда
+                if (hasFullAccess) {
+                  if (!searchQuery) return true;
                   const listTodos = getTodosForList(list.id, showArchive);
-                  if (listTodos.length === 0) return false;
+                  return listTodos.length > 0;
                 }
+                // Если нет полного доступа - показываем только если есть назначенные задачи
+                const listTodos = getTodosForList(list.id, showArchive);
+                if (listTodos.length === 0) return false;
               }
               if (!searchQuery) return true; // Без поиска показываем все списки
               const listTodos = getTodosForList(list.id, showArchive);
@@ -3048,7 +3072,7 @@ export default function TodosPage() {
 
                 {/* Tasks Container */}
                 <div 
-                  className={`bg-[#f5f5f5] dark:bg-[var(--bg-secondary)] border-x border-b border-gray-300 dark:border-[var(--border-color)] rounded-b-xl p-2 flex flex-col gap-2 min-h-[100px] transition-colors ${
+                  className={`bg-[var(--bg-secondary)] border-x border-b border-[var(--border-color)] rounded-b-xl p-2 flex flex-col gap-2 min-h-[100px] transition-colors ${
                     isDropTarget ? 'bg-[#eaeaea] dark:bg-[var(--bg-glass)]' : ''
                   }`}
                 >
@@ -4446,18 +4470,156 @@ export default function TodosPage() {
                   </div>
                 </div>
                 
-                {/* Однострочный редактор описания */}
-                <div className="p-1.5 sm:p-2">
-                  <input
-                    type="text"
+                {/* Редактор описания - увеличенный с drag & drop */}
+                <div className="flex-1 p-1.5 sm:p-2 overflow-y-auto flex flex-col relative min-h-[200px]">
+                  {/* Превью загруженных изображений - Telegram-style grid */}
+                  {editingTodo.attachments && editingTodo.attachments.filter(a => a.type === 'image').length > 0 && (
+                    <div className="mb-3 rounded-xl overflow-hidden border border-gray-200 dark:border-white/10">
+                      {(() => {
+                        const images = editingTodo.attachments?.filter(a => a.type === 'image') || [];
+                        const count = Math.min(images.length, 6);
+                        
+                        if (count === 1) {
+                          return (
+                            <div className="relative group">
+                              <img src={images[0].url} alt="" className="w-full max-h-[180px] object-cover" />
+                              <button type="button" onClick={() => setEditingTodo(prev => prev ? { ...prev, attachments: prev.attachments?.filter(a => a.id !== images[0].id) } : null)} className="absolute top-2 right-2 w-7 h-7 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-4 h-4 text-white" /></button>
+                            </div>
+                          );
+                        }
+                        
+                        if (count === 2) {
+                          return (
+                            <div className="grid grid-cols-2 gap-0.5">
+                              {images.slice(0, 2).map((img, idx) => (
+                                <div key={img.id} className="relative group">
+                                  <img src={img.url} alt="" className="w-full h-[100px] object-cover" />
+                                  <button type="button" onClick={() => setEditingTodo(prev => prev ? { ...prev, attachments: prev.attachments?.filter(a => a.id !== img.id) } : null)} className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3 h-3 text-white" /></button>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                        
+                        // 3+ images - grid layout
+                        return (
+                          <div className="grid grid-cols-3 gap-0.5">
+                            {images.slice(0, 6).map((img, idx) => (
+                              <div key={img.id} className="relative group">
+                                <img src={img.url} alt="" className="w-full h-[70px] object-cover" />
+                                <button type="button" onClick={() => setEditingTodo(prev => prev ? { ...prev, attachments: prev.attachments?.filter(a => a.id !== img.id) } : null)} className="absolute top-1 right-1 w-4 h-4 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-2.5 h-2.5 text-white" /></button>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                      {(editingTodo.attachments?.filter(a => a.type === 'image').length || 0) > 6 && (
+                        <div className="text-center text-xs text-gray-500 dark:text-white/40 py-1 bg-gray-100 dark:bg-white/5">
+                          +{(editingTodo.attachments?.filter(a => a.type === 'image').length || 0) - 6} ещё
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  <textarea
                     value={editingTodo?.description || ''}
                     onChange={(e) => setEditingTodo(prev => prev ? { ...prev, description: e.target.value } : null)}
                     placeholder="Добавьте описание задачи..."
-                    className="w-full px-2 sm:px-3 py-2 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl text-sm text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 focus:outline-none focus:border-blue-500/30 transition-all"
+                    className="w-full flex-1 min-h-[150px] px-2 sm:px-3 py-2 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl text-sm text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 focus:outline-none focus:border-blue-500/30 transition-all resize-none"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.currentTarget.style.borderColor = 'rgb(59, 130, 246)';
+                      e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.currentTarget.style.borderColor = '';
+                      e.currentTarget.style.backgroundColor = '';
+                    }}
+                    onDrop={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.currentTarget.style.borderColor = '';
+                      e.currentTarget.style.backgroundColor = '';
+                      
+                      const files = e.dataTransfer.files;
+                      if (files && files.length > 0) {
+                        const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+                        if (imageFiles.length > 0) {
+                          for (const file of imageFiles) {
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            try {
+                              const response = await fetch('/api/upload', {
+                                method: 'POST',
+                                body: formData
+                              });
+                              if (response.ok) {
+                                const data = await response.json();
+                                const uploadedAttachment = {
+                                  id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+                                  name: data.filename || file.name,
+                                  url: data.url,
+                                  type: 'image' as const,
+                                  size: data.size || file.size,
+                                  uploadedAt: new Date().toISOString()
+                                };
+                                setEditingTodo(prev => prev ? {
+                                  ...prev,
+                                  attachments: [...(prev.attachments || []), uploadedAttachment]
+                                } : null);
+                              }
+                            } catch (error) {
+                              console.error('Error uploading image:', error);
+                            }
+                          }
+                        }
+                      }
+                    }}
+                    onPaste={async (e) => {
+                      const items = e.clipboardData.items;
+                      for (let i = 0; i < items.length; i++) {
+                        const item = items[i];
+                        if (item.type.indexOf('image') !== -1) {
+                          e.preventDefault();
+                          const blob = item.getAsFile();
+                          if (blob) {
+                            const formData = new FormData();
+                            formData.append('file', blob, 'pasted-image.png');
+                            try {
+                              const response = await fetch('/api/upload', {
+                                method: 'POST',
+                                body: formData
+                              });
+                              if (response.ok) {
+                                const data = await response.json();
+                                const uploadedAttachment = {
+                                  id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+                                  name: data.filename || 'pasted-image.png',
+                                  url: data.url,
+                                  type: 'image' as const,
+                                  size: data.size || blob.size,
+                                  uploadedAt: new Date().toISOString()
+                                };
+                                setEditingTodo(prev => prev ? {
+                                  ...prev,
+                                  attachments: [...(prev.attachments || []), uploadedAttachment]
+                                } : null);
+                              }
+                            } catch (error) {
+                              console.error('Error uploading pasted image:', error);
+                            }
+                          }
+                          break;
+                        }
+                      }
+                    }}
                   />
                 </div>
 
-                {/* Вложения */}
+                {/* Вложения - файлы (не картинки) */}
                 <div className="px-1.5 sm:px-2 py-1.5 sm:py-2 border-t border-gray-200 dark:border-[var(--border-color)]">
                   <div className="flex items-center gap-2 mb-2">
                     <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500 dark:text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4484,13 +4646,21 @@ export default function TodosPage() {
                               formData.append('file', file);
                               
                               try {
-                                const response = await fetch('/api/todos/upload', {
+                                const response = await fetch('/api/upload', {
                                   method: 'POST',
                                   body: formData
                                 });
                                 
                                 if (response.ok) {
-                                  return await response.json();
+                                  const data = await response.json();
+                                  return {
+                                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+                                    name: data.filename || file.name,
+                                    url: data.url,
+                                    type: file.type.startsWith('image/') ? 'image' : 'file',
+                                    size: data.size || file.size,
+                                    uploadedAt: new Date().toISOString()
+                                  };
                                 } else {
                                   console.error('Failed to upload file:', file.name);
                                   return null;
@@ -4518,27 +4688,21 @@ export default function TodosPage() {
                       </span>
                     </label>
                   </div>
-                  {editingTodo.attachments && editingTodo.attachments.length > 0 && (
+                  {editingTodo.attachments && editingTodo.attachments.filter(a => a.type !== 'image').length > 0 && (
                     <div className="flex flex-wrap gap-2">
-                      {editingTodo.attachments.map(att => (
+                      {editingTodo.attachments.filter(a => a.type !== 'image').map(att => (
                         <div key={att.id} className="relative group">
-                          {att.type === 'image' ? (
-                            <a href={att.url} target="_blank" rel="noopener noreferrer" className="block">
-                              <img src={att.url} alt={att.name} className="w-16 h-16 object-cover rounded-lg border border-[var(--border-color)] hover:border-blue-500/50 transition-colors" />
-                            </a>
-                          ) : (
-                            <a
-                              href={att.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-lg hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] transition-colors"
-                            >
-                              <svg className="w-4 h-4 text-gray-500 dark:text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                              </svg>
-                              <span className="text-[10px] text-gray-700 dark:text-[var(--text-secondary)] max-w-[80px] truncate">{att.name}</span>
-                            </a>
-                          )}
+                          <a
+                            href={att.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-lg hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] transition-colors"
+                          >
+                            <svg className="w-4 h-4 text-gray-500 dark:text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                            <span className="text-[10px] text-gray-700 dark:text-[var(--text-secondary)] max-w-[80px] truncate">{att.name}</span>
+                          </a>
                           <button
                             onClick={() => {
                               setEditingTodo(prev => prev ? {
@@ -5772,8 +5936,62 @@ export default function TodosPage() {
                   </label>
                 </div>
 
+                {/* Доступ по отделам */}
+                <div>
+                  <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-orange-400" />
+                    Доступ по отделам
+                  </label>
+                  <p className="text-xs text-[var(--text-muted)] mb-2">
+                    Пользователи из выбранных отделов смогут видеть этот список
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {(() => {
+                      // Собираем все уникальные отделы из пользователей
+                      const departments = [...new Set(people.filter(p => p.department).map(p => p.department!))].sort();
+                      return departments.map(dept => {
+                        const isSelected = settingsList.allowedDepartments?.includes(dept);
+                        return (
+                          <button
+                            key={dept}
+                            type="button"
+                            onClick={() => {
+                              const currentDepts = settingsList.allowedDepartments || [];
+                              const newDepts = isSelected
+                                ? currentDepts.filter(d => d !== dept)
+                                : [...currentDepts, dept];
+                              const updated = { ...settingsList, allowedDepartments: newDepts };
+                              updateList(updated);
+                              setLists(prev => prev.map(l => l.id === updated.id ? updated : l));
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs transition-all flex items-center gap-1.5 ${
+                              isSelected
+                                ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                                : 'bg-[var(--bg-glass)] text-[var(--text-secondary)] border border-[var(--border-color)] hover:border-orange-500/30'
+                            }`}
+                          >
+                            <Users className="w-3 h-3" />
+                            {dept}
+                            {isSelected && <Check className="w-3 h-3" />}
+                          </button>
+                        );
+                      });
+                    })()}
+                    {people.filter(p => p.department).length === 0 && (
+                      <div className="text-xs text-[var(--text-muted)] py-2">
+                        Нет пользователей с назначенными отделами
+                      </div>
+                    )}
+                  </div>
+                  {settingsList.allowedDepartments && settingsList.allowedDepartments.length > 0 && (
+                    <div className="mt-2 text-xs text-orange-400">
+                      Выбрано отделов: {settingsList.allowedDepartments.length}
+                    </div>
+                  )}
+                </div>
+
                 {/* Текущие настройки */}
-                {(settingsList.defaultExecutorId || settingsList.defaultCustomerId || settingsList.defaultAddToCalendar) && (
+                {(settingsList.defaultExecutorId || settingsList.defaultCustomerId || settingsList.defaultAddToCalendar || (settingsList.allowedDepartments && settingsList.allowedDepartments.length > 0)) && (
                   <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
                     <p className="text-xs text-green-400 font-medium mb-1">✓ Настройки сохранены</p>
                     <div className="text-xs text-[var(--text-secondary)] space-y-1">
@@ -5793,6 +6011,12 @@ export default function TodosPage() {
                         <div className="flex items-center gap-1">
                           <CalendarPlus className="w-3 h-3 text-purple-400" />
                           Автодобавление в календарь
+                        </div>
+                      )}
+                      {settingsList.allowedDepartments && settingsList.allowedDepartments.length > 0 && (
+                        <div className="flex items-center gap-1">
+                          <Users className="w-3 h-3 text-orange-400" />
+                          Отделы: {settingsList.allowedDepartments.join(', ')}
                         </div>
                       )}
                     </div>

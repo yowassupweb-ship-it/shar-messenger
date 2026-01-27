@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readDB, writeDB } from '@/lib/db'
 
-// POST - обновить статус пользователя (isOnline, lastSeen)
+// Вычисление статуса онлайн на основе lastSeen
+function calculateIsOnline(lastSeen?: string): boolean {
+  if (!lastSeen) return false;
+  const lastSeenDate = new Date(lastSeen);
+  const now = new Date();
+  const diffMs = now.getTime() - lastSeenDate.getTime();
+  const diffMinutes = Math.floor(diffMs / 60000);
+  return diffMinutes < 2; // Онлайн если активность менее 2 минут назад
+}
+
+// POST - обновить статус пользователя (lastSeen)
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -9,7 +19,7 @@ export async function POST(
   try {
     const { id } = await context.params
     const body = await request.json()
-    const { isOnline, lastSeen } = body
+    const { lastSeen } = body
     
     const db = await readDB()
     const users = db.users || []
@@ -20,11 +30,11 @@ export async function POST(
       return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 })
     }
     
-    // Обновляем статус
+    // Обновляем lastSeen (isOnline вычисляется динамически)
+    const newLastSeen = lastSeen || new Date().toISOString();
     users[userIndex] = {
       ...users[userIndex],
-      isOnline: isOnline !== undefined ? isOnline : users[userIndex].isOnline,
-      lastSeen: lastSeen || users[userIndex].lastSeen || new Date().toISOString()
+      lastSeen: newLastSeen
     }
     
     db.users = users
@@ -32,8 +42,8 @@ export async function POST(
     
     return NextResponse.json({ 
       success: true,
-      isOnline: users[userIndex].isOnline,
-      lastSeen: users[userIndex].lastSeen
+      isOnline: calculateIsOnline(newLastSeen),
+      lastSeen: newLastSeen
     })
   } catch (error) {
     console.error('Error updating user status:', error)
@@ -59,7 +69,7 @@ export async function GET(
     
     return NextResponse.json({
       id: user.id,
-      isOnline: user.isOnline || false,
+      isOnline: calculateIsOnline(user.lastSeen),
       lastSeen: user.lastSeen || user.createdAt || new Date().toISOString()
     })
   } catch (error) {

@@ -207,6 +207,13 @@ export default function ChatSettingsPage() {
                         ...prev,
                         avatar: newAvatarUrl
                       }));
+                      // Обновляем myAccount в localStorage
+                      const myAccountStr = localStorage.getItem('myAccount');
+                      if (myAccountStr) {
+                        const myAccount = JSON.parse(myAccountStr);
+                        myAccount.avatar = newAvatarUrl;
+                        localStorage.setItem('myAccount', JSON.stringify(myAccount));
+                      }
                     }}
                   />
                 ) : (

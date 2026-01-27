@@ -6,6 +6,16 @@ function generateUserId(): string {
   return `user_${Date.now()}.${Math.random().toString(36).substr(2, 9)}`
 }
 
+// Вычисление статуса онлайн на основе lastSeen
+function calculateIsOnline(lastSeen?: string): boolean {
+  if (!lastSeen) return false;
+  const lastSeenDate = new Date(lastSeen);
+  const now = new Date();
+  const diffMs = now.getTime() - lastSeenDate.getTime();
+  const diffMinutes = Math.floor(diffMs / 60000);
+  return diffMinutes < 2; // Онлайн если активность менее 2 минут назад
+}
+
 // GET - получить всех пользователей
 export async function GET(request: NextRequest) {
   try {
@@ -16,13 +26,21 @@ export async function GET(request: NextRequest) {
     const includePasswords = request.nextUrl.searchParams.get('includePasswords') === 'true'
     
     if (includePasswords) {
-      return NextResponse.json(users)
+      // Даже для админки вычисляем isOnline динамически
+      const usersWithOnlineStatus = users.map((user: any) => ({
+        ...user,
+        isOnline: calculateIsOnline(user.lastSeen)
+      }));
+      return NextResponse.json(usersWithOnlineStatus)
     }
     
-    // Возвращаем пользователей без паролей
+    // Возвращаем пользователей без паролей и с динамическим isOnline
     const usersWithoutPasswords = users.map((user: any) => {
       const { password, ...userWithoutPassword } = user
-      return userWithoutPassword
+      return {
+        ...userWithoutPassword,
+        isOnline: calculateIsOnline(user.lastSeen)
+      }
     })
     
     return NextResponse.json(usersWithoutPasswords)

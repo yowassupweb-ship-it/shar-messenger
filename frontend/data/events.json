@@ -4,7 +4,7 @@
       "id": "event_1768401210005_mrl40ihjt",
       "title": "Тестовое событие",
       "description": "",
-      "type": "task",
+      "type": "meeting",
       "dateType": "range",
       "startDate": "2026-01-01",
       "endDate": "2026-01-12",
@@ -15,7 +15,7 @@
       ],
       "createdBy": "user_1768226637877.3e99840b",
       "createdAt": "2026-01-14T14:33:30.005Z",
-      "updatedAt": "2026-01-14T14:33:30.005Z"
+      "updatedAt": "2026-01-27T08:32:07.579Z"
     },
     {
       "id": "event_1769414147595_lacmmfg00",
@@ -136,7 +136,33 @@
       "createdBy": "user_1768211670938.cjlk65kuz",
       "createdAt": "2026-01-26T15:53:43.769Z",
       "updatedAt": "2026-01-26T15:53:55.405Z"
+    },
+    {
+      "id": "event_1769502735802_d4ki3dprw",
+      "title": "Тест",
+      "description": "",
+      "type": "meeting",
+      "dateType": "single",
+      "startDate": "2026-01-01",
+      "tags": [],
+      "participants": [],
+      "createdBy": "user_010",
+      "createdAt": "2026-01-27T08:32:15.802Z",
+      "updatedAt": "2026-01-27T08:32:15.802Z"
+    },
+    {
+      "id": "event_1769505151846_tlufzn0ob",
+      "title": "Тест",
+      "description": "",
+      "type": "meeting",
+      "dateType": "single",
+      "startDate": "2026-01-01",
+      "tags": [],
+      "participants": [],
+      "createdBy": "user_1769446825925.whxkh075y",
+      "createdAt": "2026-01-27T09:12:31.847Z",
+      "updatedAt": "2026-01-27T09:12:31.847Z"
     }
   ],
-  "lastUpdated": "2026-01-26T15:53:55.405Z"
+  "lastUpdated": "2026-01-27T09:12:31.847Z"
 }

@@ -10,25 +10,32 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const auth = localStorage.getItem('isAuthenticated')
-    
+    // Страница логина всегда доступна
     if (pathname === '/login') {
       setIsLoading(false)
       return
     }
 
+    // Проверяем авторизацию
+    const auth = localStorage.getItem('isAuthenticated')
+    
+    // Считаем авторизованным если есть флаг
     if (auth === 'true') {
       setIsAuthenticated(true)
       setIsLoading(false)
     } else {
-      router.push('/login')
+      // Не авторизован - редиректим на логин
+      setIsLoading(false)
+      router.replace('/login')
     }
   }, [pathname, router])
 
+  // Страница логина - показываем без проверок
   if (pathname === '/login') {
     return <>{children}</>
   }
 
+  // Загрузка - показываем индикатор
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--background)]">
@@ -37,8 +44,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     )
   }
 
+  // Не авторизован - ничего не показываем (идёт редирект)
   if (!isAuthenticated) {
-    return null
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--background)]">
+        <div className="text-[var(--foreground)]">Перенаправление...</div>
+      </div>
+    )
   }
 
   return <>{children}</>

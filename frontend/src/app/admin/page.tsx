@@ -32,14 +32,14 @@ interface Tool {
   path: string;
 }
 
+// Инструменты которые требуют выдачи доступа (не стандартные)
 const availableTools: Tool[] = [
   { id: 'feed-editor', name: 'Редактор фидов', description: 'Управление фидами для Яндекс.Директ', path: '/feed-editor' },
   { id: 'transliterator', name: 'Транслитератор', description: 'Транслитерация текста', path: '/transliterator' },
-  { id: 'competitor-parser', name: 'Парсер Я.Директ', description: 'Анализ рекламы конкурентов', path: '/competitor-parser' },
   { id: 'slovolov', name: 'Словолов', description: 'Подбор поисковых слов', path: '/slovolov' },
-  { id: 'competitor-spy', name: 'Товары конкурентов', description: 'Парсинг ассортимента', path: '/competitor-parser' },
-  { id: 'utm-creator', name: 'Генератор UTM', description: 'Создание UTM меток', path: '/utm-generator' },
   { id: 'slovolov-pro', name: 'Словолов PRO', description: 'Расширенный подбор ключевых слов', path: '/slovolov-pro' },
+  { id: 'utm-generator', name: 'Генератор UTM', description: 'Создание UTM меток', path: '/utm-generator' },
+  { id: 'content-plan', name: 'Контент-план', description: 'Планирование контента', path: '/content-plan' },
 ];
 
 type TabType = 'settings' | 'users' | 'logs';
@@ -101,13 +101,52 @@ export default function AdminPage() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Проверка прав доступа
+  // Проверка прав доступа с актуализацией роли с бекенда
   useEffect(() => {
-    const userRole = localStorage.getItem('userRole');
-    if (userRole !== 'admin') {
-      setAccessDenied(true);
-      setTimeout(() => router.push('/'), 2000);
-    }
+    const checkAccess = async () => {
+      const username = localStorage.getItem('username');
+      if (!username) {
+        setAccessDenied(true);
+        setTimeout(() => router.push('/login'), 2000);
+        return;
+      }
+      
+      try {
+        // Получаем актуальную роль с бекенда
+        const res = await fetch(`http://127.0.0.1:8000/api/users`);
+        if (res.ok) {
+          const users = await res.json();
+          const currentUser = users.find((u: User) => u.username === username || u.email === username);
+          if (currentUser) {
+            // Обновляем роль в localStorage
+            localStorage.setItem('userRole', currentUser.role);
+            if (currentUser.role !== 'admin') {
+              setAccessDenied(true);
+              setTimeout(() => router.push('/'), 2000);
+            }
+          } else {
+            setAccessDenied(true);
+            setTimeout(() => router.push('/'), 2000);
+          }
+        } else {
+          // Если не удалось получить данные, используем localStorage
+          const userRole = localStorage.getItem('userRole');
+          if (userRole !== 'admin') {
+            setAccessDenied(true);
+            setTimeout(() => router.push('/'), 2000);
+          }
+        }
+      } catch {
+        // При ошибке используем localStorage
+        const userRole = localStorage.getItem('userRole');
+        if (userRole !== 'admin') {
+          setAccessDenied(true);
+          setTimeout(() => router.push('/'), 2000);
+        }
+      }
+    };
+    
+    checkAccess();
   }, [router]);
 
   useEffect(() => {
@@ -283,7 +322,10 @@ export default function AdminPage() {
           role: editingUser.role,
           todoRole: editingUser.todoRole,
           canSeeAllTasks: editingUser.canSeeAllTasks,
-          telegramId: editingUser.telegramId
+          telegramId: editingUser.telegramId,
+          position: editingUser.position,
+          department: editingUser.department,
+          enabledTools: editingUser.enabledTools || []
         })
       });
 
@@ -371,7 +413,7 @@ export default function AdminPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0d0d0d] overflow-y-auto">
+    <div className="fixed inset-0 bg-[#0d0d0d] overflow-y-auto">
       {/* Toast */}
       {toast && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl border backdrop-blur-xl flex items-center gap-2 shadow-2xl ${
@@ -947,7 +989,7 @@ export default function AdminPage() {
       {/* Edit User Modal */}
       {showEditUserModal && editingUser && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl max-w-md w-full shadow-2xl">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl max-w-4xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between">
               <h2 className="text-lg font-semibold text-white">Редактировать пользователя</h2>
               <button
@@ -958,8 +1000,8 @@ export default function AdminPage() {
               </button>
             </div>
             <form onSubmit={(e) => { e.preventDefault(); saveEditingUser(); }} className="p-6">
-              {/* Две колонки */}
-              <div className="grid grid-cols-2 gap-6">
+              {/* Три колонки */}
+              <div className="grid grid-cols-3 gap-6">
                 {/* Левая колонка */}
                 <div className="space-y-4">
                   <div>
@@ -1075,6 +1117,39 @@ export default function AdminPage() {
                   <p className="text-[10px] text-white/30 -mt-2 pl-7">
                     Если выключено — видит только свои задачи (исполнитель или заказчик)
                   </p>
+                </div>
+
+                {/* Третья колонка - Доступ к инструментам */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs text-white/50 mb-3">Доступ к инструментам</label>
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                      {availableTools.map((tool) => (
+                        <label key={tool.id} className="flex items-center gap-3 cursor-pointer group p-2 rounded-lg hover:bg-white/5 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={editingUser.enabledTools?.includes(tool.id) || false}
+                            onChange={(e) => {
+                              const currentTools = editingUser.enabledTools || [];
+                              if (e.target.checked) {
+                                setEditingUser({...editingUser, enabledTools: [...currentTools, tool.id]});
+                              } else {
+                                setEditingUser({...editingUser, enabledTools: currentTools.filter(t => t !== tool.id)});
+                              }
+                            }}
+                            className="w-4 h-4 rounded border-white/20 bg-white/5 text-cyan-500 focus:ring-cyan-500/20"
+                          />
+                          <div>
+                            <span className="text-sm text-white/70 group-hover:text-white/90 transition-colors block">
+                              {tool.name}
+                            </span>
+                            <span className="text-[10px] text-white/30">{tool.description}</span>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-white/30 mt-2">Стандартные инструменты (Сообщения, Задачи, Календарь, База ссылок, Настройки) доступны всем</p>
+                  </div>
                 </div>
               </div>
               

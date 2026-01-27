@@ -61,6 +61,7 @@ export interface TodoList {
   defaultAddToCalendar?: boolean;
   creatorId?: string;
   allowedUsers?: string[];
+  allowedDepartments?: string[];  // Разрешённые отделы
 }
 
 interface TodosData {

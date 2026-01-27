@@ -20,6 +20,14 @@ const sizeClasses = {
   xl: 'w-32 h-32',
 };
 
+// Маппинг размеров AvatarUpload на размеры Avatar
+const avatarSizeMap = {
+  sm: 'xl' as const,
+  md: 'xl' as const,
+  lg: '2xl' as const,
+  xl: '2xl' as const,
+};
+
 export const AvatarUpload: React.FC<AvatarUploadProps> = ({
   currentAvatar,
   userName = '',
@@ -144,7 +152,7 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
         ) : (
           <Avatar
             name={userName}
-            size={size === 'sm' ? 'lg' : 'xl'}
+            size={avatarSizeMap[size]}
             className={sizeClasses[size]}
           />
         )}

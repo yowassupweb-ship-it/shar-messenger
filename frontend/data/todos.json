@@ -455,9 +455,88 @@
       "createdAt": "2026-01-26T16:19:39.387Z",
       "updatedAt": "2026-01-26T16:19:39.387Z",
       "order": 0
+    },
+    {
+      "id": "20260127_072430_em6kk4",
+      "title": "1",
+      "description": "",
+      "completed": false,
+      "priority": "medium",
+      "status": "pending",
+      "listId": "20260127_072425_8d4fvz",
+      "tags": [],
+      "assignedBy": "Федоров Андрей",
+      "assignedToId": "user_1769446825925.whxkh075y",
+      "assignedTo": "admin",
+      "addToCalendar": false,
+      "createdAt": "2026-01-27T07:24:30.567Z",
+      "updatedAt": "2026-01-27T08:08:57.578Z",
+      "order": 0,
+      "comments": [
+        {
+          "id": "comment-1769499393910",
+          "todoId": "20260127_072430_em6kk4",
+          "authorId": "user_1769446825925.whxkh075y",
+          "authorName": "admin",
+          "content": "ввввв",
+          "mentions": [],
+          "createdAt": "2026-01-27T07:36:33.910Z"
+        }
+      ],
+      "readCommentsByUser": {
+        "user_1769446825925.whxkh075y": "comment-1769499393910"
+      },
+      "assignedById": "user_010"
+    },
+    {
+      "id": "20260127_072432_b6ncdl",
+      "title": "2",
+      "description": "",
+      "completed": false,
+      "priority": "medium",
+      "status": "pending",
+      "listId": "20260127_072425_8d4fvz",
+      "tags": [],
+      "assignedBy": "",
+      "assignedToId": "user_1769446825925.whxkh075y",
+      "assignedTo": "admin",
+      "addToCalendar": false,
+      "createdAt": "2026-01-27T07:24:32.543Z",
+      "updatedAt": "2026-01-27T07:24:32.543Z",
+      "order": 1
+    },
+    {
+      "id": "20260127_072435_y276c9",
+      "title": "3",
+      "description": "",
+      "completed": false,
+      "priority": "medium",
+      "status": "pending",
+      "listId": "20260127_072425_8d4fvz",
+      "tags": [],
+      "assignedBy": "",
+      "assignedToId": "user_1769446825925.whxkh075y",
+      "assignedTo": "admin",
+      "addToCalendar": false,
+      "createdAt": "2026-01-27T07:24:35.041Z",
+      "updatedAt": "2026-01-27T07:24:35.041Z",
+      "order": 2
     }
   ],
-  "lists": [],
+  "lists": [
+    {
+      "id": "20260127_072425_8d4fvz",
+      "name": "Тестовый список",
+      "color": "#6366f1",
+      "icon": "folder",
+      "createdAt": "2026-01-27T07:24:25.703Z",
+      "order": 0,
+      "creatorId": "user_1769446825925.whxkh075y",
+      "allowedUsers": [
+        "user_1769446825925.whxkh075y"
+      ]
+    }
+  ],
   "categories": [
     {
       "id": "seo",

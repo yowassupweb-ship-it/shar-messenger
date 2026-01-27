@@ -6,6 +6,7 @@ export interface Person {
   telegramId?: string;
   telegramUsername?: string;
   role: 'executor' | 'customer' | 'universal';
+  department?: string;  // Отдел пользователя
   // Настройки уведомлений
   notifyOnNewTask?: boolean;
   notifyOnStatusChange?: boolean;
@@ -25,6 +26,7 @@ interface User {
   todoRole?: 'executor' | 'customer' | 'universal';
   telegramId?: string;
   canSeeAllTasks?: boolean;
+  department?: string;  // Отдел
   createdAt: string;
 }
 
@@ -67,6 +69,7 @@ export async function GET(request: NextRequest) {
       telegramId: user.telegramId,
       telegramUsername: undefined,
       role: user.todoRole || 'universal',  // Дефолт universal для старых аккаунтов
+      department: user.department,  // Передаём отдел
       createdAt: user.createdAt
     }));
     

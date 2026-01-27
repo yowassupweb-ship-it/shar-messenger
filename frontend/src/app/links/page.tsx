@@ -790,7 +790,7 @@ export default function LinksPage() {
                           <p className="text-xs text-white/30 mt-1 line-clamp-2">{link.description}</p>
                         )}
                         
-                        {/* Tags on small screens */}
+                        {/* Tags */}
                         <div className="flex items-center gap-2 mt-2 flex-wrap">
                           {list && (
                             <span 
@@ -811,15 +811,16 @@ export default function LinksPage() {
                           )}
                         </div>
                       </div>
+                    </div>
                       
-                      {/* Actions - hidden on mobile, shown on tablet+ */}
-                      <div className="hidden md:flex items-center gap-0.5 flex-shrink-0">
+                    {/* Actions - всегда под текстом */}
+                    <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t border-white/5">
                         <button
                           onClick={() => toggleBookmark(link)}
-                          className={`p-1.5 rounded-lg transition-colors ${
+                          className={`p-1.5 md:p-2 rounded-lg transition-colors ${
                             link.isBookmarked 
                               ? 'text-yellow-400 bg-yellow-500/10' 
-                              : 'text-white/30 hover:text-white/50 hover:bg-white/5'
+                              : 'text-white/40 hover:text-white/60 hover:bg-white/5'
                           }`}
                           title="В избранное"
                         >
@@ -827,10 +828,10 @@ export default function LinksPage() {
                         </button>
                         <button
                           onClick={() => togglePin(link)}
-                          className={`p-1.5 rounded-lg transition-colors ${
+                          className={`p-1.5 md:p-2 rounded-lg transition-colors ${
                             link.isPinned 
                               ? 'text-blue-400 bg-blue-500/10' 
-                              : 'text-white/30 hover:text-white/50 hover:bg-white/5'
+                              : 'text-white/40 hover:text-white/60 hover:bg-white/5'
                           }`}
                           title="Закрепить"
                         >
@@ -838,51 +839,33 @@ export default function LinksPage() {
                         </button>
                         <button 
                           onClick={() => copyToClipboard(link.url)} 
-                          className="p-1.5 hover:bg-white/5 rounded-lg transition-colors"
+                          className="p-1.5 md:p-2 hover:bg-white/5 rounded-lg transition-colors"
                           title="Копировать URL"
                         >
-                          <Copy className="w-4 h-4 text-white/30 hover:text-white/50" />
+                          <Copy className="w-4 h-4 text-white/40 hover:text-white/60" />
                         </button>
                         <a
                           href={link.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-1.5 hover:bg-white/5 rounded-lg transition-colors"
+                          className="p-1.5 md:p-2 hover:bg-white/5 rounded-lg transition-colors"
                           title="Открыть"
                         >
-                          <ExternalLink className="w-4 h-4 text-white/30 hover:text-white/50" />
+                          <ExternalLink className="w-4 h-4 text-white/40 hover:text-white/60" />
                         </a>
                         <button 
                           onClick={() => setEditingLink(link)} 
-                          className="p-1.5 hover:bg-white/5 rounded-lg transition-colors"
+                          className="p-1.5 md:p-2 hover:bg-white/5 rounded-lg transition-colors"
                           title="Редактировать"
                         >
-                          <Edit3 className="w-4 h-4 text-white/30 hover:text-white/50" />
+                          <Edit3 className="w-4 h-4 text-white/40 hover:text-white/60" />
                         </button>
                         <button 
                           onClick={() => deleteLink(link.id)} 
-                          className="p-1.5 hover:bg-red-500/10 rounded-lg transition-colors"
+                          className="p-1.5 md:p-2 hover:bg-red-500/10 rounded-lg transition-colors"
                           title="Удалить"
                         >
                           <Trash2 className="w-4 h-4 text-red-400/50 hover:text-red-400" />
-                        </button>
-                      </div>
-                      
-                      {/* Mobile actions - more button */}
-                      <div className="md:hidden flex items-center gap-1 flex-shrink-0">
-                        <a
-                          href={link.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2 hover:bg-white/5 rounded-lg transition-colors"
-                        >
-                          <ExternalLink className="w-4 h-4 text-white/50" />
-                        </a>
-                        <button
-                          onClick={(e) => handleContextMenu(e as unknown as React.MouseEvent, 'link', link)}
-                          className="p-2 hover:bg-white/5 rounded-lg transition-colors"
-                        >
-                          <MoreHorizontal className="w-4 h-4 text-white/50" />
                         </button>
                       </div>
                     </div>

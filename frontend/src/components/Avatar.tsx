@@ -1,13 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Star, Bell, Users } from 'lucide-react';
 import { getColorFromName, getInitials, generateAvatarUrl, usesExternalUrl } from '@/utils/avatarUtils';
 
 interface AvatarProps {
   src?: string | null;
   name?: string;
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   className?: string;
   // Специальные типы аватарок
   type?: 'user' | 'favorites' | 'notifications' | 'group';
@@ -23,6 +23,7 @@ const sizeClasses = {
   md: 'w-10 h-10 text-sm',
   lg: 'w-12 h-12 text-base',
   xl: 'w-16 h-16 text-lg',
+  '2xl': 'w-24 h-24 text-2xl',
 };
 
 const sizePixels = {
@@ -31,6 +32,7 @@ const sizePixels = {
   md: 40,
   lg: 48,
   xl: 64,
+  '2xl': 96,
 };
 
 const iconSizes = {
@@ -39,6 +41,7 @@ const iconSizes = {
   md: 18,
   lg: 22,
   xl: 28,
+  '2xl': 36,
 };
 
 export const Avatar: React.FC<AvatarProps> = ({
@@ -50,13 +53,19 @@ export const Avatar: React.FC<AvatarProps> = ({
   bgColor,
   isOnline,
 }) => {
+  const [imageError, setImageError] = useState(false);
   const sizeClass = sizeClasses[size];
   const iconSize = iconSizes[size];
   const sizeInPixels = sizePixels[size];
   
+  // Сбрасываем ошибку при изменении src
+  useEffect(() => {
+    setImageError(false);
+  }, [src]);
+  
   // Генерируем URL аватара для обычных пользователей
   const generatedAvatarUrl = type === 'user' && !src ? generateAvatarUrl(name, sizeInPixels) : null;
-  const finalSrc = src || generatedAvatarUrl;
+  const finalSrc = !imageError ? (src || generatedAvatarUrl) : null;
   
   // Определяем цвет фона
   const getBgClass = () => {
@@ -76,16 +85,16 @@ export const Avatar: React.FC<AvatarProps> = ({
   
   // Рендер содержимого аватара
   const renderContent = () => {
-    // Если есть изображение или сгенерированный URL
+    // Если есть изображение или сгенерированный URL и нет ошибки
     if (finalSrc) {
       return (
         <img
-          src={src}
+          src={finalSrc}
           alt={name || 'Avatar'}
           className="w-full h-full object-cover"
-          onError={(e) => {
-            // Если изображение не загрузилось, скрываем его
-            (e.target as HTMLImageElement).style.display = 'none';
+          onError={() => {
+            // Если изображение не загрузилось, показываем инициалы
+            setImageError(true);
           }}
         />
       );

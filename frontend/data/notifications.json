@@ -1,6 +1,30 @@
 {
   "notifications": [
     {
+      "id": "notif-1769502727584-64ethsyzo",
+      "type": "event_update",
+      "eventId": "event_1768401210005_mrl40ihjt",
+      "eventTitle": "Тестовое событие",
+      "fromUserId": "user_010",
+      "fromUserName": "Федоров Андрей",
+      "toUserId": "user_1768211260672.pd42l49yv",
+      "message": "Событие \"Тестовое событие\" было обновлено",
+      "read": false,
+      "createdAt": "2026-01-27T08:32:07.584Z"
+    },
+    {
+      "id": "notif-1769502727583-lbs6xi2lx",
+      "type": "event_update",
+      "eventId": "event_1768401210005_mrl40ihjt",
+      "eventTitle": "Тестовое событие",
+      "fromUserId": "user_010",
+      "fromUserName": "Федоров Андрей",
+      "toUserId": "user_1768226637877.3e99840b",
+      "message": "Событие \"Тестовое событие\" было обновлено",
+      "read": false,
+      "createdAt": "2026-01-27T08:32:07.583Z"
+    },
+    {
       "id": "notif-1768832974096",
       "type": "new_task",
       "todoId": "20260119_142934_6z1hbq",

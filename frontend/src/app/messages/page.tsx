@@ -235,10 +235,10 @@ export default function MessagesPage() {
   // Настройки чата
   const [chatSettings, setChatSettings] = useState({
     bubbleStyle: 'modern' as 'modern' | 'classic' | 'minimal',
-    fontSize: 14, // размер в пикселях для десктопа
-    fontSizeMobile: 13, // размер в пикселях для мобильных
-    bubbleColor: '#22a94d', // цвет для темной темы (iMessage зеленый)
-    bubbleColorLight: '#007aff', // цвет для светлой темы
+    fontSize: 13, // размер в пикселях для десктопа
+    fontSizeMobile: 15, // размер в пикселях для мобильных
+    bubbleColor: '#3c3d96', // цвет для темной темы
+    bubbleColorLight: '#453de6', // цвет для светлой темы
     colorPreset: 0
   });
   
@@ -552,7 +552,7 @@ export default function MessagesPage() {
           let currentUser = users.find((u: any) => u.name === username || u.username === username);
           
           if (currentUser) {
-            localStorage.setItem('myAccount', JSON.stringify({ id: currentUser.id, name: currentUser.name }));
+            localStorage.setItem('myAccount', JSON.stringify({ id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar }));
             setCurrentUser(currentUser);
             return;
           } else {
@@ -569,7 +569,7 @@ export default function MessagesPage() {
             
             if (createRes.ok) {
               const newUser = await createRes.json();
-              localStorage.setItem('myAccount', JSON.stringify({ id: newUser.id, name: newUser.name }));
+              localStorage.setItem('myAccount', JSON.stringify({ id: newUser.id, name: newUser.name, avatar: newUser.avatar }));
               setCurrentUser(newUser);
               return;
             } else if (createRes.status === 409) {
@@ -580,7 +580,7 @@ export default function MessagesPage() {
                   u.name === username || u.username === username || u.email === `${username}@local.dev`
                 );
                 if (existingUser) {
-                  localStorage.setItem('myAccount', JSON.stringify({ id: existingUser.id, name: existingUser.name }));
+                  localStorage.setItem('myAccount', JSON.stringify({ id: existingUser.id, name: existingUser.name, avatar: existingUser.avatar }));
                   setCurrentUser(existingUser);
                   return;
                 }
@@ -595,6 +595,8 @@ export default function MessagesPage() {
       const res = await fetch(`/api/users/${myAccount.id}`);
       if (res.ok) {
         const user = await res.json();
+        // Обновляем localStorage с актуальными данными включая аватар
+        localStorage.setItem('myAccount', JSON.stringify({ id: user.id, name: user.name, avatar: user.avatar }));
         setCurrentUser(user);
       } else {
         localStorage.removeItem('myAccount');
@@ -606,7 +608,7 @@ export default function MessagesPage() {
             const existingUser = users.find((u: any) => u.name === username || u.username === username);
             
             if (existingUser) {
-              localStorage.setItem('myAccount', JSON.stringify({ id: existingUser.id, name: existingUser.name }));
+              localStorage.setItem('myAccount', JSON.stringify({ id: existingUser.id, name: existingUser.name, avatar: existingUser.avatar }));
               setCurrentUser(existingUser);
               return;
             }
@@ -625,7 +627,7 @@ export default function MessagesPage() {
           
           if (createRes.ok) {
             const newUser = await createRes.json();
-            localStorage.setItem('myAccount', JSON.stringify({ id: newUser.id, name: newUser.name }));
+            localStorage.setItem('myAccount', JSON.stringify({ id: newUser.id, name: newUser.name, avatar: newUser.avatar }));
             setCurrentUser(newUser);
           }
         }
@@ -702,14 +704,14 @@ export default function MessagesPage() {
     if (!currentUser) return;
     
     try {
-      // Загружаем задачи с фильтрацией - только где пользователь исполнитель или заказчик
-      const res = await fetch(`/api/todos?userId=${currentUser.id}`);
+      // Загружаем все задачи (для отображения общих задач с собеседником)
+      const res = await fetch(`/api/todos`);
       if (res.ok) {
         const data = await res.json();
         // API возвращает объект с полем todos
         const tasksArray = data.todos || [];
         setTasks(tasksArray);
-        console.log('Loaded tasks for user:', tasksArray.length);
+        console.log('Loaded all tasks:', tasksArray.length);
       }
     } catch (error) {
       console.error('Error loading tasks:', error);
@@ -1172,6 +1174,17 @@ export default function MessagesPage() {
         }
         setReplyToMessage(null);
         setAttachments([]);
+        
+        // Обновляем lastSeen пользователя при отправке сообщения
+        try {
+          await fetch(`/api/users/${currentUser.id}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lastSeen: new Date().toISOString() })
+          });
+        } catch (e) {
+          // Игнорируем ошибки обновления статуса
+        }
         
         // Удаляем черновик после отправки
         if (selectedChat) {
@@ -1691,7 +1704,8 @@ export default function MessagesPage() {
                   const avatarData = getChatAvatarData(chat);
                   const otherParticipantId = !chat.isGroup ? chat.participantIds.find(id => id !== currentUser?.id) : undefined;
                   const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : undefined;
-                  const hasUnread = (chat.unreadCount || 0) > 0;
+                  // В избранном не бывает непрочитанных сообщений
+                  const hasUnread = !chat.isFavoritesChat && (chat.unreadCount || 0) > 0;
                   const isSelected = selectedChat?.id === chat.id;
                   const isHovered = hoveredChatId === chat.id;
                   return (
@@ -1822,7 +1836,7 @@ export default function MessagesPage() {
                                     <p className="text-xs text-[var(--text-secondary)] truncate flex-1">
                                       {chat.lastMessage.authorName}: {chat.lastMessage.content}
                                     </p>
-                                    {(chat.unreadCount || 0) > 0 && (
+                                    {!chat.isFavoritesChat && (chat.unreadCount || 0) > 0 && (
                                       <div className="flex-shrink-0 w-5 h-5 rounded-full bg-cyan-500 text-white text-[10px] font-bold flex items-center justify-center">
                                         {chat.unreadCount}
                                       </div>
@@ -1896,7 +1910,7 @@ export default function MessagesPage() {
                                   <p className="text-xs text-[var(--text-secondary)] truncate flex-1">
                                     {chat.lastMessage.authorName}: {chat.lastMessage.content}
                                   </p>
-                                  {(chat.unreadCount || 0) > 0 && (
+                                  {!chat.isFavoritesChat && (chat.unreadCount || 0) > 0 && (
                                     <div className="flex-shrink-0 w-5 h-5 rounded-full bg-cyan-500 text-white text-[10px] font-bold flex items-center justify-center">
                                       {chat.unreadCount}
                                     </div>
@@ -1980,7 +1994,7 @@ export default function MessagesPage() {
                                   <p className="text-xs text-[var(--text-secondary)] truncate flex-1">
                                     {chat.lastMessage.authorName}: {chat.lastMessage.content}
                                   </p>
-                                  {(chat.unreadCount || 0) > 0 && (
+                                  {!chat.isFavoritesChat && (chat.unreadCount || 0) > 0 && (
                                     <div className="flex-shrink-0 w-5 h-5 rounded-full bg-cyan-500 text-white text-[10px] font-bold flex items-center justify-center">
                                       {chat.unreadCount}
                                     </div>
@@ -2071,7 +2085,7 @@ export default function MessagesPage() {
                                   <p className="text-xs text-[var(--text-secondary)] truncate flex-1">
                                     {chat.lastMessage.authorName}: {chat.lastMessage.content}
                                   </p>
-                                  {(chat.unreadCount || 0) > 0 && (
+                                  {!chat.isFavoritesChat && (chat.unreadCount || 0) > 0 && (
                                     <div className="flex-shrink-0 w-5 h-5 rounded-full bg-cyan-500 text-white text-[10px] font-bold flex items-center justify-center">
                                       {chat.unreadCount}
                                     </div>
@@ -2109,8 +2123,7 @@ export default function MessagesPage() {
           <div className="flex-1 min-h-0 flex flex-col relative">
           {/* Chat header */}
           <div 
-            className="fixed md:sticky top-0 left-0 right-0 z-20 mx-0 md:mx-2 mt-0 md:mt-2 h-12 backdrop-blur-xl border-0 md:border border-gray-200/60 dark:border-white/10 md:rounded-[50px] flex items-center px-4 gap-2 flex-shrink-0 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1),-8px_0_20px_-10px_rgba(0,0,0,0.05),8px_0_20px_-10px_rgba(0,0,0,0.05),0_8px_25px_-8px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4),-8px_0_20px_-10px_rgba(0,0,0,0.3),8px_0_20px_-10px_rgba(0,0,0,0.3),0_8px_25px_-8px_rgba(0,0,0,0.4)]"
-            style={{ backgroundColor: 'rgba(var(--bg-secondary-rgb, 26, 29, 36), 0.95)' }}
+            className="fixed md:sticky top-0 left-0 right-0 z-20 mx-0 md:mx-2 mt-0 md:mt-2 h-12 backdrop-blur-xl border-0 md:border border-[var(--border-color)] md:rounded-[50px] flex items-center px-4 gap-2 flex-shrink-0 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4)] bg-[var(--bg-secondary)]/95"
           >
             {isSelectionMode ? (
               <>
@@ -2226,21 +2239,17 @@ export default function MessagesPage() {
               }}
               className="no-mobile-scale flex items-center gap-3 flex-1 min-w-0 hover:bg-[var(--bg-tertiary)] -ml-2 px-2 py-1.5 rounded-lg transition-all h-12"
             >
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
-              selectedChat.isFavoritesChat
-                ? 'bg-gradient-to-br from-yellow-400 to-amber-500'
-                : selectedChat.isSystemChat || selectedChat.isNotificationsChat
-                ? 'bg-gradient-to-br from-blue-500 to-indigo-600'
-                : 'bg-gradient-to-br from-cyan-500 to-blue-600'
-            }`}>
-              {selectedChat.isFavoritesChat ? (
-                <Star className="w-4 h-4 text-white fill-white" />
-              ) : selectedChat.isSystemChat || selectedChat.isNotificationsChat ? (
-                <Bell className="w-4 h-4 text-white fill-white" />
-              ) : (
-                getChatAvatar(selectedChat).toUpperCase()
-              )}
-              </div>
+              {(() => {
+                const avatarData = getChatAvatarData(selectedChat);
+                return (
+                  <Avatar
+                    src={avatarData.avatar}
+                    name={avatarData.name}
+                    type={avatarData.type}
+                    size="sm"
+                  />
+                );
+              })()}
               <div className="flex-1 min-w-0 text-left">
                 <h2 className="font-medium text-sm truncate">{getChatTitle(selectedChat)}</h2>
                 {typingUsers[selectedChat.id]?.filter(id => id !== currentUser?.id).length > 0 ? (
@@ -2384,7 +2393,7 @@ export default function MessagesPage() {
           )}
 
           {/* Messages */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-4 pt-14 md:pt-4 pb-24 md:pb-32">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 pt-16 md:pt-4 pb-24 md:pb-32">
             <div className="min-h-full px-2 md:px-4 lg:px-8">
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
@@ -2403,6 +2412,9 @@ export default function MessagesPage() {
                   const replyTo = message.replyToId 
                     ? messages.find(m => m.id === message.replyToId)
                     : null;
+                  
+                  // Получаем автора сообщения для аватара
+                  const messageAuthor = users.find(u => u.id === message.authorId);
                   
                   // Проверяем является ли это последнее сообщение в группе от одного автора
                   const nextMessage = filteredMessages[index + 1];
@@ -2480,6 +2492,7 @@ export default function MessagesPage() {
                     {/* Avatar - только на десктопе */}
                     <div className="hidden md:flex flex-shrink-0 mr-2 self-start">
                       <Avatar
+                        src={messageAuthor?.avatar}
                         name={message.authorName || 'User'}
                         size="sm"
                         type={message.isSystemMessage ? 'notifications' : 'user'}
@@ -2653,8 +2666,8 @@ export default function MessagesPage() {
                         // Настройки стилей - компактные на мобильных как в Telegram
                         const bubbleRadius = chatSettings.bubbleStyle === 'minimal' ? 'rounded-lg' : chatSettings.bubbleStyle === 'classic' ? 'rounded-2xl' : 'rounded-[18px]';
                         // Используем отдельные настройки для мобильных и десктопа
-                        const mobileFontSize = chatSettings.fontSizeMobile || 13;
-                        const desktopFontSize = chatSettings.fontSize || 14;
+                        const mobileFontSize = chatSettings.fontSizeMobile || 15;
+                        const desktopFontSize = chatSettings.fontSize || 13;
                         const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
                         const fontSizeStyle = { fontSize: `${isDesktop ? desktopFontSize : mobileFontSize}px`, lineHeight: isDesktop ? '1.5' : '1.3' };
                         
@@ -2665,7 +2678,7 @@ export default function MessagesPage() {
                               hasBackground
                                 ? `${bubbleRadius} px-2.5 py-1.5 md:px-3 md:py-2 relative min-w-[60px] md:min-w-[80px] ${
                                     isMyMessage
-                                      ? `text-white ${isLastInGroup ? 'rounded-br-sm' : ''}`
+                                      ? `text-white ${isLastInGroup ? 'rounded-br-sm md:rounded-br-[18px] md:rounded-bl-sm' : ''}`
                                       : message.isSystemMessage
                                         ? `bg-gradient-to-r from-orange-100 to-amber-100 dark:from-blue-500/10 dark:to-purple-500/10 border border-orange-200 dark:border-blue-500/20 hover:border-orange-300 dark:hover:border-blue-500/40 transition-colors ${isLastInGroup ? 'rounded-bl-sm' : ''}`
                                         : `bg-[var(--bg-tertiary)] ${isLastInGroup ? 'rounded-bl-sm' : ''}`
@@ -3352,9 +3365,12 @@ export default function MessagesPage() {
                           }}
                           className="w-full p-2 flex items-center gap-2 hover:bg-[var(--bg-tertiary)] transition-colors text-left"
                         >
-                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                            {(user.name || user.username || 'U')[0].toUpperCase()}
-                          </div>
+                          <Avatar
+                            src={user.avatar}
+                            name={user.name || user.username || 'Пользователь'}
+                            size="xs"
+                            type="user"
+                          />
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-medium text-[var(--text-primary)] truncate">
                               {user.name || user.username || 'Пользователь'}
@@ -3469,16 +3485,20 @@ export default function MessagesPage() {
                   return count + attachmentLinks + textLinks;
                 }, 0);
                 
-                // Общие задачи (где оба участника назначены или автор)
+                // Общие задачи (где ОБА участника задействованы - один заказчик, другой исполнитель или наоборот)
                 const sharedTasks = tasks.filter(task => {
-                  if (!otherUser) return false;
-                  const assignedTo = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
-                  const isOtherAssigned = assignedTo.includes(otherUser.id);
-                  const isOtherAuthor = task.authorId === otherUser.id;
-                  const isCurrentAssigned = assignedTo.includes(currentUser?.id || '');
-                  const isCurrentAuthor = task.authorId === currentUser?.id;
-                  // Показываем задачи где собеседник участвует ИЛИ где текущий пользователь участвует
-                  return (isOtherAssigned || isOtherAuthor) || (isCurrentAssigned || isCurrentAuthor);
+                  if (!otherUser || !currentUser) return false;
+                  
+                  // Получаем исполнителя (может быть assignedToId или assignedTo)
+                  const executorId = (task as any).assignedToId || task.assignedTo;
+                  // Получаем заказчика (может быть assignedById или authorId)
+                  const customerId = (task as any).assignedById || task.authorId;
+                  
+                  // Проверяем что ОБА участника задействованы в задаче
+                  const currentUserInvolved = executorId === currentUser.id || customerId === currentUser.id;
+                  const otherUserInvolved = executorId === otherUser.id || customerId === otherUser.id;
+                  
+                  return currentUserInvolved && otherUserInvolved;
                 });
 
                 return (
@@ -3503,25 +3523,19 @@ export default function MessagesPage() {
                     {/* Profile section */}
                     <div className="p-4 border-b border-[var(--border-color)]">
                       <div className="flex flex-col items-center">
-                        <div className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold mb-3 ${
-                          selectedChat?.isFavoritesChat
-                            ? 'bg-gradient-to-br from-yellow-400 to-amber-500'
-                            : selectedChat?.isSystemChat || selectedChat?.isNotificationsChat
-                            ? 'bg-gradient-to-br from-blue-500 to-indigo-600'
-                            : selectedChat?.isGroup
-                            ? 'bg-gradient-to-br from-purple-500 to-pink-600 text-white'
-                            : 'bg-gradient-to-br from-cyan-500 to-blue-600 text-white'
-                        }`}>
-                          {selectedChat?.isFavoritesChat ? (
-                            <Star className="w-8 h-8 text-white fill-white" />
-                          ) : selectedChat?.isSystemChat || selectedChat?.isNotificationsChat ? (
-                            <Bell className="w-8 h-8 text-white" />
-                          ) : selectedChat?.isGroup ? (
-                            <Users className="w-8 h-8" />
-                          ) : (
-                            (otherUser?.name || 'U')[0].toUpperCase()
-                          )}
-                        </div>
+                        {(() => {
+                          const avatarData = getChatAvatarData(selectedChat!);
+                          return (
+                            <div className="mb-3">
+                              <Avatar
+                                src={avatarData.avatar}
+                                name={avatarData.name}
+                                type={avatarData.type}
+                                size="xl"
+                              />
+                            </div>
+                          );
+                        })()}
                         <div className="flex items-center gap-2">
                           <h3 className="font-semibold text-lg text-center">{getChatTitle(selectedChat!)}</h3>
                           {/* Кнопка переименования - только для создателя группы */}
@@ -3727,9 +3741,12 @@ export default function MessagesPage() {
                               
                               return (
                                 <div key={participantId} className="flex items-center gap-3 p-2 rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors">
-                                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white text-sm font-bold">
-                                    {(participant?.name || 'U')[0].toUpperCase()}
-                                  </div>
+                                  <Avatar
+                                    src={participant?.avatar}
+                                    name={participant?.name || participant?.username || 'Пользователь'}
+                                    size="sm"
+                                    type="user"
+                                  />
                                   <div className="flex-1 min-w-0">
                                     <p className="text-sm text-[var(--text-primary)] truncate">
                                       {participant?.name || participant?.username || 'Пользователь'}
@@ -4025,9 +4042,12 @@ export default function MessagesPage() {
                       }}
                       className="w-4 h-4"
                     />
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-sm font-bold">
-                      {(user.name || user.username || 'U')[0].toUpperCase()}
-                    </div>
+                    <Avatar
+                      src={user.avatar}
+                      name={user.name || user.username || 'Пользователь'}
+                      size="sm"
+                      type="user"
+                    />
                     <div className="flex-1">
                       <p className="text-sm font-medium">{user.name || user.username || 'Без имени'}</p>
                       {user.email && (
@@ -4185,9 +4205,12 @@ export default function MessagesPage() {
                       onClick={() => addParticipant(user.id)}
                       className="w-full flex items-center gap-3 p-3 bg-[var(--bg-primary)] rounded-lg border border-[var(--border-color)] hover:bg-[var(--bg-tertiary)] transition-colors text-left"
                     >
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
-                        {(user.name || user.username || 'U')[0].toUpperCase()}
-                      </div>
+                      <Avatar
+                        src={user.avatar}
+                        name={user.name || user.username || 'Пользователь'}
+                        size="sm"
+                        type="user"
+                      />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-[var(--text-primary)]">{user.name || user.username || 'Без имени'}</p>
                         {user.email && (
@@ -4720,9 +4743,17 @@ export default function MessagesPage() {
                           : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)]'
                       }`}
                     >
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold flex-shrink-0">
-                        {chat.isGroup ? <Users className="w-5 h-5" /> : getChatTitle(chat)[0]?.toUpperCase()}
-                      </div>
+                      {(() => {
+                        const avatarData = getChatAvatarData(chat);
+                        return (
+                          <Avatar
+                            src={avatarData.avatar}
+                            name={avatarData.name}
+                            type={avatarData.type}
+                            size="lg"
+                          />
+                        );
+                      })()}
                       <div className="flex-1 text-left min-w-0">
                         <p className="text-sm font-medium text-[var(--text-primary)] truncate">
                           {getChatTitle(chat)}
@@ -4791,9 +4822,12 @@ export default function MessagesPage() {
                     
                     return (
                       <div key={participantId} className="flex items-center gap-3 p-2 rounded-lg bg-[var(--bg-tertiary)]">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white text-sm font-bold">
-                          {(participant?.name || 'U')[0].toUpperCase()}
-                        </div>
+                        <Avatar
+                          src={participant?.avatar}
+                          name={participant?.name || participant?.username || 'Пользователь'}
+                          size="lg"
+                          type="user"
+                        />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-[var(--text-primary)] truncate">
                             {participant?.name || participant?.username || 'Пользователь'}

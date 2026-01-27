@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readDB, writeDB } from '@/lib/db'
 
+// Вычисление статуса онлайн на основе lastSeen
+function calculateIsOnline(lastSeen?: string): boolean {
+  if (!lastSeen) return false;
+  const lastSeenDate = new Date(lastSeen);
+  const now = new Date();
+  const diffMs = now.getTime() - lastSeenDate.getTime();
+  const diffMinutes = Math.floor(diffMs / 60000);
+  return diffMinutes < 2; // Онлайн если активность менее 2 минут назад
+}
+
 // GET - получить пользователя по ID
 export async function GET(
   request: NextRequest,
@@ -16,7 +26,11 @@ export async function GET(
       return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 })
     }
     
-    return NextResponse.json(user)
+    // Возвращаем пользователя с динамическим isOnline
+    return NextResponse.json({
+      ...user,
+      isOnline: calculateIsOnline(user.lastSeen)
+    })
   } catch (error) {
     console.error('Error fetching user:', error)
     return NextResponse.json({ error: 'Ошибка получения пользователя' }, { status: 500 })
@@ -48,16 +62,22 @@ export async function PUT(
       return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 })
     }
     
+    // Сохраняем важные поля которые не должны затираться
+    const existingUser = users[userIndex];
+    const preservedAvatar = existingUser.avatar;
+    
     // Обновляем поля
     users[userIndex] = {
-      ...users[userIndex],
+      ...existingUser,
       ...body,
-      id: id // ID не меняется
+      id: id, // ID не меняется
+      // Если avatar не передан в body, сохраняем существующий
+      avatar: body.avatar !== undefined ? body.avatar : preservedAvatar
     }
     
     db.users = users
     await writeDB(db)
-    console.log('[Users API] User updated successfully:', id)
+    console.log('[Users API] User updated successfully:', id, 'avatar:', users[userIndex].avatar)
     
     return NextResponse.json({ success: true, user: users[userIndex] })
   } catch (error) {

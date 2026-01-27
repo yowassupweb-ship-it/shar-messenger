@@ -6,17 +6,17 @@
       "name": "admin",
       "email": "admin@local.dev",
       "password": "default123",
-      "role": "user",
+      "role": "admin",
       "todoRole": "executor",
       "canSeeAllTasks": false,
       "position": "",
       "department": "",
-      "telegramId": "",
+      "telegramId": "7068591050",
       "telegramUsername": "",
       "enabledTools": [],
       "createdAt": "2026-01-26T17:00:25.925Z",
-      "isOnline": true,
-      "lastSeen": "2026-01-26T21:21:40.781Z"
+      "isOnline": false,
+      "lastSeen": "2026-01-27T08:54:00.330Z"
     },
     {
       "id": "user_001",
@@ -69,7 +69,7 @@
       "telegramUsername": "@sidorov_sales",
       "enabledTools": [],
       "createdAt": "2026-01-26T20:00:00.000Z",
-      "isOnline": true,
+      "isOnline": false,
       "lastSeen": "2026-01-26T20:00:00.000Z"
     },
     {
@@ -105,7 +105,7 @@
       "telegramUsername": "@smirnov_head",
       "enabledTools": [],
       "createdAt": "2026-01-26T20:00:00.000Z",
-      "isOnline": true,
+      "isOnline": false,
       "lastSeen": "2026-01-26T20:00:00.000Z"
     },
     {
@@ -123,7 +123,7 @@
       "telegramUsername": "@volkov_marketing",
       "enabledTools": [],
       "createdAt": "2026-01-26T20:00:00.000Z",
-      "isOnline": true,
+      "isOnline": false,
       "lastSeen": "2026-01-26T20:00:00.000Z"
     },
     {
@@ -159,7 +159,7 @@
       "telegramUsername": "@morozov_smm",
       "enabledTools": [],
       "createdAt": "2026-01-26T20:00:00.000Z",
-      "isOnline": true,
+      "isOnline": false,
       "lastSeen": "2026-01-26T20:00:00.000Z"
     },
     {
@@ -195,7 +195,7 @@
       "telegramUsername": "@fedorov_head",
       "enabledTools": [],
       "createdAt": "2026-01-26T20:00:00.000Z",
-      "isOnline": true,
+      "isOnline": false,
       "lastSeen": "2026-01-26T20:00:00.000Z"
     },
     {
@@ -213,7 +213,7 @@
       "telegramUsername": "@lebedev_dev",
       "enabledTools": [],
       "createdAt": "2026-01-26T20:00:00.000Z",
-      "isOnline": true,
+      "isOnline": false,
       "lastSeen": "2026-01-26T20:00:00.000Z"
     },
     {
@@ -249,7 +249,7 @@
       "telegramUsername": "@popov_qa",
       "enabledTools": [],
       "createdAt": "2026-01-26T20:00:00.000Z",
-      "isOnline": true,
+      "isOnline": false,
       "lastSeen": "2026-01-26T20:00:00.000Z"
     },
     {
@@ -285,12 +285,444 @@
       "telegramUsername": "@romanova_cto",
       "enabledTools": [],
       "createdAt": "2026-01-26T20:00:00.000Z",
-      "isOnline": true,
+      "isOnline": false,
       "lastSeen": "2026-01-26T20:00:00.000Z"
+    },
+    {
+      "id": "user_1769498109235.uihuq3g4y",
+      "username": "test@local.dev",
+      "name": "test",
+      "email": "test@local.dev",
+      "password": "default123",
+      "role": "user",
+      "todoRole": "executor",
+      "canSeeAllTasks": false,
+      "position": "",
+      "department": "",
+      "telegramId": "",
+      "telegramUsername": "",
+      "enabledTools": [],
+      "createdAt": "2026-01-27T07:15:09.235Z",
+      "isOnline": false
     }
   ],
-  "chats": [],
-  "messages": [],
+  "chats": [
+    {
+      "id": "notifications-user_1768211670938.cjlk65kuz",
+      "title": "Уведомления",
+      "isGroup": false,
+      "isNotificationsChat": true,
+      "isSystemChat": true,
+      "participantIds": [
+        "user_1768211670938.cjlk65kuz"
+      ],
+      "createdAt": "2026-01-27T10:15:04.446628",
+      "readMessagesByUser": {},
+      "unreadCount": 0
+    },
+    {
+      "id": "favorites_user_1768211670938.cjlk65kuz",
+      "title": "Избранное",
+      "isGroup": false,
+      "isFavoritesChat": true,
+      "isSystemChat": true,
+      "participantIds": [
+        "user_1768211670938.cjlk65kuz"
+      ],
+      "createdAt": "2026-01-27T10:15:04.448240",
+      "readMessagesByUser": {},
+      "unreadCount": 0
+    },
+    {
+      "id": "notifications-undefined",
+      "title": "Уведомления",
+      "isGroup": false,
+      "isNotificationsChat": true,
+      "isSystemChat": true,
+      "participantIds": [
+        "undefined"
+      ],
+      "createdAt": "2026-01-27T10:15:05.374401",
+      "readMessagesByUser": {},
+      "unreadCount": 0
+    },
+    {
+      "id": "favorites_undefined",
+      "title": "Избранное",
+      "isGroup": false,
+      "isFavoritesChat": true,
+      "isSystemChat": true,
+      "participantIds": [
+        "undefined"
+      ],
+      "createdAt": "2026-01-27T10:15:05.375860",
+      "readMessagesByUser": {},
+      "unreadCount": 0
+    },
+    {
+      "id": "notifications-user_1769446825925.whxkh075y",
+      "title": "Уведомления",
+      "isGroup": false,
+      "isNotificationsChat": true,
+      "isSystemChat": true,
+      "participantIds": [
+        "user_1769446825925.whxkh075y"
+      ],
+      "createdAt": "2026-01-27T10:16:11.718275",
+      "readMessagesByUser": {},
+      "unreadCount": 0
+    },
+    {
+      "id": "favorites_user_1769446825925.whxkh075y",
+      "title": "Избранное",
+      "isGroup": false,
+      "isFavoritesChat": true,
+      "isSystemChat": true,
+      "participantIds": [
+        "user_1769446825925.whxkh075y"
+      ],
+      "createdAt": "2026-01-27T10:16:11.719290",
+      "readMessagesByUser": {
+        "user_1769446825925.whxkh075y": "2026-01-27T11:24:56.392335"
+      },
+      "unreadCount": 0,
+      "lastMessage": {
+        "id": "5d5892a9-a65a-4970-ab58-b3cb887d3df1",
+        "chatId": "favorites_user_1769446825925.whxkh075y",
+        "authorId": "user_1769446825925.whxkh075y",
+        "authorName": "admin",
+        "content": "1",
+        "mentions": [],
+        "replyToId": null,
+        "createdAt": "2026-01-27T11:19:47.409373",
+        "updatedAt": null,
+        "isEdited": false,
+        "attachments": []
+      }
+    },
+    {
+      "id": "8b6f4f8c-a0ff-492b-a997-aa9b031fa16a",
+      "title": null,
+      "isGroup": false,
+      "participantIds": [
+        "user_1769446825925.whxkh075y",
+        "user_010"
+      ],
+      "createdAt": "2026-01-27T10:16:25.915194",
+      "readMessagesByUser": {
+        "user_1769446825925.whxkh075y": "2026-01-27T12:13:22.251487",
+        "user_010": "2026-01-27T12:14:54.630631"
+      },
+      "unreadCount": 0,
+      "lastMessage": {
+        "id": "58f2e53b-5346-449d-a70e-e063a920e902",
+        "chatId": "8b6f4f8c-a0ff-492b-a997-aa9b031fa16a",
+        "authorId": "user_1769446825925.whxkh075y",
+        "authorName": "admin",
+        "content": "Эй",
+        "mentions": [],
+        "replyToId": null,
+        "createdAt": "2026-01-27T11:42:46.697792",
+        "updatedAt": null,
+        "isEdited": false,
+        "attachments": []
+      }
+    },
+    {
+      "id": "8e86beda-88bc-46b3-8b68-57a6231858f1",
+      "title": "Отдел продаж",
+      "isGroup": true,
+      "participantIds": [
+        "user_001",
+        "user_002",
+        "user_003",
+        "user_004",
+        "user_1769446825925.whxkh075y"
+      ],
+      "createdAt": "2026-01-27T10:28:38.186582",
+      "readMessagesByUser": {
+        "user_1769446825925.whxkh075y": "2026-01-27T12:14:55.856139"
+      },
+      "creatorId": "user_1769446825925.whxkh075y",
+      "unreadCount": 0,
+      "lastMessage": {
+        "id": "a82a1ab6-a2a0-4509-81f7-ea8c1caf75a9",
+        "chatId": "8e86beda-88bc-46b3-8b68-57a6231858f1",
+        "authorId": "user_1769446825925.whxkh075y",
+        "authorName": "admin",
+        "content": "Всем привет",
+        "mentions": [],
+        "replyToId": null,
+        "createdAt": "2026-01-27T10:28:57.834421",
+        "updatedAt": null,
+        "isEdited": false,
+        "attachments": []
+      }
+    },
+    {
+      "id": "notifications-user_010",
+      "title": "Уведомления",
+      "isGroup": false,
+      "isNotificationsChat": true,
+      "isSystemChat": true,
+      "participantIds": [
+        "user_010"
+      ],
+      "createdAt": "2026-01-27T11:12:40.717148",
+      "readMessagesByUser": {},
+      "unreadCount": 0
+    },
+    {
+      "id": "favorites_user_010",
+      "title": "Избранное",
+      "isGroup": false,
+      "isFavoritesChat": true,
+      "isSystemChat": true,
+      "participantIds": [
+        "user_010"
+      ],
+      "createdAt": "2026-01-27T11:12:40.718607",
+      "readMessagesByUser": {
+        "user_010": "2026-01-27T12:03:41.960208"
+      },
+      "unreadCount": 0,
+      "lastMessage": {
+        "id": "6f4401c2-cd22-4e55-870a-f0b049abc455",
+        "chatId": "favorites_user_010",
+        "authorId": "user_010",
+        "authorName": "Федоров Андрей",
+        "content": "qqqqqq",
+        "mentions": [],
+        "replyToId": null,
+        "createdAt": "2026-01-27T11:30:55.330462",
+        "updatedAt": null,
+        "isEdited": false,
+        "attachments": []
+      }
+    },
+    {
+      "id": "notifications-user_1769503286322.h458f800q",
+      "title": "Уведомления",
+      "isGroup": false,
+      "isNotificationsChat": true,
+      "isSystemChat": true,
+      "participantIds": [
+        "user_1769503286322.h458f800q"
+      ],
+      "createdAt": "2026-01-27T11:41:29.685095",
+      "readMessagesByUser": {},
+      "unreadCount": 0
+    },
+    {
+      "id": "favorites_user_1769503286322.h458f800q",
+      "title": "Избранное",
+      "isGroup": false,
+      "isFavoritesChat": true,
+      "isSystemChat": true,
+      "participantIds": [
+        "user_1769503286322.h458f800q"
+      ],
+      "createdAt": "2026-01-27T11:41:29.686756",
+      "readMessagesByUser": {},
+      "unreadCount": 0
+    }
+  ],
+  "messages": [
+    {
+      "id": "49b969e3-c9ea-4800-95a4-4584a1f7c68a",
+      "chatId": "8b6f4f8c-a0ff-492b-a997-aa9b031fa16a",
+      "authorId": "user_1769446825925.whxkh075y",
+      "authorName": "admin",
+      "content": "Привет",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-27T10:16:31.476693",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "2a362376-d44c-4cba-8acb-3170ac39b635",
+      "chatId": "8b6f4f8c-a0ff-492b-a997-aa9b031fa16a",
+      "authorId": "user_1769446825925.whxkh075y",
+      "authorName": "admin",
+      "content": "ввввввув",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-27T10:17:14.986013",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "a82a1ab6-a2a0-4509-81f7-ea8c1caf75a9",
+      "chatId": "8e86beda-88bc-46b3-8b68-57a6231858f1",
+      "authorId": "user_1769446825925.whxkh075y",
+      "authorName": "admin",
+      "content": "Всем привет",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-27T10:28:57.834421",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "caed4714-e3b6-4835-a892-dc69e83aed36",
+      "chatId": "8b6f4f8c-a0ff-492b-a997-aa9b031fa16a",
+      "authorId": "user_1769446825925.whxkh075y",
+      "authorName": "admin",
+      "content": "",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-27T10:31:34.913999",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": [
+        {
+          "type": "image",
+          "name": "20250516_1339_Семья на Арбате_simple_compose_01jvce869wfqeaw6pw7x4fthqv.png",
+          "url": "/api/uploads/1769499093856-qi48t6pen.png"
+        }
+      ]
+    },
+    {
+      "id": "63553097-2c6d-476c-8bc2-0d647692fc20",
+      "chatId": "8b6f4f8c-a0ff-492b-a997-aa9b031fa16a",
+      "authorId": "user_1769446825925.whxkh075y",
+      "authorName": "admin",
+      "content": "",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-27T10:35:34.006808",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": [
+        {
+          "type": "task",
+          "name": "1",
+          "taskId": "20260127_072430_em6kk4"
+        }
+      ]
+    },
+    {
+      "id": "4f981825-75b9-429f-a592-2f01412978db",
+      "chatId": "8b6f4f8c-a0ff-492b-a997-aa9b031fa16a",
+      "authorId": "user_1769446825925.whxkh075y",
+      "authorName": "admin",
+      "content": "https://ru.envybox.io/user/chats/115730/edit/",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-27T11:07:30.553035",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "c9136777-9771-404f-9d8a-848167c1406a",
+      "chatId": "8b6f4f8c-a0ff-492b-a997-aa9b031fa16a",
+      "authorId": "user_010",
+      "authorName": "Федоров Андрей",
+      "content": "Вижу",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-27T11:12:56.893368",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "80258cd1-3875-4fc7-b79b-1e6d5cdaa29e",
+      "chatId": "8b6f4f8c-a0ff-492b-a997-aa9b031fa16a",
+      "authorId": "user_1769446825925.whxkh075y",
+      "authorName": "admin",
+      "content": "Как дела",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-27T11:13:06.769994",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "d474f289-f37b-49b4-9dcd-b49051176ada",
+      "chatId": "8b6f4f8c-a0ff-492b-a997-aa9b031fa16a",
+      "authorId": "user_010",
+      "authorName": "Федоров Андрей",
+      "content": "Отлично",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-27T11:13:12.047522",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "5d5892a9-a65a-4970-ab58-b3cb887d3df1",
+      "chatId": "favorites_user_1769446825925.whxkh075y",
+      "authorId": "user_1769446825925.whxkh075y",
+      "authorName": "admin",
+      "content": "1",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-27T11:19:47.409373",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "b75b645c-3cbc-4685-88c4-695284ff005a",
+      "chatId": "8b6f4f8c-a0ff-492b-a997-aa9b031fa16a",
+      "authorId": "user_010",
+      "authorName": "Федоров Андрей",
+      "content": "Эй, я в сети",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-27T11:26:14.198146",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "ecec4c7a-542e-4fee-acde-a32d920a45d9",
+      "chatId": "8b6f4f8c-a0ff-492b-a997-aa9b031fa16a",
+      "authorId": "user_1769446825925.whxkh075y",
+      "authorName": "admin",
+      "content": "Да нет, был в сети 12 часов назад",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-27T11:27:40.562641",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "6f4401c2-cd22-4e55-870a-f0b049abc455",
+      "chatId": "favorites_user_010",
+      "authorId": "user_010",
+      "authorName": "Федоров Андрей",
+      "content": "qqqqqq",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-27T11:30:55.330462",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "58f2e53b-5346-449d-a70e-e063a920e902",
+      "chatId": "8b6f4f8c-a0ff-492b-a997-aa9b031fa16a",
+      "authorId": "user_1769446825925.whxkh075y",
+      "authorName": "admin",
+      "content": "Эй",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-27T11:42:46.697792",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    }
+  ],
   "todos": [],
   "lists": [],
   "categories": [],

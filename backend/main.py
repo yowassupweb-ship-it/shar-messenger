@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, status, Body, UploadFile, File
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, status, Body, UploadFile, File, Form
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, FileResponse, StreamingResponse
@@ -164,6 +164,77 @@ async def get_uploaded_file(filename: str):
     file_path = UPLOAD_DIR / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(file_path)
+
+# Папка для аватаров
+AVATARS_DIR = UPLOAD_DIR / "avatars"
+AVATARS_DIR.mkdir(exist_ok=True)
+
+# Загрузка аватара пользователя
+@app.post("/api/avatars")
+async def upload_avatar(file: UploadFile = File(...), userId: str = Form(...)):
+    """Загрузка аватара пользователя"""
+    try:
+        # Проверяем тип файла
+        allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+        if file.content_type not in allowed_types:
+            raise HTTPException(status_code=400, detail="Неподдерживаемый формат файла")
+        
+        # Генерируем уникальное имя файла
+        file_ext = Path(file.filename).suffix if file.filename else '.jpg'
+        unique_filename = f"{userId}_{uuid.uuid4()}{file_ext}"
+        file_path = AVATARS_DIR / unique_filename
+        
+        # Удаляем старый аватар пользователя если есть
+        for old_file in AVATARS_DIR.glob(f"{userId}_*"):
+            old_file.unlink()
+        
+        # Сохраняем файл
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # URL аватара
+        avatar_url = f"/api/avatars/{unique_filename}"
+        
+        # Обновляем пользователя в БД
+        db.update_user(userId, {"avatar": avatar_url})
+        
+        return {
+            "success": True,
+            "avatarUrl": avatar_url
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error uploading avatar: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Удаление аватара пользователя
+@app.delete("/api/avatars")
+async def delete_avatar(userId: str):
+    """Удаление аватара пользователя"""
+    try:
+        # Удаляем файлы аватара пользователя
+        deleted = False
+        for old_file in AVATARS_DIR.glob(f"{userId}_*"):
+            old_file.unlink()
+            deleted = True
+        
+        # Обновляем пользователя в БД - убираем аватар
+        db.update_user(userId, {"avatar": None})
+        
+        return {"success": True, "deleted": deleted}
+    except Exception as e:
+        print(f"Error deleting avatar: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Отдача файла аватара
+@app.get("/api/avatars/{filename}")
+async def get_avatar(filename: str):
+    """Получить файл аватара"""
+    file_path = AVATARS_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Avatar not found")
     return FileResponse(file_path)
 
 # Test Telegram endpoint
@@ -1465,6 +1536,8 @@ class UserCreate(BaseModel):
     todoRole: str = "executor"  # executor, customer, universal
     position: Optional[str] = None  # Должность
     department: Optional[str] = None  # Отдел
+    phone: Optional[str] = None  # Телефон
+    workSchedule: Optional[str] = None  # График работы
     enabledTools: List[str] = []
 
 class UserUpdate(BaseModel):
@@ -1475,7 +1548,10 @@ class UserUpdate(BaseModel):
     todoRole: Optional[str] = None
     position: Optional[str] = None  # Должность
     department: Optional[str] = None  # Отдел
+    phone: Optional[str] = None  # Телефон
+    workSchedule: Optional[str] = None  # График работы
     enabledTools: Optional[List[str]] = None
+    avatar: Optional[str] = None  # URL аватара пользователя
 
 @app.post("/api/users/batch")
 def create_users_batch(users: List[Dict[str, Any]] = Body(...)):
@@ -1495,15 +1571,48 @@ def create_users_batch(users: List[Dict[str, Any]] = Body(...)):
 
 @app.get("/api/users")
 def get_users():
-    """Получить список всех пользователей"""
-    return db.get_users()
+    """Получить список всех пользователей с динамическим isOnline"""
+    users = db.get_users()
+    now = datetime.now()
+    
+    # Вычисляем isOnline динамически на основе lastSeen
+    for user in users:
+        is_online = False
+        last_seen = user.get("lastSeen")
+        
+        if last_seen:
+            try:
+                last_seen_date = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+                diff = (now - last_seen_date).total_seconds()
+                is_online = diff < 120  # Онлайн если активность была менее 2 минут назад
+            except:
+                pass
+        
+        user["isOnline"] = is_online
+    
+    return users
 
 @app.get("/api/users/{user_id}")
 def get_user(user_id: str):
-    """Получить пользователя по ID"""
+    """Получить пользователя по ID с динамическим isOnline"""
     user = db.get_user_by_id(user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    
+    # Вычисляем isOnline динамически
+    is_online = False
+    last_seen = user.get("lastSeen")
+    
+    if last_seen:
+        try:
+            now = datetime.now()
+            last_seen_date = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+            diff = (now - last_seen_date).total_seconds()
+            is_online = diff < 120  # Онлайн если активность была менее 2 минут назад
+        except:
+            pass
+    
+    user["isOnline"] = is_online
     return user
 
 @app.post("/api/users")

@@ -16,6 +16,7 @@ interface Tool {
   icon: React.ReactNode;
   gradient: string;
   adminOnly?: boolean;
+  standard?: boolean;  // Стандартный инструмент (доступен всем)
 }
 
 // Динамический импорт компонентов
@@ -27,6 +28,9 @@ const LinksBoard = lazy(() => import('../../components/LinksBoard'));
 
 type TabType = 'messages' | 'tasks' | 'calendar' | 'contacts' | 'tools' | 'links';
 
+// Стандартные инструменты (доступны всем)
+const STANDARD_TOOL_IDS = ['messages', 'tasks', 'calendar', 'links', 'chat-settings'];
+
 // Список всех инструментов
 const ALL_TOOLS: Tool[] = [
   { id: 'feed-editor', name: 'Редактор фидов', href: '/feed-editor', icon: <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-blue-500 to-indigo-600' },
@@ -35,8 +39,7 @@ const ALL_TOOLS: Tool[] = [
   { id: 'utm-generator', name: 'Генератор UTM', href: '/utm-generator', icon: <Link2 className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-fuchsia-500 to-pink-600' },
   { id: 'slovolov-pro', name: 'Словолов PRO', href: '/slovolov-pro', icon: <Box className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-cyan-500 to-blue-600' },
   { id: 'content-plan', name: 'Контент-план', href: '/content-plan', icon: <Megaphone className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-purple-500 to-violet-600' },
-  { id: 'links', name: 'База ссылок', href: '/links', icon: <Globe className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-sky-500 to-blue-600' },
-  { id: 'chat-settings', name: 'Настройки', href: '/chat-settings', icon: <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-gray-500 to-slate-600' },
+  { id: 'chat-settings', name: 'Настройки', href: '/chat-settings', icon: <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-gray-500 to-slate-600', standard: true },
   { id: 'admin', name: 'Администрирование', href: '/admin', icon: <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-amber-500 to-orange-600', adminOnly: true },
 ];
 
@@ -49,6 +52,9 @@ export default function AccountPage() {
   const [unreadChatsCount, setUnreadChatsCount] = useState(0);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editForm, setEditForm] = useState({ phone: '', workSchedule: '', position: '', department: '' });
+  const [savingProfile, setSavingProfile] = useState(false);
   
   // Состояния для выпадающего меню аккаунта
   const [showAccountMenu, setShowAccountMenu] = useState(false);
@@ -56,10 +62,10 @@ export default function AccountPage() {
   // Настройки чата
   const [chatSettings, setChatSettings] = useState({
     bubbleStyle: 'modern' as 'modern' | 'classic' | 'minimal',
-    fontSize: 14, // размер в пикселях для десктопа
-    fontSizeMobile: 13, // размер в пикселях для мобильных
-    bubbleColor: '#34c759', // цвет для темной темы
-    bubbleColorLight: '#007aff', // цвет для светлой темы
+    fontSize: 13, // размер в пикселях для десктопа
+    fontSizeMobile: 15, // размер в пикселях для мобильных
+    bubbleColor: '#3c3d96', // цвет для темной темы
+    bubbleColorLight: '#453de6', // цвет для светлой темы
     colorPreset: 0
   });
   
@@ -72,6 +78,15 @@ export default function AccountPage() {
   // Загрузка настроек чата с сервера
   useEffect(() => {
     const loadChatSettings = async () => {
+      const defaultSettings = {
+        bubbleStyle: 'modern' as 'modern' | 'classic' | 'minimal',
+        fontSize: 13,
+        fontSizeMobile: 15,
+        bubbleColor: '#3c3d96',
+        bubbleColorLight: '#453de6',
+        colorPreset: 0
+      };
+      
       try {
         const myAccountStr = localStorage.getItem('myAccount');
         if (myAccountStr) {
@@ -80,8 +95,8 @@ export default function AccountPage() {
           if (res.ok) {
             const user = await res.json();
             if (user.chatSettings) {
-              setChatSettings(user.chatSettings);
-              localStorage.setItem('chatSettings', JSON.stringify(user.chatSettings));
+              setChatSettings({ ...defaultSettings, ...user.chatSettings });
+              localStorage.setItem('chatSettings', JSON.stringify({ ...defaultSettings, ...user.chatSettings }));
               return;
             }
           }
@@ -89,12 +104,12 @@ export default function AccountPage() {
         // Fallback на localStorage
         const savedSettings = localStorage.getItem('chatSettings');
         if (savedSettings) {
-          setChatSettings(JSON.parse(savedSettings));
+          setChatSettings({ ...defaultSettings, ...JSON.parse(savedSettings) });
         }
       } catch {
         const savedSettings = localStorage.getItem('chatSettings');
         if (savedSettings) {
-          try { setChatSettings(JSON.parse(savedSettings)); } catch {}
+          try { setChatSettings({ ...defaultSettings, ...JSON.parse(savedSettings) }); } catch {}
         }
       }
     };
@@ -260,37 +275,42 @@ export default function AccountPage() {
           const account = JSON.parse(myAccountStr);
           
           if (account.id) {
-            // Всегда загружаем данные пользователя с сервера чтобы получить актуальный аватар
+            // Всегда загружаем данные пользователя с сервера чтобы получить актуальный аватар и права
             const res = await fetch(`/api/users/${account.id}`);
             if (res.ok) {
               const user = await res.json();
-              // Сохраняем в localStorage для будущего использования
-              localStorage.setItem('myAccount', JSON.stringify({ id: account.id, name: user.name }));
+              // Сохраняем в localStorage для будущего использования (с аватаром)
+              localStorage.setItem('myAccount', JSON.stringify({ 
+                id: account.id, 
+                name: user.name,
+                avatar: user.avatar 
+              }));
               setCurrentUser({ 
                 id: account.id,
                 name: user.name, 
                 email: user.email,
                 avatar: user.avatar,
-                role: userRole 
+                role: user.role || userRole,
+                enabledTools: user.enabledTools || []
               });
             } else if (account.name) {
               // Fallback если сервер недоступен
-              setCurrentUser({ id: account.id, name: account.name, role: userRole });
+              setCurrentUser({ id: account.id, name: account.name, role: userRole, enabledTools: [] });
             }
           } else if (account.name) {
             // Если нет ID но есть имя
-            setCurrentUser({ name: account.name, role: userRole });
+            setCurrentUser({ name: account.name, role: userRole, enabledTools: [] });
           }
         } catch {
           const username = localStorage.getItem('username');
           if (username) {
-            setCurrentUser({ name: username, role: userRole });
+            setCurrentUser({ name: username, role: userRole, enabledTools: [] });
           }
         }
       } else {
         const username = localStorage.getItem('username');
         if (username) {
-          setCurrentUser({ name: username, role: userRole });
+          setCurrentUser({ name: username, role: userRole, enabledTools: [] });
         }
       }
     };
@@ -420,7 +440,16 @@ export default function AccountPage() {
               </p>
             </div>
             <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-4 max-w-5xl mx-auto">
-              {ALL_TOOLS.filter(tool => !tool.adminOnly || currentUser?.role === 'admin').map((tool) => (
+              {ALL_TOOLS.filter(tool => {
+                // Админ видит все + админ-панель
+                if (currentUser?.role === 'admin') return true;
+                // Админ-только инструменты скрыты для обычных пользователей
+                if (tool.adminOnly) return false;
+                // Стандартные инструменты (База ссылок, Настройки) видны всем
+                if (tool.standard) return true;
+                // Остальные - по enabledTools
+                return currentUser?.enabledTools?.includes(tool.id);
+              }).map((tool) => (
                 <div
                   key={tool.id}
                   draggable={isDesktop}
@@ -730,6 +759,11 @@ export default function AccountPage() {
             {pinnedTools.slice(0, 6).map((toolId, index) => {
               const tool = ALL_TOOLS.find(t => t.id === toolId);
               if (!tool) return null;
+              // Проверяем доступ к инструменту
+              const hasAccess = currentUser?.role === 'admin' || 
+                tool.standard || 
+                currentUser?.enabledTools?.includes(tool.id);
+              if (!hasAccess) return null;
               return (
                 <div 
                   key={toolId} 
@@ -881,6 +915,13 @@ export default function AccountPage() {
                       ...prev,
                       avatar: newAvatarUrl
                     }));
+                    // Обновляем myAccount в localStorage
+                    const myAccountStr = localStorage.getItem('myAccount');
+                    if (myAccountStr) {
+                      const myAccount = JSON.parse(myAccountStr);
+                      myAccount.avatar = newAvatarUrl;
+                      localStorage.setItem('myAccount', JSON.stringify(myAccount));
+                    }
                   }}
                 />
                 <p className="text-sm text-[var(--text-secondary)]">
@@ -904,17 +945,155 @@ export default function AccountPage() {
                     <div className="text-[var(--text-primary)] capitalize">{currentUser.role}</div>
                   </div>
                 )}
+                
+                {/* Editable fields */}
+                {isEditingProfile ? (
+                  <>
+                    <div>
+                      <label className="block text-xs text-[var(--text-secondary)] mb-1">Телефон</label>
+                      <input
+                        type="tel"
+                        value={editForm.phone}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
+                        placeholder="+7 (999) 123-45-67"
+                        className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg text-sm focus:outline-none focus:border-[var(--accent-primary)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-[var(--text-secondary)] mb-1">График работы</label>
+                      <input
+                        type="text"
+                        value={editForm.workSchedule}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, workSchedule: e.target.value }))}
+                        placeholder="Пн-Пт 9:00-18:00"
+                        className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg text-sm focus:outline-none focus:border-[var(--accent-primary)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-[var(--text-secondary)] mb-1">Должность</label>
+                      <input
+                        type="text"
+                        value={editForm.position}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, position: e.target.value }))}
+                        placeholder="Менеджер"
+                        className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg text-sm focus:outline-none focus:border-[var(--accent-primary)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-[var(--text-secondary)] mb-1">Отдел</label>
+                      <input
+                        type="text"
+                        value={editForm.department}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, department: e.target.value }))}
+                        placeholder="Отдел продаж"
+                        className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg text-sm focus:outline-none focus:border-[var(--accent-primary)]"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {(currentUser.phone || currentUser.workSchedule || currentUser.position || currentUser.department) && (
+                      <>
+                        {currentUser.phone && (
+                          <div>
+                            <label className="block text-xs text-[var(--text-secondary)] mb-1">Телефон</label>
+                            <div className="text-[var(--text-primary)]">{currentUser.phone}</div>
+                          </div>
+                        )}
+                        {currentUser.workSchedule && (
+                          <div>
+                            <label className="block text-xs text-[var(--text-secondary)] mb-1">График работы</label>
+                            <div className="text-[var(--text-primary)]">{currentUser.workSchedule}</div>
+                          </div>
+                        )}
+                        {currentUser.position && (
+                          <div>
+                            <label className="block text-xs text-[var(--text-secondary)] mb-1">Должность</label>
+                            <div className="text-[var(--text-primary)]">{currentUser.position}</div>
+                          </div>
+                        )}
+                        {currentUser.department && (
+                          <div>
+                            <label className="block text-xs text-[var(--text-secondary)] mb-1">Отдел</label>
+                            <div className="text-[var(--text-primary)]">{currentUser.department}</div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
               </div>
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-[var(--border-primary)]">
-              <button
-                onClick={() => setShowProfileModal(false)}
-                className="w-full py-2.5 rounded-xl bg-[var(--accent-primary)] text-white font-medium hover:opacity-90 transition-opacity"
-              >
-                Закрыть
-              </button>
+            <div className="p-4 border-t border-[var(--border-primary)] flex gap-2">
+              {isEditingProfile ? (
+                <>
+                  <button
+                    onClick={() => {
+                      setIsEditingProfile(false);
+                      setEditForm({
+                        phone: currentUser.phone || '',
+                        workSchedule: currentUser.workSchedule || '',
+                        position: currentUser.position || '',
+                        department: currentUser.department || ''
+                      });
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-primary)] font-medium hover:opacity-90 transition-opacity"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!currentUser?.id) return;
+                      setSavingProfile(true);
+                      try {
+                        const res = await fetch(`/api/users/${currentUser.id}`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(editForm)
+                        });
+                        if (res.ok) {
+                          const updated = await res.json();
+                          setCurrentUser((prev: any) => ({ ...prev, ...editForm }));
+                          setIsEditingProfile(false);
+                        }
+                      } catch (err) {
+                        console.error('Error updating profile:', err);
+                      } finally {
+                        setSavingProfile(false);
+                      }
+                    }}
+                    disabled={savingProfile}
+                    className="flex-1 py-2.5 rounded-xl bg-[var(--accent-primary)] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                  >
+                    {savingProfile ? 'Сохранение...' : 'Сохранить'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      setEditForm({
+                        phone: currentUser.phone || '',
+                        workSchedule: currentUser.workSchedule || '',
+                        position: currentUser.position || '',
+                        department: currentUser.department || ''
+                      });
+                      setIsEditingProfile(true);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-primary)] font-medium hover:opacity-90 transition-opacity"
+                  >
+                    Редактировать
+                  </button>
+                  <button
+                    onClick={() => setShowProfileModal(false)}
+                    className="flex-1 py-2.5 rounded-xl bg-[var(--accent-primary)] text-white font-medium hover:opacity-90 transition-opacity"
+                  >
+                    Закрыть
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
