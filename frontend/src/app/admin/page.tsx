@@ -113,7 +113,7 @@ export default function AdminPage() {
       
       try {
         // Получаем актуальную роль с бекенда
-        const res = await fetch(`http://127.0.0.1:8000/api/users`);
+        const res = await fetch(`/api/users`);
         if (res.ok) {
           const users = await res.json();
           const currentUser = users.find((u: User) => u.username === username || u.email === username);
