@@ -56,9 +56,41 @@ class Database:
         print(f"Database reloaded. Users count: {len(self.data.get('users', []))}")
     
     def _save(self):
-        """Сохранение данных в JSON файл"""
+        """Сохранение данных в JSON файл с защитой от потери данных"""
+        import shutil
+        from datetime import datetime as dt
+        
+        # ЗАЩИТА: Не сохраняем если users пустой, а был не пустой
+        current_users = len(self.data.get('users', []))
+        
+        # Читаем текущее состояние файла
+        if os.path.exists(self.db_path):
+            try:
+                with open(self.db_path, 'r', encoding='utf-8') as f:
+                    existing_data = json.load(f)
+                    existing_users = len(existing_data.get('users', []))
+                    
+                    # Если пытаемся записать пустых users когда было >0 - БЛОКИРУЕМ
+                    if existing_users > 0 and current_users == 0:
+                        print(f"⛔ БЛОКИРОВКА ЗАПИСИ: Попытка стереть {existing_users} пользователей!")
+                        print(f"   Стек вызова: ", end="")
+                        import traceback
+                        traceback.print_stack()
+                        return  # НЕ сохраняем!
+                    
+                    # Создаём бэкап если users уменьшается более чем на 50%
+                    if existing_users > 2 and current_users < existing_users * 0.5:
+                        backup_path = f"{self.db_path}.backup_{dt.now().strftime('%Y%m%d_%H%M%S')}"
+                        shutil.copy2(self.db_path, backup_path)
+                        print(f"⚠️ ВНИМАНИЕ: Users уменьшается с {existing_users} до {current_users}. Бэкап: {backup_path}")
+            except Exception as e:
+                print(f"Ошибка при проверке защиты: {e}")
+        
+        # Сохраняем
         with open(self.db_path, 'w', encoding='utf-8') as f:
             json.dump(self.data, f, ensure_ascii=False, indent=2)
+        
+        print(f"💾 База сохранена. Users: {current_users}")
     
     def save_to_disk(self):
         """Alias for _save for backward compatibility"""
