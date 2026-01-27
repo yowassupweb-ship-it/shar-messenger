@@ -868,7 +868,6 @@ export default function LinksPage() {
                           <Trash2 className="w-4 h-4 text-red-400/50 hover:text-red-400" />
                         </button>
                       </div>
-                    </div>
                   </div>
                 );
               })}

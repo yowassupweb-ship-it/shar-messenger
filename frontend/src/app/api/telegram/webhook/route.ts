@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
     }
     
     const message = update.message;
-    const text = message.text.trim();
+    const text = (message.text || '').trim();
     const telegramId = message.from.id;
     const chatId = message.chat.id;
     
