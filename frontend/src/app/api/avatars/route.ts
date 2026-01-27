@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir, unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
-import { readDB, writeDB } from '@/lib/db';
+
+// URL бэкенда для проксирования
+const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 
 // Директория для хранения аватарок - в backend/uploads для постоянного хранения
 const AVATARS_DIR = path.join(process.cwd(), '..', 'backend', 'uploads', 'avatars');
@@ -70,11 +72,17 @@ export async function POST(request: NextRequest) {
       await mkdir(AVATARS_DIR, { recursive: true });
     }
 
-    // Получаем старую аватарку для удаления
-    const db = await readDB();
-    const users = db.users || [];
-    const user = users.find((u: any) => u.id === userId);
-    const oldAvatarUrl = user?.avatar;
+    // Получаем старую аватарку для удаления через бэкенд
+    let oldAvatarUrl: string | undefined;
+    try {
+      const userRes = await fetch(`${BACKEND_URL}/api/users/${userId}`);
+      if (userRes.ok) {
+        const user = await userRes.json();
+        oldAvatarUrl = user?.avatar;
+      }
+    } catch (err) {
+      console.error('[Avatar API] Error fetching user:', err);
+    }
 
     // Генерируем уникальное имя файла
     const fileExtension = file.name.split('.').pop() || 'jpg';
@@ -92,45 +100,19 @@ export async function POST(request: NextRequest) {
     // Удаляем старую аватарку с диска
     await deleteOldAvatar(oldAvatarUrl);
 
-    // Обновляем пользователя в базе данных
-    console.log(`[Avatar API] Updating user ${userId} with avatar ${avatarUrl}`);
+    // Обновляем пользователя через бэкенд API (проксирование)
+    console.log(`[Avatar API] Updating user ${userId} with avatar ${avatarUrl} via backend`);
     
-    // Используем более надежный метод обновления с повторной проверкой
-    let retries = 3;
-    let success = false;
+    const updateRes = await fetch(`${BACKEND_URL}/api/users/${userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ avatar: avatarUrl })
+    });
     
-    while (retries > 0 && !success) {
-      try {
-        const db = await readDB();
-        const users = db.users || [];
-        const userIndex = users.findIndex((u: any) => u.id === userId);
-        
-        if (userIndex !== -1) {
-          console.log(`[Avatar API] Found user: ${users[userIndex].name}, attempt ${4 - retries}`);
-          users[userIndex].avatar = avatarUrl;
-          users[userIndex].updatedAt = new Date().toISOString();
-          db.users = users;
-          await writeDB(db);
-          
-          // Verify the write
-          const verifyDb = await readDB();
-          const verifyUser = verifyDb.users?.find((u: any) => u.id === userId);
-          if (verifyUser?.avatar === avatarUrl) {
-            console.log(`[Avatar API] User avatar updated and verified successfully`);
-            success = true;
-          } else {
-            console.log(`[Avatar API] Verification failed, retrying...`);
-            retries--;
-          }
-        } else {
-          console.log(`[Avatar API] User not found with ID: ${userId}`);
-          break;
-        }
-      } catch (err) {
-        console.error(`[Avatar API] Error updating user:`, err);
-        retries--;
-        await new Promise(resolve => setTimeout(resolve, 100)); // Wait before retry
-      }
+    if (!updateRes.ok) {
+      console.error('[Avatar API] Failed to update user via backend:', await updateRes.text());
+    } else {
+      console.log(`[Avatar API] User avatar updated successfully via backend`);
     }
 
     console.log(`Avatar uploaded for user ${userId}: ${avatarUrl}`);
@@ -160,16 +142,15 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID пользователя не указан' }, { status: 400 });
     }
 
-    // Обновляем пользователя в базе данных
-    const db = await readDB();
-    const users = db.users || [];
-    const userIndex = users.findIndex((u: any) => u.id === userId);
-
-    if (userIndex !== -1) {
-      users[userIndex].avatar = null;
-      users[userIndex].updatedAt = new Date().toISOString();
-      db.users = users;
-      await writeDB(db);
+    // Обновляем пользователя через бэкенд API
+    const updateRes = await fetch(`${BACKEND_URL}/api/users/${userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ avatar: null })
+    });
+    
+    if (!updateRes.ok) {
+      console.error('[Avatar API] Failed to clear avatar via backend');
     }
 
     return NextResponse.json({

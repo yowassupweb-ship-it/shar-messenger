@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export interface Person {
   id: string;
   name: string;
+  avatar?: string;
   telegramId?: string;
   telegramUsername?: string;
   role: 'executor' | 'customer' | 'universal';
@@ -22,6 +23,7 @@ interface User {
   name?: string;
   username?: string;
   email?: string;
+  avatar?: string;
   role: 'admin' | 'user';
   todoRole?: 'executor' | 'customer' | 'universal';
   telegramId?: string;
@@ -66,6 +68,7 @@ export async function GET(request: NextRequest) {
     let people: Person[] = users.map(user => ({
       id: user.id,
       name: user.name || user.username || 'Без имени',
+      avatar: user.avatar,
       telegramId: user.telegramId,
       telegramUsername: undefined,
       role: user.todoRole || 'universal',  // Дефолт universal для старых аккаунтов

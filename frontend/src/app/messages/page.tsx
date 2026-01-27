@@ -2676,7 +2676,7 @@ export default function MessagesPage() {
                           <div
                             className={`${
                               hasBackground
-                                ? `${bubbleRadius} px-2.5 py-1.5 md:px-3 md:py-2 relative min-w-[60px] md:min-w-[80px] ${
+                                ? `${bubbleRadius} px-2.5 py-1.5 md:px-3 md:py-2 relative min-w-[60px] md:min-w-[80px] w-fit max-w-full ${
                                     isMyMessage
                                       ? `text-white ${isLastInGroup ? 'rounded-br-sm md:rounded-br-[18px] md:rounded-bl-sm' : ''}`
                                       : message.isSystemMessage

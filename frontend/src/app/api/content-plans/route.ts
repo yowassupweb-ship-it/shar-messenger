@@ -16,6 +16,7 @@ interface ContentPlan {
   createdAt: string;
   updatedAt: string;
   isDefault?: boolean;
+  allowedUsers?: string[]; // ID пользователей с доступом (пустой = все)
 }
 
 interface ContentPlansIndex {
@@ -38,7 +39,8 @@ function getDefaultIndex(): ContentPlansIndex {
       color: '#8B5CF6',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      isDefault: true
+      isDefault: true,
+      allowedUsers: [] // пустой = доступен всем
     }],
     activePlanId: 'default'
   };
@@ -140,6 +142,7 @@ export async function PUT(request: NextRequest) {
       name: body.name ?? index.plans[planIndex].name,
       description: body.description ?? index.plans[planIndex].description,
       color: body.color ?? index.plans[planIndex].color,
+      allowedUsers: body.allowedUsers !== undefined ? body.allowedUsers : index.plans[planIndex].allowedUsers,
       updatedAt: new Date().toISOString()
     };
     

@@ -36,7 +36,8 @@ import {
   AtSign,
   UserCheck,
   Flag,
-  Globe
+  Globe,
+  Settings
 } from 'lucide-react';
 import { 
   ContentPlanNotificationManager, 
@@ -257,6 +258,7 @@ export default function ContentPlanPage() {
     createdAt: string;
     updatedAt: string;
     isDefault?: boolean;
+    allowedUsers?: string[]; // ID пользователей с доступом (пустой = все)
   }
   const [contentPlans, setContentPlans] = useState<ContentPlanMeta[]>([]);
   const [activePlanId, setActivePlanId] = useState<string>('default');
@@ -265,6 +267,10 @@ export default function ContentPlanPage() {
   const [newPlanName, setNewPlanName] = useState('');
   const [newPlanColor, setNewPlanColor] = useState('#8B5CF6');
   const [editingPlan, setEditingPlan] = useState<ContentPlanMeta | null>(null);
+  const [editingPlanName, setEditingPlanName] = useState<string | null>(null); // ID плана в режиме редактирования имени
+  const [editingPlanNameValue, setEditingPlanNameValue] = useState('');
+  const [showPlanSettings, setShowPlanSettings] = useState(false);
+  const [planSettingsData, setPlanSettingsData] = useState<ContentPlanMeta | null>(null);
   
   // Удаление toast
   const removeToast = useCallback((toastId: string) => {
@@ -1445,18 +1451,22 @@ export default function ContentPlanPage() {
           </button>
           
           {showPlanSelector && (
-            <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl shadow-xl z-50 overflow-hidden">
-              <div className="p-2 border-b border-gray-100 dark:border-white/10">
+            <div className="absolute top-full left-0 mt-1 w-72 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl shadow-xl z-50 overflow-hidden">
+              <div className="p-2 border-b border-gray-100 dark:border-white/10 flex items-center justify-between">
                 <span className="text-xs text-gray-500 dark:text-white/50 font-medium px-2">Контент-планы</span>
+                <span className="text-[10px] text-gray-400 dark:text-white/30 px-2">2× клик для переименования</span>
               </div>
               <div className="max-h-64 overflow-y-auto py-1">
                 {contentPlans.map(plan => (
-                  <button
+                  <div
                     key={plan.id}
+                    className={`w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer ${
+                      plan.id === activePlanId ? 'bg-purple-50 dark:bg-purple-500/10' : ''
+                    }`}
                     onClick={async () => {
+                      if (editingPlanName === plan.id) return;
                       setActivePlanId(plan.id);
                       setShowPlanSelector(false);
-                      // Сохраняем выбранный план на сервере
                       await fetch('/api/content-plans', {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
@@ -1464,24 +1474,83 @@ export default function ContentPlanPage() {
                       });
                       loadPosts(plan.id);
                     }}
-                    className={`w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors ${
-                      plan.id === activePlanId ? 'bg-purple-50 dark:bg-purple-500/10' : ''
-                    }`}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      setEditingPlanName(plan.id);
+                      setEditingPlanNameValue(plan.name);
+                    }}
                   >
                     <div 
                       className="w-3 h-3 rounded-full flex-shrink-0" 
                       style={{ backgroundColor: plan.color }}
                     />
-                    <div className="flex-1 text-left">
-                      <div className="text-sm font-medium truncate">{plan.name}</div>
-                      {plan.description && (
-                        <div className="text-xs text-gray-500 dark:text-white/40 truncate">{plan.description}</div>
+                    <div className="flex-1 text-left min-w-0">
+                      {editingPlanName === plan.id ? (
+                        <input
+                          type="text"
+                          value={editingPlanNameValue}
+                          onChange={(e) => setEditingPlanNameValue(e.target.value)}
+                          onBlur={async () => {
+                            if (editingPlanNameValue.trim() && editingPlanNameValue !== plan.name) {
+                              await fetch('/api/content-plans', {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: plan.id, name: editingPlanNameValue.trim() })
+                              });
+                              setContentPlans(prev => prev.map(p => 
+                                p.id === plan.id ? { ...p, name: editingPlanNameValue.trim() } : p
+                              ));
+                            }
+                            setEditingPlanName(null);
+                          }}
+                          onKeyDown={async (e) => {
+                            if (e.key === 'Enter') {
+                              if (editingPlanNameValue.trim() && editingPlanNameValue !== plan.name) {
+                                await fetch('/api/content-plans', {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ id: plan.id, name: editingPlanNameValue.trim() })
+                                });
+                                setContentPlans(prev => prev.map(p => 
+                                  p.id === plan.id ? { ...p, name: editingPlanNameValue.trim() } : p
+                                ));
+                              }
+                              setEditingPlanName(null);
+                            } else if (e.key === 'Escape') {
+                              setEditingPlanName(null);
+                            }
+                          }}
+                          autoFocus
+                          className="w-full text-sm font-medium bg-white dark:bg-white/10 border border-purple-500 rounded px-1 py-0.5 outline-none"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <>
+                          <div className="text-sm font-medium truncate">{plan.name}</div>
+                          {plan.description && (
+                            <div className="text-xs text-gray-500 dark:text-white/40 truncate">{plan.description}</div>
+                          )}
+                        </>
                       )}
                     </div>
-                    {plan.id === activePlanId && (
-                      <Check className="w-4 h-4 text-purple-500" />
-                    )}
-                  </button>
+                    <div className="flex items-center gap-1">
+                      {plan.id === activePlanId && (
+                        <Check className="w-4 h-4 text-purple-500" />
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPlanSettingsData(plan);
+                          setShowPlanSettings(true);
+                          setShowPlanSelector(false);
+                        }}
+                        className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded transition-colors"
+                        title="Настройки доступа"
+                      >
+                        <Settings className="w-3.5 h-3.5 text-gray-400 dark:text-white/40" />
+                      </button>
+                    </div>
+                  </div>
                 ))}
               </div>
               <div className="p-2 border-t border-gray-100 dark:border-white/10">
@@ -3547,6 +3616,182 @@ export default function ContentPlanPage() {
               >
                 Создать
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Plan Settings Modal */}
+      {showPlanSettings && planSettingsData && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-white/10">
+              <div className="flex items-center gap-3">
+                <div 
+                  className="w-4 h-4 rounded-full" 
+                  style={{ backgroundColor: planSettingsData.color }}
+                />
+                <h3 className="font-semibold">Настройки плана</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowPlanSettings(false);
+                  setPlanSettingsData(null);
+                }}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Название плана</label>
+                <input
+                  type="text"
+                  value={planSettingsData.name}
+                  onChange={e => setPlanSettingsData({ ...planSettingsData, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Цвет</label>
+                <div className="flex gap-2">
+                  {['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#6366F1'].map(color => (
+                    <button
+                      key={color}
+                      onClick={() => setPlanSettingsData({ ...planSettingsData, color })}
+                      className={`w-8 h-8 rounded-lg transition-all ${planSettingsData.color === color ? 'ring-2 ring-offset-2 ring-gray-400 dark:ring-white/30' : ''}`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Доступ к плану</label>
+                <p className="text-xs text-gray-500 dark:text-white/50 mb-2">
+                  Выберите пользователей, которые могут видеть и редактировать этот план. Если никто не выбран — доступен всем.
+                </p>
+                <div className="max-h-48 overflow-y-auto space-y-1 border border-gray-200 dark:border-white/10 rounded-lg p-2">
+                  {users.map(user => {
+                    const isAllowed = !planSettingsData.allowedUsers?.length || planSettingsData.allowedUsers.includes(user.id);
+                    const isExplicitlyAllowed = planSettingsData.allowedUsers?.includes(user.id);
+                    return (
+                      <label
+                        key={user.id}
+                        className="flex items-center gap-3 p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isExplicitlyAllowed || false}
+                          onChange={(e) => {
+                            const currentAllowed = planSettingsData.allowedUsers || [];
+                            if (e.target.checked) {
+                              setPlanSettingsData({
+                                ...planSettingsData,
+                                allowedUsers: [...currentAllowed, user.id]
+                              });
+                            } else {
+                              setPlanSettingsData({
+                                ...planSettingsData,
+                                allowedUsers: currentAllowed.filter(id => id !== user.id)
+                              });
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                        />
+                        {user.avatar ? (
+                          <img src={user.avatar} alt="" className="w-6 h-6 rounded-full" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-medium">
+                            {(user.name || user.username || '?').charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <span className="text-sm">{user.name || user.username}</span>
+                        {user.role === 'admin' && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 rounded">admin</span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+                {!planSettingsData.allowedUsers?.length && (
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1 flex items-center gap-1">
+                    <Check className="w-3 h-3" />
+                    Доступен всем пользователям
+                  </p>
+                )}
+              </div>
+            </div>
+            
+            <div className="border-t border-gray-200 dark:border-white/10 px-5 py-4 flex justify-between">
+              {!planSettingsData.isDefault && (
+                <button
+                  onClick={async () => {
+                    if (!confirm(`Удалить план "${planSettingsData.name}"?`)) return;
+                    try {
+                      await fetch(`/api/content-plans?id=${planSettingsData.id}`, { method: 'DELETE' });
+                      setContentPlans(prev => prev.filter(p => p.id !== planSettingsData.id));
+                      if (activePlanId === planSettingsData.id) {
+                        const defaultPlan = contentPlans.find(p => p.isDefault) || contentPlans[0];
+                        if (defaultPlan) {
+                          setActivePlanId(defaultPlan.id);
+                          loadPosts(defaultPlan.id);
+                        }
+                      }
+                      setShowPlanSettings(false);
+                      setPlanSettingsData(null);
+                      addToast({ type: 'success', title: 'План удалён' });
+                    } catch (error) {
+                      console.error('Error deleting plan:', error);
+                    }
+                  }}
+                  className="px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                >
+                  Удалить план
+                </button>
+              )}
+              <div className="flex gap-2 ml-auto">
+                <button
+                  onClick={() => {
+                    setShowPlanSettings(false);
+                    setPlanSettingsData(null);
+                  }}
+                  className="px-4 py-2 text-sm text-gray-600 dark:text-white/60 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch('/api/content-plans', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          id: planSettingsData.id,
+                          name: planSettingsData.name,
+                          color: planSettingsData.color,
+                          allowedUsers: planSettingsData.allowedUsers
+                        })
+                      });
+                      if (res.ok) {
+                        const updated = await res.json();
+                        setContentPlans(prev => prev.map(p => p.id === updated.id ? updated : p));
+                        setShowPlanSettings(false);
+                        setPlanSettingsData(null);
+                        addToast({ type: 'success', title: 'Настройки сохранены' });
+                      }
+                    } catch (error) {
+                      console.error('Error updating plan:', error);
+                    }
+                  }}
+                  className="px-4 py-2 text-sm bg-purple-600 text-white hover:bg-purple-700 rounded-lg transition-colors"
+                >
+                  Сохранить
+                </button>
+              </div>
             </div>
           </div>
         </div>
