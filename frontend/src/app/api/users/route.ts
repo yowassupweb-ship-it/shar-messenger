@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readDB, writeDB } from '@/lib/db'
 
+// Отключаем кеширование
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // Генерация уникального ID
 function generateUserId(): string {
   return `user_${Date.now()}.${Math.random().toString(36).substr(2, 9)}`

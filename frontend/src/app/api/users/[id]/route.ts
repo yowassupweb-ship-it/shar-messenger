@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readDB, writeDB } from '@/lib/db'
 
+// Отключаем кеширование
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // Вычисление статуса онлайн на основе lastSeen
 function calculateIsOnline(lastSeen?: string): boolean {
   if (!lastSeen) return false;
