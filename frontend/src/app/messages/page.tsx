@@ -1197,15 +1197,29 @@ export default function MessagesPage() {
         
         loadChats();
         
-        // Сохраняем фокус на поле ввода (клавиатура остается открытой)
-        // Без setTimeout - клавиатура остается открытой
-        if (messageInputRef.current === document.activeElement) {
-          // Фокус уже на инпуте - ничего не делаем
-        }
+        // НАДЕЖНОЕ сохранение фокуса для мобильных устройств
+        // Многократные попытки с разными таймингами для разных браузеров
+        const keepFocus = () => {
+          if (messageInputRef.current) {
+            messageInputRef.current.focus({ preventScroll: true });
+          }
+        };
         
+        // Немедленно
+        keepFocus();
+        // После микрозадачи (для Safari)
+        Promise.resolve().then(keepFocus);
+        // После requestAnimationFrame (для Chrome)
+        requestAnimationFrame(keepFocus);
+        // После небольшой задержки (для iOS)
+        setTimeout(keepFocus, 0);
+        setTimeout(keepFocus, 50);
+        setTimeout(keepFocus, 100);
+        
+        // Скролл к последнему сообщению
         setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
+        }, 150);
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -2123,7 +2137,7 @@ export default function MessagesPage() {
           <div className="flex-1 min-h-0 flex flex-col relative">
           {/* Chat header */}
           <div 
-            className="fixed md:sticky top-0 left-0 right-0 z-20 mx-0 md:mx-2 mt-0 md:mt-2 h-12 backdrop-blur-xl border-0 md:border border-[var(--border-color)] md:rounded-[50px] flex items-center px-4 gap-2 flex-shrink-0 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4)] bg-[var(--bg-secondary)]/95"
+            className="sticky top-0 left-0 right-0 z-20 mx-0 md:mx-2 mt-0 md:mt-2 h-12 backdrop-blur-xl border-0 md:border border-[var(--border-color)] md:rounded-[50px] flex items-center px-4 gap-2 flex-shrink-0 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4)] bg-[var(--bg-secondary)]/95"
           >
             {isSelectionMode ? (
               <>
@@ -2393,7 +2407,7 @@ export default function MessagesPage() {
           )}
 
           {/* Messages */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-4 pt-16 md:pt-4 pb-24 md:pb-32">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 pb-4">
             <div className="min-h-full px-2 md:px-4 lg:px-8">
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
@@ -2934,7 +2948,7 @@ export default function MessagesPage() {
 
           {/* Message input */}
           <div 
-            className={`fixed md:absolute bottom-0 left-0 right-0 md:bottom-[46px] px-2 md:px-3 py-2 pb-[env(safe-area-inset-bottom,0px)] md:py-2 z-30 md:z-auto transition-all duration-300 ${
+            className={`sticky bottom-0 left-0 right-0 px-2 md:px-3 py-2 pb-[env(safe-area-inset-bottom,0px)] md:py-2 z-30 bg-[var(--bg-primary)] transition-all duration-300 ${
               isDragging ? 'scale-[1.02]' : ''
             }`}
             onDragOver={(e) => {
@@ -3153,6 +3167,10 @@ export default function MessagesPage() {
                 <textarea
                   ref={messageInputRef}
                   defaultValue=""
+                  autoComplete="off"
+                  autoCorrect="off"
+                  inputMode="text"
+                  enterKeyHint="send"
                   onSelect={handleTextSelection}
                   onFocus={() => {
                     isUserActiveRef.current = true;
