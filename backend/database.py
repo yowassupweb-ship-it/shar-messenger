@@ -436,12 +436,24 @@ class Database:
     
     def update_user(self, user_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Обновить пользователя"""
+        # Логируем состояние ДО reload
+        old_users = self.data.get("users", [])
+        old_user = next((u for u in old_users if u["id"] == user_id), None)
+        print(f"🔄 update_user({user_id}): ДО reload - enabledTools: {old_user.get('enabledTools') if old_user else 'NOT FOUND'}")
+        
         # Перезагружаем данные перед обновлением чтобы не потерять внешние изменения
         self.reload()
+        
+        # Логируем состояние ПОСЛЕ reload
         users = self.data.get("users", [])
+        user_after = next((u for u in users if u["id"] == user_id), None)
+        print(f"🔄 update_user({user_id}): ПОСЛЕ reload - enabledTools: {user_after.get('enabledTools') if user_after else 'NOT FOUND'}")
+        print(f"🔄 update_user({user_id}): updates = {updates}")
+        
         for user in users:
             if user["id"] == user_id:
                 user.update(updates)
+                print(f"🔄 update_user({user_id}): ПОСЛЕ update - enabledTools: {user.get('enabledTools')}")
                 self._save()
                 return user
         return None
