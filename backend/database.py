@@ -422,6 +422,8 @@ class Database:
     
     def add_user(self, user: Dict[str, Any]) -> Dict[str, Any]:
         """Добавить нового пользователя"""
+        # Перезагружаем данные перед добавлением чтобы не потерять внешние изменения
+        self.reload()
         if "id" not in user:
             users = self.data.get("users", [])
             max_id = max([int(u["id"].split("_")[1]) if "_" in u["id"] else 0 for u in users], default=0)
@@ -434,6 +436,8 @@ class Database:
     
     def update_user(self, user_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Обновить пользователя"""
+        # Перезагружаем данные перед обновлением чтобы не потерять внешние изменения
+        self.reload()
         users = self.data.get("users", [])
         for user in users:
             if user["id"] == user_id:
@@ -860,6 +864,8 @@ class Database:
     
     def add_message(self, message_data: Dict[str, Any]) -> Dict[str, Any]:
         """Добавить сообщение"""
+        # Перезагружаем данные перед добавлением чтобы не потерять внешние изменения
+        self.reload()
         if "messages" not in self.data:
             self.data["messages"] = []
         

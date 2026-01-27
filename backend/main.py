@@ -1618,8 +1618,6 @@ def get_user(user_id: str):
 @app.post("/api/users")
 def create_user(user: UserCreate):
     """Создать нового пользователя"""
-    # Перезагружаем данные из файла, чтобы не потерять внешние изменения
-    db.reload()
     user_data = user.dict()
     user_data["id"] = f"user_{datetime.now().timestamp()}"
     user_data["createdAt"] = datetime.now().isoformat()
@@ -1629,8 +1627,6 @@ def create_user(user: UserCreate):
 @app.put("/api/users/{user_id}")
 def update_user(user_id: str, user: UserUpdate):
     """Обновить пользователя"""
-    # Перезагружаем данные из файла, чтобы не потерять внешние изменения
-    db.reload()
     user_data = user.dict(exclude_unset=True)
     result = db.update_user(user_id, user_data)
     if not result:
@@ -3458,9 +3454,6 @@ def get_chat_messages(chat_id: str):
 def send_message(chat_id: str, message_data: MessageCreate):
     """Отправить сообщение в чат"""
     import uuid
-    
-    # Перезагружаем данные из файла, чтобы не потерять внешние изменения (напр. пользователей)
-    db.reload()
     
     # Проверяем существование чата
     chats = db.data.get('chats', [])
