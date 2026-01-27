@@ -247,6 +247,25 @@ export default function ContentPlanPage() {
   const [showLinkUrlModal, setShowLinkUrlModal] = useState(false);
   const [linkUrlInput, setLinkUrlInput] = useState('');
   
+  // Контент-планы (множественные)
+  interface ContentPlanMeta {
+    id: string;
+    name: string;
+    description?: string;
+    color: string;
+    createdBy?: string;
+    createdAt: string;
+    updatedAt: string;
+    isDefault?: boolean;
+  }
+  const [contentPlans, setContentPlans] = useState<ContentPlanMeta[]>([]);
+  const [activePlanId, setActivePlanId] = useState<string>('default');
+  const [showPlanSelector, setShowPlanSelector] = useState(false);
+  const [showCreatePlan, setShowCreatePlan] = useState(false);
+  const [newPlanName, setNewPlanName] = useState('');
+  const [newPlanColor, setNewPlanColor] = useState('#8B5CF6');
+  const [editingPlan, setEditingPlan] = useState<ContentPlanMeta | null>(null);
+  
   // Удаление toast
   const removeToast = useCallback((toastId: string) => {
     setToasts(prev => prev.filter(t => t.id !== toastId));
@@ -377,10 +396,11 @@ export default function ContentPlanPage() {
   }, []);
 
   // Загрузка постов
-  const loadPosts = useCallback(async () => {
+  const loadPosts = useCallback(async (planIdOverride?: string) => {
+    const targetPlanId = planIdOverride || activePlanId;
     try {
       const [postsRes, linksRes] = await Promise.all([
-        fetch('/api/content-plan'),
+        fetch(`/api/content-plan?planId=${targetPlanId}`),
         fetch('/api/links')
       ]);
       
@@ -398,7 +418,27 @@ export default function ContentPlanPage() {
     } finally {
       setIsLoading(false);
     }
+  }, [activePlanId]);
+
+  // Загрузка контент-планов
+  const loadContentPlans = useCallback(async () => {
+    try {
+      const res = await fetch('/api/content-plans');
+      if (res.ok) {
+        const data = await res.json();
+        setContentPlans(data.plans || []);
+        if (data.activePlanId) {
+          setActivePlanId(data.activePlanId);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading content plans:', error);
+    }
   }, []);
+
+  useEffect(() => {
+    loadContentPlans();
+  }, [loadContentPlans]);
 
   useEffect(() => {
     loadUsers();
@@ -452,7 +492,7 @@ export default function ContentPlanPage() {
       if (typeof document !== 'undefined' && document.hidden) return;
       
       try {
-        const res = await fetch('/api/content-plan');
+        const res = await fetch(`/api/content-plan?planId=${activePlanId}`);
         if (res.ok) {
           const data = await res.json();
           const newPosts = data.posts || [];
@@ -500,7 +540,7 @@ export default function ContentPlanPage() {
       if (typeof document !== 'undefined' && document.hidden) return;
       
       try {
-        const res = await fetch('/api/content-plan');
+        const res = await fetch(`/api/content-plan?planId=${activePlanId}`);
         if (res.ok) {
           const data = await res.json();
           const newPosts: ContentPost[] = data.posts || [];
@@ -738,7 +778,7 @@ export default function ContentPlanPage() {
         ));
         
         try {
-          const res = await fetch('/api/content-plan', {
+          const res = await fetch(`/api/content-plan?planId=${activePlanId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -792,7 +832,7 @@ export default function ContentPlanPage() {
     if (!postForm.title.trim() || !selectedPlatform || !postForm.publishDate) return;
     
     try {
-      const res = await fetch('/api/content-plan', {
+      const res = await fetch(`/api/content-plan?planId=${activePlanId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -834,7 +874,7 @@ export default function ContentPlanPage() {
     const statusChanged = oldStatus !== postForm.postStatus;
     
     try {
-      const res = await fetch('/api/content-plan', {
+      const res = await fetch(`/api/content-plan?planId=${activePlanId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -906,7 +946,7 @@ export default function ContentPlanPage() {
     const oldStatus = editingPost.postStatus;
     
     try {
-      const res = await fetch('/api/content-plan', {
+      const res = await fetch(`/api/content-plan?planId=${activePlanId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -966,7 +1006,7 @@ export default function ContentPlanPage() {
     if (!confirm('Удалить эту публикацию?')) return;
     
     try {
-      const res = await fetch(`/api/content-plan?id=${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/content-plan?id=${id}&planId=${activePlanId}`, { method: 'DELETE' });
       if (res.ok) {
         setPosts(prev => prev.filter(p => p.id !== id));
         if (editingPost?.id === id) {
@@ -1078,7 +1118,7 @@ export default function ContentPlanPage() {
     setEditingCommentText('');
     
     try {
-      const res = await fetch('/api/content-plan', {
+      const res = await fetch(`/api/content-plan?planId=${activePlanId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1112,7 +1152,7 @@ export default function ContentPlanPage() {
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: updatedComments } : p));
     
     try {
-      const res = await fetch('/api/content-plan', {
+      const res = await fetch(`/api/content-plan?planId=${activePlanId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1319,7 +1359,7 @@ export default function ContentPlanPage() {
     }
     
     try {
-      const res = await fetch('/api/content-plan', {
+      const res = await fetch(`/api/content-plan?planId=${activePlanId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1388,8 +1428,76 @@ export default function ContentPlanPage() {
         </Link>
         
         <div className="flex items-center gap-1.5 sm:gap-2 mr-2 sm:mr-6">
-          <CalendarIcon className="w-4 sm:w-5 h-4 sm:h-5 text-purple-500 dark:text-purple-400" />
-          <span className="font-semibold text-sm sm:text-base hidden xs:inline">Контент-план</span>
+          <span className="font-semibold text-sm sm:text-base">Контент-план</span>
+        </div>
+
+        {/* Content Plan Selector */}
+        <div className="relative mr-2 sm:mr-4">
+          <button
+            onClick={() => setShowPlanSelector(!showPlanSelector)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-gray-200 dark:bg-white/5 hover:bg-gray-300 dark:hover:bg-white/10 rounded-lg transition-all text-sm"
+            style={{ borderLeft: `3px solid ${contentPlans.find(p => p.id === activePlanId)?.color || '#8B5CF6'}` }}
+          >
+            <span className="max-w-[120px] truncate">
+              {contentPlans.find(p => p.id === activePlanId)?.name || 'Основной план'}
+            </span>
+            <ChevronDown className="w-3.5 h-3.5 text-gray-500 dark:text-white/50" />
+          </button>
+          
+          {showPlanSelector && (
+            <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl shadow-xl z-50 overflow-hidden">
+              <div className="p-2 border-b border-gray-100 dark:border-white/10">
+                <span className="text-xs text-gray-500 dark:text-white/50 font-medium px-2">Контент-планы</span>
+              </div>
+              <div className="max-h-64 overflow-y-auto py-1">
+                {contentPlans.map(plan => (
+                  <button
+                    key={plan.id}
+                    onClick={async () => {
+                      setActivePlanId(plan.id);
+                      setShowPlanSelector(false);
+                      // Сохраняем выбранный план на сервере
+                      await fetch('/api/content-plans', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ activePlanId: plan.id })
+                      });
+                      loadPosts(plan.id);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors ${
+                      plan.id === activePlanId ? 'bg-purple-50 dark:bg-purple-500/10' : ''
+                    }`}
+                  >
+                    <div 
+                      className="w-3 h-3 rounded-full flex-shrink-0" 
+                      style={{ backgroundColor: plan.color }}
+                    />
+                    <div className="flex-1 text-left">
+                      <div className="text-sm font-medium truncate">{plan.name}</div>
+                      {plan.description && (
+                        <div className="text-xs text-gray-500 dark:text-white/40 truncate">{plan.description}</div>
+                      )}
+                    </div>
+                    {plan.id === activePlanId && (
+                      <Check className="w-4 h-4 text-purple-500" />
+                    )}
+                  </button>
+                ))}
+              </div>
+              <div className="p-2 border-t border-gray-100 dark:border-white/10">
+                <button
+                  onClick={() => {
+                    setShowCreatePlan(true);
+                    setShowPlanSelector(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 rounded-lg transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Создать план</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* View Mode Toggle */}
@@ -3343,6 +3451,106 @@ export default function ContentPlanPage() {
           </button>
         )}
       </div>
+
+      {/* Create Content Plan Modal */}
+      {showCreatePlan && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowCreatePlan(false)}
+        >
+          <div 
+            className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl w-full max-w-md shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="border-b border-gray-200 dark:border-white/10 px-5 py-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Создать контент-план</h3>
+              <button
+                onClick={() => setShowCreatePlan(false)}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Название</label>
+                <input
+                  type="text"
+                  value={newPlanName}
+                  onChange={e => setNewPlanName(e.target.value)}
+                  placeholder="Например: SMM план на февраль"
+                  className="w-full px-3 py-2 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Цвет</label>
+                <div className="flex gap-2">
+                  {['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#6366F1'].map(color => (
+                    <button
+                      key={color}
+                      onClick={() => setNewPlanColor(color)}
+                      className={`w-8 h-8 rounded-lg transition-all ${newPlanColor === color ? 'ring-2 ring-offset-2 ring-gray-400 dark:ring-white/30' : ''}`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            <div className="border-t border-gray-200 dark:border-white/10 px-5 py-4 flex justify-end gap-2">
+              <button
+                onClick={() => setShowCreatePlan(false)}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-white/60 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={async () => {
+                  if (!newPlanName.trim()) return;
+                  try {
+                    const res = await fetch('/api/content-plans', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        name: newPlanName,
+                        color: newPlanColor,
+                        createdBy: myAccountId
+                      })
+                    });
+                    if (res.ok) {
+                      const newPlan = await res.json();
+                      setContentPlans(prev => [...prev, newPlan]);
+                      setActivePlanId(newPlan.id);
+                      await fetch('/api/content-plans', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ activePlanId: newPlan.id })
+                      });
+                      loadPosts(newPlan.id);
+                      setNewPlanName('');
+                      setNewPlanColor('#8B5CF6');
+                      setShowCreatePlan(false);
+                      addToast({
+                        type: 'success',
+                        title: 'План создан',
+                        message: `"${newPlan.name}" готов к использованию`
+                      });
+                    }
+                  } catch (error) {
+                    console.error('Error creating plan:', error);
+                  }
+                }}
+                disabled={!newPlanName.trim()}
+                className="px-4 py-2 text-sm bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                Создать
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

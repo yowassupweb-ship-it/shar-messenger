@@ -1,0 +1,21 @@
+{
+  "posts": [
+    {
+      "id": "post_1769520776666_nday3zgp3",
+      "title": "Тест",
+      "postText": "",
+      "platforms": [],
+      "contentType": "post",
+      "publishDate": "2026-01-26",
+      "publishTime": "12:00",
+      "mediaUrls": [],
+      "postStatus": "draft",
+      "roles": [],
+      "participants": [],
+      "createdBy": "user_1769446825925.whxkh075y",
+      "createdAt": "2026-01-27T13:32:56.666Z",
+      "updatedAt": "2026-01-27T13:32:56.666Z",
+      "comments": []
+    }
+  ]
+}

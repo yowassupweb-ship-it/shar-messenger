@@ -1,0 +1,34 @@
+{
+  "plans": [
+    {
+      "id": "default",
+      "name": "Основной план",
+      "description": "Основной контент-план",
+      "color": "#8B5CF6",
+      "createdAt": "2026-01-27T13:14:52.846Z",
+      "updatedAt": "2026-01-27T13:14:52.846Z",
+      "isDefault": true
+    },
+    {
+      "id": "plan_1769520530657_8l8t5272e",
+      "name": "План для юрлиц",
+      "description": "",
+      "color": "#F59E0B",
+      "createdBy": "user_1769446825925.whxkh075y",
+      "createdAt": "2026-01-27T13:28:50.657Z",
+      "updatedAt": "2026-01-27T13:28:50.657Z",
+      "isDefault": false
+    },
+    {
+      "id": "plan_1769520555658_cfo5l8cm8",
+      "name": "Третий план",
+      "description": "",
+      "color": "#8B5CF6",
+      "createdBy": "user_1769446825925.whxkh075y",
+      "createdAt": "2026-01-27T13:29:15.658Z",
+      "updatedAt": "2026-01-27T13:29:15.658Z",
+      "isDefault": false
+    }
+  ],
+  "activePlanId": "default"
+}

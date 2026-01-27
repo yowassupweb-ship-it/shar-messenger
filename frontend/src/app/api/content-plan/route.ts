@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
-const DATA_FILE = path.join(process.cwd(), 'data', 'content-plan.json');
+export const dynamic = 'force-dynamic';
+
+const DATA_DIR = path.join(process.cwd(), 'data', 'content-plans');
+const OLD_DATA_FILE = path.join(process.cwd(), 'data', 'content-plan.json');
 
 interface Comment {
   id: string;
@@ -37,25 +40,41 @@ interface ContentPlanData {
   posts: ContentPost[];
 }
 
-function ensureDataFile() {
-  const dataDir = path.join(process.cwd(), 'data');
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-  if (!fs.existsSync(DATA_FILE)) {
-    fs.writeFileSync(DATA_FILE, JSON.stringify({ posts: [] }, null, 2));
+function ensureDataDir() {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
   }
 }
 
-function readData(): ContentPlanData {
-  ensureDataFile();
-  const content = fs.readFileSync(DATA_FILE, 'utf-8');
+function getPlanFilePath(planId: string): string {
+  ensureDataDir();
+  return path.join(DATA_DIR, `${planId}.json`);
+}
+
+function readData(planId: string = 'default'): ContentPlanData {
+  const planFile = getPlanFilePath(planId);
+  
+  // Миграция старых данных для default плана
+  if (planId === 'default' && !fs.existsSync(planFile) && fs.existsSync(OLD_DATA_FILE)) {
+    try {
+      const oldData = fs.readFileSync(OLD_DATA_FILE, 'utf-8');
+      fs.writeFileSync(planFile, oldData);
+    } catch (error) {
+      console.error('Error migrating old data:', error);
+    }
+  }
+  
+  if (!fs.existsSync(planFile)) {
+    fs.writeFileSync(planFile, JSON.stringify({ posts: [] }, null, 2));
+  }
+  
+  const content = fs.readFileSync(planFile, 'utf-8');
   return JSON.parse(content);
 }
 
-function writeData(data: ContentPlanData) {
-  ensureDataFile();
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+function writeData(data: ContentPlanData, planId: string = 'default') {
+  const planFile = getPlanFilePath(planId);
+  fs.writeFileSync(planFile, JSON.stringify(data, null, 2));
 }
 
 function generateId(): string {
@@ -63,9 +82,11 @@ function generateId(): string {
 }
 
 // GET - получение постов
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const data = readData();
+    const { searchParams } = new URL(request.url);
+    const planId = searchParams.get('planId') || 'default';
+    const data = readData(planId);
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error reading content plan:', error);
@@ -76,8 +97,10 @@ export async function GET() {
 // POST - создание поста
 export async function POST(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const planId = searchParams.get('planId') || 'default';
     const body = await request.json();
-    const data = readData();
+    const data = readData(planId);
     
     const newPost: ContentPost = {
       id: generateId(),
@@ -98,7 +121,7 @@ export async function POST(request: NextRequest) {
     };
     
     data.posts.push(newPost);
-    writeData(data);
+    writeData(data, planId);
     
     return NextResponse.json(newPost);
   } catch (error) {
@@ -110,8 +133,10 @@ export async function POST(request: NextRequest) {
 // PUT - обновление поста
 export async function PUT(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const planId = searchParams.get('planId') || 'default';
     const body = await request.json();
-    const data = readData();
+    const data = readData(planId);
     
     const postIndex = data.posts.findIndex(p => p.id === body.id);
     if (postIndex === -1) {
@@ -136,7 +161,7 @@ export async function PUT(request: NextRequest) {
       updatedAt: new Date().toISOString()
     };
     
-    writeData(data);
+    writeData(data, planId);
     
     return NextResponse.json(data.posts[postIndex]);
   } catch (error) {
@@ -150,13 +175,14 @@ export async function PATCH(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+    const planId = searchParams.get('planId') || 'default';
     
     if (!id) {
       return NextResponse.json({ error: 'Post ID required' }, { status: 400 });
     }
     
     const body = await request.json();
-    const data = readData();
+    const data = readData(planId);
     
     const postIndex = data.posts.findIndex(p => p.id === id);
     if (postIndex === -1) {
@@ -170,7 +196,7 @@ export async function PATCH(request: NextRequest) {
     
     data.posts[postIndex].updatedAt = new Date().toISOString();
     
-    writeData(data);
+    writeData(data, planId);
     
     return NextResponse.json(data.posts[postIndex]);
   } catch (error) {
@@ -184,14 +210,15 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+    const planId = searchParams.get('planId') || 'default';
     
     if (!id) {
       return NextResponse.json({ error: 'Post ID required' }, { status: 400 });
     }
     
-    const data = readData();
+    const data = readData(planId);
     data.posts = data.posts.filter(p => p.id !== id);
-    writeData(data);
+    writeData(data, planId);
     
     return NextResponse.json({ success: true });
   } catch (error) {
