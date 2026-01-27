@@ -1,91 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readDB, writeDB } from '@/lib/db'
 
 // Отключаем кеширование
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// Вычисление статуса онлайн на основе lastSeen
-function calculateIsOnline(lastSeen?: string): boolean {
-  if (!lastSeen) return false;
-  const lastSeenDate = new Date(lastSeen);
-  const now = new Date();
-  const diffMs = now.getTime() - lastSeenDate.getTime();
-  const diffMinutes = Math.floor(diffMs / 60000);
-  return diffMinutes < 2; // Онлайн если активность менее 2 минут назад
-}
+// URL бэкенда - используем переменную окружения или localhost
+const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000'
 
-// GET - получить пользователя по ID
+// GET - получить пользователя по ID (проксирование к бэкенду)
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await context.params
-    const db = await readDB()
-    const users = db.users || []
-    const user = users.find((u: any) => u.id === id)
+    console.log('[Users API Proxy] GET user:', id)
     
-    if (!user) {
-      return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 })
-    }
-    
-    // Возвращаем пользователя с динамическим isOnline
-    return NextResponse.json({
-      ...user,
-      isOnline: calculateIsOnline(user.lastSeen)
+    const response = await fetch(`${BACKEND_URL}/api/users/${id}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
     })
+    
+    const data = await response.json()
+    return NextResponse.json(data, { status: response.status })
   } catch (error) {
-    console.error('Error fetching user:', error)
+    console.error('[Users API Proxy] Error fetching user:', error)
     return NextResponse.json({ error: 'Ошибка получения пользователя' }, { status: 500 })
   }
 }
 
-// PUT - обновить пользователя
+// PUT - обновить пользователя (проксирование к бэкенду)
 export async function PUT(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await context.params
-    console.log('[Users API] PUT request for user:', id)
-    
     const body = await request.json()
-    console.log('[Users API] Update body:', JSON.stringify(body))
+    console.log('[Users API Proxy] PUT user:', id, 'body:', JSON.stringify(body))
     
-    const db = await readDB()
-    console.log('[Users API] DB read successfully, users count:', (db.users || []).length)
+    const response = await fetch(`${BACKEND_URL}/api/users/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
     
-    const users = db.users || []
-    
-    const userIndex = users.findIndex((u: any) => u.id === id)
-    console.log('[Users API] User index found:', userIndex)
-    
-    if (userIndex === -1) {
-      console.log('[Users API] User not found:', id)
-      return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 })
-    }
-    
-    // Сохраняем важные поля которые не должны затираться
-    const existingUser = users[userIndex];
-    const preservedAvatar = existingUser.avatar;
-    
-    // Обновляем поля
-    users[userIndex] = {
-      ...existingUser,
-      ...body,
-      id: id, // ID не меняется
-      // Если avatar не передан в body, сохраняем существующий
-      avatar: body.avatar !== undefined ? body.avatar : preservedAvatar
-    }
-    
-    db.users = users
-    await writeDB(db)
-    console.log('[Users API] User updated successfully:', id, 'avatar:', users[userIndex].avatar)
-    
-    return NextResponse.json({ success: true, user: users[userIndex] })
+    const data = await response.json()
+    console.log('[Users API Proxy] PUT response:', response.status, JSON.stringify(data))
+    return NextResponse.json(data, { status: response.status })
   } catch (error) {
-    console.error('[Users API] Error updating user:', error)
+    console.error('[Users API Proxy] Error updating user:', error)
     return NextResponse.json({ 
       error: 'Ошибка обновления пользователя', 
       details: error instanceof Error ? error.message : 'Unknown error'
@@ -93,34 +61,26 @@ export async function PUT(
   }
 }
 
-// DELETE - удалить пользователя
+// DELETE - удалить пользователя (проксирование к бэкенду)
 export async function DELETE(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await context.params
-    const db = await readDB()
-    const users = db.users || []
+    console.log('[Users API Proxy] DELETE user:', id)
     
-    const userIndex = users.findIndex((u: any) => u.id === id)
+    const response = await fetch(`${BACKEND_URL}/api/users/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
     
-    if (userIndex === -1) {
-      return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 })
-    }
-    
-    // Не удаляем админов
-    if (users[userIndex].role === 'admin') {
-      return NextResponse.json({ error: 'Нельзя удалить администратора' }, { status: 403 })
-    }
-    
-    users.splice(userIndex, 1)
-    db.users = users
-    await writeDB(db)
-    
-    return NextResponse.json({ success: true })
+    const data = await response.json()
+    return NextResponse.json(data, { status: response.status })
   } catch (error) {
-    console.error('Error deleting user:', error)
+    console.error('[Users API Proxy] Error deleting user:', error)
     return NextResponse.json({ error: 'Ошибка удаления пользователя' }, { status: 500 })
   }
 }

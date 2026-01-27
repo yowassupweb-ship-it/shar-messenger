@@ -1,134 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readDB, writeDB } from '@/lib/db'
 
 // Отключаем кеширование
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// Генерация уникального ID
-function generateUserId(): string {
-  return `user_${Date.now()}.${Math.random().toString(36).substr(2, 9)}`
-}
+// URL бэкенда - используем переменную окружения или localhost
+const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000'
 
-// Вычисление статуса онлайн на основе lastSeen
-function calculateIsOnline(lastSeen?: string): boolean {
-  if (!lastSeen) return false;
-  const lastSeenDate = new Date(lastSeen);
-  const now = new Date();
-  const diffMs = now.getTime() - lastSeenDate.getTime();
-  const diffMinutes = Math.floor(diffMs / 60000);
-  return diffMinutes < 2; // Онлайн если активность менее 2 минут назад
-}
-
-// GET - получить всех пользователей
+// GET - получить всех пользователей (проксирование к бэкенду)
 export async function GET(request: NextRequest) {
   try {
-    const db = await readDB()
-    const users = db.users || []
-    
-    // Проверяем, нужно ли включать пароли (для админки)
     const includePasswords = request.nextUrl.searchParams.get('includePasswords') === 'true'
+    const url = includePasswords 
+      ? `${BACKEND_URL}/api/users?includePasswords=true`
+      : `${BACKEND_URL}/api/users`
     
-    if (includePasswords) {
-      // Даже для админки вычисляем isOnline динамически
-      const usersWithOnlineStatus = users.map((user: any) => ({
-        ...user,
-        isOnline: calculateIsOnline(user.lastSeen)
-      }));
-      return NextResponse.json(usersWithOnlineStatus)
-    }
+    console.log('[Users API Proxy] GET users, url:', url)
     
-    // Возвращаем пользователей без паролей и с динамическим isOnline
-    const usersWithoutPasswords = users.map((user: any) => {
-      const { password, ...userWithoutPassword } = user
-      return {
-        ...userWithoutPassword,
-        isOnline: calculateIsOnline(user.lastSeen)
-      }
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
     })
     
-    return NextResponse.json(usersWithoutPasswords)
+    const data = await response.json()
+    return NextResponse.json(data, { status: response.status })
   } catch (error) {
-    console.error('Error fetching users:', error)
+    console.error('[Users API Proxy] Error fetching users:', error)
     return NextResponse.json({ error: 'Ошибка получения пользователей' }, { status: 500 })
   }
 }
 
-// POST - создать нового пользователя
+// POST - создать нового пользователя (проксирование к бэкенду)
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { 
-      username, 
-      name, 
-      email, 
-      password, 
-      role = 'user', 
-      todoRole = 'executor',
-      canSeeAllTasks = false,
-      position = '',
-      department = '',
-      telegramId = '',
-      telegramUsername = '',
-      enabledTools = [] 
-    } = body
+    console.log('[Users API Proxy] POST new user:', body.username || body.email)
     
-    if (!password) {
-      return NextResponse.json({ error: 'Пароль обязателен' }, { status: 400 })
-    }
-    
-    if (!username && !email) {
-      return NextResponse.json({ error: 'Требуется username или email' }, { status: 400 })
-    }
-    
-    const db = await readDB()
-    const users = db.users || []
-    
-    // Проверяем, существует ли пользователь
-    const existingUser = users.find((u: any) => 
-      (username && u.username === username) || (email && u.email === email)
-    )
-    
-    if (existingUser) {
-      return NextResponse.json({ error: 'Пользователь уже существует' }, { status: 409 })
-    }
-    
-    const newUser = {
-      id: generateUserId(),
-      username: username || email,
-      name: name || '',
-      email: email || '',
-      password: password, // В реальном приложении нужно хешировать!
-      role,
-      todoRole,
-      canSeeAllTasks: role === 'admin' ? canSeeAllTasks : false,
-      position,
-      department,
-      telegramId,
-      telegramUsername,
-      enabledTools,
-      createdAt: new Date().toISOString()
-    }
-    
-    db.users = [...users, newUser]
-    await writeDB(db)
-    
-    console.log('User created:', newUser.username)
-    
-    // Возвращаем без пароля
-    const { password: _, ...userWithoutPassword } = newUser
-    
-    return NextResponse.json({ 
-      success: true,
-      user: userWithoutPassword
+    const response = await fetch(`${BACKEND_URL}/api/users`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
     })
+    
+    const data = await response.json()
+    console.log('[Users API Proxy] POST response:', response.status)
+    return NextResponse.json(data, { status: response.status })
   } catch (error) {
-    console.error('Error creating user:', error)
+    console.error('[Users API Proxy] Error creating user:', error)
     return NextResponse.json({ error: 'Ошибка создания пользователя' }, { status: 500 })
   }
 }
 
-// PUT - обновить пользователя
+// PUT - обновить пользователя (проксирование к бэкенду)
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
@@ -138,35 +65,25 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ID пользователя обязателен' }, { status: 400 })
     }
     
-    const db = await readDB()
-    const users = db.users || []
+    console.log('[Users API Proxy] PUT user:', id)
     
-    const userIndex = users.findIndex((u: any) => u.id === id)
-    
-    if (userIndex === -1) {
-      return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 })
-    }
-    
-    // Обновляем пользователя
-    users[userIndex] = { ...users[userIndex], ...updates, updatedAt: new Date().toISOString() }
-    db.users = users
-    await writeDB(db)
-    
-    console.log('User updated:', id)
-    
-    const { password: _, ...userWithoutPassword } = users[userIndex]
-    
-    return NextResponse.json({ 
-      success: true,
-      user: userWithoutPassword
+    const response = await fetch(`${BACKEND_URL}/api/users/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updates),
     })
+    
+    const data = await response.json()
+    return NextResponse.json(data, { status: response.status })
   } catch (error) {
-    console.error('Error updating user:', error)
+    console.error('[Users API Proxy] Error updating user:', error)
     return NextResponse.json({ error: 'Ошибка обновления пользователя' }, { status: 500 })
   }
 }
 
-// DELETE - удалить пользователя
+// DELETE - удалить пользователя (проксирование к бэкенду)
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -176,36 +93,19 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID пользователя обязателен' }, { status: 400 })
     }
     
-    const db = await readDB()
-    const users = db.users || []
+    console.log('[Users API Proxy] DELETE user:', id)
     
-    const userIndex = users.findIndex((u: any) => u.id === id)
-    
-    if (userIndex === -1) {
-      return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 })
-    }
-    
-    // Не даём удалить последнего админа
-    const user = users[userIndex]
-    if (user.role === 'admin') {
-      const adminCount = users.filter((u: any) => u.role === 'admin').length
-      if (adminCount <= 1) {
-        return NextResponse.json({ error: 'Нельзя удалить последнего администратора' }, { status: 400 })
-      }
-    }
-    
-    users.splice(userIndex, 1)
-    db.users = users
-    await writeDB(db)
-    
-    console.log('User deleted:', id)
-    
-    return NextResponse.json({ 
-      success: true,
-      message: 'Пользователь удалён'
+    const response = await fetch(`${BACKEND_URL}/api/users/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
     })
+    
+    const data = await response.json()
+    return NextResponse.json(data, { status: response.status })
   } catch (error) {
-    console.error('Error deleting user:', error)
+    console.error('[Users API Proxy] Error deleting user:', error)
     return NextResponse.json({ error: 'Ошибка удаления пользователя' }, { status: 500 })
   }
 }
