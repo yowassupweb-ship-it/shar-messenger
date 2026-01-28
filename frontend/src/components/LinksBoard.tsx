@@ -391,17 +391,14 @@ export default function LinksBoard() {
         >
           <ChevronDown className={`w-4 h-4 transition-transform ${showMobileSidebar ? 'rotate-180' : ''}`} />
         </button>
-        <div className="flex items-center gap-2">
-          <Globe className="w-5 h-5 text-blue-400" />
-          <span className="font-semibold text-sm md:text-base">База ссылок</span>
-        </div>
+        <span className="font-semibold text-sm md:text-base text-[var(--text-primary)]">База ссылок</span>
         <div className="flex-1" />
         <button
           onClick={() => setShowAddLinkModal(true)}
-          className="flex items-center gap-2 px-2 md:px-3 py-1.5 bg-blue-500 hover:bg-blue-600 rounded-lg text-sm font-medium transition-colors"
+          className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 hover:bg-white/15 transition-all border border-white/20 backdrop-blur-md"
+          title="Добавить ссылку"
         >
           <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Добавить</span>
         </button>
       </header>
 
@@ -788,15 +785,13 @@ export default function LinksBoard() {
                           >
                             {link.title}
                           </a>
-                          {link.isPinned && <Pin className="w-3 h-3 text-blue-400 flex-shrink-0" fill="currentColor" />}
-                          {link.isBookmarked && <Star className="w-3 h-3 text-yellow-400 flex-shrink-0" fill="currentColor" />}
                         </div>
                         <p className="text-xs text-[var(--text-tertiary)] truncate mt-0.5">{new URL(link.url).hostname}</p>
                         {link.description && (
                           <p className="text-xs text-[var(--text-tertiary)] mt-1 line-clamp-2">{link.description}</p>
                         )}
                         
-                        {/* Tags on small screens */}
+                        {/* Tags */}
                         <div className="flex items-center gap-2 mt-2 flex-wrap">
                           {list && (
                             <span 
@@ -817,12 +812,13 @@ export default function LinksBoard() {
                           )}
                         </div>
                       </div>
-                      
-                      {/* Actions - hidden on mobile, shown on tablet+ */}
-                      <div className="hidden md:flex items-center gap-0.5 flex-shrink-0">
-                        <button
+                    </div>
+                    
+                    {/* Actions - на нижней границе карточки */}
+                    <div className="flex items-center justify-end gap-1 mt-3 pt-3 border-t border-[var(--border-primary)]">
+                      <button
                           onClick={() => toggleBookmark(link)}
-                          className={`p-1.5 rounded-lg transition-colors ${
+                          className={`p-1.5 md:p-2 rounded-full transition-colors ${
                             link.isBookmarked 
                               ? 'text-yellow-400 bg-yellow-500/10' 
                               : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]'
@@ -833,7 +829,7 @@ export default function LinksBoard() {
                         </button>
                         <button
                           onClick={() => togglePin(link)}
-                          className={`p-1.5 rounded-lg transition-colors ${
+                          className={`p-1.5 md:p-2 rounded-full transition-colors ${
                             link.isPinned 
                               ? 'text-blue-400 bg-blue-500/10' 
                               : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]'
@@ -844,7 +840,7 @@ export default function LinksBoard() {
                         </button>
                         <button 
                           onClick={() => copyToClipboard(link.url)} 
-                          className="p-1.5 hover:bg-[var(--bg-primary)] rounded-lg transition-colors"
+                          className="p-1.5 md:p-2 hover:bg-[var(--bg-primary)] rounded-full transition-colors"
                           title="Копировать URL"
                         >
                           <Copy className="w-4 h-4 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]" />
@@ -853,44 +849,25 @@ export default function LinksBoard() {
                           href={link.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-1.5 hover:bg-[var(--bg-primary)] rounded-lg transition-colors"
+                          className="p-1.5 md:p-2 hover:bg-[var(--bg-primary)] rounded-full transition-colors"
                           title="Открыть"
                         >
                           <ExternalLink className="w-4 h-4 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]" />
                         </a>
                         <button 
                           onClick={() => setEditingLink(link)} 
-                          className="p-1.5 hover:bg-[var(--bg-primary)] rounded-lg transition-colors"
+                          className="p-1.5 md:p-2 hover:bg-[var(--bg-primary)] rounded-full transition-colors"
                           title="Редактировать"
                         >
                           <Edit3 className="w-4 h-4 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]" />
                         </button>
                         <button 
                           onClick={() => deleteLink(link.id)} 
-                          className="p-1.5 hover:bg-red-500/10 rounded-lg transition-colors"
+                          className="p-1.5 md:p-2 hover:bg-red-500/10 rounded-full transition-colors"
                           title="Удалить"
                         >
                           <Trash2 className="w-4 h-4 text-red-400/50 hover:text-red-400" />
                         </button>
-                      </div>
-                      
-                      {/* Mobile actions - more button */}
-                      <div className="md:hidden flex items-center gap-1 flex-shrink-0">
-                        <a
-                          href={link.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2 hover:bg-[var(--bg-primary)] rounded-lg transition-colors"
-                        >
-                          <ExternalLink className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </a>
-                        <button
-                          onClick={(e) => handleContextMenu(e as unknown as React.MouseEvent, 'link', link)}
-                          className="p-2 hover:bg-[var(--bg-primary)] rounded-lg transition-colors"
-                        >
-                          <MoreHorizontal className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </button>
-                      </div>
                     </div>
                   </div>
                 );

@@ -165,18 +165,6 @@ body {
     overflow: hidden;
   }
 
-  /* Mobile only - fix viewport for keyboard */
-  @media (max-width: 768px) {
-    html {
-      overflow: hidden;
-    }
-    
-    body {
-      position: fixed;
-      width: 100%;
-    }
-  }
-
   /* Remove default blue outline */
   *:focus {
     outline: none;
@@ -1227,4 +1215,26 @@ input[type="radio"] {
 
 .hover\:scrollbar-thumb-gray-500:hover::-webkit-scrollbar-thumb {
   background: rgba(107, 114, 128, 0.6);
+}
+
+/* Hide scrollbar on mobile */
+.scrollbar-hide-mobile {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide-mobile::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .scrollbar-hide-mobile {
+    -ms-overflow-style: auto;
+    scrollbar-width: thin;
+  }
+  
+  .scrollbar-hide-mobile::-webkit-scrollbar {
+    display: block;
+    width: 6px;
+  }
 }

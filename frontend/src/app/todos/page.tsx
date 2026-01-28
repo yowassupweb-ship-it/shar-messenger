@@ -3095,7 +3095,7 @@ export default function TodosPage() {
                       <div className="relative mb-2">
                         <button
                           onClick={() => setShowNewTodoAssigneeDropdown(!showNewTodoAssigneeDropdown)}
-                          className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-left text-sm flex items-center justify-between hover:border-[var(--border-light)] transition-colors"
+                          className="w-full px-2 py-1.5 md:px-3 md:py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-left text-xs md:text-sm flex items-center justify-between hover:border-[var(--border-light)] transition-colors"
                         >
                           <span className="flex items-center gap-2">
                             <UserCheck className="w-3.5 h-3.5 text-[var(--text-muted)]" />
@@ -3109,7 +3109,7 @@ export default function TodosPage() {
                           <div className="absolute left-0 right-0 top-full mt-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl z-50 py-1 max-h-48 overflow-y-auto">
                             <button
                               onClick={() => { setNewTodoAssigneeId(null); setShowNewTodoAssigneeDropdown(false); }}
-                              className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-[var(--bg-glass)] transition-colors ${
+                              className={`w-full px-2 py-1.5 md:px-3 md:py-2 text-left text-[10px] md:text-xs flex items-center gap-1.5 md:gap-2 hover:bg-[var(--bg-glass)] transition-colors ${
                                 !newTodoAssigneeId ? 'text-[var(--text-primary)] bg-[var(--bg-glass)]' : 'text-[var(--text-secondary)]'
                               }`}
                             >
@@ -3120,7 +3120,7 @@ export default function TodosPage() {
                               <button
                                 key={person.id}
                                 onClick={() => { setNewTodoAssigneeId(person.id); setShowNewTodoAssigneeDropdown(false); }}
-                                className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-[var(--bg-glass)] transition-colors ${
+                                className={`w-full px-2 py-1.5 md:px-3 md:py-2 text-left text-[10px] md:text-xs flex items-center gap-1.5 md:gap-2 hover:bg-[var(--bg-glass)] transition-colors ${
                                   newTodoAssigneeId === person.id ? 'text-purple-400 bg-purple-500/10' : 'text-[var(--text-secondary)]'
                                 }`}
                               >
@@ -3163,7 +3163,7 @@ export default function TodosPage() {
                       onMouseEnter={(e) => handleTodoMouseEnter(e, todo)}
                       onMouseLeave={handleTodoMouseLeave}
                       className={`
-                        group bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-lg p-2.5 sm:p-2.5 md:cursor-grab md:active:cursor-grabbing
+                        group bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-lg p-1.5 sm:p-2 md:cursor-grab md:active:cursor-grabbing
                         transition-all duration-200 hover:shadow-lg hover:border-gray-400 dark:hover:border-[var(--border-light)] border-l-3 ${PRIORITY_COLORS[todo.priority]}
                         ${todo.completed ? 'opacity-70' : ''}
                         ${draggedTodo?.id === todo.id ? 'opacity-50 scale-95' : ''}
@@ -3653,7 +3653,7 @@ export default function TodosPage() {
       {/* Edit Todo Modal */}
       {editingTodo && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 p-0 sm:p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-gradient-to-b dark:from-[#1a1a1a] dark:to-[#151515] border-0 sm:border border-gray-200 dark:border-[var(--border-color)] rounded-none sm:rounded-xl w-full max-w-full sm:max-w-[95vw] xl:max-w-[1200px] shadow-2xl min-h-screen sm:min-h-0 max-h-full sm:max-h-[90vh] flex flex-col sm:my-auto">
+          <div className="bg-white dark:bg-gradient-to-b dark:from-[#1a1a1a] dark:to-[#151515] border-0 sm:border border-gray-200 dark:border-[var(--border-color)] rounded-none sm:rounded-xl w-full h-full sm:h-auto max-w-full sm:max-w-[95vw] xl:max-w-[1200px] shadow-2xl sm:min-h-0 sm:max-h-[90vh] flex flex-col sm:my-auto">
             {/* Шапка */}
             <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-gray-200 dark:border-[var(--border-color)] bg-gray-50 dark:bg-white/[0.02] sm:rounded-t-xl flex-shrink-0">
               <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
@@ -4474,15 +4474,15 @@ export default function TodosPage() {
                 <div className="flex-1 p-1.5 sm:p-2 overflow-y-auto flex flex-col relative min-h-[200px]">
                   {/* Превью загруженных изображений - Telegram-style grid */}
                   {editingTodo.attachments && editingTodo.attachments.filter(a => a.type === 'image').length > 0 && (
-                    <div className="mb-3 rounded-xl overflow-hidden border border-gray-200 dark:border-white/10">
+                    <div className="mb-3 rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 w-full">
                       {(() => {
                         const images = editingTodo.attachments?.filter(a => a.type === 'image') || [];
                         const count = Math.min(images.length, 6);
                         
                         if (count === 1) {
                           return (
-                            <div className="relative group">
-                              <img src={images[0].url} alt="" className="w-full max-h-[180px] object-cover" />
+                            <div className="relative group w-full">
+                              <img src={images[0].url} alt="" className="w-full max-h-[180px] object-cover block" />
                               <button type="button" onClick={() => setEditingTodo(prev => prev ? { ...prev, attachments: prev.attachments?.filter(a => a.id !== images[0].id) } : null)} className="absolute top-2 right-2 w-7 h-7 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-4 h-4 text-white" /></button>
                             </div>
                           );
@@ -4490,10 +4490,10 @@ export default function TodosPage() {
                         
                         if (count === 2) {
                           return (
-                            <div className="grid grid-cols-2 gap-0.5">
+                            <div className="grid grid-cols-2 gap-0.5 w-full">
                               {images.slice(0, 2).map((img, idx) => (
-                                <div key={img.id} className="relative group">
-                                  <img src={img.url} alt="" className="w-full h-[100px] object-cover" />
+                                <div key={img.id} className="relative group w-full">
+                                  <img src={img.url} alt="" className="w-full h-[100px] object-cover block" />
                                   <button type="button" onClick={() => setEditingTodo(prev => prev ? { ...prev, attachments: prev.attachments?.filter(a => a.id !== img.id) } : null)} className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3 h-3 text-white" /></button>
                                 </div>
                               ))}
@@ -4503,10 +4503,10 @@ export default function TodosPage() {
                         
                         // 3+ images - grid layout
                         return (
-                          <div className="grid grid-cols-3 gap-0.5">
+                          <div className="grid grid-cols-3 gap-0.5 w-full">
                             {images.slice(0, 6).map((img, idx) => (
-                              <div key={img.id} className="relative group">
-                                <img src={img.url} alt="" className="w-full h-[70px] object-cover" />
+                              <div key={img.id} className="relative group w-full">
+                                <img src={img.url} alt="" className="w-full h-[70px] object-cover block" />
                                 <button type="button" onClick={() => setEditingTodo(prev => prev ? { ...prev, attachments: prev.attachments?.filter(a => a.id !== img.id) } : null)} className="absolute top-1 right-1 w-4 h-4 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-2.5 h-2.5 text-white" /></button>
                               </div>
                             ))}

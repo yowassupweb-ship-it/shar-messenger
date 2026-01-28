@@ -37,7 +37,7 @@ const ToggleSwitch = ({ checked, onChange }: { checked: boolean; onChange: (val:
 const Section = ({ title, children }: { title?: string; children: React.ReactNode }) => (
   <div className="mb-8">
     {title && (
-      <h3 className="text-[13px] font-normal text-[#8e8e93] dark:text-[#8e8e93] uppercase tracking-wide px-4 mb-2">
+      <h3 className="text-[13px] font-normal text-[#8e8e93] dark:text-[#8e8e93] uppercase tracking-wide px-2 md:px-4 mb-2">
         {title}
       </h3>
     )}
@@ -72,7 +72,7 @@ const Row = ({
   children?: React.ReactNode;
 }) => (
   <div 
-    className={`flex items-center gap-3 px-4 py-3 ${!isLast ? 'border-b border-[#c6c6c8]/30 dark:border-[#38383a]' : ''} ${onClick ? 'active:bg-[#e5e5ea] dark:active:bg-[#2c2c2e] cursor-pointer' : ''}`}
+    className={`flex items-center gap-3 px-2 md:px-4 py-3 ${!isLast ? 'border-b border-[#c6c6c8]/30 dark:border-[#38383a]' : ''} ${onClick ? 'active:bg-[#e5e5ea] dark:active:bg-[#2c2c2e] cursor-pointer' : ''}`}
     onClick={onClick}
   >
     {icon && (
@@ -177,7 +177,7 @@ export default function ChatSettingsPage() {
     <div className="h-screen flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
       {/* Header */}
       <header className="backdrop-blur-xl bg-[var(--bg-secondary)]/80 border-b border-[var(--border-color)] sticky top-0 z-10">
-        <div className="h-14 flex items-center px-4 gap-3">
+        <div className="h-14 flex items-center px-2 md:px-4 gap-3">
           <button
             onClick={() => router.back()}
             className="flex items-center justify-center w-9 h-9 rounded-full bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] transition-all"
@@ -189,7 +189,7 @@ export default function ChatSettingsPage() {
       </header>
 
       <div className="flex-1 overflow-y-auto pb-20">
-        <div className="max-w-lg mx-auto px-4 pt-6">
+        <div className="max-w-lg mx-auto px-2 md:px-4 pt-6">
           
           {/* Профиль пользователя */}
           <Section>

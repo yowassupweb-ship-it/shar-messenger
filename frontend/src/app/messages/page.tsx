@@ -64,6 +64,9 @@ interface Task {
   assignedTo?: string | string[];
   authorId?: string;
   createdAt: string;
+  assignedById?: string;
+  assignedToId?: string;
+  assignedToIds?: string[];
 }
 
 // Компонент предпросмотра ссылки
@@ -193,6 +196,7 @@ export default function MessagesPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [events, setEvents] = useState<any[]>([]);
   const [links, setLinks] = useState<any[]>([]);
+  const [isDesktopView, setIsDesktopView] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
   const [showChatInfo, setShowChatInfo] = useState(false);
   const [chatInfoTab, setChatInfoTab] = useState<'profile' | 'tasks' | 'media' | 'files' | 'links' | 'participants'>('profile');
   const [showAddParticipantModal, setShowAddParticipantModal] = useState(false);
@@ -261,6 +265,7 @@ export default function MessagesPage() {
   const myBubbleTextMutedClass = useDarkTextOnBubble ? 'text-gray-700' : 'text-white/70';
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesListRef = useRef<HTMLDivElement>(null); // Ref для списка сообщений (скролл-контейнер)
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
@@ -534,8 +539,13 @@ export default function MessagesPage() {
     };
   }, []);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (smooth: boolean = true) => {
+    if (messagesListRef.current) {
+      messagesListRef.current.scrollTo({
+        top: messagesListRef.current.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto'
+      });
+    }
   };
 
   const loadCurrentUser = async () => {
@@ -991,7 +1001,7 @@ export default function MessagesPage() {
         const data = await res.json();
         
         // Проверяем был ли пользователь внизу ДО обновления сообщений
-        const container = messagesEndRef.current?.parentElement?.parentElement;
+        const container = messagesListRef.current;
         const wasAtBottom = container 
           ? (container.scrollHeight - container.scrollTop - container.clientHeight < 50) 
           : true;
@@ -1022,9 +1032,16 @@ export default function MessagesPage() {
         // Скролл к последнему сообщению:
         // - При первой загрузке всегда
         // - При polling только если пользователь был внизу И пришли новые сообщения
-        if (!isPolling || (wasAtBottom && hasNewMessages)) {
+        // НО НЕ скроллим если клавиатура открыта (фокус на инпуте) - это вызывает баги
+        const isKeyboardOpen = messageInputRef.current === document.activeElement;
+        if (!isPolling || (wasAtBottom && hasNewMessages && !isKeyboardOpen)) {
           setTimeout(() => {
-            messagesEndRef.current?.scrollIntoView({ behavior: isPolling ? 'smooth' : 'auto' });
+            if (messagesListRef.current) {
+              messagesListRef.current.scrollTo({
+                top: messagesListRef.current.scrollHeight,
+                behavior: isPolling ? 'smooth' : 'auto'
+              });
+            }
           }, 100);
         }
         
@@ -1197,14 +1214,15 @@ export default function MessagesPage() {
         
         loadChats();
         
-        // Сохраняем фокус на поле ввода (клавиатура остается открытой)
-        // Без setTimeout - клавиатура остается открытой
-        if (messageInputRef.current === document.activeElement) {
-          // Фокус уже на инпуте - ничего не делаем
-        }
-        
+        // Фокус уже сохранён благодаря preventDefault на кнопке
+        // Скролл к последнему сообщению
         setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+          if (messagesListRef.current) {
+            messagesListRef.current.scrollTo({
+              top: messagesListRef.current.scrollHeight,
+              behavior: 'auto'
+            });
+          }
         }, 100);
       }
     } catch (error) {
@@ -1561,8 +1579,103 @@ export default function MessagesPage() {
     };
   }, [chats, currentUser?.id, filterChatsBySearch]);
 
+  const messagesContainerRef = useRef<HTMLDivElement>(null); // Ref для основного контейнера страницы
+
+  // --- FIX MOBILE KEYBOARD ---
+  // Используем direct DOM manipulation чтобы избежать ре-рендеров при ресайзе (клавиатура)
+  // Это предотвращает закрытие клавиатуры
+  useEffect(() => {
+    let prevHeight = window.innerHeight;
+    
+    // Функция обновления высоты
+    const updateHeight = () => {
+      if (!messagesContainerRef.current) return;
+      
+      let vh = window.innerHeight;
+      // На мобильных window.visualViewport.height показывает реальную видимую область (без клавиатуры)
+      if (window.visualViewport) {
+        vh = window.visualViewport.height;
+      }
+      
+      messagesContainerRef.current.style.height = `${vh}px`;
+      
+      // Также подстраиваем body, чтобы не было скролла за пределы
+      document.body.style.height = `${vh}px`;
+      
+      // Обновляем isDesktopView при изменении размера
+      setIsDesktopView(window.innerWidth >= 768);
+      
+      // Если высота уменьшилась (клавиатура открылась) - скроллим к последнему сообщению
+      if (vh < prevHeight && messagesListRef.current) {
+        setTimeout(() => {
+          if (messagesListRef.current) {
+            messagesListRef.current.scrollTo({
+              top: messagesListRef.current.scrollHeight,
+              behavior: 'smooth'
+            });
+          }
+        }, 50);
+      }
+      prevHeight = vh;
+    };
+
+    // Блокируем скролл основной страницы
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalBodyPosition = document.body.style.position;
+    const originalBodyWidth = document.body.style.width;
+    const originalBodyHeight = document.body.style.height;
+    const originalBodyTop = document.body.style.top;
+    const originalBodyBackground = document.body.style.background;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+    const originalHtmlBackground = document.documentElement.style.background;
+
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.top = '0';
+    document.documentElement.style.overflow = 'hidden';
+    
+    // Убираем фон body на мобильных для прозрачности инпута
+    if (window.innerWidth < 768) {
+      document.body.style.background = 'var(--bg-primary)';
+      document.documentElement.style.background = 'var(--bg-primary)';
+    }
+    
+    // Инициализация
+    updateHeight();
+
+    // Слушатели
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateHeight);
+      window.visualViewport.addEventListener('scroll', updateHeight);
+    }
+    window.addEventListener('resize', updateHeight);
+
+    return () => {
+      // Очистка
+      document.body.style.overflow = originalBodyOverflow;
+      document.body.style.position = originalBodyPosition;
+      document.body.style.width = originalBodyWidth;
+      document.body.style.height = originalBodyHeight;
+      document.body.style.top = originalBodyTop;
+      document.body.style.background = originalBodyBackground;
+      document.documentElement.style.overflow = originalHtmlOverflow;
+      document.documentElement.style.background = originalHtmlBackground;
+
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateHeight);
+        window.visualViewport.removeEventListener('scroll', updateHeight);
+      }
+      window.removeEventListener('resize', updateHeight);
+    };
+  }, []);
+
   return (
-    <div className="h-[100dvh] bg-[var(--bg-primary)] text-[var(--text-primary)] flex overflow-hidden rounded-[25px]">
+    <div 
+      ref={messagesContainerRef}
+      className="bg-[var(--bg-primary)] text-[var(--text-primary)] flex overflow-hidden rounded-none md:rounded-[25px] overscroll-none"
+      style={{ height: '100dvh', maxHeight: '100dvh' }}
+    >
       {/* Левая панель - список чатов (единый блок с разными состояниями) */}
       <div className={`
         ${selectedChat ? 'hidden md:flex' : 'flex'} 
@@ -1603,12 +1716,6 @@ export default function MessagesPage() {
           ) : (
             /* Развернутый хедер */
             <>
-              <Link
-                href="/account?tab=messages"
-                className="no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-all md:hidden border border-[var(--border-glass)] backdrop-blur-sm"
-              >
-                <ArrowLeft className="w-4 h-4" strokeWidth={2} />
-              </Link>
               <span className="font-medium text-sm">Сообщения</span>
               <div className="ml-auto flex items-center gap-1">
                 <button
@@ -1634,15 +1741,15 @@ export default function MessagesPage() {
         {isChatListCollapsed ? (
           <>
             {/* Мобильный поиск (как обычно) */}
-            <div className="p-3 border-b border-[var(--border-color)] flex-shrink-0 md:hidden">
+            <div className="px-1.5 py-1 border-b border-[var(--border-color)] flex-shrink-0 md:hidden">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-[var(--text-muted)]" />
                 <input
                   type="text"
                   placeholder="Поиск чатов..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-[25px] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-light)]"
+                  className="w-full pl-7 pr-2 py-0.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-[25px] text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-light)]"
                 />
               </div>
             </div>
@@ -1665,15 +1772,14 @@ export default function MessagesPage() {
             </div>
           </>
         ) : (
-          <div className="p-3 border-b border-[var(--border-color)] flex-shrink-0">
+          <div className="px-1 py-0.5 md:p-3 border-b border-[var(--border-color)] flex-shrink-0">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
               <input
                 type="text"
                 placeholder="Поиск чатов..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-[25px] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-light)]"
+                className="w-full px-2 py-[3px] md:px-3 md:py-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-[20px] text-[9px] leading-tight md:text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-light)]"
               />
             </div>
           </div>
@@ -2118,12 +2224,12 @@ export default function MessagesPage() {
 
       {/* Правая панель - чат */}
       {selectedChat ? (
-        <div className={`flex-1 min-h-0 flex overflow-hidden ${selectedChat ? 'block' : 'hidden md:block'}`}>
+        <div className={`flex-1 min-h-0 flex overflow-hidden bg-transparent ${selectedChat ? 'block' : 'hidden md:block'}`}>
           {/* Контейнер чата */}
-          <div className="flex-1 min-h-0 flex flex-col relative">
+          <div className="flex-1 min-h-0 flex flex-col relative bg-transparent">
           {/* Chat header */}
           <div 
-            className="fixed md:sticky top-0 left-0 right-0 z-20 mx-0 md:mx-2 mt-0 md:mt-2 h-12 backdrop-blur-xl border-0 md:border border-[var(--border-color)] md:rounded-[50px] flex items-center px-4 gap-2 flex-shrink-0 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4)] bg-[var(--bg-secondary)]/95"
+            className="absolute top-2 left-2 right-2 z-20 h-[56px] md:h-12 border border-white/20 md:border-[var(--border-color)] rounded-[50px] flex items-center px-3 md:px-4 py-[10px] gap-2 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.2)] md:relative md:top-0 md:left-0 md:right-0 md:mx-2 md:mt-2 backdrop-blur-xl !bg-white/15 dark:!bg-black/15"
           >
             {isSelectionMode ? (
               <>
@@ -2227,7 +2333,7 @@ export default function MessagesPage() {
               <>
             <button
               onClick={() => selectChat(null)}
-              className="no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-all md:hidden border border-[var(--border-glass)] backdrop-blur-sm"
+              className="no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-all md:hidden border border-[var(--border-glass)] backdrop-blur-sm -ml-1"
             >
               <ArrowLeft className="w-4 h-4" strokeWidth={2} />
             </button>
@@ -2263,7 +2369,7 @@ export default function MessagesPage() {
                   </p>
                 ) : (
                 <p className="text-[10px] text-[var(--text-muted)]">
-                  {selectedChat.isFavoritesChat ? 'Ваши избранные сообщения' : selectedChat.isSystemChat || selectedChat.isNotificationsChat ? 'Системные уведомления' : selectedChat.isGroup ? `${selectedChat.participantIds.length} участник${selectedChat.participantIds.length === 1 ? '' : selectedChat.participantIds.length < 5 ? 'а' : 'ов'}` : (() => {
+                  {selectedChat.isFavoritesChat ? '' : selectedChat.isSystemChat || selectedChat.isNotificationsChat ? 'Системные уведомления' : selectedChat.isGroup ? `${selectedChat.participantIds.length} участник${selectedChat.participantIds.length === 1 ? '' : selectedChat.participantIds.length < 5 ? 'а' : 'ов'}` : (() => {
                     // Получаем собеседника
                     const otherParticipantId = selectedChat.participantIds.find(id => id !== currentUser?.id);
                     const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : null;
@@ -2292,7 +2398,7 @@ export default function MessagesPage() {
             {/* Кнопка прокрутки к непрочитанным - СКРЫТА, мешала UI */}
             
             {/* Кнопка меню чата */}
-            <div className="relative">
+            <div className="relative -mr-1">
               <button
                 onClick={() => setShowChatMenu(!showChatMenu)}
                 className="no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] transition-all border border-[var(--border-color)]"
@@ -2393,8 +2499,8 @@ export default function MessagesPage() {
           )}
 
           {/* Messages */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-4 pt-16 md:pt-4 pb-24 md:pb-32">
-            <div className="min-h-full px-2 md:px-4 lg:px-8">
+          <div ref={messagesListRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 pt-16 md:pt-4 pb-20 md:pb-32 bg-transparent scrollbar-hide-mobile">
+            <div className="px-2 md:px-4 lg:px-8">
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
                   <MessageCircle className="w-16 h-16 mb-4 opacity-30" />
@@ -2402,7 +2508,7 @@ export default function MessagesPage() {
                   <p className="text-sm mt-1 opacity-70">Начните общение</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-1.5 md:space-y-[3px]">
                 {messages.filter(message => {
                   if (!messageSearchQuery.trim()) return true;
                   return message.content.toLowerCase().includes(messageSearchQuery.toLowerCase());
@@ -2424,7 +2530,7 @@ export default function MessagesPage() {
                     <div
                       key={message.id}
                       ref={(el) => { messageRefs.current[message.id] = el; }}
-                      className={`flex ${isMyMessage ? 'justify-end md:justify-start' : 'justify-start'} group transition-all duration-200 px-2 -mx-2 ${
+                      className={`flex ${isMyMessage ? 'justify-end md:justify-start' : 'justify-start'} group transition-all duration-200 -mx-[20px] md:px-2 md:-mx-2 ${
                         selectedMessages.has(message.id) ? 'bg-[var(--accent-primary)]/20' : ''
                       } ${isMyMessage ? 'message-animation-right md:message-animation-left' : 'message-animation-left'}`}
                       onClick={(e) => {
@@ -2501,7 +2607,7 @@ export default function MessagesPage() {
 
                     {/* Attachments вынесены на уровень аватарки - только когда нет текста */}
                     {message.attachments && message.attachments.length > 0 && message.attachments.filter(att => att.type !== 'image').length > 0 && !message.content.trim() && (
-                      <div className="flex flex-col gap-2 mr-2">
+                      <div className={`flex flex-col gap-2 ${isMyMessage ? '-mr-[75px] md:mr-2' : 'mr-2'} max-w-[80%] md:max-w-[400px]`}>
                         {message.attachments.filter(att => att.type !== 'image').map((att, idx) => (
                           <div key={idx}>
                             {att.type === 'task' && (
@@ -2515,15 +2621,19 @@ export default function MessagesPage() {
                                     });
                                   }
                                 }}
-                                className="inline-flex items-center gap-2 px-2 py-1.5 md:px-3 md:py-2 bg-cyan-500/10 dark:bg-cyan-500/10 rounded-lg md:rounded-xl border border-cyan-500/50 dark:border-cyan-500/30 hover:bg-cyan-500/20 dark:hover:bg-cyan-500/20 transition-colors"
+                                className="flex items-center gap-2 px-2 py-1.5 md:px-3 md:py-2 bg-cyan-500/10 dark:bg-cyan-500/10 rounded-lg md:rounded-xl border border-cyan-500/50 dark:border-cyan-500/30 hover:bg-cyan-500/20 dark:hover:bg-cyan-500/20 transition-colors w-full relative"
                               >
                                 <div className="w-6 h-6 md:w-8 md:h-8 rounded bg-cyan-500/20 dark:bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
                                   <FileText className="w-3 h-3 md:w-4 md:h-4 text-cyan-600 dark:text-cyan-400" />
                                 </div>
-                                <div className="flex flex-col items-start min-w-0">
+                                <div className="flex flex-col items-start min-w-0 flex-1">
                                   <span className="text-[9px] md:text-[10px] text-cyan-600 dark:text-cyan-400/70 uppercase">Задача</span>
                                   <span className="text-xs md:text-sm font-medium text-cyan-700 dark:text-cyan-300 truncate max-w-[120px] md:max-w-[200px]">{att.name}</span>
                                 </div>
+                                <span className="text-[9px] md:text-[10px] text-[var(--text-muted)] flex-shrink-0 self-end ml-2">
+                                  {new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                                  {isMyMessage && <Check className="w-2.5 h-2.5 md:w-3 md:h-3 inline ml-0.5" />}
+                                </span>
                               </button>
                             )}
                             {att.type === 'event' && (
@@ -2536,7 +2646,7 @@ export default function MessagesPage() {
                                     });
                                   }
                                 }}
-                                className="inline-flex items-center gap-2 px-2 py-1.5 md:px-3 md:py-2 bg-green-500/10 dark:bg-green-500/10 rounded-lg md:rounded-xl border border-green-500/50 dark:border-green-500/30 hover:bg-green-500/20 dark:hover:bg-green-500/20 transition-colors"
+                                className="flex items-center gap-2 px-2 py-1.5 md:px-3 md:py-2 bg-green-500/10 dark:bg-green-500/10 rounded-lg md:rounded-xl border border-green-500/50 dark:border-green-500/30 hover:bg-green-500/20 dark:hover:bg-green-500/20 transition-colors w-full"
                               >
                                 <div className="w-6 h-6 md:w-8 md:h-8 rounded bg-green-500/20 dark:bg-green-500/20 flex items-center justify-center flex-shrink-0">
                                   <Calendar className="w-3 h-3 md:w-4 md:h-4 text-green-600 dark:text-green-400" />
@@ -2557,7 +2667,7 @@ export default function MessagesPage() {
                                     });
                                   }
                                 }}
-                                className="inline-flex flex-col items-start gap-1 px-3 py-2 bg-purple-500/10 dark:bg-purple-500/10 rounded-xl border-2 border-purple-500/50 dark:border-purple-500/30 hover:bg-purple-500/20 dark:hover:bg-purple-500/20 transition-colors"
+                                className="flex flex-col items-start gap-1 px-3 py-2 bg-purple-500/10 dark:bg-purple-500/10 rounded-xl border-2 border-purple-500/50 dark:border-purple-500/30 hover:bg-purple-500/20 dark:hover:bg-purple-500/20 transition-colors w-full"
                               >
                                 <span className="text-[10px] text-purple-600 dark:text-purple-400/70">Ссылка</span>
                                 <div className="flex items-center gap-2">
@@ -2585,20 +2695,6 @@ export default function MessagesPage() {
                           </div>
                         ))}
                       </div>
-                    )}
-
-                    {/* Время для сообщений только с attachments без текста */}
-                    {message.attachments && message.attachments.length > 0 && message.attachments.filter(att => att.type !== 'image').length > 0 && !message.content.trim() && (
-                      <span className="flex items-center gap-0.5 select-none text-[9px] md:text-[11px] text-[var(--text-muted)] flex-shrink-0 self-end pb-1">
-                        {new Date(message.createdAt).toLocaleTimeString('ru-RU', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                        {message.isEdited && <span className="ml-1">(изм.)</span>}
-                        {isMyMessage && !message.isDeleted && (
-                          <Check className="w-2.5 h-2.5 md:w-3.5 md:h-3.5 ml-0.5" />
-                        )}
-                      </span>
                     )}
 
                     <div 
@@ -2668,8 +2764,7 @@ export default function MessagesPage() {
                         // Используем отдельные настройки для мобильных и десктопа
                         const mobileFontSize = chatSettings.fontSizeMobile || 15;
                         const desktopFontSize = chatSettings.fontSize || 13;
-                        const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
-                        const fontSizeStyle = { fontSize: `${isDesktop ? desktopFontSize : mobileFontSize}px`, lineHeight: isDesktop ? '1.5' : '1.3' };
+                        const fontSizeStyle = { fontSize: `${isDesktopView ? desktopFontSize : mobileFontSize}px`, lineHeight: isDesktopView ? '1.5' : '1.3' };
                         
                         return (
                           <>
@@ -2934,7 +3029,7 @@ export default function MessagesPage() {
 
           {/* Message input */}
           <div 
-            className={`fixed md:absolute bottom-0 left-0 right-0 md:bottom-[46px] px-2 md:px-3 py-2 pb-[env(safe-area-inset-bottom,0px)] md:py-2 z-30 md:z-auto transition-all duration-300 ${
+            className={`absolute bottom-0 md:bottom-[50px] left-0 right-0 z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(env(safe-area-inset-bottom,8px),8px)] transition-all duration-300 ${
               isDragging ? 'scale-[1.02]' : ''
             }`}
             onDragOver={(e) => {
@@ -3030,7 +3125,7 @@ export default function MessagesPage() {
                 </button>
               </div>
             ) : (
-            <div className="flex gap-1.5 md:gap-2 items-end relative px-2 md:px-4 lg:px-8">
+            <div className="flex gap-1 md:gap-2 items-center relative bg-transparent">
               {/* Emoji button - только на десктопе */}
               {!selectedChat?.isNotificationsChat && (
               <div className="relative hidden md:block">
@@ -3057,7 +3152,7 @@ export default function MessagesPage() {
               {!selectedChat?.isNotificationsChat && (
               <button
                 onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-                className="w-11 h-11 rounded-full backdrop-blur-xl bg-[var(--bg-secondary)]/60 border border-white/10 hover:border-white/20 hover:bg-[var(--bg-tertiary)]/90 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex-shrink-0 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4),0_0_15px_-5px_rgba(0,0,0,0.3)]"
+                className="w-10 h-10 md:w-11 md:h-11 rounded-full backdrop-blur-xl bg-[var(--bg-secondary)]/60 border border-white/20 hover:border-white/30 hover:bg-[var(--bg-tertiary)]/80 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex-shrink-0 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.3)]"
               >
                 <Paperclip className="w-4 h-4" />
               </button>
@@ -3105,7 +3200,7 @@ export default function MessagesPage() {
               />
               
               {/* Input container with reply/edit indicator */}
-              <div className="flex-1 min-w-0 flex flex-col">
+              <div className="flex-1 min-w-0 flex flex-col bg-transparent">
                 {/* Edit indicator над инпутом */}
                 {editingMessageId && (
                   <div className="mb-1 px-3 py-1.5 backdrop-blur-xl bg-blue-500/20 border border-blue-400/30 rounded-t-[18px] flex items-center justify-between">
@@ -3316,7 +3411,7 @@ export default function MessagesPage() {
                   }}
                   placeholder={selectedChat?.isNotificationsChat ? "Чат только для чтения" : editingMessageId ? "Редактируйте сообщение..." : "Сообщение..."}
                   disabled={selectedChat?.isNotificationsChat}
-                  className={`w-full px-4 py-2.5 backdrop-blur-xl bg-[var(--bg-secondary)]/60 border border-white/10 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-white/20 resize-none overflow-hidden shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4),-8px_0_20px_-10px_rgba(0,0,0,0.3),8px_0_20px_-10px_rgba(0,0,0,0.3),0_8px_25px_-8px_rgba(0,0,0,0.4)] disabled:opacity-50 disabled:cursor-not-allowed ${(replyToMessage && !editingMessageId) || editingMessageId ? 'rounded-b-[22px] rounded-t-none border-t-0' : 'rounded-[22px]'}`}
+                  className={`w-full px-4 py-2.5 backdrop-blur-xl bg-[var(--bg-secondary)]/40 border border-white/20 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-white/30 resize-none overflow-hidden shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4),-8px_0_20px_-10px_rgba(0,0,0,0.3),8px_0_20px_-10px_rgba(0,0,0,0.3),0_8px_25px_-8px_rgba(0,0,0,0.4)] disabled:opacity-50 disabled:cursor-not-allowed ${(replyToMessage && !editingMessageId) || editingMessageId ? 'rounded-b-[22px] rounded-t-none border-t-0' : 'rounded-[22px]'}`}
                   style={{ minHeight: '44px', maxHeight: '120px', lineHeight: '20px', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                   rows={1}
                 />
@@ -3404,9 +3499,13 @@ export default function MessagesPage() {
                 </button>
               ) : (
                 <button
+                  onMouseDown={(e) => {
+                    // Предотвращаем потерю фокуса с textarea при клике на кнопку
+                    e.preventDefault();
+                  }}
                   onClick={sendMessage}
                   disabled={selectedChat?.isNotificationsChat}
-                  className="w-11 h-11 rounded-full backdrop-blur-xl bg-blue-500 hover:bg-blue-600 border border-white/10 disabled:bg-[var(--bg-secondary)]/60 disabled:border-white/10 disabled:cursor-not-allowed flex items-center justify-center text-white disabled:text-[var(--text-muted)] transition-all flex-shrink-0 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4),0_0_15px_-5px_rgba(0,0,0,0.3)]"
+                  className="w-10 h-10 md:w-11 md:h-11 rounded-full backdrop-blur-xl bg-blue-500/80 hover:bg-blue-500 border border-white/20 disabled:bg-[var(--bg-secondary)]/60 disabled:border-white/10 disabled:cursor-not-allowed flex items-center justify-center text-white disabled:text-[var(--text-muted)] transition-all flex-shrink-0 shadow-[0_4px_20px_-4px_rgba(59,130,246,0.5)]"
                 >
                   <Send className="w-4 h-4" />
                 </button>
@@ -4257,14 +4356,22 @@ export default function MessagesPage() {
             </div>
             <div className="p-4 max-h-96 overflow-y-auto">
               {(() => {
-                // Backend уже отфильтровал задачи для текущего пользователя
-                const myTasks = Array.isArray(tasks) ? tasks : [];
+                // Фильтруем задачи - только те, где текущий пользователь участвует
+                const allTasks = Array.isArray(tasks) ? tasks : [];
+                const myTasks = allTasks.filter(task => {
+                  if (!currentUser?.id) return false;
+                  const userId = currentUser.id;
+                  if (task.assignedById === userId) return true;
+                  if (task.assignedToId === userId) return true;
+                  if (task.assignedToIds?.includes(userId)) return true;
+                  if (task.authorId === userId) return true;
+                  return false;
+                });
                 
-                // Отладочное логирование для задач
                 console.log('DEBUG - Информация о задачах:', {
-                  tasksCount: myTasks.length,
-                  currentUserId: currentUser?.id,
-                  tasks: myTasks
+                  totalCount: allTasks.length,
+                  filteredCount: myTasks.length,
+                  currentUserId: currentUser?.id
                 });
                 
                 return myTasks.length === 0 ? (

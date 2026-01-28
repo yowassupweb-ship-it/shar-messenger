@@ -470,7 +470,7 @@
       "assignedTo": "admin",
       "addToCalendar": false,
       "createdAt": "2026-01-27T07:24:30.567Z",
-      "updatedAt": "2026-01-27T08:08:57.578Z",
+      "updatedAt": "2026-01-28T08:32:55.131Z",
       "order": 0,
       "comments": [
         {
@@ -484,7 +484,8 @@
         }
       ],
       "readCommentsByUser": {
-        "user_1769446825925.whxkh075y": "comment-1769499393910"
+        "user_1769446825925.whxkh075y": "comment-1769499393910",
+        "user_1769584624.933692": "comment-1769499393910"
       },
       "assignedById": "user_010"
     },
@@ -521,6 +522,57 @@
       "createdAt": "2026-01-27T07:24:35.041Z",
       "updatedAt": "2026-01-27T07:24:35.041Z",
       "order": 2
+    },
+    {
+      "id": "20260128_095720_lagcdm",
+      "title": "Тест 1",
+      "description": "",
+      "completed": false,
+      "priority": "medium",
+      "status": "pending",
+      "listId": "20260128_095712_q5h0tb",
+      "tags": [],
+      "assignedById": "user_1769584624.933692",
+      "assignedBy": "Администратор",
+      "assignedTo": "",
+      "addToCalendar": false,
+      "createdAt": "2026-01-28T09:57:20.147Z",
+      "updatedAt": "2026-01-28T09:57:20.147Z",
+      "order": 0
+    },
+    {
+      "id": "20260128_095722_xqrvmd",
+      "title": "Тест 2",
+      "description": "",
+      "completed": false,
+      "priority": "medium",
+      "status": "pending",
+      "listId": "20260128_095712_q5h0tb",
+      "tags": [],
+      "assignedById": "user_1769584624.933692",
+      "assignedBy": "Администратор",
+      "assignedTo": "",
+      "addToCalendar": false,
+      "createdAt": "2026-01-28T09:57:22.987Z",
+      "updatedAt": "2026-01-28T09:57:22.987Z",
+      "order": 1
+    },
+    {
+      "id": "20260128_095725_ypqsp4",
+      "title": "Тест 3",
+      "description": "",
+      "completed": false,
+      "priority": "medium",
+      "status": "pending",
+      "listId": "20260128_095712_q5h0tb",
+      "tags": [],
+      "assignedById": "user_1769584624.933692",
+      "assignedBy": "Администратор",
+      "assignedTo": "",
+      "addToCalendar": false,
+      "createdAt": "2026-01-28T09:57:25.528Z",
+      "updatedAt": "2026-01-28T09:57:25.528Z",
+      "order": 2
     }
   ],
   "lists": [
@@ -535,6 +587,16 @@
       "allowedUsers": [
         "user_1769446825925.whxkh075y"
       ]
+    },
+    {
+      "id": "20260128_095712_q5h0tb",
+      "name": "Список",
+      "color": "#6366f1",
+      "icon": "folder",
+      "createdAt": "2026-01-28T09:57:12.386Z",
+      "order": 1,
+      "creatorId": "user_1769584624.933692",
+      "allowedUsers": []
     }
   ],
   "categories": [

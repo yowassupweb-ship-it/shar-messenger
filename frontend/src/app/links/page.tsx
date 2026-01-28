@@ -374,7 +374,7 @@ export default function LinksPage() {
   return (
     <div className="h-screen flex flex-col bg-[#0a0a0a] text-white pb-16 md:pb-12">
       {/* Header */}
-      <header className="h-12 bg-[#1a1a1a] border-b border-white/5 flex items-center px-3 md:px-4 flex-shrink-0">
+      <header className="h-12 bg-[#1a1a1a] border-b border-white/5 flex items-center px-2 md:px-4 flex-shrink-0">
         <Link href="/account" className="flex items-center gap-2 mr-3 md:mr-6 text-white/60 hover:text-white transition-colors">
           <ArrowLeft className="w-4 h-4" />
           <span className="text-sm hidden md:inline">Назад</span>
@@ -385,17 +385,14 @@ export default function LinksPage() {
         >
           <ChevronDown className={`w-4 h-4 transition-transform ${showMobileSidebar ? 'rotate-180' : ''}`} />
         </button>
-        <div className="flex items-center gap-2">
-          <Globe className="w-5 h-5 text-blue-400" />
-          <span className="font-semibold text-sm md:text-base">База ссылок</span>
-        </div>
+        <span className="font-semibold text-sm md:text-base">База ссылок</span>
         <div className="flex-1" />
         <button
           onClick={() => setShowAddLinkModal(true)}
-          className="flex items-center gap-2 px-2 md:px-3 py-1.5 bg-blue-500 hover:bg-blue-600 rounded-lg text-sm font-medium transition-colors"
+          className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 hover:bg-white/15 transition-all border border-white/20 backdrop-blur-md"
+          title="Добавить ссылку"
         >
           <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Добавить</span>
         </button>
       </header>
 
@@ -706,7 +703,7 @@ export default function LinksPage() {
         {/* Main Content Area */}
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Sub-header with current section info */}
-          <div className="px-4 py-3 border-b border-white/5 bg-[#0d0d0d]">
+          <div className="px-2 md:px-4 py-2 md:py-3 border-b border-white/5 bg-[#0d0d0d]">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-medium text-white">
@@ -725,7 +722,7 @@ export default function LinksPage() {
           </div>
 
         {/* Links Grid */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-2 md:p-4">
           {filteredLinks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <Globe className="w-12 h-12 text-white/20 mb-4" />
@@ -813,11 +810,11 @@ export default function LinksPage() {
                       </div>
                     </div>
                       
-                    {/* Actions - всегда под текстом */}
-                    <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t border-white/5">
+                    {/* Actions на нижней границе карточки */}
+                    <div className="flex items-center justify-end gap-1 mt-3 pt-3 border-t border-white/5">
                         <button
                           onClick={() => toggleBookmark(link)}
-                          className={`p-1.5 md:p-2 rounded-lg transition-colors ${
+                          className={`p-1.5 md:p-2 rounded-full transition-colors ${
                             link.isBookmarked 
                               ? 'text-yellow-400 bg-yellow-500/10' 
                               : 'text-white/40 hover:text-white/60 hover:bg-white/5'
@@ -828,7 +825,7 @@ export default function LinksPage() {
                         </button>
                         <button
                           onClick={() => togglePin(link)}
-                          className={`p-1.5 md:p-2 rounded-lg transition-colors ${
+                          className={`p-1.5 md:p-2 rounded-full transition-colors ${
                             link.isPinned 
                               ? 'text-blue-400 bg-blue-500/10' 
                               : 'text-white/40 hover:text-white/60 hover:bg-white/5'
@@ -839,7 +836,7 @@ export default function LinksPage() {
                         </button>
                         <button 
                           onClick={() => copyToClipboard(link.url)} 
-                          className="p-1.5 md:p-2 hover:bg-white/5 rounded-lg transition-colors"
+                          className="p-1.5 md:p-2 hover:bg-white/5 rounded-full transition-colors"
                           title="Копировать URL"
                         >
                           <Copy className="w-4 h-4 text-white/40 hover:text-white/60" />
@@ -848,21 +845,21 @@ export default function LinksPage() {
                           href={link.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-1.5 md:p-2 hover:bg-white/5 rounded-lg transition-colors"
+                          className="p-1.5 md:p-2 hover:bg-white/5 rounded-full transition-colors"
                           title="Открыть"
                         >
                           <ExternalLink className="w-4 h-4 text-white/40 hover:text-white/60" />
                         </a>
                         <button 
                           onClick={() => setEditingLink(link)} 
-                          className="p-1.5 md:p-2 hover:bg-white/5 rounded-lg transition-colors"
+                          className="p-1.5 md:p-2 hover:bg-white/5 rounded-full transition-colors"
                           title="Редактировать"
                         >
                           <Edit3 className="w-4 h-4 text-white/40 hover:text-white/60" />
                         </button>
                         <button 
                           onClick={() => deleteLink(link.id)} 
-                          className="p-1.5 md:p-2 hover:bg-red-500/10 rounded-lg transition-colors"
+                          className="p-1.5 md:p-2 hover:bg-red-500/10 rounded-full transition-colors"
                           title="Удалить"
                         >
                           <Trash2 className="w-4 h-4 text-red-400/50 hover:text-red-400" />
@@ -1327,15 +1324,15 @@ export default function LinksPage() {
 // Modal wrapper component
 function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#1a1a1a] rounded-xl border border-white/10 w-full max-w-lg shadow-2xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-0 sm:p-4">
+      <div className="bg-[#1a1a1a] border border-white/10 w-full h-full sm:h-auto sm:max-w-lg sm:rounded-xl shadow-2xl flex flex-col">
+        <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-white/10 flex-shrink-0">
           <h2 className="text-base font-semibold">{title}</h2>
           <button onClick={onClose} className="p-1.5 hover:bg-white/5 rounded-lg transition-colors">
             <X className="w-4 h-4 text-white/60" />
           </button>
         </div>
-        <div className="px-5 py-4">
+        <div className="px-4 sm:px-5 py-4 overflow-y-auto flex-1">
           {children}
         </div>
       </div>

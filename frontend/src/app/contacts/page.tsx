@@ -156,9 +156,9 @@ export default function ContactsPage() {
   }
 
   return (
-    <div className="h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col overflow-hidden">
+    <div className="h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col overflow-hidden pb-16 md:pb-0">
       {/* Header */}
-      <header className="h-12 bg-[var(--bg-secondary)] border-b border-[var(--border-secondary)] flex items-center px-4 flex-shrink-0">
+      <header className="h-12 bg-[var(--bg-secondary)] border-b border-[var(--border-secondary)] flex items-center px-2 md:px-4 flex-shrink-0">
         <Link
           href="/"
           className="no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-all mr-3 border border-[var(--border-glass)] backdrop-blur-sm"
@@ -167,7 +167,7 @@ export default function ContactsPage() {
           <ArrowLeft className="w-4 h-4" strokeWidth={2} />
         </Link>
         
-        <div className="flex items-center gap-2 mr-4">
+        <div className="flex items-center gap-2 mr-2 md:mr-4">
           <User className="w-4 h-4 text-[var(--text-secondary)]" />
           <span className="font-medium text-sm">Контакты</span>
           <span className="text-xs text-[var(--text-muted)]">({filteredContacts.length})</span>
@@ -180,7 +180,7 @@ export default function ContactsPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Поиск по имени, email, должности, отделу..."
-            className="w-full pl-3 pr-3 py-1.5 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] text-xs placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+            className="w-full pl-2 md:pl-3 pr-2 md:pr-3 py-1.5 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] text-xs placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
           />
         </div>
         
@@ -191,29 +191,29 @@ export default function ContactsPage() {
       </header>
 
       {/* Main Content - только один скролл */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-3">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-3">
         <div className="max-w-6xl mx-auto">
 
         {/* Contacts grouped by department */}
-        <div className="space-y-6 pb-4">
+        <div className="space-y-4 md:space-y-6 pb-4">
           {sortedDepartments.map(department => (
             <div key={department} className="space-y-2">
               {/* Department Header */}
-              <div className="flex items-center gap-3 px-2 py-2 sticky top-0 bg-[var(--bg-primary)] z-10">
+              <div className="flex items-center gap-2 md:gap-3 px-1 md:px-2 py-1.5 md:py-2 sticky top-0 bg-[var(--bg-primary)] z-10">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-purple-500/30 flex items-center justify-center">
-                    <Shield className="w-4 h-4 text-purple-400" />
+                  <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-purple-500/30 flex items-center justify-center">
+                    <Shield className="w-3.5 h-3.5 md:w-4 md:h-4 text-purple-400" />
                   </div>
                   <div>
-                    <h2 className="font-semibold text-sm text-[var(--text-primary)]">{department}</h2>
-                    <p className="text-[10px] text-[var(--text-muted)]">{contactsByDepartment[department].length} сотрудник{contactsByDepartment[department].length === 1 ? '' : contactsByDepartment[department].length < 5 ? 'а' : 'ов'}</p>
+                    <h2 className="font-semibold text-xs md:text-sm text-[var(--text-primary)]">{department}</h2>
+                    <p className="text-[9px] md:text-[10px] text-[var(--text-muted)]">{contactsByDepartment[department].length} сотрудник{contactsByDepartment[department].length === 1 ? '' : contactsByDepartment[department].length < 5 ? 'а' : 'ов'}</p>
                   </div>
                 </div>
                 <div className="flex-1 h-px bg-gradient-to-r from-[var(--border-color)] to-transparent"></div>
               </div>
 
               {/* Department Contacts */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 md:gap-2">
                 {contactsByDepartment[department].map(contact => (
                   <div
                     key={contact.id}
@@ -221,9 +221,9 @@ export default function ContactsPage() {
                       setViewingContact(contact);
                       setShowContactCard(true);
                     }}
-                    className="bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl p-3 hover:bg-[var(--bg-glass-hover)] transition-all group cursor-pointer"
+                    className="bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl p-2 md:p-3 hover:bg-[var(--bg-glass-hover)] transition-all group cursor-pointer"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 md:gap-3">
                       {/* Avatar */}
                       <Avatar
                         type="user"
@@ -235,23 +235,23 @@ export default function ContactsPage() {
 
                       {/* Main Info */}
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-sm truncate">
+                        <h3 className="font-medium text-xs md:text-sm truncate">
                           {contact.name || contact.username || 'Без имени'}
                         </h3>
-                        <p className="text-xs text-[var(--text-muted)] truncate">
+                        <p className="text-[10px] md:text-xs text-[var(--text-muted)] truncate">
                           {[contact.position, contact.department, contact.workSchedule].filter(Boolean).join(' · ') || 'Нет данных'}
                         </p>
                       </div>
 
                       {/* Quick Actions - всегда видны на мобильных, при наведении на десктопе */}
-                      <div className="flex gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                      <div className="flex gap-1 md:gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                         {contact.email && (
                           <a 
                             href={`mailto:${contact.email}`}
-                            className="w-8 h-8 rounded-full bg-blue-500/15 hover:bg-blue-500/25 flex items-center justify-center transition-colors border border-blue-500/20"
+                            className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-blue-500/15 hover:bg-blue-500/25 flex items-center justify-center transition-colors border border-blue-500/20"
                             title={contact.email}
                           >
-                            <Mail className="w-3.5 h-3.5 text-blue-400" />
+                            <Mail className="w-3 h-3 md:w-3.5 md:h-3.5 text-blue-400" />
                           </a>
                         )}
                         <button
@@ -299,20 +299,20 @@ export default function ContactsPage() {
                               console.error('[Contacts] Error opening chat:', error);
                             }
                           }}
-                          className="w-8 h-8 rounded-full bg-purple-500/15 hover:bg-purple-500/25 flex items-center justify-center transition-colors border border-purple-500/20"
+                          className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-purple-500/15 hover:bg-purple-500/25 flex items-center justify-center transition-colors border border-purple-500/20"
                           title="Написать сообщение"
                         >
-                          <MessageCircle className="w-3.5 h-3.5 text-purple-400" />
+                          <MessageCircle className="w-3 h-3 md:w-3.5 md:h-3.5 text-purple-400" />
                         </button>
                         <button
                           onClick={() => {
                             setSelectedContact(contact);
                             setShowListModal(true);
                           }}
-                          className="w-8 h-8 rounded-full bg-green-500/15 hover:bg-green-500/25 flex items-center justify-center transition-colors border border-green-500/20"
+                          className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-green-500/15 hover:bg-green-500/25 flex items-center justify-center transition-colors border border-green-500/20"
                           title="Поставить задачу"
                         >
-                          <CheckSquare className="w-3.5 h-3.5 text-green-400" />
+                          <CheckSquare className="w-3 h-3 md:w-3.5 md:h-3.5 text-green-400" />
                         </button>
                       </div>
                     </div>
