@@ -36,6 +36,14 @@ interface Message {
   isSystemMessage?: boolean;
   linkedChatId?: string;
   linkedMessageId?: string;
+  linkedTaskId?: string;
+  linkedPostId?: string;
+  notificationType?: string;
+  metadata?: {
+    taskTitle?: string;
+    postTitle?: string;
+    fromUserName?: string;
+  };
 }
 
 interface Chat {
@@ -2229,7 +2237,7 @@ export default function MessagesPage() {
           <div className="flex-1 min-h-0 flex flex-col relative bg-transparent">
           {/* Chat header */}
           <div 
-            className="absolute top-2 left-2 right-2 z-20 h-[56px] md:h-12 border border-white/20 md:border-[var(--border-color)] rounded-[50px] flex items-center px-3 md:px-4 py-[10px] gap-2 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.2)] md:relative md:top-0 md:left-0 md:right-0 md:mx-2 md:mt-2 backdrop-blur-xl !bg-white/15 dark:!bg-black/15"
+            className={`absolute top-2 left-2 right-2 z-20 h-[56px] md:h-12 border border-white/20 md:border-[var(--border-color)] rounded-[50px] flex items-center px-3 md:px-4 py-[10px] gap-2 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.2)] md:relative md:top-0 md:left-0 md:right-0 md:mx-2 md:mt-2 ${isSelectionMode ? '' : 'backdrop-blur-xl !bg-white/15 dark:!bg-black/15'}`}
           >
             {isSelectionMode ? (
               <>
@@ -2474,6 +2482,32 @@ export default function MessagesPage() {
             </>
             )}
           </div>
+
+          {/* Кнопка копирования под хедером - только в режиме выбора и если выбрано 1 сообщение */}
+          {isSelectionMode && selectedMessages.size === 1 && (() => {
+            const selectedMessage = messages.find(m => selectedMessages.has(m.id));
+            return selectedMessage?.content && (
+              <div className="mx-2 mt-14 md:mt-2 flex justify-center z-30">
+                <button
+                  onClick={() => {
+                    if (selectedMessage) {
+                      navigator.clipboard.writeText(selectedMessage.content);
+                      setIsSelectionMode(false);
+                      setSelectedMessages(new Set());
+                    }
+                  }}
+                  className="px-4 py-2 rounded-full border border-green-500/30 hover:bg-green-500/10 flex items-center justify-center gap-2 transition-all shadow-lg"
+                  title="Копировать текст"
+                  style={{ borderRadius: '50px' }}
+                >
+                  <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-sm font-medium text-green-400">Копировать текст</span>
+                </button>
+              </div>
+            );
+          })()}
           
           {/* Message Search Bar */}
           {showMessageSearch && (
@@ -2679,14 +2713,14 @@ export default function MessagesPage() {
                               </button>
                             )}
                             {att.type === 'file' && (
-                              <div className="inline-flex flex-col items-start gap-1 px-3 py-2 bg-orange-500/10 dark:bg-orange-500/10 rounded-xl border-2 border-orange-500/50 dark:border-orange-500/30">
-                                <span className="text-[10px] text-orange-600 dark:text-orange-400/70">Файл</span>
-                                <div className="flex items-center gap-2">
-                                  <div className="w-8 h-8 rounded-lg bg-orange-500/20 dark:bg-orange-500/20 flex items-center justify-center flex-shrink-0">
-                                    <File className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                              <div className="inline-flex flex-col items-start gap-1 px-2 py-1.5 bg-orange-500/10 dark:bg-orange-500/10 rounded-xl border-2 border-orange-500/50 dark:border-orange-500/30 max-w-[200px] md:max-w-[280px]">
+                                <span className="text-[9px] text-orange-600 dark:text-orange-400/70">Файл</span>
+                                <div className="flex items-center gap-1.5 w-full min-w-0">
+                                  <div className="w-6 h-6 rounded-lg bg-orange-500/20 dark:bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                                    <File className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
                                   </div>
-                                  <span className="text-sm font-medium text-[var(--text-primary)] truncate max-w-[160px] md:max-w-[240px]">{att.name}</span>
-                                  <button className="text-xs font-medium text-orange-600 dark:text-orange-400 hover:text-orange-500 dark:hover:text-orange-300 flex-shrink-0">
+                                  <span className="text-xs font-medium text-[var(--text-primary)] truncate flex-1 min-w-0">{att.name}</span>
+                                  <button className="text-[10px] font-medium text-orange-600 dark:text-orange-400 hover:text-orange-500 dark:hover:text-orange-300 flex-shrink-0">
                                     Скачать
                                   </button>
                                 </div>
@@ -2827,25 +2861,45 @@ export default function MessagesPage() {
                                     </span>
                                   </div>
                                 ) : (
-                                  <span className="inline">
-                                    <span
-                                      className={`${isMyMessage ? myBubbleTextClass : 'text-[var(--text-primary)]'} whitespace-pre-wrap break-all [overflow-wrap:anywhere] ${isEditing ? 'bg-blue-500/10 -mx-2 -my-1 px-2 py-1 rounded border border-blue-400/30' : ''}`}
-                                      style={fontSizeStyle}
-                                      dangerouslySetInnerHTML={{
-                                        __html: formatMessageText(message.content)
-                                          .replace(
-                                            /(https?:\/\/[^\s<>"']+)/gi,
-                                            `<a href="$1" target="_blank" rel="noopener noreferrer" class="${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-700 hover:text-gray-900' : 'text-white/80 hover:text-white') : 'text-blue-400 hover:text-blue-300'} underline">$1</a>`
-                                          )
-                                          .replace(
-                                            /@([a-zA-Zа-яА-ЯёЁ0-9_]+(?:\s+[a-zA-Zа-яА-ЯёЁ0-9_]+)?)/g,
-                                            `<span class="${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-900 font-medium' : 'text-white font-medium') : 'text-blue-400 font-medium'}">@$1</span>`
-                                          )
+                              <>
+                                <span className="inline">
+                                  <span
+                                    className={`${isMyMessage ? myBubbleTextClass : 'text-[var(--text-primary)]'} whitespace-pre-wrap [overflow-wrap:anywhere] ${isEditing ? 'bg-blue-500/10 -mx-2 -my-1 px-2 py-1 rounded border border-blue-400/30' : ''}`}
+                                    style={fontSizeStyle}
+                                    dangerouslySetInnerHTML={{
+                                      __html: formatMessageText(message.content)
+                                        .replace(
+                                          /(https?:\/\/[^\s<>"']+)/gi,
+                                          `<a href="$1" target="_blank" rel="noopener noreferrer" class="${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-700 hover:text-gray-900' : 'text-white/80 hover:text-white') : 'text-blue-400 hover:text-blue-300'} underline">$1</a>`
+                                        )
+                                        .replace(
+                                          /@([a-zA-Zа-яА-ЯёЁ0-9_]+(?:\s+[a-zA-Zа-яА-ЯёЁ0-9_]+)?)/g,
+                                          `<span class="${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-900 font-medium' : 'text-white font-medium') : 'text-blue-400 font-medium'}">@$1</span>`
+                                        )
+                                    }}
+                                  />
+                                  {/* Невидимый спейсер для времени */}
+                                  <span className="inline-block w-[80px] md:w-[90px]">&nbsp;</span>
+                                </span>
+
+                                {/* Кнопка перехода к задаче/публикации в уведомлениях */}
+                                {message.isSystemMessage && (message.linkedTaskId || message.linkedPostId) && (
+                                  <div className="mt-3 mb-1">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (message.linkedTaskId) {
+                                          window.location.href = `/todos?task=${message.linkedTaskId}`;
+                                        } else if (message.linkedPostId) {
+                                          window.location.href = `/content-plan?post=${message.linkedPostId}`;
+                                        }
                                       }}
-                                    />
-                                    {/* Невидимый спейсер для времени */}
-                                    <span className="inline-block w-[80px] md:w-[90px]">&nbsp;</span>
-                                  </span>
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-600 dark:text-blue-400 text-xs font-medium transition-colors"
+                                    >
+                                      <CheckSquare className="w-3.5 h-3.5" />
+                                      {message.linkedTaskId ? 'Открыть задачу' : 'Открыть публикацию'}
+                                    </button>
+                                  </div>
                                 )}
 
                                 {/* Предпросмотр изображений и ссылок из текста */}
@@ -2944,14 +2998,14 @@ export default function MessagesPage() {
                                       </button>
                                     )}
                                     {att.type === 'file' && (
-                                      <div className="w-full flex flex-col items-start gap-1 px-3 py-2 bg-orange-500/10 dark:bg-orange-500/10 rounded-xl border-2 border-orange-500/50 dark:border-orange-500/30">
-                                        <span className="text-[10px] text-orange-600 dark:text-orange-400/70">Файл</span>
-                                        <div className="flex items-center gap-2">
-                                          <div className="w-8 h-8 rounded-lg bg-orange-500/20 dark:bg-orange-500/20 flex items-center justify-center flex-shrink-0">
-                                            <File className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                                      <div className="w-full flex flex-col items-start gap-1 px-2 py-1.5 bg-orange-500/10 dark:bg-orange-500/10 rounded-xl border-2 border-orange-500/50 dark:border-orange-500/30 max-w-[200px] md:max-w-[280px]">
+                                        <span className="text-[9px] text-orange-600 dark:text-orange-400/70">Файл</span>
+                                        <div className="flex items-center gap-1.5 w-full min-w-0">
+                                          <div className="w-6 h-6 rounded-lg bg-orange-500/20 dark:bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                                            <File className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
                                           </div>
-                                          <span className="text-sm font-medium text-[var(--text-primary)] truncate flex-1">{att.name}</span>
-                                          <button className="text-xs font-medium text-orange-600 dark:text-orange-400 hover:text-orange-500 dark:hover:text-orange-300 flex-shrink-0">
+                                          <span className="text-xs font-medium text-[var(--text-primary)] truncate flex-1 min-w-0">{att.name}</span>
+                                          <button className="text-[10px] font-medium text-orange-600 dark:text-orange-400 hover:text-orange-500 dark:hover:text-orange-300 flex-shrink-0">
                                             Скачать
                                           </button>
                                         </div>
@@ -2994,28 +3048,29 @@ export default function MessagesPage() {
                               </div>
                             )}
                             
-                                {/* Время и галочки - только для сообщений БЕЗ вложений */}
-                                {!hasOnlyImages && !isOnlyEmojis && !hasAttachments && (
-                                    <span className="absolute bottom-0.5 right-2 flex items-center gap-0.5 select-none pointer-events-auto">
-                                      <span className={`text-[9px] md:text-[11px] select-none ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80') : 'text-[var(--text-muted)]'}`}>
-                                        {new Date(message.createdAt).toLocaleTimeString('ru-RU', {
-                                          hour: '2-digit',
-                                          minute: '2-digit'
-                                        })}
-                                        {message.isEdited && <span className="ml-1">(изм.)</span>}
-                                      </span>
-                                      {isMyMessage && !message.isDeleted && (
-                                        <Check className={`w-2.5 h-2.5 md:w-3.5 md:h-3.5 ${useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80'}`} />
-                                      )}
-                                    </span>
-                                )}
-                              </>
+                            {/* Время и галочки - только для сообщений БЕЗ вложений */}
+                            {!hasOnlyImages && !isOnlyEmojis && !hasAttachments && (
+                                <span className="absolute bottom-0.5 right-2 flex items-center gap-0.5 select-none pointer-events-auto">
+                                  <span className={`text-[9px] md:text-[11px] select-none ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80') : 'text-[var(--text-muted)]'}`}>
+                                    {new Date(message.createdAt).toLocaleTimeString('ru-RU', {
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                    {message.isEdited && <span className="ml-1">(изм.)</span>}
+                                  </span>
+                                  {isMyMessage && !message.isDeleted && (
+                                    <Check className={`w-2.5 h-2.5 md:w-3.5 md:h-3.5 ${useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80'}`} />
+                                  )}
+                                </span>
                             )}
-                          </div>
-
-                        </>
-                        );
-                      })()}
+                          </>
+                        )}
+                      </>
+                      )}
+                      </div>
+                    </>
+                    );
+                  })()}
 
                     </div>
                   </div>
@@ -3321,21 +3376,24 @@ export default function MessagesPage() {
                         // Ctrl+Enter или Shift+Enter - перенос строки
                         e.preventDefault();
                         const target = e.target as HTMLTextAreaElement;
-                        const start = target.selectionStart;
-                        const end = target.selectionEnd;
+                        const start = target.selectionStart || 0;
+                        const end = target.selectionEnd || 0;
                         const value = target.value;
                         const newValue = value.substring(0, start) + '\n' + value.substring(end);
+                        target.value = newValue;
                         setNewMessage(newValue);
                         // Устанавливаем курсор после переноса
-                        setTimeout(() => {
-                          target.selectionStart = target.selectionEnd = start + 1;
+                        requestAnimationFrame(() => {
+                          target.selectionStart = start + 1;
+                          target.selectionEnd = start + 1;
+                          target.focus();
                           // Обновляем высоту
                           target.style.height = 'auto';
                           const lineHeight = 20;
                           const maxHeight = lineHeight * 6;
                           const newHeight = Math.min(target.scrollHeight, maxHeight);
                           target.style.height = newHeight + 'px';
-                        }, 0);
+                        });
                       } else {
                         // Enter - отправка или сохранение
                         e.preventDefault();
@@ -3365,6 +3423,52 @@ export default function MessagesPage() {
                     e.currentTarget.style.borderColor = 'rgb(59, 130, 246)';
                     e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
                   }}
+                  onPaste={async (e) => {
+                    // Универсальная обработка вставки: файлы и изображения из буфера
+                    const items = e.clipboardData?.items;
+                    if (!items) return;
+
+                    const files: File[] = [];
+                    for (let i = 0; i < items.length; i++) {
+                      const item = items[i];
+                      // Поддерживаем как item.kind === 'file', так и image-type
+                      if (item.kind === 'file') {
+                        const file = item.getAsFile();
+                        if (file) files.push(file);
+                      } else if (item.type && item.type.indexOf('image') !== -1) {
+                        const file = item.getAsFile();
+                        if (file) files.push(file);
+                      }
+                    }
+
+                    if (files.length === 0) return;
+                    e.preventDefault();
+
+                    // Загружаем каждый файл на сервер и добавляем в attachments
+                    for (const file of files) {
+                      const formData = new FormData();
+                      formData.append('file', file, file.name || 'pasted-image');
+                      try {
+                        const uploadRes = await fetch('/api/upload', {
+                          method: 'POST',
+                          body: formData
+                        });
+
+                        if (uploadRes.ok) {
+                          const uploadData = await uploadRes.json();
+                          setAttachments(prev => [...prev, {
+                            type: file.type.startsWith('image/') ? 'image' : 'file',
+                            name: file.name || (file.type.startsWith('image/') ? 'pasted-image' : 'file'),
+                            url: uploadData.url
+                          }]);
+                        } else {
+                          console.error('Upload failed for pasted file');
+                        }
+                      } catch (error) {
+                        console.error('Error uploading pasted file:', error);
+                      }
+                    }
+                  }}
                   onDragLeave={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -3391,24 +3495,7 @@ export default function MessagesPage() {
                       }
                     }
                   }}
-                  onPaste={(e) => {
-                    const items = e.clipboardData.items;
-                    for (let i = 0; i < items.length; i++) {
-                      const item = items[i];
-                      if (item.type.indexOf('image') !== -1) {
-                        e.preventDefault();
-                        const blob = item.getAsFile();
-                        if (blob) {
-                          setAttachments(prev => [...prev, {
-                            file: blob,
-                            preview: URL.createObjectURL(blob),
-                            type: 'image' as const
-                          }]);
-                        }
-                        break;
-                      }
-                    }
-                  }}
+                  
                   placeholder={selectedChat?.isNotificationsChat ? "Чат только для чтения" : editingMessageId ? "Редактируйте сообщение..." : "Сообщение..."}
                   disabled={selectedChat?.isNotificationsChat}
                   className={`w-full px-4 py-2.5 backdrop-blur-xl bg-[var(--bg-secondary)]/40 border border-white/20 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-white/30 resize-none overflow-hidden shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4),-8px_0_20px_-10px_rgba(0,0,0,0.3),8px_0_20px_-10px_rgba(0,0,0,0.3),0_8px_25px_-8px_rgba(0,0,0,0.4)] disabled:opacity-50 disabled:cursor-not-allowed ${(replyToMessage && !editingMessageId) || editingMessageId ? 'rounded-b-[22px] rounded-t-none border-t-0' : 'rounded-[22px]'}`}
@@ -4489,7 +4576,7 @@ export default function MessagesPage() {
                             {link.title && (
                               <p className="text-xs font-medium text-[var(--text-primary)] mb-0.5">{link.title}</p>
                             )}
-                            <p className="text-[10px] text-[var(--text-muted)] break-all line-clamp-1">{link.url}</p>
+                            <p className="text-[10px] text-[var(--text-muted)] reak-all line-clamp-1">{link.url}</p>
                             {link.description && (
                               <p className="text-[10px] text-[var(--text-secondary)] mt-1 line-clamp-2">{link.description}</p>
                             )}
@@ -4987,46 +5074,119 @@ export default function MessagesPage() {
             setImageZoom(1);
           }}
         >
-          <button
-            onClick={() => {
-              setShowImageModal(false);
-              setImageZoom(1);
-            }}
-            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all z-10"
-          >
-            <X className="w-6 h-6 text-white" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              const link = document.createElement('a');
-              link.href = currentImageUrl;
-              link.download = 'image.jpg';
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            }}
-            className="absolute top-4 right-16 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all z-10"
-            title="Скачать"
-          >
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-          </button>
-          
-          {/* Zoom controls */}
-          <div className="absolute top-4 left-4 flex gap-2 z-10">
+          {/* Header с кнопками - десктоп версия */}
+          <div className="hidden md:flex absolute top-4 left-4 right-4 items-center justify-between z-10">
+            {/* Zoom controls - слева */}
+            <div className="flex gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setImageZoom(prev => Math.max(0.5, prev - 0.25));
+                }}
+                className="w-10 h-10 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all"
+                title="Уменьшить"
+              >
+                <span className="text-cyan-400 text-xl font-bold">−</span>
+              </button>
+              <div className="px-3 h-10 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-sm font-medium min-w-[60px]">
+                {Math.round(imageZoom * 100)}%
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setImageZoom(prev => Math.min(3, prev + 0.25));
+                }}
+                className="w-10 h-10 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all"
+                title="Увеличить"
+              >
+                <span className="text-cyan-400 text-xl font-bold">+</span>
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setImageZoom(1);
+                }}
+                className="px-3 h-10 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all text-cyan-400 text-sm"
+                title="Сбросить"
+              >
+                100%
+              </button>
+            </div>
+            
+            {/* Кнопки справа */}
+            <div className="flex gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const link = document.createElement('a');
+                  link.href = currentImageUrl;
+                  link.download = 'image.jpg';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}
+                className="w-10 h-10 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all"
+                title="Скачать"
+              >
+                <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </button>
+              <button
+                onClick={() => {
+                  setShowImageModal(false);
+                  setImageZoom(1);
+                }}
+                className="w-10 h-10 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all"
+              >
+                <X className="w-6 h-6 text-cyan-400" />
+              </button>
+            </div>
+          </div>
+
+          {/* Мобильная версия - кнопки НАД хедером (z-10 выше) */}
+          <div className="md:hidden flex flex-col gap-2 absolute top-2 right-2 z-10">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const link = document.createElement('a');
+                link.href = currentImageUrl;
+                link.download = 'image.jpg';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}
+              className="w-12 h-12 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all backdrop-blur-sm"
+              title="Скачать"
+            >
+              <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </button>
+            <button
+              onClick={() => {
+                setShowImageModal(false);
+                setImageZoom(1);
+              }}
+              className="w-12 h-12 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all backdrop-blur-sm"
+            >
+              <X className="w-6 h-6 text-cyan-400" />
+            </button>
+          </div>
+
+          {/* Мобильная версия - zoom controls внизу */}
+          <div className="md:hidden absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 setImageZoom(prev => Math.max(0.5, prev - 0.25));
               }}
-              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
+              className="w-12 h-12 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all backdrop-blur-sm"
               title="Уменьшить"
             >
-              <span className="text-white text-xl font-bold">−</span>
+              <span className="text-cyan-400 text-xl font-bold">−</span>
             </button>
-            <div className="px-3 h-10 rounded-full bg-white/10 flex items-center justify-center text-white text-sm font-medium min-w-[60px]">
+            <div className="px-3 h-12 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-sm font-medium min-w-[60px] backdrop-blur-sm">
               {Math.round(imageZoom * 100)}%
             </div>
             <button
@@ -5034,17 +5194,17 @@ export default function MessagesPage() {
                 e.stopPropagation();
                 setImageZoom(prev => Math.min(3, prev + 0.25));
               }}
-              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
+              className="w-12 h-12 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all backdrop-blur-sm"
               title="Увеличить"
             >
-              <span className="text-white text-xl font-bold">+</span>
+              <span className="text-cyan-400 text-xl font-bold">+</span>
             </button>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 setImageZoom(1);
               }}
-              className="px-3 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all text-white text-sm"
+              className="px-3 h-12 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all text-cyan-400 text-sm backdrop-blur-sm"
               title="Сбросить"
             >
               100%

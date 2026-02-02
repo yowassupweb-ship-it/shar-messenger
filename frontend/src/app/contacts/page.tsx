@@ -149,6 +149,19 @@ export default function ContactsPage() {
     return a.localeCompare(b, 'ru');
   });
 
+  // Функция для получения цвета фона отдела
+  const getDepartmentColor = (index: number) => {
+    const colors = [
+      'bg-gradient-to-br from-purple-500/5 to-blue-500/5 border-purple-500/20',
+      'bg-gradient-to-br from-blue-500/5 to-cyan-500/5 border-blue-500/20',
+      'bg-gradient-to-br from-green-500/5 to-emerald-500/5 border-green-500/20',
+      'bg-gradient-to-br from-orange-500/5 to-red-500/5 border-orange-500/20',
+      'bg-gradient-to-br from-pink-500/5 to-purple-500/5 border-pink-500/20',
+      'bg-gradient-to-br from-yellow-500/5 to-orange-500/5 border-yellow-500/20',
+    ];
+    return colors[index % colors.length];
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
@@ -198,10 +211,10 @@ export default function ContactsPage() {
 
         {/* Contacts grouped by department */}
         <div className="space-y-4 md:space-y-6 pb-4">
-          {sortedDepartments.map(department => (
-            <div key={department} className="space-y-2">
+          {sortedDepartments.map((department, index) => (
+            <div key={department} className={`rounded-xl border p-3 md:p-4 ${getDepartmentColor(index)}`}>
               {/* Department Header */}
-              <div className="flex items-center gap-2 md:gap-3 px-1 md:px-2 py-1.5 md:py-2 sticky top-0 bg-[var(--bg-primary)] z-10">
+              <div className="flex items-center gap-2 md:gap-3 px-1 md:px-2 py-1.5 md:py-2 mb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-purple-500/30 flex items-center justify-center">
                     <Shield className="w-3.5 h-3.5 md:w-4 md:h-4 text-purple-400" />
@@ -241,8 +254,22 @@ export default function ContactsPage() {
                           {contact.name || contact.username || 'Без имени'}
                         </h3>
                         <p className="text-[10px] md:text-xs text-[var(--text-muted)] truncate">
-                          {[contact.position, contact.department, contact.workSchedule].filter(Boolean).join(' · ') || 'Нет данных'}
+                          {contact.position || 'Должность не указана'}
                         </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {contact.phone && (
+                            <div className="flex items-center gap-1">
+                              <Phone className="w-2.5 h-2.5 md:w-3 md:h-3 text-blue-400" />
+                              <span className="text-[9px] md:text-[10px] text-blue-400">{contact.phone}</span>
+                            </div>
+                          )}
+                          {contact.workSchedule && (
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-2.5 h-2.5 md:w-3 md:h-3 text-orange-400" />
+                              <span className="text-[9px] md:text-[10px] text-orange-400">{contact.workSchedule}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       {/* Quick Actions - всегда видны на мобильных, при наведении на десктопе */}

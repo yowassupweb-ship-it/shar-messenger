@@ -3024,7 +3024,13 @@ export default function TodosPage() {
                     </div>
                     <div className="flex items-center gap-0.5 pointer-events-auto">
                       <button
-                        onClick={() => setAddingToList(list.id)}
+                        onClick={() => {
+                          setAddingToList(list.id);
+                          // Устанавливаем предустановленного исполнителя из настроек столбца
+                          if (list.defaultExecutorId) {
+                            setNewTodoAssigneeId(list.defaultExecutorId);
+                          }
+                        }}
                         className="flex-shrink-0 w-7 h-7 bg-[var(--bg-glass)] hover:bg-green-500/30 rounded-full transition-all duration-200 text-green-400 flex items-center justify-center border border-[var(--border-glass)] backdrop-blur-sm"
                         title="Добавить задачу"
                       >
@@ -3757,7 +3763,7 @@ export default function TodosPage() {
                       <textarea
                         value={editingTodo.reviewComment || ''}
                         onChange={(e) => setEditingTodo({ ...editingTodo, reviewComment: e.target.value })}
-                        className="no-mobile-scale w-full px-3 py-2.5 bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-xl text-sm focus:outline-none focus:border-blue-500/50 transition-all text-gray-700 dark:text-[var(--text-secondary)] placeholder-gray-400 dark:placeholder-white/30 resize-none"
+                        className="no-mobile-scale w-full px-3 py-2.5 bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-xl text-sm focus:outline-none focus:border-blue-500/50 transition-all text-gray-700 dark:text-[var(--text-secondary)] placeholder-gray-400 dark:placeholder-white/30 resize-none whitespace-pre-wrap break-words"
                         placeholder="Комментарий или замечания..."
                         rows={2}
                       />
@@ -4525,7 +4531,7 @@ export default function TodosPage() {
                     value={editingTodo?.description || ''}
                     onChange={(e) => setEditingTodo(prev => prev ? { ...prev, description: e.target.value } : null)}
                     placeholder="Добавьте описание задачи..."
-                    className="w-full flex-1 min-h-[150px] px-2 sm:px-3 py-2 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl text-sm text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 focus:outline-none focus:border-blue-500/30 transition-all resize-none"
+                    className="w-full flex-1 min-h-[150px] px-2 sm:px-3 py-2 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl text-sm text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 focus:outline-none focus:border-blue-500/30 transition-all resize-none whitespace-pre-wrap break-words"
                     onDragOver={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -4631,7 +4637,11 @@ export default function TodosPage() {
                         {editingTodo.attachments.length}
                       </span>
                     )}
-                    <label className="ml-auto cursor-pointer">
+                    <label className="ml-auto cursor-pointer px-2 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg text-xs transition-colors flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span>Добавить</span>
                       <input
                         type="file"
                         multiple
@@ -4640,6 +4650,12 @@ export default function TodosPage() {
                         onChange={async (e) => {
                           const files = e.target.files;
                           if (files && files.length > 0) {
+                            // Показываем индикатор загрузки
+                            const loadingToast = document.createElement('div');
+                            loadingToast.className = 'fixed top-4 right-4 bg-blue-500/20 border border-blue-500/30 text-blue-400 px-4 py-2 rounded-lg text-sm z-50';
+                            loadingToast.textContent = `Загрузка ${files.length} файл${files.length === 1 ? 'а' : 'ов'}...`;
+                            document.body.appendChild(loadingToast);
+                            
                             // Загружаем файлы на сервер
                             const uploadPromises = Array.from(files).map(async (file) => {
                               const formData = new FormData();
@@ -4671,7 +4687,14 @@ export default function TodosPage() {
                               }
                             });
                             
-                            const uploadedAttachments = (await Promise.all(uploadPromises)).filter(Boolean);
+                            const uploadedAttachments = (await Promise.all(uploadPromises)).filter(Boolean) as Attachment[];
+                            
+                            // Обновляем индикатор загрузки
+                            if (loadingToast) {
+                              loadingToast.textContent = `✓ Загружено ${uploadedAttachments.length} файл${uploadedAttachments.length === 1 ? '' : uploadedAttachments.length < 5 ? 'а' : 'ов'}`;
+                              loadingToast.className = 'fixed top-4 right-4 bg-green-500/20 border border-green-500/30 text-green-400 px-4 py-2 rounded-lg text-sm z-50';
+                              setTimeout(() => loadingToast.remove(), 2000);
+                            }
                             
                             if (uploadedAttachments.length > 0) {
                               setEditingTodo(prev => prev ? {
@@ -4696,12 +4719,12 @@ export default function TodosPage() {
                             href={att.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-lg hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] transition-colors"
+                            className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-lg hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] transition-colors w-[120px]"
                           >
-                            <svg className="w-4 h-4 text-gray-500 dark:text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-4 h-4 text-gray-500 dark:text-white/70 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                             </svg>
-                            <span className="text-[10px] text-gray-700 dark:text-[var(--text-secondary)] max-w-[80px] truncate">{att.name}</span>
+                            <span className="text-[10px] text-gray-700 dark:text-[var(--text-secondary)] truncate flex-1 min-w-0">{att.name}</span>
                           </a>
                           <button
                             onClick={() => {
@@ -4803,7 +4826,7 @@ export default function TodosPage() {
                                     <textarea
                                       value={editingCommentText}
                                       onChange={(e) => setEditingCommentText(e.target.value)}
-                                      className="w-full px-2 py-1 bg-[var(--bg-glass-hover)] border border-[var(--border-light)] rounded text-xs text-[var(--text-primary)] resize-none focus:outline-none"
+                                      className="w-full px-2 py-1 bg-[var(--bg-glass-hover)] border border-[var(--border-light)] rounded text-xs text-[var(--text-primary)] resize-none focus:outline-none whitespace-pre-wrap break-words"
                                       rows={2}
                                       autoFocus
                                     />
@@ -4981,7 +5004,25 @@ export default function TodosPage() {
                           }
                         }}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
+                          // Ctrl+Enter - перенос строки
+                          if (e.key === 'Enter' && e.ctrlKey) {
+                            e.preventDefault();
+                            const textarea = e.currentTarget;
+                            const start = textarea.selectionStart || 0;
+                            const end = textarea.selectionEnd || 0;
+                            const value = textarea.value;
+                            const newValue = value.substring(0, start) + '\n' + value.substring(end);
+                            setNewComment(newValue);
+                            // Устанавливаем курсор после переноса
+                            requestAnimationFrame(() => {
+                              textarea.selectionStart = start + 1;
+                              textarea.selectionEnd = start + 1;
+                              textarea.focus();
+                            });
+                            return;
+                          }
+                          // Enter без Ctrl - отправка
+                          if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
                             e.preventDefault();
                             if (newComment.trim()) {
                               addComment(editingTodo.id, newComment);
@@ -4994,7 +5035,7 @@ export default function TodosPage() {
                           }
                         }}
                         placeholder="Написать... (@упомянуть)"
-                        className="w-full px-3 py-2 pr-12 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl text-xs text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 resize-none focus:outline-none focus:border-blue-500/30 transition-all"
+                        className="w-full px-3 py-2 pr-12 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl text-xs text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 resize-none focus:outline-none focus:border-blue-500/30 transition-all whitespace-pre-wrap break-words"
                         rows={1}
                         style={{
                           minHeight: '40px',

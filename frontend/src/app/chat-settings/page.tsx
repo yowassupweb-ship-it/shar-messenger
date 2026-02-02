@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Type, MessageSquare, Palette, Check, User, LogOut, Sun, Moon, ChevronRight, Bell } from 'lucide-react';
+import { ArrowLeft, Type, MessageSquare, Palette, Check, User, LogOut, Sun, Moon, ChevronRight, Bell, Phone, Calendar, Briefcase } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import Avatar from '@/components/Avatar';
 import AvatarUpload from '@/components/AvatarUpload';
@@ -94,6 +94,14 @@ export default function ChatSettingsPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [notifications, setNotifications] = useState(true);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editForm, setEditForm] = useState({
+    personalPhone: '',
+    workPhone: '',
+    workSchedule: '',
+    position: '',
+    department: ''
+  });
   
   const [chatSettings, setChatSettings] = useState({
     bubbleStyle: 'modern' as 'modern' | 'classic' | 'minimal',
@@ -114,6 +122,13 @@ export default function ChatSettingsPage() {
           if (res.ok) {
             const user = await res.json();
             setCurrentUser(user);
+            setEditForm({
+              personalPhone: user.personalPhone || '',
+              workPhone: user.phone || '',
+              workSchedule: user.workSchedule || '',
+              position: user.position || '',
+              department: user.department || ''
+            });
             if (user.chatSettings) {
               setChatSettings(prev => ({ ...prev, ...user.chatSettings }));
               return;
@@ -171,6 +186,38 @@ export default function ChatSettingsPage() {
       return COLOR_PRESETS[chatSettings.colorPreset].name;
     }
     return 'Свой цвет';
+  };
+
+  const saveProfile = async () => {
+    try {
+      const myAccountStr = localStorage.getItem('myAccount');
+      if (!myAccountStr) return;
+      
+      const myAccount = JSON.parse(myAccountStr);
+      const res = await fetch(`/api/users/${myAccount.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          personalPhone: editForm.personalPhone,
+          phone: editForm.workPhone,
+          workSchedule: editForm.workSchedule,
+          position: editForm.position,
+          department: editForm.department
+        })
+      });
+      
+      if (res.ok) {
+        const updatedUser = await res.json();
+        setCurrentUser(updatedUser);
+        // Обновляем myAccount в localStorage
+        const updatedAccount = { ...myAccount, ...updatedUser };
+        localStorage.setItem('myAccount', JSON.stringify(updatedAccount));
+        setIsEditingProfile(false);
+      }
+    } catch (error) {
+      console.error('Failed to save profile:', error);
+      alert('Ошибка при сохранении профиля');
+    }
   };
 
   return (
@@ -233,6 +280,146 @@ export default function ChatSettingsPage() {
                 </div>
               </div>
             </div>
+          </Section>
+
+          {/* Контактная информация */}
+          <Section title="Контактная информация">
+            {!isEditingProfile ? (
+              <>
+                {(currentUser?.personalPhone || currentUser?.phone || currentUser?.workSchedule || currentUser?.position || currentUser?.department) ? (
+                  <>
+                    {currentUser.personalPhone && (
+                      <Row
+                        icon={<Phone className="w-4 h-4 text-white" />}
+                        iconBg="bg-[#34c759]"
+                        label="Личный телефон"
+                        value={currentUser.personalPhone}
+                      />
+                    )}
+                    {currentUser.phone && (
+                      <Row
+                        icon={<Phone className="w-4 h-4 text-white" />}
+                        iconBg="bg-[#007aff]"
+                        label="Рабочий телефон"
+                        value={currentUser.phone}
+                      />
+                    )}
+                    {currentUser.workSchedule && (
+                      <Row
+                        icon={<Calendar className="w-4 h-4 text-white" />}
+                        iconBg="bg-[#ff9500]"
+                        label="График работы"
+                        value={currentUser.workSchedule}
+                      />
+                    )}
+                    {currentUser.position && (
+                      <Row
+                        icon={<Briefcase className="w-4 h-4 text-white" />}
+                        iconBg="bg-[#5856d6]"
+                        label="Должность"
+                        value={currentUser.position}
+                      />
+                    )}
+                    {currentUser.department && (
+                      <Row
+                        icon={<Briefcase className="w-4 h-4 text-white" />}
+                        iconBg="bg-[#af52de]"
+                        label="Отдел"
+                        value={currentUser.department}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <div className="px-4 py-6 text-center text-[#8e8e93]">
+                    <p className="text-sm">Контактная информация не заполнена</p>
+                  </div>
+                )}
+                <div className="px-4 py-3 border-t border-[#c6c6c8]/30 dark:border-[#38383a]">
+                  <button
+                    onClick={() => setIsEditingProfile(true)}
+                    className="w-full py-2.5 bg-[#007aff] hover:bg-[#0051d5] text-white rounded-xl font-medium transition-colors"
+                  >
+                    Редактировать
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="p-4 space-y-3">
+                <div>
+                  <label className="block text-xs text-[#8e8e93] mb-1.5">Личный телефон</label>
+                  <input
+                    type="tel"
+                    value={editForm.personalPhone}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, personalPhone: e.target.value }))}
+                    placeholder="+7 (999) 123-45-67"
+                    className="w-full px-3 py-2 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[#007aff]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#8e8e93] mb-1.5">Рабочий телефон</label>
+                  <input
+                    type="tel"
+                    value={editForm.workPhone}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, workPhone: e.target.value }))}
+                    placeholder="+7 (999) 123-45-67"
+                    className="w-full px-3 py-2 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[#007aff]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#8e8e93] mb-1.5">График работы</label>
+                  <input
+                    type="text"
+                    value={editForm.workSchedule}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, workSchedule: e.target.value }))}
+                    placeholder="Пн-Пт 9:00-18:00 или 2/2 12:00-00:00"
+                    className="w-full px-3 py-2 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[#007aff]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#8e8e93] mb-1.5">Должность</label>
+                  <input
+                    type="text"
+                    value={editForm.position}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, position: e.target.value }))}
+                    placeholder="Менеджер, разработчик и т.д."
+                    className="w-full px-3 py-2 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[#007aff]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#8e8e93] mb-1.5">Отдел</label>
+                  <input
+                    type="text"
+                    value={editForm.department}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, department: e.target.value }))}
+                    placeholder="IT, продажи и т.д."
+                    className="w-full px-3 py-2 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[#007aff]"
+                  />
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={saveProfile}
+                    className="flex-1 py-2.5 bg-[#34c759] hover:bg-[#2da94a] text-white rounded-xl font-medium transition-colors"
+                  >
+                    Сохранить
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsEditingProfile(false);
+                      setEditForm({
+                        personalPhone: currentUser?.personalPhone || '',
+                        workPhone: currentUser?.phone || '',
+                        workSchedule: currentUser?.workSchedule || '',
+                        position: currentUser?.position || '',
+                        department: currentUser?.department || ''
+                      });
+                    }}
+                    className="flex-1 py-2.5 bg-[#ff3b30] hover:bg-[#d62f24] text-white rounded-xl font-medium transition-colors"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            )}
           </Section>
 
           {/* Внешний вид */}

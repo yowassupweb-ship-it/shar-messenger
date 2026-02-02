@@ -1,0 +1,128 @@
+{
+  "groups": [
+    {
+      "id": "1764859857676",
+      "name": "Конкуренты",
+      "subclusters": [
+        "20251204_071749_eyfbtx/Магпут",
+        "20251204_071749_eyfbtx/Русь",
+        "20251204_071749_eyfbtx/Вокруг света",
+        "20251204_071749_eyfbtx/Бигтуртранс",
+        "20251204_071749_eyfbtx/Алеан",
+        "20251204_071749_eyfbtx/Созвездие",
+        "20251204_071749_eyfbtx/Орфей"
+      ],
+      "snapshots": [
+        {
+          "date": "2025-12-04T14:51:01.974Z",
+          "subclusterResults": [
+            {
+              "subclusterId": "20251204_071749_eyfbtx/Магпут",
+              "subclusterName": "Магпут",
+              "queriesCount": 435,
+              "filteredCount": 435,
+              "totalImpressions": 180069
+            },
+            {
+              "subclusterId": "20251204_071749_eyfbtx/Русь",
+              "subclusterName": "Русь",
+              "queriesCount": 0,
+              "filteredCount": 0,
+              "totalImpressions": 0
+            },
+            {
+              "subclusterId": "20251204_071749_eyfbtx/Вокруг света",
+              "subclusterName": "Вокруг света",
+              "queriesCount": 158,
+              "filteredCount": 158,
+              "totalImpressions": 88214
+            },
+            {
+              "subclusterId": "20251204_071749_eyfbtx/Бигтуртранс",
+              "subclusterName": "Бигтуртранс",
+              "queriesCount": 30,
+              "filteredCount": 30,
+              "totalImpressions": 4002
+            },
+            {
+              "subclusterId": "20251204_071749_eyfbtx/Алеан",
+              "subclusterName": "Алеан",
+              "queriesCount": 2000,
+              "filteredCount": 2000,
+              "totalImpressions": 1699280
+            },
+            {
+              "subclusterId": "20251204_071749_eyfbtx/Созвездие",
+              "subclusterName": "Созвездие",
+              "queriesCount": 0,
+              "filteredCount": 0,
+              "totalImpressions": 0
+            },
+            {
+              "subclusterId": "20251204_071749_eyfbtx/Орфей",
+              "subclusterName": "Орфей",
+              "queriesCount": 0,
+              "filteredCount": 0,
+              "totalImpressions": 0
+            }
+          ]
+        },
+        {
+          "date": "2025-12-04T15:01:37.991Z",
+          "subclusterResults": [
+            {
+              "subclusterId": "20251204_071749_eyfbtx/Магпут",
+              "subclusterName": "Магпут",
+              "queriesCount": 0,
+              "filteredCount": 0,
+              "totalImpressions": 0
+            },
+            {
+              "subclusterId": "20251204_071749_eyfbtx/Русь",
+              "subclusterName": "Русь",
+              "queriesCount": 0,
+              "filteredCount": 0,
+              "totalImpressions": 0
+            },
+            {
+              "subclusterId": "20251204_071749_eyfbtx/Вокруг света",
+              "subclusterName": "Вокруг света",
+              "queriesCount": 0,
+              "filteredCount": 0,
+              "totalImpressions": 0
+            },
+            {
+              "subclusterId": "20251204_071749_eyfbtx/Бигтуртранс",
+              "subclusterName": "Бигтуртранс",
+              "queriesCount": 0,
+              "filteredCount": 0,
+              "totalImpressions": 0
+            },
+            {
+              "subclusterId": "20251204_071749_eyfbtx/Алеан",
+              "subclusterName": "Алеан",
+              "queriesCount": 0,
+              "filteredCount": 0,
+              "totalImpressions": 0
+            },
+            {
+              "subclusterId": "20251204_071749_eyfbtx/Созвездие",
+              "subclusterName": "Созвездие",
+              "queriesCount": 0,
+              "filteredCount": 0,
+              "totalImpressions": 0
+            },
+            {
+              "subclusterId": "20251204_071749_eyfbtx/Орфей",
+              "subclusterName": "Орфей",
+              "queriesCount": 0,
+              "filteredCount": 0,
+              "totalImpressions": 0
+            }
+          ]
+        }
+      ],
+      "lastUpdated": "2025-12-04T15:01:37.991Z"
+    }
+  ]
+}

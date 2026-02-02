@@ -44,7 +44,12 @@ export async function sendNotificationToUser(
         content: generateNotificationContent(type, data),
         linkedTaskId: data.taskId,
         linkedPostId: data.postId,
-        notificationType: type
+        notificationType: type,
+        metadata: {
+          taskTitle: data.taskTitle,
+          postTitle: data.postTitle,
+          fromUserName: data.fromUserName
+        }
       })
     });
     return response.ok;
@@ -94,26 +99,26 @@ export async function sendNotificationToUsers(
 }
 
 /**
- * Генерация текста уведомления с Emoji
+ * Генерация текста уведомления без эмоджи в стиле приложения
  */
 function generateNotificationContent(type: NotificationType, data: NotificationData): string {
   const { fromUserName, taskTitle, postTitle, oldStatus, newStatus, executorName } = data;
   const title = taskTitle || postTitle || 'Без названия';
   
   const templates: Record<NotificationType, string> = {
-    new_task: `📋 <b>Новая задача</b>\n\n${fromUserName} назначил(а) вам задачу:\n«${title}»`,
-    task_updated: `✏️ <b>Задача изменена</b>\n\n${fromUserName} изменил(а) задачу:\n«${title}»`,
-    task_status_changed: `🔄 <b>Статус изменён</b>\n\n${fromUserName} изменил(а) статус задачи «${title}»:\n${oldStatus} → ${newStatus}`,
-    new_executor: `👥 <b>Новый исполнитель</b>\n\n${executorName} добавлен в задачу:\n«${title}»`,
-    removed_executor: `👤 <b>Исполнитель удалён</b>\n\n${executorName} удалён из задачи:\n«${title}»`,
-    new_comment: `💬 <b>Новый комментарий</b>\n\n${fromUserName} прокомментировал(а) задачу:\n«${title}»`,
-    mention: `📢 <b>Вас упомянули</b>\n\n${fromUserName} упомянул(а) вас в комментарии к задаче:\n«${title}»`,
-    post_updated: `✏️ <b>Публикация изменена</b>\n\n${fromUserName} изменил(а) публикацию:\n«${title}»`,
-    post_status_changed: `🔄 <b>Статус публикации</b>\n\n${fromUserName} изменил(а) статус публикации «${title}»:\n${oldStatus} → ${newStatus}`,
-    post_new_comment: `💬 <b>Комментарий к публикации</b>\n\n${fromUserName} прокомментировал(а) публикацию:\n«${title}»`,
+    new_task: `<b>Новая задача</b>\n\n${fromUserName} назначил вам задачу:\n<i>${title}</i>`,
+    task_updated: `<b>Задача изменена</b>\n\n${fromUserName} обновил задачу:\n<i>${title}</i>`,
+    task_status_changed: `<b>Изменение статуса</b>\n\n${fromUserName} изменил статус задачи:\n<i>${title}</i>\n\n${oldStatus} → ${newStatus}`,
+    new_executor: `<b>Новый исполнитель</b>\n\n${executorName} добавлен в задачу:\n<i>${title}</i>`,
+    removed_executor: `<b>Исполнитель удалён</b>\n\n${executorName} удалён из задачи:\n<i>${title}</i>`,
+    new_comment: `<b>Новый комментарий</b>\n\n${fromUserName} прокомментировал задачу:\n<i>${title}</i>`,
+    mention: `<b>Вас упомянули</b>\n\n${fromUserName} упомянул вас в комментарии:\n<i>${title}</i>`,
+    post_updated: `<b>Публикация изменена</b>\n\n${fromUserName} обновил публикацию:\n<i>${title}</i>`,
+    post_status_changed: `<b>Изменение статуса публикации</b>\n\n${fromUserName} изменил статус:\n<i>${title}</i>\n\n${oldStatus} → ${newStatus}`,
+    post_new_comment: `<b>Комментарий к публикации</b>\n\n${fromUserName} прокомментировал публикацию:\n<i>${title}</i>`,
   };
   
-  return templates[type] || `🔔 ${fromUserName}: ${title}`;
+  return templates[type] || `<b>Уведомление</b>\n\n${fromUserName}: ${title}`;
 }
 
 /**

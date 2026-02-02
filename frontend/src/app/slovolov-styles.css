@@ -1423,3 +1423,71 @@ input[type="date"]::-webkit-datetime-edit {
 input[type="date"]::-webkit-datetime-edit-fields-wrapper {
   padding: 0;
 }
+
+/* Prevent mid-word breaks for editable text areas and contenteditable elements
+   Override any global `word-break: break-all` or similar rules that force
+   splitting words across lines. Keep inputs single-line untouched. */
+textarea,
+[contenteditable],
+textarea *,
+.prose [contenteditable] {
+  word-break: normal !important;
+  white-space: pre-wrap !important;
+  hyphens: auto !important;
+}
+
+/* Target potential custom textarea class used in todos/editor pages */
+.todo-textarea {
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  white-space: pre-wrap !important;
+}
+
+/* Contact cards: per-department background and adapted working-hours layout */
+.contact-cards {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.contact-card {
+  min-width: 220px;
+  max-width: 360px;
+  padding: 12px;
+  border-radius: 10px;
+  color: #0f172a; /* dark text for light gradients */
+  box-shadow: 0 6px 18px rgba(2,6,23,0.35);
+  box-sizing: border-box;
+}
+.contact-card .dept-name {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.contact-card .contact-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.contact-card .working-hours {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  color: rgba(0,0,0,0.65);
+}
+.contact-card .time-badge {
+  background: rgba(255,255,255,0.7);
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+/* Department specific backgrounds (light gradients) */
+.dept-sales { background: linear-gradient(90deg, #fef3c7 0%, #fed7aa 100%); }
+.dept-support { background: linear-gradient(90deg, #d1fae5 0%, #bff0c9 100%); }
+.dept-marketing { background: linear-gradient(90deg, #ede9fe 0%, #fbcfe8 100%); }
+.dept-ops { background: linear-gradient(90deg, #e0f2fe 0%, #bae6fd 100%); }
+
+/* Dark-mode friendly: if parent has .slovolov-page, invert text color for better contrast */
+.slovolov-page .contact-card { color: var(--glass-text-primary); }
+.slovolov-page .contact-card .working-hours { color: var(--glass-text-tertiary); }
