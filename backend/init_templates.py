@@ -1,7 +1,7 @@
 """
 Скрипт для инициализации дефолтных шаблонов в базе данных
 """
-from database import db
+from db_adapter import db
 from datetime import datetime
 
 def init_default_templates():

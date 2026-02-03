@@ -574,6 +574,10 @@ export default function MessagesPage() {
             setCurrentUser(currentUser);
             return;
           } else {
+            // Получаем Telegram ID если доступен
+            const telegramId = localStorage.getItem('telegramId');
+            const telegramUsername = localStorage.getItem('telegramUsername');
+            
             const createRes = await fetch('/api/users', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -581,7 +585,9 @@ export default function MessagesPage() {
                 name: username,
                 email: `${username}@local.dev`,
                 password: 'default123',
-                role: 'user'
+                role: 'user',
+                ...(telegramId && { telegramId }),
+                ...(telegramUsername && { telegramUsername })
               })
             });
             
@@ -632,6 +638,10 @@ export default function MessagesPage() {
             }
           }
           
+          // Получаем Telegram ID если доступен
+          const telegramId = localStorage.getItem('telegramId');
+          const telegramUsername = localStorage.getItem('telegramUsername');
+          
           const createRes = await fetch('/api/users', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -639,7 +649,9 @@ export default function MessagesPage() {
               name: username,
               email: `${username}@local.dev`,
               password: 'default123',
-              role: 'user'
+              role: 'user',
+              ...(telegramId && { telegramId }),
+              ...(telegramUsername && { telegramUsername })
             })
           });
           
@@ -2237,7 +2249,7 @@ export default function MessagesPage() {
           <div className="flex-1 min-h-0 flex flex-col relative bg-transparent">
           {/* Chat header */}
           <div 
-            className={`absolute top-2 left-2 right-2 z-20 h-[56px] md:h-12 border border-white/20 md:border-[var(--border-color)] rounded-[50px] flex items-center px-3 md:px-4 py-[10px] gap-2 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.2)] md:relative md:top-0 md:left-0 md:right-0 md:mx-2 md:mt-2 ${isSelectionMode ? '' : 'backdrop-blur-xl !bg-white/15 dark:!bg-black/15'}`}
+            className={`absolute top-2 left-2 right-2 z-20 h-[56px] md:h-12 border border-white/20 rounded-[50px] flex items-center px-3 md:px-4 py-[10px] gap-2 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.2)] md:absolute md:top-2 md:left-2 md:right-2 backdrop-blur-xl !bg-white/15 dark:!bg-black/15`}
           >
             {isSelectionMode ? (
               <>
@@ -2297,6 +2309,10 @@ export default function MessagesPage() {
                             setEditingMessageId(selectedMessage.id);
                             setEditingMessageText(selectedMessage.content);
                             setNewMessage(selectedMessage.content);
+                            // Устанавливаем текст напрямую в инпут через ref
+                            if (messageInputRef.current) {
+                              messageInputRef.current.value = selectedMessage.content;
+                            }
                             setIsSelectionMode(false);
                             setSelectedMessages(new Set());
                             messageInputRef.current?.focus();
@@ -2313,8 +2329,8 @@ export default function MessagesPage() {
                   })()}
                   {/* Удалить - для любого количества выбранных сообщений */}
                   {(() => {
-                    const selectedMessagesArray = messages.filter(m => selectedMessages.has(m.id));
-                    const allAreOwn = selectedMessagesArray.every(m => m.authorId === currentUser?.id);
+                    const selectedMessagesArray = messages.filter(m => m && selectedMessages.has(m.id));
+                    const allAreOwn = selectedMessagesArray.every(m => m?.authorId === currentUser?.id);
                     return allAreOwn && selectedMessagesArray.length > 0 && (
                       <button
                         onClick={async () => {
@@ -2533,7 +2549,7 @@ export default function MessagesPage() {
           )}
 
           {/* Messages */}
-          <div ref={messagesListRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 pt-16 md:pt-4 pb-20 md:pb-32 bg-transparent scrollbar-hide-mobile">
+          <div ref={messagesListRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 pt-20 md:pt-16 pb-20 md:pb-32 bg-transparent scrollbar-hide-mobile">
             <div className="px-2 md:px-4 lg:px-8">
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
@@ -2544,21 +2560,25 @@ export default function MessagesPage() {
               ) : (
                 <div className="space-y-1.5 md:space-y-[3px]">
                 {messages.filter(message => {
+                  if (!message) return false; // Пропускаем null/undefined сообщения
                   if (!messageSearchQuery.trim()) return true;
                   return message.content.toLowerCase().includes(messageSearchQuery.toLowerCase());
                 }).map((message, index, filteredMessages) => {
-                  const isMyMessage = message.authorId === currentUser?.id;
+                  // Защита от null authorId (для системных сообщений)
+                  const authorId = message?.authorId || 'system';
+                  const isMyMessage = authorId === currentUser?.id;
                   const isEditing = editingMessageId === message.id;
                   const replyTo = message.replyToId 
                     ? messages.find(m => m.id === message.replyToId)
                     : null;
                   
                   // Получаем автора сообщения для аватара
-                  const messageAuthor = users.find(u => u.id === message.authorId);
+                  const messageAuthor = users.find(u => u.id === authorId);
                   
                   // Проверяем является ли это последнее сообщение в группе от одного автора
                   const nextMessage = filteredMessages[index + 1];
-                  const isLastInGroup = !nextMessage || nextMessage.authorId !== message.authorId;
+                  const nextAuthorId = nextMessage?.authorId || 'system';
+                  const isLastInGroup = !nextMessage || nextAuthorId !== authorId;
 
                     return (
                     <div
@@ -2819,7 +2839,7 @@ export default function MessagesPage() {
                             {!isMyMessage && hasBackground && (
                               <p className={`text-[10px] font-medium mb-0.5 select-none ${message.isSystemMessage ? 'text-orange-600 dark:text-purple-400' : 'text-[var(--accent-primary)] dark:text-gray-300'} flex items-center gap-1.5`}>
                                 <span>{message.authorName}</span>
-                                {selectedChat?.isGroup && message.authorId === selectedChat.creatorId && (
+                                {selectedChat?.isGroup && authorId === selectedChat.creatorId && (
                                   <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-500 text-[9px]">
                                     <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
                                       <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -3195,7 +3215,20 @@ export default function MessagesPage() {
                 {showEmojiPicker && (
                   <EmojiPicker
                     onEmojiSelect={(emoji) => {
-                      setNewMessage(prev => prev + emoji);
+                      // Вставляем эмодзи напрямую в инпут через ref
+                      if (messageInputRef.current) {
+                        const start = messageInputRef.current.selectionStart || 0;
+                        const end = messageInputRef.current.selectionEnd || 0;
+                        const text = messageInputRef.current.value;
+                        const newText = text.substring(0, start) + emoji + text.substring(end);
+                        messageInputRef.current.value = newText;
+                        // Устанавливаем курсор после эмодзи
+                        const newCursorPos = start + emoji.length;
+                        messageInputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+                        messageInputRef.current.focus();
+                        // Обновляем состояние для синхронизации
+                        setNewMessage(newText);
+                      }
                     }}
                     onClose={() => setShowEmojiPicker(false)}
                   />
@@ -5004,7 +5037,7 @@ export default function MessagesPage() {
             <div className="p-4">
               <div className="space-y-3 max-h-80 overflow-y-auto">
                 {selectedChat.participantIds
-                  .filter(id => id !== readByMessage.authorId)
+                  .filter(id => id !== (readByMessage.authorId || 'system'))
                   .filter(participantId => {
                     const lastReadTime = selectedChat.readMessagesByUser?.[participantId];
                     return lastReadTime && new Date(lastReadTime) >= new Date(readByMessage.createdAt);

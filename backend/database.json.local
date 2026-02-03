@@ -1,0 +1,638 @@
+{
+  "settings": {},
+  "dataSources": [],
+  "feeds": [],
+  "products": [],
+  "users": [
+    {
+      "name": "Администратор",
+      "username": "admin",
+      "email": "admin@local.dev",
+      "password": "default123",
+      "role": "admin",
+      "todoRole": "universal",
+      "position": "Администратор",
+      "department": "IT",
+      "phone": "",
+      "workSchedule": "",
+      "enabledTools": [
+        "feed-editor",
+        "transliterator",
+        "slovolov",
+        "slovolov-pro",
+        "utm-generator",
+        "content-plan"
+      ],
+      "canSeeAllTasks": true,
+      "id": "user_1769584624.933692",
+      "createdAt": "2026-01-28T10:17:04.935083",
+      "isOnline": true,
+      "lastSeen": "2026-02-03T09:02:11.722Z"
+    },
+    {
+      "name": "Менеджер",
+      "username": "manager",
+      "email": "manager@local.dev",
+      "password": "manager123",
+      "role": "user",
+      "todoRole": "executor",
+      "position": "Менеджер по продажам",
+      "department": "Продажи",
+      "phone": "+7 (999) 123-45-67",
+      "workSchedule": "Пн-Пт 9:00-18:00",
+      "enabledTools": [
+        "content-plan"
+      ],
+      "canSeeAllTasks": false,
+      "id": "user_1738065600000.manager",
+      "createdAt": "2026-01-28T10:00:00.000000",
+      "isOnline": false,
+      "lastSeen": "2026-01-28T10:00:00.000Z"
+    }
+  ],
+  "templates": [],
+  "collections": [],
+  "logs": [],
+  "analytics": [],
+  "wordstatSearches": [],
+  "wordstatCache": [],
+  "trackedPosts": [],
+  "parsingState": {},
+  "chats": [
+    {
+      "id": "notifications-user_1769446825925.whxkh075y",
+      "title": "Уведомления",
+      "isGroup": false,
+      "isNotificationsChat": true,
+      "isSystemChat": true,
+      "participantIds": [
+        "user_1769446825925.whxkh075y"
+      ],
+      "createdAt": "2026-01-28T10:17:04.148488",
+      "readMessagesByUser": {}
+    },
+    {
+      "id": "favorites_user_1769446825925.whxkh075y",
+      "title": "Избранное",
+      "isGroup": false,
+      "isFavoritesChat": true,
+      "isSystemChat": true,
+      "participantIds": [
+        "user_1769446825925.whxkh075y"
+      ],
+      "createdAt": "2026-01-28T10:17:04.149601",
+      "readMessagesByUser": {}
+    },
+    {
+      "id": "notifications-user_1769584624.933692",
+      "title": "Уведомления",
+      "isGroup": false,
+      "isNotificationsChat": true,
+      "isSystemChat": true,
+      "participantIds": [
+        "user_1769584624.933692"
+      ],
+      "createdAt": "2026-01-28T10:17:04.957993",
+      "readMessagesByUser": {},
+      "unreadCount": 0
+    },
+    {
+      "id": "favorites_user_1769584624.933692",
+      "title": "Избранное",
+      "isGroup": false,
+      "isFavoritesChat": true,
+      "isSystemChat": true,
+      "participantIds": [
+        "user_1769584624.933692"
+      ],
+      "createdAt": "2026-01-28T10:17:04.959073",
+      "readMessagesByUser": {
+        "user_1769584624.933692": "2026-02-03T11:19:30.040526"
+      },
+      "lastMessage": {
+        "id": "2b8627f9-25a3-4c9f-8213-f85f13351c27",
+        "chatId": "favorites_user_1769584624.933692",
+        "authorId": "user_1769584624.933692",
+        "authorName": "Администратор",
+        "content": "the slovolov pro DB and UTM templates DB to the gitignore. I’ll need to locate the slovolov pro DB path, which I think is related to earlier references in the data content plans and the data/database.json file. It seems that the slovolov-main folder contains relevant data, so listing the contents will help!",
+        "mentions": [],
+        "replyToId": null,
+        "createdAt": "2026-02-02T10:48:16.587132",
+        "updatedAt": null,
+        "isEdited": false,
+        "attachments": []
+      },
+      "unreadCount": 0
+    },
+    {
+      "id": "2a5c3d0e-d469-4ebe-a34b-829af9b4e870",
+      "title": null,
+      "isGroup": false,
+      "participantIds": [
+        "user_1769584624.933692",
+        "user_1738065600000.manager"
+      ],
+      "createdAt": "2026-02-02T10:52:05.685289",
+      "readMessagesByUser": {
+        "user_1769584624.933692": "2026-02-03T12:02:28.106304"
+      },
+      "lastMessage": {
+        "id": "3f8501b9-1268-4487-b55a-2d88693d6594",
+        "chatId": "2a5c3d0e-d469-4ebe-a34b-829af9b4e870",
+        "authorId": "user_1769584624.933692",
+        "authorName": "Администратор",
+        "content": "Эй",
+        "mentions": [],
+        "replyToId": null,
+        "createdAt": "2026-02-02T10:52:09.892709",
+        "updatedAt": null,
+        "isEdited": false,
+        "attachments": []
+      },
+      "unreadCount": 0
+    }
+  ],
+  "messages": [
+    {
+      "id": "a4d0fd45-dc10-4690-8d59-7888e70dff45",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Www",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:04:54.103716",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "8858b362-6898-4436-94de-9baf7853f3bd",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Hhhjj",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:05:26.314606",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "e3800817-1270-4d7e-8e92-9327aae75734",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Тест",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:09:48.076919",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "526ce587-834f-4599-8608-7743e56d4378",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Тест",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:09:58.395836",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "de652dc5-f0ea-4510-8731-5f3f551dc0a1",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Тттьь",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:17:14.007806",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "cc9c42f5-b28f-47d1-919c-48ba47a0e7a7",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Р",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:28:41.718827",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "c893b637-5584-4033-8933-41cad20d2c1e",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Вооо",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:39:36.669433",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "f6a40fd5-49a7-4293-8d57-90adea277930",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "О",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:40:02.209484",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "48dd5322-4668-4695-a37a-0d84ee8a0c10",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Опа",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:40:16.704683",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "50e196f5-9252-4017-a1b4-d7cc02e0ea15",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Орро",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:43:54.344645",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "1451b3ea-f23e-4d0e-a7f0-12e32c708ef8",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Лллл",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:43:59.423933",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "3db74784-f85c-4863-a87d-1214521656d9",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Ллл",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:50:05.729842",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "ba7a05d2-bdab-48e5-a740-8fd804839091",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Хы",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:53:55.108405",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "a7096b7d-00de-4684-85db-8a0fbd73eb8a",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Эх",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:54:58.567426",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "e77f82e6-f7be-498d-a5e6-83f58dcbcacf",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Роо",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:55:22.626457",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "0d0f41c9-9d33-439e-b49e-888e17ea2ba6",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Ооо",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:55:25.933440",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "f7858cba-053b-4158-afae-232cee237c30",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Эй",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:56:29.883467",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "ee840b5a-dec5-4cba-a8c3-354a66766e37",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Как дела ",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:56:33.356361",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "8948c583-75d2-429c-a407-b822aad900c9",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Эх",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T11:59:54.508650",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "5646910a-b23f-44cf-b3a2-1b5c4ef0813b",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Рррр",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T12:11:53.906351",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "1a57f8d1-b51b-4ce4-918e-44c4bd289b0b",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Ттб",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T12:35:51.565140",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "3a56b99b-5344-4ae5-ba15-d89b83bd1f10",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Привет. Как дела?",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T12:39:18.867476",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "c6c6c7af-1cfc-41f7-90f4-404a78bfa754",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Ол",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T12:50:31.668223",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "ee9195b3-df2c-44eb-97e8-54e423efb34a",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Тест",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T12:50:34.772134",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "a2b5f077-2a79-40c0-b082-dbe3629056d6",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Проверка",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T12:50:37.490770",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "b5d16e02-9aaa-42aa-80f8-a0f3080c859d",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Работы ",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T12:50:43.368036",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "d876f530-f2a9-4d13-ae59-9d6e2b042272",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Сообщение удалено",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T12:51:49.243962",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": [
+        {
+          "type": "link",
+          "name": "Турфирма Вокруг света - экскурсионные туры по России. Официальный сайт",
+          "url": "https://vs-travel.ru/"
+        }
+      ],
+      "isDeleted": true,
+      "deletedAt": "2026-01-28T12:52:19.203419"
+    },
+    {
+      "id": "2b98f00c-f5e0-4a07-a8dc-6b64d1a15f88",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Тест ",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T12:52:37.548559",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "ec50a90a-7bc9-4c6b-bc6c-8b0900d22cbf",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "ввв",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T13:07:59.018448",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "41fc2a26-c85e-4f04-89c4-5e28a7fca538",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Эй",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T13:08:11.925328",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "d6977fc4-a82b-439f-99d7-bed87ebab1ff",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T13:23:18.075463",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": [
+        {
+          "type": "task",
+          "name": "Тест 1",
+          "taskId": "20260128_095720_lagcdm"
+        }
+      ]
+    },
+    {
+      "id": "9b3b9e9c-1fe7-43fe-a784-9e16f1008c82",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-01-28T16:42:29.787866",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": [
+        {
+          "type": "file",
+          "name": "combined_tours_20260121_151253.xlsx",
+          "url": "/api/uploads/1769607748331-m1o9nw1w0.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "aa0ea9b4-10e1-460f-807a-1c5d1d827301",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-02-02T10:43:19.492761",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": [
+        {
+          "type": "image",
+          "name": "1762420719-20240613113234-6b015c0e-xl.jpg",
+          "url": "/api/uploads/1770018194363-d8m3auujd.jpg"
+        }
+      ]
+    },
+    {
+      "id": "2b8627f9-25a3-4c9f-8213-f85f13351c27",
+      "chatId": "favorites_user_1769584624.933692",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "the slovolov pro DB and UTM templates DB to the gitignore. I’ll need to locate the slovolov pro DB path, which I think is related to earlier references in the data content plans and the data/database.json file. It seems that the slovolov-main folder contains relevant data, so listing the contents will help!",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-02-02T10:48:16.587132",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    },
+    {
+      "id": "3f8501b9-1268-4487-b55a-2d88693d6594",
+      "chatId": "2a5c3d0e-d469-4ebe-a34b-829af9b4e870",
+      "authorId": "user_1769584624.933692",
+      "authorName": "Администратор",
+      "content": "Эй",
+      "mentions": [],
+      "replyToId": null,
+      "createdAt": "2026-02-02T10:52:09.892709",
+      "updatedAt": null,
+      "isEdited": false,
+      "attachments": []
+    }
+  ]
+}

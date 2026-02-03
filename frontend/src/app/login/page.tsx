@@ -46,6 +46,13 @@ export default function LoginPage() {
             localStorage.setItem('isAuthenticated', 'true')
             localStorage.setItem('username', data.user.username)
             localStorage.setItem('userRole', data.user.role)
+            // Сохраняем Telegram ID для использования при создании пользователя
+            if (data.user.telegramId) {
+              localStorage.setItem('telegramId', data.user.telegramId)
+            }
+            if (data.user.telegramUsername) {
+              localStorage.setItem('telegramUsername', data.user.telegramUsername)
+            }
             router.push('/')
           }
         }

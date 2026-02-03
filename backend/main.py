@@ -28,7 +28,10 @@ load_dotenv()
 # Добавляем путь к парсеру
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'parser'))
 
-from database import db
+# Используем адаптер, который поддерживает и JSON и PostgreSQL
+from db_adapter import db
+logger.info(f"Database adapter loaded: {type(db).__name__} from {type(db).__module__}")
+
 from parser.tour_parser import TourParser
 from parser.tour_dates_parser import TourDatesParser
 from yandex_metrica import YandexMetricaClient
@@ -37,6 +40,27 @@ from competitor_data import competitor_manager
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 from telegram_notifier import telegram
+
+# Утилита для преобразования snake_case → camelCase
+def snake_to_camel(data):
+    """Рекурсивно преобразует ключи из snake_case в camelCase"""
+    if isinstance(data, dict):
+        new_dict = {}
+        for key, value in data.items():
+            # Преобразуем ключ
+            parts = key.split('_')
+            camel_key = parts[0] + ''.join(word.capitalize() for word in parts[1:])
+            
+            # Специальная обработка для author_id: если None, заменяем на 'system'
+            if camel_key == 'authorId' and value is None:
+                new_dict[camel_key] = 'system'
+            else:
+                new_dict[camel_key] = snake_to_camel(value)
+        return new_dict
+    elif isinstance(data, list):
+        return [snake_to_camel(item) for item in data]
+    else:
+        return data
 
 # Инициализация планировщика
 scheduler = AsyncIOScheduler()
@@ -379,6 +403,40 @@ def update_settings(settings: Dict[str, Any]):
     db.update_settings(settings)
     return db.get_settings()
 
+@app.get("/api/database/size")
+def get_database_size():
+    """Получить размер базы данных PostgreSQL или JSON"""
+    if hasattr(db, 'pg') and db.pg:
+        try:
+            result = db.pg.fetch_one("""
+                SELECT pg_size_pretty(pg_database_size(current_database())) as size,
+                       pg_database_size(current_database()) as size_bytes
+            """)
+            if result:
+                return {
+                    "size": result.get('size'),
+                    "sizeBytes": result.get('size_bytes')
+                }
+        except Exception as e:
+            print(f"Error getting PostgreSQL database size: {e}")
+            return {"size": "N/A", "sizeBytes": 0, "error": str(e)}
+    
+    # Для JSON базы данных возвращаем размер файла
+    try:
+        import os
+        if hasattr(db, 'db_path') and os.path.exists(db.db_path):
+            size_bytes = os.path.getsize(db.db_path)
+            size_mb = size_bytes / (1024 * 1024)
+            if size_mb < 1:
+                size_kb = size_bytes / 1024
+                return {"size": f"{size_kb:.2f} KB", "sizeBytes": size_bytes}
+            else:
+                return {"size": f"{size_mb:.2f} MB", "sizeBytes": size_bytes}
+    except Exception as e:
+        print(f"Error getting JSON database size: {e}")
+    
+    return {"size": "N/A", "sizeBytes": 0}
+
 # Scheduler status
 @app.get("/api/scheduler/status")
 def get_scheduler_status():
@@ -421,8 +479,8 @@ def get_data_source(source_id: str):
 
 @app.post("/api/data-sources")
 def create_data_source(source: DataSourceCreate):
-    print(f"Получен запрос на создание источника: {source.dict()}")
-    source_data = source.dict()
+    print(f"Получен запрос на создание источника: {source.model_dump()}")
+    source_data = source.model_dump()
     source_data["id"] = f"src_{datetime.now().timestamp()}"
     source_data["createdAt"] = datetime.now().isoformat()
     source_data["updatedAt"] = datetime.now().isoformat()
@@ -432,7 +490,7 @@ def create_data_source(source: DataSourceCreate):
 
 @app.put("/api/data-sources/{source_id}")
 def update_data_source(source_id: str, updates: DataSourceUpdate):
-    result = db.update_data_source(source_id, updates.dict(exclude_unset=True))
+    result = db.update_data_source(source_id, updates.model_dump(exclude_unset=True))
     if not result:
         raise HTTPException(status_code=404, detail="Data source not found")
     
@@ -840,7 +898,7 @@ def create_feed(feed: FeedCreate):
     if feed.sourceId and not feed.sourceIds:
         feed.sourceIds = [feed.sourceId]
     
-    feed_data = feed.dict()
+    feed_data = feed.model_dump()
     result = db.add_feed(feed_data)
     
     # Логируем создание фида
@@ -1332,7 +1390,7 @@ def update_template(template_id: str, template: TemplateUpdate):
     if not existing:
         raise HTTPException(status_code=404, detail="Template not found")
     
-    update_data = template.dict(exclude_unset=True)
+    update_data = template.model_dump(exclude_unset=True)
     update_data["updatedAt"] = datetime.now().isoformat()
     
     updated = db.update_template(template_id, update_data)
@@ -1529,6 +1587,7 @@ def get_feed_preview(feed_id: str):
 
 # User Management (Admin Panel)
 class UserCreate(BaseModel):
+    username: Optional[str] = None  # Логин пользователя
     name: str
     email: str
     password: str
@@ -1538,6 +1597,10 @@ class UserCreate(BaseModel):
     department: Optional[str] = None  # Отдел
     phone: Optional[str] = None  # Телефон
     workSchedule: Optional[str] = None  # График работы
+    telegramId: Optional[str] = None  # Telegram ID
+    telegramUsername: Optional[str] = None  # Telegram username
+    isDepartmentHead: Optional[bool] = None  # Руководитель отдела
+    canSeeAllTasks: Optional[bool] = None  # Может видеть все задачи
     enabledTools: List[str] = []
 
 class UserUpdate(BaseModel):
@@ -1557,6 +1620,7 @@ class UserUpdate(BaseModel):
     avatar: Optional[str] = None  # URL аватара пользователя
     canSeeAllTasks: Optional[bool] = None  # Может видеть все задачи
     isActive: Optional[bool] = None  # Активен ли пользователь
+    isDepartmentHead: Optional[bool] = None  # Руководитель отдела
 
 @app.post("/api/users/batch")
 def create_users_batch(users: List[Dict[str, Any]] = Body(...)):
@@ -1580,63 +1644,110 @@ def get_users():
     users = db.get_users()
     now = datetime.now()
     
-    # Вычисляем isOnline динамически на основе lastSeen
+    # Вычисляем isOnline динамически на основе last_seen
     for user in users:
         is_online = False
-        last_seen = user.get("lastSeen")
+        last_seen = user.get("last_seen")
         
         if last_seen:
             try:
-                last_seen_date = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+                if isinstance(last_seen, str):
+                    last_seen_date = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+                else:
+                    last_seen_date = last_seen
                 diff = (now - last_seen_date).total_seconds()
                 is_online = diff < 120  # Онлайн если активность была менее 2 минут назад
             except:
                 pass
         
-        user["isOnline"] = is_online
+        user["is_online"] = is_online
     
-    return users
+    return [snake_to_camel(user) for user in users]
+
+@app.get("/api/users/statuses")
+def get_user_statuses():
+    """Получить статусы всех пользователей"""
+    users = db.get_users()
+    statuses = []
+    now = datetime.now()
+    
+    for user in users:
+        is_online = False
+        last_seen = user.get("last_seen")
+        
+        # Проверяем онлайн ли пользователь (если last_seen был в последние 60 секунд)
+        if last_seen:
+            try:
+                if isinstance(last_seen, str):
+                    last_seen_date = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+                else:
+                    last_seen_date = last_seen
+                diff = (now - last_seen_date).total_seconds()
+                is_online = diff < 60  # Онлайн если активность была менее минуты назад
+            except:
+                pass
+        
+        statuses.append({
+            "id": user["id"],
+            "isOnline": is_online,
+            "lastSeen": last_seen.isoformat() if isinstance(last_seen, datetime) else last_seen
+        })
+    
+    return statuses
 
 @app.get("/api/users/{user_id}")
 def get_user(user_id: str):
     """Получить пользователя по ID с динамическим isOnline"""
     user = db.get_user_by_id(user_id)
+    
+    # Если не нашли по ID, попробуем найти по telegramId
+    if not user:
+        all_users = db.get_all_users()
+        user = next((u for u in all_users if u.get("telegramId") == user_id), None)
+    
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
     # Вычисляем isOnline динамически
     is_online = False
-    last_seen = user.get("lastSeen")
+    last_seen = user.get("last_seen")
     
     if last_seen:
         try:
             now = datetime.now()
-            last_seen_date = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+            if isinstance(last_seen, str):
+                last_seen_date = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+            else:
+                last_seen_date = last_seen
             diff = (now - last_seen_date).total_seconds()
             is_online = diff < 120  # Онлайн если активность была менее 2 минут назад
         except:
             pass
     
-    user["isOnline"] = is_online
-    return user
+    user["is_online"] = is_online
+    return snake_to_camel(user)
 
 @app.post("/api/users")
 def create_user(user: UserCreate):
     """Создать нового пользователя"""
-    user_data = user.dict()
-    user_data["id"] = f"user_{datetime.now().timestamp()}"
+    user_data = user.model_dump()
+    # Используем telegramId если есть, иначе генерируем
+    if 'telegramId' in user_data and user_data['telegramId']:
+        user_data["id"] = str(user_data['telegramId'])
+    else:
+        user_data["id"] = f"user_{int(datetime.now().timestamp() * 1000)}"
     user_data["createdAt"] = datetime.now().isoformat()
     result = db.add_user(user_data)
-    return result
+    return snake_to_camel(result) if result else None
 
 @app.put("/api/users/{user_id}")
 def update_user(user_id: str, user: UserUpdate):
     """Обновить пользователя"""
-    user_data = user.dict(exclude_unset=True)
+    user_data = user.model_dump(exclude_unset=True)
     result = db.update_user(user_id, user_data)
     if not result:
         raise HTTPException(status_code=404, detail="User not found")
-    return result
+    return snake_to_camel(result)
 
 @app.delete("/api/users/{user_id}")
 def delete_user(user_id: str):
@@ -1660,38 +1771,27 @@ def update_user_status(user_id: str, status_data: Dict[str, Any]):
         raise HTTPException(status_code=404, detail="User not found")
     return result
 
-@app.get("/api/users/statuses")
-def get_user_statuses():
-    """Получить статусы всех пользователей"""
-    users = db.get_users()
-    statuses = []
-    now = datetime.now()
-    
-    for user in users:
-        is_online = False
-        last_seen = user.get("lastSeen")
-        
-        # Проверяем онлайн ли пользователь (если lastSeen был в последние 60 секунд)
-        if last_seen:
-            try:
-                last_seen_date = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
-                diff = (now - last_seen_date).total_seconds()
-                is_online = diff < 60  # Онлайн если активность была менее минуты назад
-            except:
-                pass
-        
-        statuses.append({
-            "id": user["id"],
-            "isOnline": is_online,
-            "lastSeen": last_seen
-        })
-    
-    return statuses
-
 @app.put("/api/users/{user_id}/tools")
 def update_user_tools(user_id: str, tools: Dict[str, List[str]]):
     """Обновить доступные инструменты пользователя"""
     result = db.update_user(user_id, {"enabledTools": tools.get("enabledTools", [])})
+    if not result:
+        raise HTTPException(status_code=404, detail="User not found")
+    return result
+
+@app.put("/api/users/{user_id}/navigation")
+def update_user_navigation(user_id: str, navigation: Dict[str, Any]):
+    """Обновить настройки навигации пользователя (видимые вкладки и порядок инструментов)"""
+    update_data = {}
+    if "visibleTabs" in navigation:
+        update_data["visibleTabs"] = navigation["visibleTabs"]
+    if "toolsOrder" in navigation:
+        update_data["toolsOrder"] = navigation["toolsOrder"]
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No navigation data provided")
+    
+    result = db.update_user(user_id, update_data)
     if not result:
         raise HTTPException(status_code=404, detail="User not found")
     return result
@@ -1956,7 +2056,7 @@ def get_collection(collection_id: str):
 @app.post("/api/collections")
 def create_collection(collection: CollectionCreate):
     """Создать новый каталог"""
-    collection_data = collection.dict()
+    collection_data = collection.model_dump()
     result = db.add_collection(collection_data)
     
     db.add_log({
@@ -1970,7 +2070,7 @@ def create_collection(collection: CollectionCreate):
 @app.put("/api/collections/{collection_id}")
 def update_collection(collection_id: str, collection: CollectionUpdate):
     """Обновить каталог"""
-    result = db.update_collection(collection_id, collection.dict(exclude_unset=True))
+    result = db.update_collection(collection_id, collection.model_dump(exclude_unset=True))
     if not result:
         raise HTTPException(status_code=404, detail="Collection not found")
     return result
@@ -3189,22 +3289,49 @@ def delete_direct_parser_api_key(key_id: str):
     return {"success": True}
 
 
+# ============== Calculator History API ==============
+
+@app.get("/api/calculator/history/{user_id}")
+def get_calculator_history(user_id: str):
+    """Получить историю калькулятора для пользователя"""
+    query = "SELECT history FROM calculator_history WHERE user_id = %s"
+    result = db.conn.fetch_one(query, (user_id,))
+    
+    if result:
+        return {"history": result["history"]}
+    return {"history": []}
+
+@app.put("/api/calculator/history/{user_id}")
+def save_calculator_history(user_id: str, data: Dict[str, Any]):
+    """Сохранить историю калькулятора для пользователя"""
+    history = data.get("history", [])
+    
+    query = """
+        INSERT INTO calculator_history (user_id, history, updated_at)
+        VALUES (%s, %s, NOW())
+        ON CONFLICT (user_id) 
+        DO UPDATE SET history = %s, updated_at = NOW()
+    """
+    
+    from psycopg2.extras import Json
+    db.conn.execute(query, (user_id, Json(history), Json(history)))
+    
+    return {"success": True, "history": history}
+
+
 # ============== Todos & Links API ==============
 
 @app.get("/api/todos")
 def get_todos(userId: Optional[str] = None):
     """Получить список задач"""
-    todos = db.data.get('todos', [])
-    lists = db.data.get('todoLists', [])
-    categories = db.data.get('todoCategories', [])
+    todos = db.get_tasks(user_id=userId) if userId else db.get_tasks()
+    lists = db.get_todo_lists()
+    categories = db.get_todo_categories()
     
-    # Если указан userId, фильтруем задачи
-    if userId:
-        todos = [
-            todo for todo in todos 
-            if todo.get('authorId') == userId or 
-               userId in (todo.get('assignedTo', []) if isinstance(todo.get('assignedTo'), list) else [todo.get('assignedTo')])
-        ]
+    # Преобразуем snake_case в camelCase
+    todos = [snake_to_camel(todo) for todo in todos]
+    lists = [snake_to_camel(list_item) for list_item in lists]
+    categories = [snake_to_camel(cat) for cat in categories]
     
     return {
         "todos": todos,
@@ -3217,8 +3344,6 @@ def create_todo(todo_data: dict = Body(...)):
     """Создать новую задачу"""
     import uuid
     
-    todos = db.data.get('todos', [])
-    
     new_todo = {
         'id': str(uuid.uuid4()),
         'title': todo_data.get('title', ''),
@@ -3226,27 +3351,28 @@ def create_todo(todo_data: dict = Body(...)):
         'status': todo_data.get('status', 'todo'),
         'priority': todo_data.get('priority', 'medium'),
         'authorId': todo_data.get('authorId'),
-        'assignedTo': todo_data.get('assignedTo', []),
+        'assignedTo': todo_data.get('assignedTo'),
+        'assignedToIds': todo_data.get('assignedToIds', []),
+        'assignedById': todo_data.get('assignedById'),
         'dueDate': todo_data.get('dueDate'),
-        'createdAt': datetime.now().isoformat(),
-        'updatedAt': datetime.now().isoformat()
+        'listId': todo_data.get('listId'),
+        'tags': todo_data.get('tags', []),
+        'isCompleted': todo_data.get('isCompleted', False),
+        'addToCalendar': todo_data.get('addToCalendar', False)
     }
     
-    todos.append(new_todo)
-    db.data['todos'] = todos
-    db.save_to_disk()
-    
-    return new_todo
+    result = db.add_task(new_todo)
+    return snake_to_camel(result) if result else new_todo
 
 @app.get("/api/links")
-def get_links(userId: Optional[str] = None):
+def get_links(userId: Optional[str] = None, department: Optional[str] = None):
     """Получить список ссылок"""
-    links = db.data.get('links', [])
-    lists = db.data.get('linkLists', [])
+    links = db.get_links(user_id=userId, department=department)
+    lists = db.get_link_lists(department=department)
     
-    # Если указан userId, фильтруем ссылки
-    if userId:
-        links = [link for link in links if link.get('userId') == userId]
+    # Преобразуем snake_case в camelCase
+    links = [snake_to_camel(link) for link in links]
+    lists = [snake_to_camel(list_item) for list_item in lists]
     
     return {
         "links": links,
@@ -3255,25 +3381,151 @@ def get_links(userId: Optional[str] = None):
 
 @app.post("/api/links")
 def create_link(link_data: dict = Body(...)):
-    """Создать новую ссылку"""
+    """Создать новую ссылку или список"""
     import uuid
     
-    links = db.data.get('links', [])
+    item_type = link_data.get('type', 'link')
     
-    new_link = {
+    if item_type == 'list':
+        # Создание списка
+        new_list = {
+            'id': str(uuid.uuid4()),
+            'name': link_data.get('name', ''),
+            'color': link_data.get('color', '#3b82f6'),
+            'icon': link_data.get('icon', ''),
+            'department': link_data.get('department'),
+            'order': link_data.get('order', 0)
+        }
+        
+        result = db.add_link_list(new_list)
+        return snake_to_camel(result) if result else new_list
+    else:
+        # Создание ссылки
+        new_link = {
+            'id': str(uuid.uuid4()),
+            'url': link_data.get('url', ''),
+            'title': link_data.get('title', ''),
+            'description': link_data.get('description', ''),
+            'listId': link_data.get('listId'),
+            'categoryId': link_data.get('categoryId'),
+            'tags': link_data.get('tags', []),
+            'userId': link_data.get('userId'),
+            'department': link_data.get('department'),
+            'clicks': 0,
+            'isBookmarked': False,
+            'isPinned': False,
+            'order': link_data.get('order', 0)
+        }
+        
+        result = db.add_link(new_link)
+        return snake_to_camel(result) if result else new_link
+
+@app.put("/api/links")
+def update_link(link_data: dict = Body(...)):
+    """Обновить ссылку или список"""
+    item_type = link_data.get('type', 'link')
+    item_id = link_data.get('id')
+    
+    if not item_id:
+        raise HTTPException(status_code=400, detail="ID is required")
+    
+    if item_type == 'list':
+        # Обновление списка
+        updates = {}
+        if 'name' in link_data:
+            updates['name'] = link_data['name']
+        if 'color' in link_data:
+            updates['color'] = link_data['color']
+        if 'icon' in link_data:
+            updates['icon'] = link_data['icon']
+        if 'department' in link_data:
+            updates['department'] = link_data['department']
+        if 'order' in link_data:
+            updates['order'] = link_data['order']
+        
+        result = db.update_link_list(item_id, updates)
+        if not result:
+            raise HTTPException(status_code=404, detail="List not found")
+        return snake_to_camel(result)
+    else:
+        # Обновление ссылки
+        updates = {}
+        for key in ['url', 'title', 'description', 'listId', 'categoryId', 'tags', 'isBookmarked', 'isPinned', 'clicks', 'department', 'order']:
+            if key in link_data:
+                updates[key] = link_data[key]
+        
+        result = db.update_link(item_id, updates)
+        if not result:
+            raise HTTPException(status_code=404, detail="Link not found")
+        return snake_to_camel(result)
+
+@app.delete("/api/links")
+def delete_link(id: str, type: str = 'link'):
+    """Удалить ссылку или список"""
+    if type == 'list':
+        success = db.delete_link_list(id)
+    else:
+        success = db.delete_link(id)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail=f"{type} not found")
+    return {"status": "deleted"}
+
+
+# ============== Content Plans ==============
+
+@app.get("/api/content-plans")
+def get_content_plans(userId: Optional[str] = None, status: Optional[str] = None):
+    """Получить контент-планы"""
+    plans = db.get_content_plans(user_id=userId, status=status)
+    plans = [snake_to_camel(plan) for plan in plans]
+    return {"plans": plans}
+
+@app.post("/api/content-plans")
+def create_content_plan(plan_data: dict = Body(...)):
+    """Создать новый контент-план"""
+    import uuid
+    
+    new_plan = {
         'id': str(uuid.uuid4()),
-        'url': link_data.get('url', ''),
-        'title': link_data.get('title', ''),
-        'description': link_data.get('description', ''),
-        'userId': link_data.get('userId'),
-        'createdAt': datetime.now().isoformat()
+        'title': plan_data.get('title', ''),
+        'description': plan_data.get('description', ''),
+        'content': plan_data.get('content', ''),
+        'status': plan_data.get('status', 'draft'),
+        'postType': plan_data.get('postType'),
+        'scheduledDate': plan_data.get('scheduledDate'),
+        'platform': plan_data.get('platform'),
+        'tags': plan_data.get('tags', []),
+        'authorId': plan_data.get('authorId'),
+        'assignedToIds': plan_data.get('assignedToIds', []),
+        'attachments': plan_data.get('attachments', []),
+        'metadata': plan_data.get('metadata', {})
     }
     
-    links.append(new_link)
-    db.data['links'] = links
-    db.save_to_disk()
+    result = db.add_content_plan(new_plan)
+    return snake_to_camel(result) if result else new_plan
+
+@app.put("/api/content-plans/{plan_id}")
+def update_content_plan(plan_id: str, plan_data: dict = Body(...)):
+    """Обновить контент-план"""
+    updates = {}
+    for key in ['title', 'description', 'content', 'status', 'postType', 'scheduledDate', 
+                'publishedDate', 'platform', 'tags', 'authorId', 'assignedToIds', 'attachments', 'metadata']:
+        if key in plan_data:
+            updates[key] = plan_data[key]
     
-    return new_link
+    result = db.update_content_plan(plan_id, updates)
+    if not result:
+        raise HTTPException(status_code=404, detail="Content plan not found")
+    return snake_to_camel(result)
+
+@app.delete("/api/content-plans/{plan_id}")
+def delete_content_plan(plan_id: str):
+    """Удалить контент-план"""
+    success = db.delete_content_plan(plan_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Content plan not found")
+    return {"status": "deleted"}
 
 
 # ============== Messaging System ==============
@@ -3298,124 +3550,142 @@ def get_chats(user_id: Optional[str] = None):
         raise HTTPException(status_code=400, detail="user_id is required")
     
     import uuid
-    chats = db.data.get('chats', [])
+    chats = db.get_chats(user_id)
     
     # Автоматически создаем служебные чаты при первом запросе
-    notifications_chat = next((c for c in chats if c.get('isNotificationsChat') and user_id in c.get('participantIds', [])), None)
+    notifications_chat = next((c for c in chats if c.get('is_notifications_chat') and user_id in c.get('participant_ids', [])), None)
     if not notifications_chat:
         notifications_chat = {
             "id": f"notifications-{user_id}",
             "title": "Уведомления",
-            "isGroup": False,
-            "isNotificationsChat": True,
-            "isSystemChat": True,
-            "participantIds": [user_id],
-            "createdAt": datetime.now().isoformat(),
-            "readMessagesByUser": {}
+            "is_group": False,
+            "is_notifications_chat": True,
+            "is_system_chat": True,
+            "participant_ids": [user_id],
+            "creator_id": user_id,
+            "created_at": datetime.now().isoformat(),
+            "read_messages_by_user": {}
         }
-        chats.append(notifications_chat)
-        db.data['chats'] = chats
-        db.save_to_disk()
+        db.add_chat(notifications_chat)
     
-    favorites_chat = next((c for c in chats if c.get('isFavoritesChat') and user_id in c.get('participantIds', [])), None)
+    favorites_chat = next((c for c in chats if c.get('is_favorites_chat') and user_id in c.get('participant_ids', [])), None)
     if not favorites_chat:
         favorites_chat = {
             "id": f"favorites_{user_id}",
             "title": "Избранное",
-            "isGroup": False,
-            "isFavoritesChat": True,
-            "isSystemChat": True,
-            "participantIds": [user_id],
-            "createdAt": datetime.now().isoformat(),
-            "readMessagesByUser": {}
+            "is_group": False,
+            "is_favorites_chat": True,
+            "is_system_chat": True,
+            "participant_ids": [user_id],
+            "creator_id": user_id,
+            "created_at": datetime.now().isoformat(),
+            "read_messages_by_user": {}
         }
-        chats.append(favorites_chat)
-        db.data['chats'] = chats
-        db.save_to_disk()
+        db.add_chat(favorites_chat)
     
-    chats = db.data.get('chats', [])
+    # Перезагружаем чаты после добавления новых
+    chats = db.get_chats(user_id)
     
-    # Фильтруем чаты, где пользователь является участником
-    user_chats = [chat for chat in chats if user_id in chat.get('participantIds', [])]
+    # Фильтрация уже сделана в db.get_chats(user_id), не нужно делать заново
+    user_chats = chats
     
     # Добавляем информацию о последнем сообщении и непрочитанных
     for chat in user_chats:
-        chat_messages = [msg for msg in db.data.get('messages', []) if msg.get('chatId') == chat['id']]
-        chat_messages.sort(key=lambda x: x.get('createdAt', ''), reverse=True)
+        chat_messages = db.get_messages(chat['id'])
         
         if chat_messages:
+            # Сообщения уже отсортированы по created_at DESC из базы
             chat['lastMessage'] = chat_messages[0]
-            last_msg_time = chat_messages[0].get('createdAt', '')
+            last_msg_time = chat_messages[0].get('created_at', '')
         else:
             chat['unreadCount'] = 0
             continue
         
         # Подсчитываем непрочитанные
-        last_read_at = chat.get('readMessagesByUser', {}).get(user_id)
+        last_read_at = chat.get('read_messages_by_user', {}).get(user_id)
+        
+        # Парсим даты для сравнения
+        if isinstance(last_msg_time, str):
+            try:
+                last_msg_time = datetime.fromisoformat(last_msg_time.replace('Z', '+00:00'))
+            except:
+                pass
+        
+        if isinstance(last_read_at, str):
+            try:
+                last_read_at = datetime.fromisoformat(last_read_at.replace('Z', '+00:00'))
+            except:
+                pass
         
         # Простая логика: если прочитал после последнего сообщения - всё прочитано
         if last_read_at and last_read_at >= last_msg_time:
             chat['unreadCount'] = 0
         elif last_read_at:
             # Считаем сообщения после last_read_at
-            is_system_chat = chat.get('isNotificationsChat') or chat.get('isSystemChat')
+            is_system_chat = chat.get('is_notifications_chat') or chat.get('is_system_chat')
             if is_system_chat:
                 # Для системных чатов считаем ВСЕ сообщения после last_read_at
                 unread = sum(1 for msg in chat_messages 
-                            if msg.get('createdAt', '') > last_read_at)
+                            if msg.get('created_at', '') > last_read_at)
             else:
                 # Для обычных чатов - только сообщения от других пользователей
                 unread = sum(1 for msg in chat_messages 
-                            if msg.get('authorId') != user_id 
-                            and msg.get('createdAt', '') > last_read_at)
+                            if msg.get('author_id') != user_id 
+                            and msg.get('created_at', '') > last_read_at)
             chat['unreadCount'] = unread
         else:
             # Если не читал - считаем непрочитанные
-            is_system_chat = chat.get('isNotificationsChat') or chat.get('isSystemChat')
+            is_system_chat = chat.get('is_notifications_chat') or chat.get('is_system_chat')
             if is_system_chat:
                 chat['unreadCount'] = len(chat_messages)
             else:
-                chat['unreadCount'] = sum(1 for msg in chat_messages if msg.get('authorId') != user_id)
+                chat['unreadCount'] = sum(1 for msg in chat_messages if msg.get('author_id') != user_id)
+    
+    # Функция для безопасного извлечения времени создания для сортировки
+    def get_sort_time(chat):
+        created_at = chat.get('lastMessage', {}).get('created_at', '')
+        if isinstance(created_at, datetime):
+            return created_at
+        elif isinstance(created_at, str) and created_at:
+            try:
+                return datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            except:
+                return datetime.min
+        return datetime.min
     
     # Сортируем по последнему сообщению
-    user_chats.sort(key=lambda x: x.get('lastMessage', {}).get('createdAt', ''), reverse=True)
+    user_chats.sort(key=get_sort_time, reverse=True)
     
-    return user_chats
+    # Преобразуем snake_case → camelCase для frontend
+    return [snake_to_camel(chat) for chat in user_chats]
 
 @app.post("/api/chats")
 def create_chat(chat_data: ChatCreate):
     """Создать новый чат"""
     import uuid
     
-    chats = db.data.get('chats', [])
-    
     # Проверяем, не существует ли уже личный чат с этими участниками
     if not chat_data.isGroup and len(chat_data.participantIds) == 2:
-        existing_chat = next(
-            (chat for chat in chats 
-             if not chat.get('isGroup', False) 
-             and set(chat.get('participantIds', [])) == set(chat_data.participantIds)),
-            None
-        )
+        existing_chat = db.find_private_chat(chat_data.participantIds[0], chat_data.participantIds[1])
         if existing_chat:
-            return existing_chat
+            return snake_to_camel(existing_chat)
     
     new_chat = {
         "id": str(uuid.uuid4()),
         "title": chat_data.title,
-        "isGroup": chat_data.isGroup,
-        "participantIds": chat_data.participantIds,
-        "createdAt": datetime.now().isoformat(),
-        "readMessagesByUser": {}
+        "is_group": chat_data.isGroup,
+        "participant_ids": chat_data.participantIds,
+        "created_at": datetime.now().isoformat(),
+        "read_messages_by_user": {}
     }
     
     # Добавляем creatorId для групповых чатов
     if chat_data.isGroup and chat_data.creatorId:
-        new_chat["creatorId"] = chat_data.creatorId
+        new_chat["creator_id"] = chat_data.creatorId
     
-    db.create_chat(new_chat)
+    result = db.add_chat(new_chat)
     
-    return new_chat
+    return snake_to_camel(result)
 
 @app.get("/api/chats/{chat_id}")
 def get_chat(chat_id: str):
@@ -3423,37 +3693,25 @@ def get_chat(chat_id: str):
     chat = db.get_chat(chat_id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
-    return chat
+    return snake_to_camel(chat)
 
 @app.delete("/api/chats/{chat_id}")
 def delete_chat(chat_id: str):
     """Удалить чат и все его сообщения"""
-    chats = db.data.get('chats', [])
-    
-    chat = next((c for c in chats if c['id'] == chat_id), None)
+    chat = db.get_chat(chat_id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
-    # Удаляем чат
-    db.data['chats'] = [c for c in chats if c['id'] != chat_id]
-    
-    # Удаляем все сообщения чата
-    messages = db.data.get('messages', [])
-    db.data['messages'] = [msg for msg in messages if msg.get('chatId') != chat_id]
-    
-    db._save()
+    # Удаляем чат (CASCADE удалит сообщения и участников)
+    db.delete_chat(chat_id)
     
     return {"success": True}
 
 @app.get("/api/chats/{chat_id}/messages")
 def get_chat_messages(chat_id: str):
     """Получить все сообщения чата"""
-    messages = db.data.get('messages', [])
-    
-    chat_messages = [msg for msg in messages if msg.get('chatId') == chat_id]
-    chat_messages.sort(key=lambda x: x.get('createdAt', ''))
-    
-    return chat_messages
+    chat_messages = db.get_messages(chat_id)
+    return [snake_to_camel(msg) for msg in chat_messages]
 
 @app.post("/api/chats/{chat_id}/messages")
 def send_message(chat_id: str, message_data: MessageCreate):
@@ -3461,8 +3719,7 @@ def send_message(chat_id: str, message_data: MessageCreate):
     import uuid
     
     # Проверяем существование чата
-    chats = db.data.get('chats', [])
-    chat = next((c for c in chats if c['id'] == chat_id), None)
+    chat = db.get_chat(chat_id)
     
     # Если чат не найден и это favorites чат - создаём его автоматически
     if not chat and chat_id.startswith('favorites_'):
@@ -3470,65 +3727,62 @@ def send_message(chat_id: str, message_data: MessageCreate):
         new_chat = {
             "id": chat_id,
             "title": "Избранное",
-            "isGroup": False,
-            "isFavoritesChat": True,
-            "participantIds": [user_id],
-            "createdAt": datetime.now().isoformat(),
-            "readMessagesByUser": {},
-            "pinnedByUser": {user_id: True}
+            "is_group": False,
+            "is_favorites_chat": True,
+            "participant_ids": [user_id],
+            "creator_id": user_id,
+            "created_at": datetime.now().isoformat(),
+            "read_messages_by_user": {},
+            "pinned_by_user": {user_id: True}
         }
-        db.data.setdefault('chats', []).append(new_chat)
-        db._save()
-        chat = new_chat
+        chat = db.add_chat(new_chat)
     
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
     # Получаем информацию об авторе
-    users = db.data.get('users', [])
-    author = next((u for u in users if u['id'] == message_data.authorId), None)
+    author = db.get_user_by_id(message_data.authorId)
     if not author:
         raise HTTPException(status_code=404, detail="Author not found")
     
-    messages = db.data.get('messages', [])
-    
     new_message = {
         "id": str(uuid.uuid4()),
-        "chatId": chat_id,
-        "authorId": message_data.authorId,
-        "authorName": author.get('name') or author.get('username') or 'Unknown',
+        "chat_id": chat_id,
+        "author_id": message_data.authorId,
+        "author_name": author.get('name') or author.get('username') or 'Unknown',
         "content": message_data.content,
         "mentions": message_data.mentions or [],
-        "replyToId": message_data.replyToId,
-        "createdAt": datetime.now().isoformat(),
-        "updatedAt": None,
-        "isEdited": False,
+        "reply_to_id": message_data.replyToId,
+        "created_at": datetime.now().isoformat(),
+        "updated_at": None,
+        "is_edited": False,
         "attachments": message_data.attachments or []
     }
     
-    db.add_message(new_message)
+    result = db.add_message(new_message)
     
     # Уведомления о сообщениях НЕ отправляем - чат "Уведомления" только для задач, событий и т.д.
     
-    return new_message
+    return snake_to_camel(result)
 
 @app.patch("/api/chats/{chat_id}/messages/{message_id}")
 def update_message(chat_id: str, message_id: str, update_data: dict):
     """Обновить сообщение"""
-    messages = db.data.get('messages', [])
-    
-    message = next((msg for msg in messages if msg['id'] == message_id and msg['chatId'] == chat_id), None)
-    if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
-    
+    # Пытаемся обновить сообщение
     if 'content' in update_data:
-        message['content'] = update_data['content']
-        message['updatedAt'] = datetime.now().isoformat()
-        message['isEdited'] = True
+        success = db.update_message(message_id, update_data['content'])
+        if not success:
+            raise HTTPException(status_code=404, detail="Message not found")
+        
+        # Получаем обновленное сообщение
+        messages = db.get_messages(chat_id)
+        message = next((msg for msg in messages if msg['id'] == message_id), None)
+        if not message:
+            raise HTTPException(status_code=404, detail="Message not found")
+        
+        return message
     
-    db._save()
-    
-    return message
+    raise HTTPException(status_code=400, detail="No content to update")
 
 @app.post("/api/chats/{chat_id}/messages/{message_id}/forward")
 def forward_message(chat_id: str, message_id: str, forward_data: dict = Body(...)):
@@ -3610,18 +3864,15 @@ def mark_messages_as_read(chat_id: str, data_payload: dict):
     if not user_id:
         raise HTTPException(status_code=400, detail="userId is required")
     
-    chats = db.data.get('chats', [])
-    
-    chat = next((c for c in chats if c['id'] == chat_id), None)
+    chat = db.get_chat(chat_id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
-    if 'readMessagesByUser' not in chat:
-        chat['readMessagesByUser'] = {}
+    # Обновляем время последнего прочтения для пользователя
+    read_messages_by_user = chat.get('read_messages_by_user', {})
+    read_messages_by_user[user_id] = datetime.now().isoformat()
     
-    # Сохраняем текущее время как время последнего прочтения
-    chat['readMessagesByUser'][user_id] = datetime.now().isoformat()
-    db._save()
+    db.update_chat(chat_id, {'read_messages_by_user': read_messages_by_user})
     
     return {"success": True}
 
@@ -3653,13 +3904,12 @@ def get_or_create_notifications_chat(user_id: str):
     """Получить или создать чат уведомлений для пользователя"""
     import uuid
     
-    chats = db.data.get('chats', [])
+    chats = db.get_chats(user_id)
     
     # Ищем существующий чат уведомлений для этого пользователя
     notifications_chat = next(
         (chat for chat in chats 
-         if chat.get('isNotificationsChat', False) 
-         and user_id in chat.get('participantIds', [])),
+         if chat.get('is_notifications_chat', False)),
         None
     )
     
@@ -3668,18 +3918,19 @@ def get_or_create_notifications_chat(user_id: str):
     
     # Создаем новый чат уведомлений
     new_chat = {
-        "id": str(uuid.uuid4()),
+        "id": f"notifications-{user_id}",
         "title": "Уведомления",
-        "isGroup": False,
-        "isNotificationsChat": True,
-        "isSystemChat": True,
-        "participantIds": [user_id],
-        "createdAt": datetime.now().isoformat(),
-        "readMessagesByUser": {},
-        "pinnedByUser": {user_id: True}  # Автоматически закрепляем
+        "is_group": False,
+        "is_notifications_chat": True,
+        "is_system_chat": True,
+        "participant_ids": [user_id],
+        "creator_id": user_id,
+        "created_at": datetime.now().isoformat(),
+        "read_messages_by_user": {},
+        "pinned_by_user": {user_id: True}  # Автоматически закрепляем
     }
     
-    db.create_chat(new_chat)
+    db.add_chat(new_chat)
     
     return new_chat
 

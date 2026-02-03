@@ -21,6 +21,7 @@ interface LinkList {
   name: string;
   color: string;
   order: number;
+  department?: string;
   createdAt: string;
 }
 
@@ -34,6 +35,7 @@ interface LinkItem {
   siteName?: string;
   listId: string;
   categoryId?: string;
+  department?: string;
   tags: string[];
   isBookmarked: boolean;
   isPinned: boolean;
@@ -98,10 +100,43 @@ export default function LinksPage() {
   // Load data
   const loadData = useCallback(async () => {
     try {
+      // Получаем отдел текущего пользователя из localStorage
+      const myAccountStr = localStorage.getItem('myAccount');
+      let userDepartment: string | null = null;
+      
+      if (myAccountStr) {
+        const myAccount = JSON.parse(myAccountStr);
+        // Если department есть в localStorage, используем его
+        if (myAccount.department) {
+          userDepartment = myAccount.department;
+        } else if (myAccount.id) {
+          // Если нет, загружаем полные данные пользователя
+          const userRes = await fetch(`/api/users/${myAccount.id}`);
+          if (userRes.ok) {
+            const userData = await userRes.json();
+            userDepartment = userData.department;
+            // Обновляем localStorage
+            localStorage.setItem('myAccount', JSON.stringify({
+              ...myAccount,
+              department: userDepartment
+            }));
+          }
+        }
+      }
+      
       const res = await fetch('/api/links');
       const data = await res.json();
-      setLinks(data.links || []);
-      setLists(data.lists || []);
+      
+      // Фильтруем ссылки и списки по отделу
+      const filteredLinks = userDepartment 
+        ? (data.links || []).filter((link: LinkItem) => link.department === userDepartment)
+        : (data.links || []);
+      const filteredLists = userDepartment
+        ? (data.lists || []).filter((list: LinkList) => list.department === userDepartment)
+        : (data.lists || []);
+      
+      setLinks(filteredLinks);
+      setLists(filteredLists);
       setCategories(data.categories || []);
     } catch (error) {
       console.error('Error loading links:', error);
@@ -157,6 +192,15 @@ export default function LinksPage() {
     if (!newUrl) return;
     
     try {
+      // Получаем отдел текущего пользователя из localStorage
+      const myAccountStr = localStorage.getItem('myAccount');
+      let userDepartment: string | undefined = undefined;
+      
+      if (myAccountStr) {
+        const myAccount = JSON.parse(myAccountStr);
+        userDepartment = myAccount.department;
+      }
+      
       const res = await fetch('/api/links', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -165,7 +209,8 @@ export default function LinksPage() {
           url: newUrl,
           listId: newListId || selectedListId || lists[0]?.id,
           categoryId: newCategoryId || undefined,
-          tags: newTags ? newTags.split(',').map(t => t.trim()) : []
+          tags: newTags ? newTags.split(',').map(t => t.trim()) : [],
+          department: userDepartment
         })
       });
       
@@ -234,6 +279,15 @@ export default function LinksPage() {
   // List CRUD
   const saveList = async (name: string, color: string) => {
     try {
+      // Получаем отдел текущего пользователя из localStorage
+      const myAccountStr = localStorage.getItem('myAccount');
+      let userDepartment: string | undefined = undefined;
+      
+      if (myAccountStr) {
+        const myAccount = JSON.parse(myAccountStr);
+        userDepartment = myAccount.department;
+      }
+      
       if (editingList) {
         await fetch('/api/links', {
           method: 'PUT',
@@ -245,7 +299,7 @@ export default function LinksPage() {
         const res = await fetch('/api/links', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'list', name, color, icon: '' })
+          body: JSON.stringify({ type: 'list', name, color, icon: '', department: userDepartment })
         });
         const newList = await res.json();
         setLists([...lists, newList]);
@@ -707,14 +761,11 @@ export default function LinksPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-medium text-white">
-                  {selectedListId 
-                    ? lists.find(l => l.id === selectedListId)?.name 
-                    : selectedCategoryId
-                      ? categories.find(c => c.id === selectedCategoryId)?.name
-                      : showBookmarksOnly
-                        ? 'Избранное'
-                        : 'Все ссылки'
-                  }
+                  {(() => {
+                    const myAccountStr = localStorage.getItem('myAccount');
+                    const department = myAccountStr ? JSON.parse(myAccountStr).department : null;
+                    return department || 'База ссылок';
+                  })()}
                 </h2>
                 <p className="text-xs text-white/40">{filteredLinks.length} ссылок</p>
               </div>
@@ -787,31 +838,30 @@ export default function LinksPage() {
                           <p className="text-xs text-white/30 mt-1 line-clamp-2">{link.description}</p>
                         )}
                         
-                        {/* Tags */}
-                        <div className="flex items-center gap-2 mt-2 flex-wrap">
-                          {list && (
-                            <span 
-                              className="px-2 py-0.5 rounded text-xs"
-                              style={{ backgroundColor: `${list.color}20`, color: list.color }}
-                            >
-                              {list.name}
-                            </span>
-                          )}
+                        {/* Tags and Actions - на одном уровне */}
+                        <div className="flex items-center justify-between gap-2 mt-2">
+                          <div className="flex items-center gap-2 flex-wrap flex-1">
+                            {list && (
+                              <span 
+                                className="px-2 py-0.5 rounded text-xs"
+                                style={{ backgroundColor: `${list.color}20`, color: list.color }}
+                              >
+                                {list.name}
+                              </span>
+                            )}
+                            
+                            {category && (
+                              <span 
+                                className="px-2 py-0.5 rounded text-xs"
+                                style={{ backgroundColor: `${category.color}20`, color: category.color }}
+                              >
+                                {category.name}
+                              </span>
+                            )}
+                          </div>
                           
-                          {category && (
-                            <span 
-                              className="px-2 py-0.5 rounded text-xs"
-                              style={{ backgroundColor: `${category.color}20`, color: category.color }}
-                            >
-                              {category.name}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                      
-                    {/* Actions на нижней границе карточки */}
-                    <div className="flex items-center justify-end gap-1 mt-3 pt-3 border-t border-white/5">
+                          {/* Actions - рядом с тегами */}
+                          <div className="flex items-center gap-1 flex-shrink-0">
                         <button
                           onClick={() => toggleBookmark(link)}
                           className={`p-1.5 md:p-2 rounded-full transition-colors ${
@@ -864,7 +914,17 @@ export default function LinksPage() {
                         >
                           <Trash2 className="w-4 h-4 text-red-400/50 hover:text-red-400" />
                         </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleContextMenu(e, 'link', link); }} 
+                          className="p-1.5 md:p-2 hover:bg-white/5 rounded-full transition-colors"
+                          title="Еще"
+                        >
+                          <MoreHorizontal className="w-4 h-4 text-white/40 hover:text-white/60" />
+                        </button>
+                          </div>
+                        </div>
                       </div>
+                    </div>
                   </div>
                 );
               })}
@@ -1356,7 +1416,7 @@ function ItemModal({
   const [color, setColor] = useState(item?.color || COLOR_OPTIONS[0]);
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
       <div className="bg-[#1a1a1a] rounded-xl border border-white/10 w-full max-w-sm shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
           <h2 className="text-base font-semibold">{title}</h2>

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, Suspense, lazy, useCallback } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MessageCircle, CheckSquare, Calendar, Users, MoreVertical, Shield, FileText, Languages, Sparkles, Link2, Box, Globe, Megaphone, Sun, Moon, GripVertical, X, Settings, User, ChevronUp, Type, MessageSquare } from 'lucide-react';
+import { MessageCircle, CheckSquare, Calendar, Users, MoreVertical, Shield, FileText, Languages, Sparkles, Link2, Box, Globe, Megaphone, Sun, Moon, GripVertical, X, Settings, User, ChevronUp, Type, MessageSquare, CheckCircle, Info, Calculator, Zap, Code2, PenTool, Hash, Package2 } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
 import Avatar from '@/components/Avatar';
@@ -33,14 +33,15 @@ const STANDARD_TOOL_IDS = ['messages', 'tasks', 'calendar', 'links', 'chat-setti
 
 // Список всех инструментов
 const ALL_TOOLS: Tool[] = [
-  { id: 'feed-editor', name: 'Редактор фидов', href: '/feed-editor', icon: <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-blue-500 to-indigo-600' },
-  { id: 'transliterator', name: 'Транслитератор', href: '/transliterator', icon: <Languages className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-emerald-500 to-teal-600' },
-  { id: 'slovolov', name: 'Словолов', href: '/slovolov', icon: <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-pink-500 to-rose-600' },
-  { id: 'utm-generator', name: 'Генератор UTM', href: '/utm-generator', icon: <Link2 className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-fuchsia-500 to-pink-600' },
-  { id: 'slovolov-pro', name: 'Словолов PRO', href: '/slovolov-pro', icon: <Box className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-cyan-500 to-blue-600' },
-  { id: 'content-plan', name: 'Контент-план', href: '/content-plan', icon: <Megaphone className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-purple-500 to-violet-600' },
-  { id: 'chat-settings', name: 'Настройки', href: '/chat-settings', icon: <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-gray-500 to-slate-600', standard: true },
-  { id: 'admin', name: 'Админка', href: '/admin', icon: <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />, gradient: 'from-amber-500 to-orange-600', adminOnly: true },
+  { id: 'feed-editor', name: 'Редактор фидов', href: '/feed-editor', icon: <Code2 className="w-6 h-6 sm:w-8 sm:h-8 text-white" strokeWidth={1.5} />, gradient: 'from-blue-500 to-indigo-600' },
+  { id: 'transliterator', name: 'Транслитератор', href: '/transliterator', icon: <Type className="w-6 h-6 sm:w-8 sm:h-8 text-white" strokeWidth={1.5} />, gradient: 'from-emerald-500 to-teal-600' },
+  { id: 'slovolov', name: 'Словолов', href: '/slovolov', icon: <Zap className="w-6 h-6 sm:w-8 sm:h-8 text-white" strokeWidth={1.5} />, gradient: 'from-pink-500 to-rose-600' },
+  { id: 'utm-generator', name: 'Генератор UTM', href: '/utm-generator', icon: <Hash className="w-6 h-6 sm:w-8 sm:h-8 text-white" strokeWidth={1.5} />, gradient: 'from-fuchsia-500 to-pink-600' },
+  { id: 'slovolov-pro', name: 'Словолов PRO', href: '/slovolov-pro', icon: <Package2 className="w-6 h-6 sm:w-8 sm:h-8 text-white" strokeWidth={1.5} />, gradient: 'from-cyan-500 to-blue-600' },
+  { id: 'content-plan', name: 'Контент-план', href: '/content-plan', icon: <PenTool className="w-6 h-6 sm:w-8 sm:h-8 text-white" strokeWidth={1.5} />, gradient: 'from-purple-500 to-violet-600' },
+  { id: 'calculator', name: 'Калькулятор', href: '/calculator', icon: <Calculator className="w-6 h-6 sm:w-8 sm:h-8 text-white" strokeWidth={1.5} />, gradient: 'from-indigo-500 to-purple-600', standard: true },
+  { id: 'chat-settings', name: 'Настройки', href: '/chat-settings', icon: <Settings className="w-6 h-6 sm:w-8 sm:h-8 text-white" strokeWidth={1.5} />, gradient: 'from-gray-500 to-slate-600', standard: true },
+  { id: 'admin', name: 'Админка', href: '/admin', icon: <Shield className="w-6 h-6 sm:w-8 sm:h-8 text-white" strokeWidth={1.5} />, gradient: 'from-amber-500 to-orange-600', adminOnly: true },
 ];
 
 export default function AccountPage() {
@@ -74,6 +75,42 @@ export default function AccountPage() {
   const [draggingTool, setDraggingTool] = useState<string | null>(null);
   const [isDragOverBar, setIsDragOverBar] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
+  
+  // Состояния видимости вкладок навигации
+  const [visibleTabs, setVisibleTabs] = useState({
+    messages: true,
+    tasks: true,
+    calendar: true,
+    contacts: true,
+    links: true
+  });
+
+  // Сохранение настроек навигации на сервер
+  const saveNavigationSettings = async (tabs: typeof visibleTabs, toolsOrder?: string[]) => {
+    try {
+      const myAccountStr = localStorage.getItem('myAccount');
+      if (myAccountStr) {
+        const myAccount = JSON.parse(myAccountStr);
+        await fetch(`/api/users/${myAccount.id}/navigation`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            visibleTabs: tabs,
+            ...(toolsOrder && { toolsOrder })
+          })
+        });
+      }
+    } catch (error) {
+      console.error('Failed to save navigation settings:', error);
+    }
+  };
+
+  // Обработчик изменения видимости вкладок
+  const handleVisibleTabsChange = (tabId: string, checked: boolean) => {
+    const newVisibleTabs = { ...visibleTabs, [tabId]: checked };
+    setVisibleTabs(newVisibleTabs);
+    saveNavigationSettings(newVisibleTabs);
+  };
 
   // Загрузка настроек чата с сервера
   useEffect(() => {
@@ -94,11 +131,20 @@ export default function AccountPage() {
           const res = await fetch(`/api/users/${myAccount.id}`);
           if (res.ok) {
             const user = await res.json();
+            
+            // Загружаем настройки чата
             if (user.chatSettings) {
               setChatSettings({ ...defaultSettings, ...user.chatSettings });
               localStorage.setItem('chatSettings', JSON.stringify({ ...defaultSettings, ...user.chatSettings }));
-              return;
             }
+            
+            // Загружаем настройки навигации
+            if (user.visible_tabs || user.visibleTabs) {
+              const tabs = user.visible_tabs || user.visibleTabs;
+              setVisibleTabs(tabs);
+            }
+            
+            return;
           }
         }
         // Fallback на localStorage
@@ -279,11 +325,12 @@ export default function AccountPage() {
             const res = await fetch(`/api/users/${account.id}`);
             if (res.ok) {
               const user = await res.json();
-              // Сохраняем в localStorage для будущего использования (с аватаром)
+              // Сохраняем в localStorage для будущего использования (с аватаром и department)
               localStorage.setItem('myAccount', JSON.stringify({ 
                 id: account.id, 
                 name: user.name,
-                avatar: user.avatar 
+                avatar: user.avatar,
+                department: user.department
               }));
               setCurrentUser({ 
                 id: account.id,
@@ -471,8 +518,23 @@ export default function AccountPage() {
                     }}
                   >
                     <div className="relative">
-                      <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-gradient-to-br ${tool.gradient} flex items-center justify-center group-hover:scale-110 transition-all shadow-lg`}>
-                        {tool.icon}
+                      {/* Выпуклое стекло */}
+                      <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-3xl flex items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] border backdrop-blur-sm ${
+                        tool.id === 'feed-editor' ? 'bg-blue-400 dark:bg-blue-500/30 border-blue-600 dark:border-blue-500/40 hover:bg-blue-500 dark:hover:bg-blue-500/40 hover:border-blue-700 dark:hover:border-blue-500/50' :
+                        tool.id === 'transliterator' ? 'bg-emerald-400 dark:bg-emerald-500/30 border-emerald-600 dark:border-emerald-500/40 hover:bg-emerald-500 dark:hover:bg-emerald-500/40 hover:border-emerald-700 dark:hover:border-emerald-500/50' :
+                        tool.id === 'slovolov' ? 'bg-pink-400 dark:bg-pink-500/30 border-pink-600 dark:border-pink-500/40 hover:bg-pink-500 dark:hover:bg-pink-500/40 hover:border-pink-700 dark:hover:border-pink-500/50' :
+                        tool.id === 'utm-generator' ? 'bg-fuchsia-400 dark:bg-fuchsia-500/30 border-fuchsia-600 dark:border-fuchsia-500/40 hover:bg-fuchsia-500 dark:hover:bg-fuchsia-500/40 hover:border-fuchsia-700 dark:hover:border-fuchsia-500/50' :
+                        tool.id === 'slovolov-pro' ? 'bg-cyan-400 dark:bg-cyan-500/30 border-cyan-600 dark:border-cyan-500/40 hover:bg-cyan-500 dark:hover:bg-cyan-500/40 hover:border-cyan-700 dark:hover:border-cyan-500/50' :
+                        tool.id === 'content-plan' ? 'bg-purple-400 dark:bg-purple-500/30 border-purple-600 dark:border-purple-500/40 hover:bg-purple-500 dark:hover:bg-purple-500/40 hover:border-purple-700 dark:hover:border-purple-500/50' :
+                        tool.id === 'calculator' ? 'bg-indigo-400 dark:bg-indigo-500/30 border-indigo-600 dark:border-indigo-500/40 hover:bg-indigo-500 dark:hover:bg-indigo-500/40 hover:border-indigo-700 dark:hover:border-indigo-500/50' :
+                        tool.id === 'chat-settings' ? 'bg-gray-400 dark:bg-gray-500/30 border-gray-600 dark:border-gray-500/40 hover:bg-gray-500 dark:hover:bg-gray-500/40 hover:border-gray-700 dark:hover:border-gray-500/50' :
+                        tool.id === 'admin' ? 'bg-amber-400 dark:bg-amber-500/30 border-amber-600 dark:border-amber-500/40 hover:bg-amber-500 dark:hover:bg-amber-500/40 hover:border-amber-700 dark:hover:border-amber-500/50' :
+                        'bg-blue-400 dark:bg-blue-500/30 border-blue-600 dark:border-blue-500/40 hover:bg-blue-500 dark:hover:bg-blue-500/40 hover:border-blue-700 dark:hover:border-blue-500/50'
+                      }`}>
+                        {/* Icon */}
+                        <div className="text-gray-800 dark:text-white">
+                          {React.cloneElement(tool.icon as React.ReactElement, { strokeWidth: 2 } as any)}
+                        </div>
                       </div>
                       {/* Иконка перетаскивания (только десктоп) */}
                       <div className="hidden md:flex absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[var(--bg-glass)] border border-[var(--border-glass)] items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -486,88 +548,6 @@ export default function AccountPage() {
                 </div>
               ))}
             </div>
-
-            {/* Быстрые действия - Уведомления и Избранное */}
-            <div className="mt-8 max-w-5xl mx-auto">
-              <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-4">Быстрые действия</h3>
-              <div className="grid grid-cols-2 gap-4">
-                {/* Уведомления */}
-                <button
-                  onClick={async () => {
-                    try {
-                      const myAccountStr = localStorage.getItem('myAccount');
-                      if (!myAccountStr) return;
-                      const myAccount = JSON.parse(myAccountStr);
-                      router.push(`/account?tab=messages&chat=notifications_${myAccount.id}`);
-                    } catch {}
-                  }}
-                  className="flex flex-col items-center gap-3 p-5 bg-[var(--bg-secondary)] rounded-2xl hover:bg-[var(--bg-tertiary)] transition-colors group"
-                >
-                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                    <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
-                      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
-                    </svg>
-                  </div>
-                  <span className="text-sm font-medium text-[var(--text-primary)]">Уведомления</span>
-                </button>
-                
-                {/* Избранное */}
-                <button
-                  onClick={async () => {
-                    try {
-                      const myAccountStr = localStorage.getItem('myAccount');
-                      if (!myAccountStr) return;
-                      const myAccount = JSON.parse(myAccountStr);
-                      router.push(`/account?tab=messages&chat=favorites_${myAccount.id}`);
-                    } catch {}
-                  }}
-                  className="flex flex-col items-center gap-3 p-5 bg-[var(--bg-secondary)] rounded-2xl hover:bg-[var(--bg-tertiary)] transition-colors group"
-                >
-                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                    <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="0">
-                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                    </svg>
-                  </div>
-                  <span className="text-sm font-medium text-[var(--text-primary)]">Избранное</span>
-                </button>
-              </div>
-
-              {/* Настройки шрифта */}
-              <div className="w-full mt-8 bg-[var(--bg-secondary)] rounded-2xl p-5">
-                <h3 className="text-lg font-semibold mb-4">Размер шрифта сообщений</h3>
-                
-                <div className="flex gap-4">
-                  {/* Мобильный */}
-                  <div className="flex-1">
-                    <label className="text-sm text-[var(--text-muted)] mb-2 block">Телефон</label>
-                    <input
-                      type="range"
-                      min="12"
-                      max="18"
-                      value={chatSettings.fontSizeMobile}
-                      onChange={(e) => saveChatSettings({ ...chatSettings, fontSizeMobile: parseInt(e.target.value) })}
-                      className="w-full accent-blue-500"
-                    />
-                    <div className="text-center text-sm font-medium mt-1">{chatSettings.fontSizeMobile}px</div>
-                  </div>
-
-                  {/* Десктоп */}
-                  <div className="flex-1">
-                    <label className="text-sm text-[var(--text-muted)] mb-2 block">Компьютер</label>
-                    <input
-                      type="range"
-                      min="12"
-                      max="20"
-                      value={chatSettings.fontSize}
-                      onChange={(e) => saveChatSettings({ ...chatSettings, fontSize: parseInt(e.target.value) })}
-                      className="w-full accent-blue-500"
-                    />
-                    <div className="text-center text-sm font-medium mt-1">{chatSettings.fontSize}px</div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         );
       
@@ -579,7 +559,7 @@ export default function AccountPage() {
   return (
     <div className={`h-screen theme-text flex flex-col transition-colors duration-300 overflow-hidden ${activeTab === 'messages' ? '' : 'theme-bg'}`}>
       {/* Main Content */}
-      <div className={`flex-1 overflow-hidden ${activeTab === 'messages' || activeTab === 'tasks' ? '' : 'pb-24 md:pb-16'}`}>
+      <div className="flex-1 overflow-hidden">
         <div className={`h-full ${activeTab === 'tasks' ? '' : 'overflow-y-auto'}`}>
           {renderContent()}
         </div>
@@ -588,6 +568,7 @@ export default function AccountPage() {
       {/* Mobile Bottom Navigation Bar - стеклянные кнопки */}
       <div className={`bottom-nav-fixed md:hidden fixed bottom-0 left-0 right-0 flex justify-center pb-4 px-3 z-40 pointer-events-none select-none ${isChatOpen ? 'hidden' : ''}`}>
         <div className="flex items-center gap-2 pointer-events-auto backdrop-blur-xl bg-gradient-to-b from-white/10 to-white/5 border border-white/20 rounded-full px-3 py-1.5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_4px_20px_rgba(0,0,0,0.3)]">
+          {visibleTabs.messages && (
           <button
             onClick={() => handleTabChange('messages')}
             className={`relative w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
@@ -603,7 +584,9 @@ export default function AccountPage() {
               </span>
             )}
           </button>
+          )}
 
+          {visibleTabs.tasks && (
           <button
             onClick={() => handleTabChange('tasks')}
             className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
@@ -614,7 +597,9 @@ export default function AccountPage() {
           >
             <CheckSquare className="w-4 h-4" strokeWidth={2} />
           </button>
+          )}
 
+          {visibleTabs.calendar && (
           <button
             onClick={() => handleTabChange('calendar')}
             className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
@@ -625,7 +610,9 @@ export default function AccountPage() {
           >
             <Calendar className="w-4 h-4" strokeWidth={2} />
           </button>
+          )}
 
+          {visibleTabs.contacts && (
           <button
             onClick={() => handleTabChange('contacts')}
             className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
@@ -636,7 +623,9 @@ export default function AccountPage() {
           >
             <Users className="w-4 h-4" strokeWidth={2} />
           </button>
+          )}
 
+          {visibleTabs.links && (
           <button
             onClick={() => handleTabChange('links')}
             className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
@@ -647,6 +636,7 @@ export default function AccountPage() {
           >
             <Globe className="w-4 h-4" strokeWidth={2} />
           </button>
+          )}
 
           <button
             onClick={() => handleTabChange('tools')}
@@ -675,6 +665,7 @@ export default function AccountPage() {
       >
         {/* Left side - Navigation */}
         <div className="flex items-center gap-1.5">
+          {visibleTabs.messages && (
           <button
             onClick={() => handleTabChange('messages')}
             className={`relative px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
@@ -684,14 +675,16 @@ export default function AccountPage() {
             }`}
           >
             <MessageCircle className="w-3.5 h-3.5" />
-            <span>Сообщения</span>
+            <span>Чаты</span>
             {unreadChatsCount > 0 && (
               <span className="min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
                 {unreadChatsCount > 99 ? '99+' : unreadChatsCount}
               </span>
             )}
           </button>
+          )}
 
+          {visibleTabs.tasks && (
           <button
             onClick={() => handleTabChange('tasks')}
             className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
@@ -703,7 +696,9 @@ export default function AccountPage() {
             <CheckSquare className="w-3.5 h-3.5" />
             <span>Задачи</span>
           </button>
+          )}
 
+          {visibleTabs.calendar && (
           <button
             onClick={() => handleTabChange('calendar')}
             className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
@@ -715,7 +710,9 @@ export default function AccountPage() {
             <Calendar className="w-3.5 h-3.5" />
             <span>Календарь</span>
           </button>
+          )}
 
+          {visibleTabs.contacts && (
           <button
             onClick={() => handleTabChange('contacts')}
             className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
@@ -727,7 +724,9 @@ export default function AccountPage() {
             <Users className="w-3.5 h-3.5" />
             <span>Контакты</span>
           </button>
+          )}
 
+          {visibleTabs.links && (
           <button
             onClick={() => handleTabChange('links')}
             className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
@@ -739,6 +738,7 @@ export default function AccountPage() {
             <Globe className="w-3.5 h-3.5" />
             <span>Ссылки</span>
           </button>
+          )}
 
           <button
             onClick={() => handleTabChange('tools')}
@@ -773,15 +773,24 @@ export default function AccountPage() {
                     href={tool.href}
                     className="px-2 py-1.5 rounded-[16px] flex items-center gap-1.5 text-xs font-medium transition-all bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]"
                   >
-                    <div className={`w-5 h-5 rounded-lg bg-gradient-to-br ${tool.gradient} flex items-center justify-center`}>
-                      {tool.id === 'feed-editor' && <FileText className="w-3 h-3 text-white" strokeWidth={2} />}
-                      {tool.id === 'transliterator' && <Languages className="w-3 h-3 text-white" strokeWidth={2} />}
-                      {tool.id === 'slovolov' && <Sparkles className="w-3 h-3 text-white" strokeWidth={2} />}
-                      {tool.id === 'utm-generator' && <Link2 className="w-3 h-3 text-white" strokeWidth={2} />}
-                      {tool.id === 'slovolov-pro' && <Box className="w-3 h-3 text-white" strokeWidth={2} />}
-                      {tool.id === 'content-plan' && <Megaphone className="w-3 h-3 text-white" strokeWidth={2} />}
-                      {tool.id === 'links' && <Globe className="w-3 h-3 text-white" strokeWidth={2} />}
-                      {tool.id === 'admin' && <Shield className="w-3 h-3 text-white" strokeWidth={2} />}
+                    <div className={`w-5 h-5 rounded-[22%] bg-gradient-to-br ${tool.gradient} flex items-center justify-center relative overflow-hidden shadow-[0_4px_16px_-4px_rgba(0,0,0,0.25)]`}>
+                      {/* Apple-style glass */}
+                      <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent opacity-80 rounded-[22%]" />
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/10 rounded-[22%]" />
+                      {/* Highlight */}
+                      <div className="absolute top-[8%] left-[12%] right-[12%] h-[25%] bg-white/50 rounded-full blur-sm" />
+                      {/* Icon */}
+                      <div className="relative z-10 drop-shadow-[0_1px_4px_rgba(0,0,0,0.3)]">
+                        {tool.id === 'feed-editor' && <Code2 className="w-3 h-3 text-white" strokeWidth={2} />}
+                        {tool.id === 'transliterator' && <Type className="w-3 h-3 text-white" strokeWidth={2} />}
+                        {tool.id === 'slovolov' && <Zap className="w-3 h-3 text-white" strokeWidth={2} />}
+                        {tool.id === 'utm-generator' && <Hash className="w-3 h-3 text-white" strokeWidth={2} />}
+                        {tool.id === 'slovolov-pro' && <Package2 className="w-3 h-3 text-white" strokeWidth={2} />}
+                        {tool.id === 'content-plan' && <PenTool className="w-3 h-3 text-white" strokeWidth={2} />}
+                        {tool.id === 'calculator' && <Calculator className="w-3 h-3 text-white" strokeWidth={2} />}
+                        {tool.id === 'links' && <Globe className="w-3 h-3 text-white" strokeWidth={2} />}
+                        {tool.id === 'admin' && <Shield className="w-3 h-3 text-white" strokeWidth={2} />}
+                      </div>
                     </div>
                     <span className="hidden lg:inline">{tool.name}</span>
                   </Link>

@@ -1,6 +1,102 @@
 {
   "notifications": [
     {
+      "id": "notif-1770130309425-customer",
+      "type": "status_change",
+      "todoId": "20260202_094528_6a62cw",
+      "todoTitle": "Семантика по направлениям",
+      "fromUserId": "user_001",
+      "fromUserName": "Антон Николюк",
+      "toUserId": "user_002",
+      "message": "Антон Николюк завершил задачу и ждёт проверки",
+      "read": false,
+      "createdAt": "2026-02-03T14:51:49.425Z"
+    },
+    {
+      "id": "notif-1769605842855",
+      "type": "new_task",
+      "todoId": "20260128_131042_quga0o",
+      "todoTitle": "Задача ",
+      "fromUserId": "user_002",
+      "fromUserName": "Ирина Телегина",
+      "toUserId": "user_001",
+      "message": "Ирина Телегина создал задачу для вас",
+      "read": false,
+      "createdAt": "2026-01-28T13:10:42.855Z"
+    },
+    {
+      "id": "notif-1769605616900",
+      "type": "new_task",
+      "todoId": "20260128_130711_u4ae9g",
+      "todoTitle": "контроль за сео",
+      "fromUserId": "user_004",
+      "fromUserName": "Татьяна Николюк",
+      "toUserId": "user_002",
+      "message": "Татьяна Николюк создал задачу для вас",
+      "read": false,
+      "createdAt": "2026-01-28T13:06:56.900Z"
+    },
+    {
+      "id": "notif-1769605377808",
+      "type": "assignment",
+      "todoId": "20260128_130251_sqwzlc",
+      "todoTitle": "Проверочка",
+      "fromUserId": "user_001",
+      "fromUserName": "Антон Николюк",
+      "toUserId": "user_004",
+      "message": "Антон Николюк назначил вас исполнителем",
+      "read": false,
+      "createdAt": "2026-01-28T13:02:57.808Z"
+    },
+    {
+      "id": "notif-1769605308961",
+      "type": "new_task",
+      "todoId": "20260128_130148_mv3ddm",
+      "todoTitle": "Еще тест ",
+      "fromUserId": "user_001",
+      "fromUserName": "Антон Николюк",
+      "toUserId": "user_004",
+      "message": "Антон Николюк создал задачу для вас",
+      "read": false,
+      "createdAt": "2026-01-28T13:01:48.961Z"
+    },
+    {
+      "id": "notif-1769605281139",
+      "type": "new_task",
+      "todoId": "20260128_130121_pysj9c",
+      "todoTitle": "Проверка",
+      "fromUserId": "user_001",
+      "fromUserName": "Антон Николюк",
+      "toUserId": "user_004",
+      "message": "Антон Николюк создал задачу для вас",
+      "read": false,
+      "createdAt": "2026-01-28T13:01:21.139Z"
+    },
+    {
+      "id": "notif-1769605207618-customer",
+      "type": "status_change",
+      "todoId": "20260128_125822_65440f",
+      "todoTitle": "создать отделы в контактах",
+      "fromUserId": "user_001",
+      "fromUserName": "Антон Николюк",
+      "toUserId": "user_004",
+      "message": "Антон Николюк завершил задачу и ждёт проверки",
+      "read": false,
+      "createdAt": "2026-01-28T13:00:07.618Z"
+    },
+    {
+      "id": "notif-1769605170912",
+      "type": "assignment",
+      "todoId": "20260128_125822_65440f",
+      "todoTitle": "создать отделы в контактах",
+      "fromUserId": "user_004",
+      "fromUserName": "Татьяна Николюк",
+      "toUserId": "user_001",
+      "message": "Татьяна Николюк назначил вас исполнителем",
+      "read": false,
+      "createdAt": "2026-01-28T12:59:30.912Z"
+    },
+    {
       "id": "notif-1769502727584-64ethsyzo",
       "type": "event_update",
       "eventId": "event_1768401210005_mrl40ihjt",

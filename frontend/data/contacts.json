@@ -1,0 +1,40 @@
+{
+  "contacts": [
+    {
+      "department": "Отдел продаж",
+      "slug": "sales",
+      "colorHint": "#fef3c7",
+      "contacts": [
+        { "name": "Иван Иванов", "role": "Менеджер", "phone": "+7 912 000-00-01", "email": "sales@example.ru" }
+      ],
+      "working_hours": { "mon_fri": "09:00-18:00", "sat": "10:00-16:00", "sun": "closed" }
+    },
+    {
+      "department": "Техническая поддержка",
+      "slug": "support",
+      "colorHint": "#d1fae5",
+      "contacts": [
+        { "name": "Ольга Смирнова", "role": "Специалист поддержки", "phone": "+7 912 000-00-02", "email": "support@example.ru" }
+      ],
+      "working_hours": { "mon_fri": "08:00-20:00", "sat": "09:00-15:00", "sun": "closed" }
+    },
+    {
+      "department": "Маркетинг",
+      "slug": "marketing",
+      "colorHint": "#ede9fe",
+      "contacts": [
+        { "name": "Мария Кузнецова", "role": "Маркетолог", "phone": "+7 912 000-00-03", "email": "marketing@example.ru" }
+      ],
+      "working_hours": { "mon_fri": "10:00-19:00", "sat": "closed", "sun": "closed" }
+    },
+    {
+      "department": "Операции",
+      "slug": "ops",
+      "colorHint": "#e0f2fe",
+      "contacts": [
+        { "name": "Алексей Петров", "role": "Операционный менеджер", "phone": "+7 912 000-00-04", "email": "ops@example.ru" }
+      ],
+      "working_hours": { "mon_fri": "09:00-18:00", "sat": "closed", "sun": "closed" }
+    }
+  ]
+}

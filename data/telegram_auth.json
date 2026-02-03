@@ -1,27 +1,9 @@
 {
   "codes": [
     {
-      "code": "838191",
-      "createdAt": "2026-01-27T08:44:07.743Z",
-      "expiresAt": "2026-01-27T08:54:07.743Z",
-      "authenticated": false
-    },
-    {
-      "code": "479267",
-      "createdAt": "2026-01-27T08:47:03.662Z",
-      "expiresAt": "2026-01-27T08:57:03.662Z",
-      "authenticated": false
-    },
-    {
-      "code": "737845",
-      "createdAt": "2026-01-27T08:50:43.076Z",
-      "expiresAt": "2026-01-27T09:00:43.076Z",
-      "authenticated": false
-    },
-    {
-      "code": "787216",
-      "createdAt": "2026-01-27T08:53:33.689Z",
-      "expiresAt": "2026-01-27T09:03:33.689Z",
+      "code": "210697",
+      "createdAt": "2026-02-03T10:49:14.018Z",
+      "expiresAt": "2026-02-03T10:59:14.018Z",
       "authenticated": false
     }
   ]

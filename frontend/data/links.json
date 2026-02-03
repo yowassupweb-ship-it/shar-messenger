@@ -16,6 +16,76 @@
       "createdAt": "2026-01-14T12:26:50.738Z",
       "updatedAt": "2026-01-28T13:47:45.453Z",
       "order": 0
+    },
+    {
+      "id": "20260202_143315_npu3qn",
+      "url": "https://chat.deepseek.com/",
+      "title": "DeepSeek",
+      "description": "Chat with DeepSeek AI.",
+      "favicon": "https://www.google.com/s2/favicons?domain=chat.deepseek.com&sz=64",
+      "image": "https://cdn.deepseek.com/images/deepseek-chat-open-graph-image.jpeg",
+      "siteName": "chat.deepseek.com",
+      "listId": "work",
+      "tags": [],
+      "isBookmarked": false,
+      "isPinned": false,
+      "clickCount": 0,
+      "createdAt": "2026-02-02T14:33:15.943Z",
+      "updatedAt": "2026-02-02T14:33:47.939Z",
+      "order": 1,
+      "categoryId": "20260202_143334_2gblwu"
+    },
+    {
+      "id": "20260202_144022_9nscte",
+      "url": "https://miro.com/app/board/uXjVGIo2luY=/?share_link_id=711359141571",
+      "title": "Схема звонков",
+      "favicon": "https://www.google.com/s2/favicons?domain=miro.com&sz=64",
+      "image": "https://miro.com/api/v1/boards/uXjVGIo2luY=/picture?etag=R3458764517606860676_0_20250610",
+      "siteName": "miro.com",
+      "listId": "work",
+      "tags": [],
+      "isBookmarked": false,
+      "isPinned": false,
+      "clickCount": 0,
+      "createdAt": "2026-02-02T14:40:22.276Z",
+      "updatedAt": "2026-02-02T14:40:45.375Z",
+      "order": 2,
+      "categoryId": "20260202_144032_qea864"
+    },
+    {
+      "id": "20260202_144112_j1hlox",
+      "url": "https://miro.com/app/board/uXjVJ7hl8pE=/?share_link_id=73760338316",
+      "title": "Триггеры",
+      "favicon": "https://www.google.com/s2/favicons?domain=miro.com&sz=64",
+      "image": "https://miro.com/api/v1/boards/uXjVJ7hl8pE=/picture?etag=R3458764517264295811_0_20250610",
+      "siteName": "miro.com",
+      "listId": "work",
+      "tags": [],
+      "isBookmarked": false,
+      "isPinned": false,
+      "clickCount": 0,
+      "createdAt": "2026-02-02T14:41:12.542Z",
+      "updatedAt": "2026-02-02T14:41:19.758Z",
+      "order": 3,
+      "categoryId": "20260202_144032_qea864"
+    },
+    {
+      "id": "20260203_120103_770co0",
+      "url": "https://gemini.google.com",
+      "title": "‎Google Gemini",
+      "description": "Meet Gemini, Google’s AI assistant. Get help with writing, planning, brainstorming, and more. Experience the power of generative AI.",
+      "favicon": "https://www.google.com/s2/favicons?domain=gemini.google.com&sz=64",
+      "image": "https://www.gstatic.com/lamda/images/gemini_aurora_thumbnail_4g_e74822ff0ca4259beb718.png",
+      "siteName": "Gemini",
+      "listId": "work",
+      "categoryId": "20260202_143334_2gblwu",
+      "tags": [],
+      "isBookmarked": false,
+      "isPinned": false,
+      "clickCount": 0,
+      "createdAt": "2026-02-03T12:01:03.330Z",
+      "updatedAt": "2026-02-03T12:01:03.330Z",
+      "order": 4
     }
   ],
   "lists": [
@@ -28,5 +98,41 @@
       "createdAt": "2025-12-29T13:57:04.220Z"
     }
   ],
-  "categories": []
+  "categories": [
+    {
+      "id": "20260202_143334_2gblwu",
+      "name": "Искуственный интеллект",
+      "color": "#8b5cf6",
+      "icon": "",
+      "order": 0
+    },
+    {
+      "id": "20260202_144032_qea864",
+      "name": "Miro",
+      "color": "#f59e0b",
+      "icon": "",
+      "order": 1
+    },
+    {
+      "id": "20260202_144138_nh1mjo",
+      "name": "Таблицы",
+      "color": "#10b981",
+      "icon": "",
+      "order": 2
+    },
+    {
+      "id": "20260202_144148_fa3ydd",
+      "name": "Документы",
+      "color": "#3b82f6",
+      "icon": "",
+      "order": 3
+    },
+    {
+      "id": "20260202_144155_me07fe",
+      "name": "ТЗ",
+      "color": "#ec4899",
+      "icon": "",
+      "order": 4
+    }
+  ]
 }

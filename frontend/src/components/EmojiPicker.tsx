@@ -155,70 +155,74 @@ export default function EmojiPicker({ onEmojiSelect, onClose }: EmojiPickerProps
       {/* Picker */}
       <div 
         ref={pickerRef}
-        className="absolute bottom-full left-0 mb-2 bg-[#1a1b23] border border-[var(--border-color)] rounded-2xl shadow-2xl z-50 w-[340px] overflow-hidden"
+        className="absolute bottom-full left-0 mb-2 bg-white dark:bg-[#1a1b23] border border-gray-200 dark:border-[var(--border-color)] rounded-2xl shadow-2xl z-50 w-[340px] overflow-hidden backdrop-blur-xl"
+        style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
       >
         {/* Search */}
-        <div className="p-2 border-b border-[var(--border-color)]">
+        <div className="p-2 border-b border-gray-200 dark:border-[var(--border-color)]">
           <input
             type="text"
             placeholder="Поиск эмоджи..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-cyan-500/50"
+            className="w-full px-3 py-2 bg-gray-50 dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-xl text-sm text-gray-900 dark:text-[var(--text-primary)] placeholder:text-gray-500 dark:placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent"
             autoFocus
           />
         </div>
 
         {/* Category tabs */}
         {!searchQuery && (
-          <div className="flex gap-0.5 p-1.5 border-b border-[var(--border-color)] overflow-x-auto scrollbar-hide">
+          <div className="flex gap-1 p-2 border-b border-gray-200 dark:border-[var(--border-color)] overflow-x-auto overflow-y-visible scrollbar-hide bg-gray-50/50 dark:bg-transparent">
             {Object.keys(emojiCategories).map(category => (
               <button
                 key={category}
                 onClick={() => setActiveCategory(category)}
-                className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                className={`flex-shrink-0 px-3 py-1.5 rounded-lg flex items-center justify-center transition-all text-xs font-medium whitespace-nowrap ${
                   activeCategory === category
-                    ? 'bg-cyan-500/20 scale-110'
-                    : 'hover:bg-white/5'
+                    ? 'bg-cyan-500 text-white shadow-sm'
+                    : 'bg-white dark:bg-white/5 text-gray-700 dark:text-white/60 hover:bg-gray-100 dark:hover:bg-white/10'
                 }`}
+                style={{ fontFamily: 'var(--font-sans)' }}
                 title={category}
               >
-                <span className="text-lg emoji-native">{categoryIcons[category]}</span>
+                <span className="emoji-native mr-1.5">{categoryIcons[category]}</span>
+                {category}
               </button>
             ))}
           </div>
         )}
 
         {/* Emoji grid */}
-        <div className="p-2 max-h-[280px] overflow-y-auto">
+        <div className="p-3 h-[320px] overflow-y-auto bg-white dark:bg-transparent">
           {!searchQuery && (
-            <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider px-1 mb-1">
+            <div className="text-[10px] font-semibold text-gray-500 dark:text-[var(--text-muted)] uppercase tracking-wider px-1 mb-2">
               {activeCategory}
             </div>
           )}
           
           {currentEmojis.length === 0 ? (
-            <div className="text-center text-[var(--text-muted)] py-8">
+            <div className="text-center text-gray-500 dark:text-[var(--text-muted)] py-8 text-sm">
               {activeCategory === 'Недавние' ? 'Нет недавних эмоджи' : 'Эмоджи не найдены'}
             </div>
           ) : (
-            <div className="grid grid-cols-8 gap-0.5">
+            <div className="grid grid-cols-8 gap-1">
               {currentEmojis.map((emoji, idx) => (
                 <button
                   key={`${emoji}-${idx}`}
                   onClick={() => handleEmojiClick(emoji)}
-                  className="w-9 h-9 rounded-lg hover:bg-white/10 flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                  className="w-10 h-10 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-transparent hover:border-gray-200 dark:hover:border-white/20"
+                  title={emoji}
                 >
-                  <span className="text-2xl emoji-native">{emoji}</span>
+                  <span className="text-2xl emoji-native leading-none">{emoji}</span>
                 </button>
               ))}
             </div>
           )}
         </div>
         
-        {/* Footer with skin tone selector placeholder */}
-        <div className="px-3 py-2 border-t border-[var(--border-color)] bg-[var(--bg-tertiary)]/50 text-[10px] text-[var(--text-muted)] text-center">
-          {currentEmojis.length} эмоджи
+        {/* Footer */}
+        <div className="px-3 py-2 border-t border-gray-200 dark:border-[var(--border-color)] bg-gray-50 dark:bg-[var(--bg-tertiary)]/50 text-[10px] text-gray-600 dark:text-[var(--text-muted)] text-center font-medium">
+          {currentEmojis.length} эмоджи доступно
         </div>
       </div>
     </>

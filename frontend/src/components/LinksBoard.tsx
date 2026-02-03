@@ -40,6 +40,7 @@ interface LinkItem {
   createdAt: string;
   updatedAt: string;
   order: number;
+  department?: string; // Отдел, к которому привязана ссылка
 }
 
 const COLOR_OPTIONS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'];
@@ -49,6 +50,7 @@ export default function LinksBoard() {
   const [lists, setLists] = useState<LinkList[]>([]);
   const [categories, setCategories] = useState<LinkCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   
   // UI State
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
@@ -120,9 +122,23 @@ export default function LinksBoard() {
     }
   }, []);
 
+  // Load current user
+  const loadUser = useCallback(async () => {
+    try {
+      const res = await fetch('/api/users/me');
+      if (res.ok) {
+        const userData = await res.json();
+        setCurrentUser(userData);
+      }
+    } catch (error) {
+      console.error('Error loading user:', error);
+    }
+  }, []);
+
   useEffect(() => {
     loadData();
-  }, [loadData]);
+    loadUser();
+  }, [loadData, loadUser]);
 
   // Close context menu and dropdowns on click outside
   useEffect(() => {
@@ -334,6 +350,13 @@ export default function LinksBoard() {
   const filteredLinks = useMemo(() => {
     return links
       .filter(link => {
+        // Фильтрация по отделу: admin видит все, остальные только свой отдел
+        if (currentUser && currentUser.role !== 'admin') {
+          if (link.department && link.department !== currentUser.department) {
+            return false;
+          }
+        }
+        
         if (selectedListId && link.listId !== selectedListId) return false;
         if (selectedCategoryId && link.categoryId !== selectedCategoryId) return false;
         if (showBookmarksOnly && !link.isBookmarked) return false;
@@ -360,7 +383,7 @@ export default function LinksBoard() {
             return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         }
       });
-  }, [links, selectedListId, selectedCategoryId, showBookmarksOnly, searchQuery, sortBy]);
+  }, [links, selectedListId, selectedCategoryId, showBookmarksOnly, searchQuery, sortBy, currentUser]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -728,7 +751,7 @@ export default function LinksBoard() {
           </div>
 
         {/* Links Grid */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 pb-24">
           {filteredLinks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <Globe className="w-12 h-12 text-[var(--text-tertiary)] mb-4" />
@@ -791,31 +814,30 @@ export default function LinksBoard() {
                           <p className="text-xs text-[var(--text-tertiary)] mt-1 line-clamp-2">{link.description}</p>
                         )}
                         
-                        {/* Tags */}
-                        <div className="flex items-center gap-2 mt-2 flex-wrap">
-                          {list && (
-                            <span 
-                              className="px-2 py-0.5 rounded text-xs"
-                              style={{ backgroundColor: `${list.color}20`, color: list.color }}
-                            >
-                              {list.name}
-                            </span>
-                          )}
+                        {/* Tags and Actions - на одном уровне */}
+                        <div className="flex items-center justify-between gap-2 mt-2">
+                          <div className="flex items-center gap-2 flex-wrap flex-1">
+                            {list && (
+                              <span 
+                                className="px-2 py-0.5 rounded text-xs"
+                                style={{ backgroundColor: `${list.color}20`, color: list.color }}
+                              >
+                                {list.name}
+                              </span>
+                            )}
+                            
+                            {category && (
+                              <span 
+                                className="px-2 py-0.5 rounded text-xs"
+                                style={{ backgroundColor: `${category.color}20`, color: category.color }}
+                              >
+                                {category.name}
+                              </span>
+                            )}
+                          </div>
                           
-                          {category && (
-                            <span 
-                              className="px-2 py-0.5 rounded text-xs"
-                              style={{ backgroundColor: `${category.color}20`, color: category.color }}
-                            >
-                              {category.name}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Actions - на нижней границе карточки */}
-                    <div className="flex items-center justify-end gap-1 mt-3 pt-3 border-t border-[var(--border-primary)]">
+                          {/* Actions - рядом с тегами */}
+                          <div className="flex items-center gap-1 flex-shrink-0">
                       <button
                           onClick={() => toggleBookmark(link)}
                           className={`p-1.5 md:p-2 rounded-full transition-colors ${
@@ -868,6 +890,16 @@ export default function LinksBoard() {
                         >
                           <Trash2 className="w-4 h-4 text-red-400/50 hover:text-red-400" />
                         </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleContextMenu(e, 'link', link); }} 
+                          className="p-1.5 md:p-2 hover:bg-[var(--bg-primary)] rounded-full transition-colors"
+                          title="Еще"
+                        >
+                          <MoreHorizontal className="w-4 h-4 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]" />
+                        </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1262,7 +1294,7 @@ function ItemModal({
   const [color, setColor] = useState(item?.color || COLOR_OPTIONS[0]);
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
       <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-primary)] w-full max-w-sm shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-primary)]">
           <h2 className="text-base font-semibold text-[var(--text-primary)]">{title}</h2>

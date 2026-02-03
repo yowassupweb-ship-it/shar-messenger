@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { User, Mail, Phone, Briefcase, Shield, Calendar, MessageCircle, CheckSquare, ArrowLeft, Plus, X, Inbox } from 'lucide-react';
+import { User, Mail, Phone, Briefcase, Shield, Calendar, MessageCircle, CheckSquare, Plus, X, Inbox } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Avatar from '@/components/Avatar';
@@ -152,12 +152,12 @@ export default function ContactsPage() {
   // Функция для получения цвета фона отдела
   const getDepartmentColor = (index: number) => {
     const colors = [
-      'bg-gradient-to-br from-purple-500/5 to-blue-500/5 border-purple-500/20',
-      'bg-gradient-to-br from-blue-500/5 to-cyan-500/5 border-blue-500/20',
-      'bg-gradient-to-br from-green-500/5 to-emerald-500/5 border-green-500/20',
-      'bg-gradient-to-br from-orange-500/5 to-red-500/5 border-orange-500/20',
-      'bg-gradient-to-br from-pink-500/5 to-purple-500/5 border-pink-500/20',
-      'bg-gradient-to-br from-yellow-500/5 to-orange-500/5 border-yellow-500/20',
+      'bg-gradient-to-br from-blue-500/8 to-cyan-500/8 border-blue-500/30 dark:from-blue-500/15 dark:to-cyan-500/15 dark:border-blue-500/40',
+      'bg-gradient-to-br from-purple-500/8 to-pink-500/8 border-purple-500/30 dark:from-purple-500/15 dark:to-pink-500/15 dark:border-purple-500/40',
+      'bg-gradient-to-br from-green-500/8 to-emerald-500/8 border-green-500/30 dark:from-green-500/15 dark:to-emerald-500/15 dark:border-green-500/40',
+      'bg-gradient-to-br from-orange-500/8 to-amber-500/8 border-orange-500/30 dark:from-orange-500/15 dark:to-amber-500/15 dark:border-orange-500/40',
+      'bg-gradient-to-br from-red-500/8 to-rose-500/8 border-red-500/30 dark:from-red-500/15 dark:to-rose-500/15 dark:border-red-500/40',
+      'bg-gradient-to-br from-teal-500/8 to-cyan-500/8 border-teal-500/30 dark:from-teal-500/15 dark:to-cyan-500/15 dark:border-teal-500/40',
     ];
     return colors[index % colors.length];
   };
@@ -171,19 +171,10 @@ export default function ContactsPage() {
   }
 
   return (
-    <div className="h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col overflow-hidden pb-16 md:pb-0">
+    <div className="h-full bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col overflow-hidden">
       {/* Header */}
       <header className="h-12 bg-[var(--bg-secondary)] border-b border-[var(--border-secondary)] flex items-center px-2 md:px-4 flex-shrink-0">
-        <Link
-          href="/"
-          className="no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-all mr-3 border border-[var(--border-glass)] backdrop-blur-sm"
-          title="На главную"
-        >
-          <ArrowLeft className="w-4 h-4" strokeWidth={2} />
-        </Link>
-        
         <div className="flex items-center gap-2 mr-2 md:mr-4">
-          <User className="w-4 h-4 text-[var(--text-secondary)]" />
           <span className="font-medium text-sm">Контакты</span>
           <span className="text-xs text-[var(--text-muted)]">({filteredContacts.length})</span>
         </div>
@@ -206,22 +197,20 @@ export default function ContactsPage() {
       </header>
 
       {/* Main Content - только один скролл */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-3">
-        <div className="max-w-6xl mx-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+        <div className="p-2 md:p-3">
+          <div className="max-w-6xl mx-auto">
 
         {/* Contacts grouped by department */}
-        <div className="space-y-4 md:space-y-6 pb-4">
+        <div className="space-y-4 md:space-y-6 pb-20">
           {sortedDepartments.map((department, index) => (
             <div key={department} className={`rounded-xl border p-3 md:p-4 ${getDepartmentColor(index)}`}>
               {/* Department Header */}
               <div className="flex items-center gap-2 md:gap-3 px-1 md:px-2 py-1.5 md:py-2 mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-purple-500/30 flex items-center justify-center">
-                    <Shield className="w-3.5 h-3.5 md:w-4 md:h-4 text-purple-400" />
-                  </div>
                   <div>
-                    <h2 className="font-semibold text-xs md:text-sm text-[var(--text-primary)]">{department}</h2>
-                    <p className="text-[9px] md:text-[10px] text-[var(--text-muted)]">{contactsByDepartment[department].length} сотрудник{contactsByDepartment[department].length === 1 ? '' : contactsByDepartment[department].length < 5 ? 'а' : 'ов'}</p>
+                    <h2 className="font-semibold text-sm md:text-base text-[var(--text-primary)]">{department}</h2>
+                    <p className="text-[10px] md:text-xs text-[var(--text-muted)]">{contactsByDepartment[department].length} сотрудник{contactsByDepartment[department].length === 1 ? '' : contactsByDepartment[department].length < 5 ? 'а' : 'ов'}</p>
                   </div>
                 </div>
                 <div className="flex-1 h-px bg-gradient-to-r from-[var(--border-color)] to-transparent"></div>
@@ -272,15 +261,15 @@ export default function ContactsPage() {
                         </div>
                       </div>
 
-                      {/* Quick Actions - всегда видны на мобильных, при наведении на десктопе */}
-                      <div className="flex gap-1 md:gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                      {/* Quick Actions - всегда видны */}
+                      <div className="flex gap-1 md:gap-1.5 transition-opacity">
                         {contact.email && (
                           <a 
                             href={`mailto:${contact.email}`}
-                            className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-blue-500/15 hover:bg-blue-500/25 flex items-center justify-center transition-colors border border-blue-500/20"
+                            className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-blue-500/15 hover:bg-blue-500/25 dark:bg-blue-500/15 dark:hover:bg-blue-500/25 flex items-center justify-center transition-colors border border-blue-500/20 dark:border-blue-500/20"
                             title={contact.email}
                           >
-                            <Mail className="w-3 h-3 md:w-3.5 md:h-3.5 text-blue-400" />
+                            <Mail className="w-3 h-3 md:w-3.5 md:h-3.5 text-blue-600 dark:text-blue-400" />
                           </a>
                         )}
                         <button
@@ -328,20 +317,20 @@ export default function ContactsPage() {
                               console.error('[Contacts] Error opening chat:', error);
                             }
                           }}
-                          className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-purple-500/15 hover:bg-purple-500/25 flex items-center justify-center transition-colors border border-purple-500/20"
+                          className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-purple-500/20 hover:bg-purple-500/30 dark:bg-purple-500/40 dark:hover:bg-purple-500/50 flex items-center justify-center transition-all border border-purple-500/30 dark:border-purple-500/40 shadow-sm shadow-purple-500/20"
                           title="Написать сообщение"
                         >
-                          <MessageCircle className="w-3 h-3 md:w-3.5 md:h-3.5 text-purple-400" />
+                          <MessageCircle className="w-3 h-3 md:w-3.5 md:h-3.5 text-purple-600 dark:text-purple-200" />
                         </button>
                         <button
                           onClick={() => {
                             setSelectedContact(contact);
                             setShowListModal(true);
                           }}
-                          className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-green-500/15 hover:bg-green-500/25 flex items-center justify-center transition-colors border border-green-500/20"
+                          className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-green-500/20 hover:bg-green-500/30 dark:bg-green-500/40 dark:hover:bg-green-500/50 flex items-center justify-center transition-all border border-green-500/30 dark:border-green-500/40 shadow-sm shadow-green-500/20"
                           title="Поставить задачу"
                         >
-                          <CheckSquare className="w-3 h-3 md:w-3.5 md:h-3.5 text-green-400" />
+                          <CheckSquare className="w-3 h-3 md:w-3.5 md:h-3.5 text-green-600 dark:text-green-200" />
                         </button>
                       </div>
                     </div>
@@ -357,6 +346,7 @@ export default function ContactsPage() {
             {searchQuery ? 'Ничего не найдено' : 'Нет контактов'}
           </div>
         )}
+        </div>
         </div>
       </div>
 
@@ -536,7 +526,7 @@ export default function ContactsPage() {
             </div>
 
             {/* Content */}
-            <div className="pt-14 pb-6 px-6">
+            <div className="pt-14 pb-6 px-6 max-h-[70vh] overflow-y-auto">
               {/* Name & Status */}
               <div className="text-center mb-6">
                 <h2 className="text-xl font-semibold text-[var(--text-primary)]">

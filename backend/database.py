@@ -912,7 +912,5 @@ class Database:
         
         return False
 
-# Singleton instance
-print("Creating Database singleton instance...")
-db = Database()
-print(f"Database singleton created. Users: {len(db.data.get('users', []))}")
+# Note: Singleton creation moved to db_adapter.py
+# This avoids automatic instantiation on import

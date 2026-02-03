@@ -158,6 +158,8 @@ interface Todo {
   tags: string[];
   assignedById?: string;
   assignedBy?: string;
+  delegatedById?: string;  // Делегировал (второй уровень)
+  delegatedBy?: string;
   assignedToId?: string;
   assignedTo?: string;
   assignedToIds?: string[];  // Множественные исполнители
@@ -233,9 +235,9 @@ interface TodoList {
 }
 
 const PRIORITY_COLORS = {
-  low: 'border-l-blue-400',
-  medium: 'border-l-yellow-400',
-  high: 'border-l-red-400'
+  low: 'border-l-blue-400 dark:border-l-blue-500',
+  medium: 'border-l-yellow-400 dark:border-l-yellow-500',
+  high: 'border-l-red-400 dark:border-l-red-500'
 };
 
 const PRIORITY_BG = {
@@ -342,6 +344,7 @@ export default function TodosPage() {
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [showEditPersonModal, setShowEditPersonModal] = useState(false);
   const [newListName, setNewListName] = useState('');
+  const [newListDescription, setNewListDescription] = useState('');
   const [newListColor, setNewListColor] = useState('#6366f1');
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryColor, setNewCategoryColor] = useState('#6366f1');
@@ -364,9 +367,11 @@ export default function TodosPage() {
   const [myAccountId, setMyAccountId] = useState<string | null>(null);
   const [myDepartment, setMyDepartment] = useState<string | null>(null);  // Отдел текущего пользователя
   const [canSeeAllTasks, setCanSeeAllTasks] = useState<boolean>(false);  // По умолчанию false - видны только свои задачи
+  const [isDepartmentHead, setIsDepartmentHead] = useState<boolean>(false);  // Руководитель отдела
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [addingToList, setAddingToList] = useState<string | null>(null);
   const [newTodoTitle, setNewTodoTitle] = useState('');
+  const [newTodoDescription, setNewTodoDescription] = useState('');
   const [newTodoAssigneeId, setNewTodoAssigneeId] = useState<string | null>(null);
   const [showNewTodoAssigneeDropdown, setShowNewTodoAssigneeDropdown] = useState(false);
   const [newListAssigneeId, setNewListAssigneeId] = useState<string | null>(null);
@@ -1031,6 +1036,10 @@ export default function TodosPage() {
           
           // Устанавливаем права на просмотр всех задач (по умолчанию false)
           setCanSeeAllTasks(userData.canSeeAllTasks === true);
+          
+          // Устанавливаем статус руководителя отдела
+          setIsDepartmentHead(userData.isDepartmentHead === true);
+          
           console.log('[todos] canSeeAllTasks set to:', userData.canSeeAllTasks === true);
         } else {
           console.log('[todos] Failed to load user, status:', res.status);
@@ -1675,6 +1684,7 @@ export default function TodosPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: newTodoTitle,
+          description: newTodoDescription,
           listId: listId,
           priority: 'medium',
           // Если выбран исполнитель вручную - используем его
@@ -1690,6 +1700,7 @@ export default function TodosPage() {
         const newTodo = await res.json();
         setTodos(prev => [...prev, newTodo]);
         setNewTodoTitle('');
+        setNewTodoDescription('');
         setNewTodoAssigneeId(null);
         setShowNewTodoAssigneeDropdown(false);
         setAddingToList(null);
@@ -2492,9 +2503,19 @@ export default function TodosPage() {
       
       // Фильтр по правам доступа (если не может видеть все задачи)
       if (!canSeeAllTasks && myAccountId) {
-        // Показываем задачи, где пользователь исполнитель, заказчик, ИЛИ имеет полный доступ к столбцу
         const isExecutor = todo.assignedToId === myAccountId || todo.assignedToIds?.includes(myAccountId);
         const isCustomer = todo.assignedById === myAccountId;
+        
+        // Если пользователь - руководитель отдела, показываем задачи его отдела
+        if (isDepartmentHead && myDepartment) {
+          // Получаем исполнителя задачи
+          const executor = people.find((u: Person) => u.id === todo.assignedToId || todo.assignedToIds?.includes(u.id));
+          const isDepartmentTask = executor && executor.department === myDepartment;
+          
+          // Если задача относится к отделу - показываем
+          if (isDepartmentTask) return true;
+        }
+        
         // Если нет полного доступа к столбцу - показываем только свои задачи
         if (!hasFullListAccess && !isExecutor && !isCustomer) return false;
       }
@@ -3092,10 +3113,17 @@ export default function TodosPage() {
                         onChange={(e) => setNewTodoTitle(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') addTodo(list.id);
-                          if (e.key === 'Escape') { setAddingToList(null); setNewTodoTitle(''); setNewTodoAssigneeId(null); }
+                          if (e.key === 'Escape') { setAddingToList(null); setNewTodoTitle(''); setNewTodoDescription(''); setNewTodoAssigneeId(null); }
                         }}
                         className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg mb-2 focus:outline-none focus:border-white/30"
                         autoFocus
+                      />
+                      <textarea
+                        placeholder="Описание (необязательно)..."
+                        value={newTodoDescription}
+                        onChange={(e) => setNewTodoDescription(e.target.value)}
+                        rows={2}
+                        className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg mb-2 focus:outline-none focus:border-white/30 resize-none text-sm"
                       />
                       {/* Выбор исполнителя */}
                       <div className="relative mb-2">
@@ -3148,7 +3176,7 @@ export default function TodosPage() {
                           Добавить
                         </button>
                         <button
-                          onClick={() => { setAddingToList(null); setNewTodoTitle(''); setNewTodoAssigneeId(null); }}
+                          onClick={() => { setAddingToList(null); setNewTodoTitle(''); setNewTodoDescription(''); setNewTodoAssigneeId(null); }}
                           className="px-3 py-1.5 bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] rounded-lg text-sm transition-all"
                         >
                           <X className="w-4 h-4" />
@@ -3169,144 +3197,166 @@ export default function TodosPage() {
                       onMouseEnter={(e) => handleTodoMouseEnter(e, todo)}
                       onMouseLeave={handleTodoMouseLeave}
                       className={`
-                        group bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-lg p-1.5 sm:p-2 md:cursor-grab md:active:cursor-grabbing
-                        transition-all duration-200 hover:shadow-lg hover:border-gray-400 dark:hover:border-[var(--border-light)] border-l-3 ${PRIORITY_COLORS[todo.priority]}
+                        group bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-xl p-3 md:cursor-grab md:active:cursor-grabbing
+                        transition-all duration-200 hover:shadow-lg hover:border-gray-400 dark:hover:border-[var(--border-light)] border-l-4 ${PRIORITY_COLORS[todo.priority]}
                         ${todo.completed ? 'opacity-70' : ''}
                         ${draggedTodo?.id === todo.id ? 'opacity-50 scale-95' : ''}
                         ${dragOverTodoId === todo.id && draggedTodo?.id !== todo.id ? 'border-t-2 border-t-blue-500' : ''}
-                        shadow-md
+                        shadow-md flex flex-col gap-2
                       `}
                     >
-                      <div className="flex items-center gap-2 sm:gap-3 pointer-events-none">
-                        {/* Grip handle */}
-                        <div className="mt-0.5 opacity-0 group-hover:opacity-40 transition-opacity duration-200 text-gray-400 dark:text-white/50">
-                          <GripVertical className="w-3 h-3" />
-                        </div>
-                        
+                      {/* Header: Checkbox + Title */}
+                      <div className="flex items-start gap-2 pointer-events-none">
                         {/* Checkbox */}
                         <button
                           onClick={() => toggleTodo(todo)}
                           className={`
-                            w-5 h-5 sm:w-4 sm:h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all pointer-events-auto
+                            w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all pointer-events-auto
                             ${todo.completed 
-                              ? 'bg-green-500 border-green-500 text-white' 
-                              : 'border-gray-300 dark:border-[var(--border-color)] hover:border-green-500'
+                              ? 'bg-green-500 border-green-500 text-white shadow-lg shadow-green-500/30' 
+                              : 'border-gray-300 dark:border-[var(--border-color)] hover:border-green-500 hover:shadow-lg hover:shadow-green-500/20'
                             }
                           `}
                         >
-                          {todo.completed && <Check className="w-3 h-3 sm:w-2.5 sm:h-2.5" />}
+                          {todo.completed && <Check className="w-2.5 h-2.5" strokeWidth={2.5} />}
                         </button>
                         
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          <p className={`font-medium text-sm sm:text-xs ${todo.completed ? 'line-through text-gray-400 dark:text-white/50' : 'text-gray-900 dark:text-white'}`}>
+                        {/* Title */}
+                        <div className="flex-1 min-w-0 pointer-events-auto cursor-pointer" onClick={() => openTodoModal(todo)}>
+                          <p className={`font-medium text-xs ${todo.completed ? 'line-through text-gray-400 dark:text-white/50' : 'text-gray-900 dark:text-white'}`}>
                             {todo.title}
                           </p>
-                          {todo.description && (
-                            <p 
-                              className="text-xs sm:text-[10px] text-gray-700 dark:text-white/60 mt-1 sm:mt-0.5 line-clamp-2"
-                              dangerouslySetInnerHTML={{ __html: todo.description.replace(/<[^>]*>/g, ' ').slice(0, 100) }}
-                            />
-                          )}
-                          <div className="flex items-center gap-2 sm:gap-1.5 mt-2 sm:mt-1.5 flex-wrap">
-                            {todo.status && !todo.completed && (
-                              <span className={`px-2 py-1 sm:px-1.5 sm:py-0.5 rounded text-xs sm:text-[8px] font-medium ${
-                                todo.status === 'in-progress' 
-                                  ? 'bg-blue-500/20 text-blue-400' 
-                                  : todo.status === 'pending'
-                                    ? 'bg-orange-500/20 text-orange-400'
-                                    : todo.status === 'cancelled'
-                                      ? 'bg-red-500/20 text-red-400'
-                                      : todo.status === 'stuck'
-                                        ? 'bg-yellow-500/20 text-yellow-500'
-                                        : 'bg-green-500/20 text-green-400'
-                              }`}>
-                                {todo.status === 'in-progress' ? 'В работе' : 
-                                 todo.status === 'pending' ? 'В ожидании' : 
-                                 todo.status === 'cancelled' ? 'Отменена' :
-                                 todo.status === 'stuck' ? 'Застряла' : 'Готово к проверке'}
-                              </span>
-                            )}
-                            {todo.assignedById && (
-                              <span className="text-xs sm:text-[9px] text-gray-700 dark:text-white/60" title="От кого">
-                                {getPersonNameById(people, todo.assignedById, todo.assignedBy)}
-                              </span>
-                            )}
-                            {/* Множественные исполнители или один */}
-                            {todo.assignedToIds && todo.assignedToIds.length > 1 ? (
-                              <span className="text-xs sm:text-[9px] text-green-600 dark:text-green-400" title={`Исполнители: ${todo.assignedToIds.map(id => getPersonNameById(people, id)).join(', ')}`}>
-                                {todo.assignedToIds.slice(0, 2).map(id => getPersonNameById(people, id)).join(', ')}{todo.assignedToIds.length > 2 ? ` +${todo.assignedToIds.length - 2}` : ''}
-                              </span>
-                            ) : todo.assignedToId && (
-                              <span className="text-xs sm:text-[9px] text-green-600 dark:text-green-400" title="Кому">
-                                {getPersonNameById(people, todo.assignedToId, todo.assignedTo)}
-                              </span>
-                            )}
-                            {/* Индикатор непрочитанных комментариев */}
-                            {hasUnreadComments(todo, myAccountId) && (
-                              <span className="flex items-center gap-1 text-xs sm:text-[10px] text-red-400 font-medium animate-bounce" title="Есть непрочитанные комментарии">
-                                <MessageCircle className="w-4 h-4 sm:w-3 sm:h-3 fill-red-400/30" />
-                                <span className="w-2.5 h-2.5 sm:w-2 sm:h-2 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
-                              </span>
-                            )}
-                            {todo.dueDate && (
-                              <span className="flex items-center gap-1 text-xs sm:text-[9px] text-gray-700 dark:text-white/60">
-                                <Clock className="w-3.5 h-3.5 sm:w-2.5 sm:h-2.5" />
-                                {new Date(todo.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                              </span>
-                            )}
-                            {todo.categoryId && (() => {
-                              const cat = categories.find(c => c.id === todo.categoryId);
-                              return cat ? (
-                                <span 
-                                  className="flex items-center gap-1 px-2 py-1 sm:px-1.5 sm:py-0.5 rounded text-xs sm:text-[10px] font-medium"
-                                  style={{ backgroundColor: `${cat.color}20`, color: cat.color }}
-                                >
-                                  {CATEGORY_ICONS[cat.icon] || <Tag className="w-3.5 h-3.5 sm:w-3 sm:h-3" />}
-                                  {cat.name}
-                                </span>
-                              ) : null;
-                            })()}
-                            {todo.linkId && todo.linkUrl && (
-                              <a
-                                href={todo.linkUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="flex items-center gap-0.5 text-[9px] text-blue-400 hover:text-blue-300 pointer-events-auto"
-                                title={todo.linkTitle || todo.linkUrl}
-                              >
-                                <Link2 className="w-2.5 h-2.5" />
-                                <span className="max-w-[150px] truncate">{todo.linkTitle || 'Ссылка'}</span>
-                              </a>
-                            )}
-                          </div>
                         </div>
+                      </div>
+                      
+                      {/* Description */}
+                      {todo.description && (
+                        <p 
+                          className="text-[10px] text-gray-600 dark:text-white/60 line-clamp-3 pointer-events-auto cursor-pointer"
+                          dangerouslySetInnerHTML={{ __html: todo.description.replace(/<[^>]*>/g, ' ').slice(0, 150) }}
+                          onClick={() => openTodoModal(todo)}
+                        />
+                      )}
+                      
+                      {/* Bottom Buttons Row */}
+                      <div className="flex items-center gap-2 flex-wrap pt-1 pointer-events-auto">
+                        {/* Дополнительные метки */}
+                        {hasUnreadComments(todo, myAccountId) && (
+                          <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-red-500/20 text-red-400 text-xs font-medium" title="Есть непрочитанные комментарии">
+                            <MessageCircle className="w-3 h-3 fill-red-400/30" />
+                            <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
+                          </span>
+                        )}
+                        {todo.dueDate && (
+                          <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 dark:bg-[var(--bg-glass)] text-gray-700 dark:text-white/60 text-xs">
+                            <Clock className="w-3 h-3" />
+                            {new Date(todo.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                          </span>
+                        )}
+                        {todo.categoryId && (() => {
+                          const cat = categories.find(c => c.id === todo.categoryId);
+                          return cat ? (
+                            <span 
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium"
+                              style={{ backgroundColor: `${cat.color}20`, color: cat.color }}
+                            >
+                              {CATEGORY_ICONS[cat.icon] || <Tag className="w-3 h-3" />}
+                              {cat.name}
+                            </span>
+                          ) : null;
+                        })()}
+                        {todo.linkId && todo.linkUrl && (
+                          <a
+                            href={todo.linkUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-500/10 text-blue-400 hover:text-blue-300 text-xs"
+                            title={todo.linkTitle || todo.linkUrl}
+                          >
+                            <Link2 className="w-3 h-3" />
+                            <span className="max-w-[120px] truncate">{todo.linkTitle || 'Ссылка'}</span>
+                          </a>
+                        )}
                         
-                        {/* Actions */}
-                        <div className="flex items-center gap-1 flex-shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-200 pointer-events-auto">
+                      </div>
+                      
+                      {/* Заказчик и исполнители */}
+                      {(todo.assignedById || todo.delegatedById || todo.assignedToId || (todo.assignedToIds && todo.assignedToIds.length > 0)) && (
+                        <div className="text-[9px] text-gray-500 dark:text-white/40 mt-1">
+                          {todo.assignedById && (
+                            <span>Заказчик: {getPersonNameById(people, todo.assignedById, todo.assignedBy)}</span>
+                          )}
+                          {todo.delegatedById && (
+                            <span className={todo.assignedById ? "ml-2" : ""}>Делегировал: {getPersonNameById(people, todo.delegatedById, todo.delegatedBy)}</span>
+                          )}
+                          {(todo.assignedToId || (todo.assignedToIds && todo.assignedToIds.length > 0)) && (
+                            <span className={todo.assignedById || todo.delegatedById ? "ml-2" : ""}>
+                              Исполнители: {
+                                todo.assignedToIds && todo.assignedToIds.length > 0
+                                  ? todo.assignedToIds.map((id, idx) => (
+                                      <span key={id}>
+                                        {idx > 0 && ', '}
+                                        {getPersonNameById(people, id)}
+                                      </span>
+                                    ))
+                                  : todo.assignedToId 
+                                    ? getPersonNameById(people, todo.assignedToId, todo.assignedTo)
+                                    : ''
+                              }
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Кнопки действий - редактирование, удаление и архивирование */}
+                      <div className="flex items-center justify-between gap-1 mt-1">
+                        {/* Кнопка Статус */}
+                        {!todo.completed && todo.status && (
                           <button
-                            onClick={() => openTodoModal(todo)}
-                            className="flex-shrink-0 w-7 h-7 bg-gray-100 dark:bg-[var(--bg-glass)] hover:bg-gray-200 dark:hover:bg-[var(--bg-glass-hover)] rounded-full transition-all duration-200 flex items-center justify-center border border-gray-300 dark:border-[var(--border-glass)] backdrop-blur-sm text-gray-600 dark:text-[var(--text-secondary)]"
-                            title="Редактировать"
+                            onClick={(e) => { e.stopPropagation(); openTodoModal(todo); }}
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] border backdrop-blur-sm ${
+                              todo.status === 'in-progress' 
+                                ? 'bg-gradient-to-br from-blue-500/20 to-blue-600/30 text-blue-600 dark:text-blue-400 border-blue-500/30' 
+                                : todo.status === 'pending'
+                                  ? 'bg-gradient-to-br from-orange-500/20 to-orange-600/30 text-orange-600 dark:text-orange-400 border-orange-500/30'
+                                  : todo.status === 'cancelled'
+                                    ? 'bg-gradient-to-br from-red-500/20 to-red-600/30 text-red-600 dark:text-red-400 border-red-500/30'
+                                    : todo.status === 'stuck'
+                                      ? 'bg-gradient-to-br from-yellow-500/20 to-yellow-600/30 text-yellow-600 dark:text-yellow-500 border-yellow-500/30'
+                                      : 'bg-gradient-to-br from-green-500/20 to-green-600/30 text-green-600 dark:text-green-400 border-green-500/30'
+                            }`}
                           >
-                            <Edit3 className="w-3.5 h-3.5" />
+                            {todo.status === 'in-progress' ? 'В работе' : 
+                             todo.status === 'pending' ? 'В ожидании' : 
+                             todo.status === 'cancelled' ? 'Отменена' :
+                             todo.status === 'stuck' ? 'Застряла' : 'Готово к проверке'}
                           </button>
+                        )}
+                        <div className="flex items-center gap-1 ml-auto">
                           <button
-                            onClick={() => toggleArchiveTodo(todo.id, true)}
-                            className="flex-shrink-0 w-7 h-7 bg-gray-100 dark:bg-[var(--bg-glass)] hover:bg-orange-100 dark:hover:bg-orange-500/20 rounded-full text-orange-500 dark:text-orange-400 transition-all duration-200 flex items-center justify-center border border-gray-300 dark:border-[var(--border-glass)] backdrop-blur-sm"
-                            title="В архив"
-                            style={{ display: todo.completed ? 'flex' : 'none' }}
-                          >
-                            <Archive className="w-3.5 h-3.5" />
-                          </button>
+                          onClick={(e) => { e.stopPropagation(); openTodoModal(todo); }}
+                          className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500/10 to-blue-600/20 hover:from-blue-500/20 hover:to-blue-600/30 flex items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] border border-blue-500/20 backdrop-blur-sm"
+                          title="Редактировать"
+                        >
+                          <Edit3 className="w-3 h-3 text-blue-500 dark:text-blue-400" strokeWidth={2} />
+                        </button>
+                        {todo.completed && (
                           <button
-                            onClick={() => deleteTodo(todo.id)}
-                            className="flex-shrink-0 w-7 h-7 bg-gray-100 dark:bg-[var(--bg-glass)] hover:bg-red-100 dark:hover:bg-red-500/20 rounded-full text-red-500 dark:text-red-400 transition-all duration-200 flex items-center justify-center border border-gray-300 dark:border-[var(--border-glass)] backdrop-blur-sm"
-                            title="Удалить"
+                            onClick={(e) => { e.stopPropagation(); toggleArchiveTodo(todo.id, true); }}
+                            className="w-6 h-6 rounded-full bg-gradient-to-br from-gray-500/10 to-gray-600/20 hover:from-gray-500/20 hover:to-gray-600/30 flex items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] border border-gray-500/20 backdrop-blur-sm"
+                            title="Архивировать"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Archive className="w-3 h-3 text-gray-500 dark:text-gray-400" strokeWidth={2} />
                           </button>
+                        )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteTodo(todo.id); }}
+                          className="w-6 h-6 rounded-full bg-gradient-to-br from-red-500/10 to-red-600/20 hover:from-red-500/20 hover:to-red-600/30 flex items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] border border-red-500/20 backdrop-blur-sm"
+                          title="Удалить"
+                        >
+                          <Trash2 className="w-3 h-3 text-red-500 dark:text-red-400" strokeWidth={2} />
+                        </button>
                         </div>
                       </div>
                     </div>
@@ -3339,8 +3389,8 @@ export default function TodosPage() {
 
           {/* Add List Form */}
           {showAddList && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 md:relative md:inset-auto md:bg-transparent md:p-0 md:flex-shrink-0 md:w-80">
-              <div className="w-full max-w-sm md:max-w-none bg-white dark:bg-[var(--bg-tertiary)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl p-4 shadow-2xl md:shadow-none">
+            <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 pt-20 md:relative md:inset-auto md:bg-transparent md:p-0 md:pt-0 md:flex-shrink-0 md:w-80">
+              <div className="w-full max-w-sm md:max-w-none bg-white dark:bg-[var(--bg-tertiary)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl p-4 shadow-2xl md:shadow-none max-h-[80vh] overflow-y-auto md:max-h-none md:overflow-visible">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-gray-900 dark:text-[var(--text-primary)]">Новый список</h3>
                   <button 
@@ -3358,6 +3408,13 @@ export default function TodosPage() {
                 onKeyDown={(e) => e.key === 'Enter' && addList()}
                 className="w-full px-3 py-2.5 bg-gray-50 dark:bg-[var(--bg-secondary)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl mb-3 focus:outline-none focus:border-blue-500 dark:focus:border-[var(--accent-primary)] text-gray-900 dark:text-[var(--text-primary)]"
                 autoFocus
+              />
+              <textarea
+                placeholder="Описание списка (необязательно)"
+                value={newListDescription}
+                onChange={(e) => setNewListDescription(e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2.5 bg-gray-50 dark:bg-[var(--bg-secondary)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl mb-3 focus:outline-none focus:border-blue-500 dark:focus:border-[var(--accent-primary)] text-gray-900 dark:text-[var(--text-primary)] resize-none"
               />
               <div className="mb-4">
                 <label className="block text-sm text-gray-500 dark:text-[var(--text-muted)] mb-2">Цвет</label>
@@ -3424,7 +3481,7 @@ export default function TodosPage() {
                   Создать
                 </button>
                 <button
-                  onClick={() => { setShowAddList(false); setNewListName(''); setNewListAssigneeId(null); }}
+                  onClick={() => { setShowAddList(false); setNewListName(''); setNewListDescription(''); setNewListAssigneeId(null); }}
                   className="px-4 py-2.5 bg-gray-100 dark:bg-[var(--bg-secondary)] hover:bg-gray-200 dark:hover:bg-[var(--bg-tertiary)] border border-gray-200 dark:border-[var(--border-color)] text-gray-600 dark:text-[var(--text-secondary)] rounded-xl text-sm font-medium transition-all"
                 >
                   Отмена
@@ -3658,8 +3715,8 @@ export default function TodosPage() {
 
       {/* Edit Todo Modal */}
       {editingTodo && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 p-0 sm:p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-gradient-to-b dark:from-[#1a1a1a] dark:to-[#151515] border-0 sm:border border-gray-200 dark:border-[var(--border-color)] rounded-none sm:rounded-xl w-full h-full sm:h-auto max-w-full sm:max-w-[95vw] xl:max-w-[1200px] shadow-2xl sm:min-h-0 sm:max-h-[90vh] flex flex-col sm:my-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-gradient-to-b dark:from-[#1a1a1a] dark:to-[#151515] border border-gray-200 dark:border-[var(--border-color)] rounded-xl w-full max-w-[95vw] xl:max-w-[1200px] shadow-2xl max-h-[90vh] flex flex-col my-auto">
             {/* Шапка */}
             <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-gray-200 dark:border-[var(--border-color)] bg-gray-50 dark:bg-white/[0.02] sm:rounded-t-xl flex-shrink-0">
               <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
@@ -3772,7 +3829,9 @@ export default function TodosPage() {
                 </div>
               
                 {/* Заказчик и Исполнитель */}
-                <div className="grid grid-cols-2 gap-2">
+                <div className="overflow-hidden space-y-2">
+                  {/* От кого и Делегировано */}
+                  <div className="grid grid-cols-2 gap-2">
                   <div className="relative">
                     <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
                       <User className="w-2.5 h-2.5" />
@@ -3819,6 +3878,55 @@ export default function TodosPage() {
                       </div>
                     )}
                   </div>
+                  <div className="relative">
+                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
+                      <User className="w-2.5 h-2.5" />
+                      Делегировано
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setOpenDropdown(openDropdown === 'delegatedBy' ? null : 'delegatedBy')}
+                      className="no-mobile-scale w-full px-3 py-2.5 bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-xl text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all text-gray-900 dark:text-[var(--text-primary)]"
+                    >
+                      <span className={editingTodo.delegatedById ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}>
+                        {editingTodo.delegatedBy || 'Не выбран'}
+                      </span>
+                      <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform ${openDropdown === 'delegatedBy' ? 'rotate-180' : ''}`} />
+                    </button>
+                    {openDropdown === 'delegatedBy' && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingTodo({ ...editingTodo, delegatedById: undefined, delegatedBy: '' });
+                            setOpenDropdown(null);
+                          }}
+                          className="w-full px-3 py-1.5 text-left text-gray-500 dark:text-white/50 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass)] transition-colors text-xs"
+                        >
+                          Не выбран
+                        </button>
+                        {people.filter(p => p.role === 'customer' || p.role === 'universal').map(person => (
+                          <button
+                            key={person.id}
+                            type="button"
+                            onClick={() => {
+                              setEditingTodo({ ...editingTodo, delegatedById: person.id, delegatedBy: person.name });
+                              setOpenDropdown(null);
+                            }}
+                            className={`w-full px-3 py-1.5 text-left hover:bg-[var(--bg-glass)] transition-colors text-xs flex items-center justify-between ${
+                              editingTodo.delegatedById === person.id ? 'bg-[var(--bg-glass)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+                            }`}
+                          >
+                            <span>{person.name}</span>
+                            {person.telegramId && <span className="text-[9px] text-blue-400 bg-blue-500/20 px-1 py-0.5 rounded">TG</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  </div>
+                  
+                  {/* Исполнители - отдельная строка */}
                   <div className="relative">
                     <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
                       <UserCheck className="w-2.5 h-2.5" />

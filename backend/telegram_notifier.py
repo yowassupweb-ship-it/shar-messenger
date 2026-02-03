@@ -1,6 +1,6 @@
 import requests
 from typing import Optional
-from database import db
+from db_adapter import db
 
 class TelegramNotifier:
     """Отправка уведомлений в Telegram"""

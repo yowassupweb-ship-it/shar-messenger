@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Type, MessageSquare, Palette, Check, User, LogOut, Sun, Moon, ChevronRight, Bell, Phone, Calendar, Briefcase } from 'lucide-react';
+import { ArrowLeft, Type, MessageSquare, Palette, Check, User, LogOut, Sun, Moon, ChevronRight, Bell, Phone, Calendar, Briefcase, MessageCircle, CheckSquare, Users, Globe } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import Avatar from '@/components/Avatar';
 import AvatarUpload from '@/components/AvatarUpload';
@@ -102,6 +102,15 @@ export default function ChatSettingsPage() {
     position: '',
     department: ''
   });
+
+  // Состояния видимости вкладок навигации
+  const [visibleTabs, setVisibleTabs] = useState({
+    messages: true,
+    tasks: true,
+    calendar: true,
+    contacts: true,
+    links: true
+  });
   
   const [chatSettings, setChatSettings] = useState({
     bubbleStyle: 'modern' as 'modern' | 'classic' | 'minimal',
@@ -122,6 +131,12 @@ export default function ChatSettingsPage() {
           if (res.ok) {
             const user = await res.json();
             setCurrentUser(user);
+            
+            // Загружаем visible tabs
+            if (user.visible_tabs || user.visibleTabs) {
+              setVisibleTabs(user.visible_tabs || user.visibleTabs);
+            }
+            
             setEditForm({
               personalPhone: user.personalPhone || '',
               workPhone: user.phone || '',
@@ -218,6 +233,29 @@ export default function ChatSettingsPage() {
       console.error('Failed to save profile:', error);
       alert('Ошибка при сохранении профиля');
     }
+  };
+
+  // Сохранение настроек навигации
+  const saveNavigationSettings = async (tabs: typeof visibleTabs) => {
+    try {
+      const myAccountStr = localStorage.getItem('myAccount');
+      if (myAccountStr) {
+        const myAccount = JSON.parse(myAccountStr);
+        await fetch(`/api/users/${myAccount.id}/navigation`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ visibleTabs: tabs })
+        });
+      }
+    } catch (error) {
+      console.error('Failed to save navigation settings:', error);
+    }
+  };
+
+  const handleVisibleTabsChange = (tabId: string, checked: boolean) => {
+    const newVisibleTabs = { ...visibleTabs, [tabId]: checked };
+    setVisibleTabs(newVisibleTabs);
+    saveNavigationSettings(newVisibleTabs);
   };
 
   return (
@@ -570,6 +608,34 @@ export default function ChatSettingsPage() {
                   </div>
                 </div>
               </div>
+            </div>
+          </Section>
+
+          {/* Нижняя панель навигации */}
+          <Section title="Навигация">
+            <div className="p-4 space-y-3">
+              <p className="text-sm text-[var(--text-muted)] mb-3">Выберите вкладки для нижней панели</p>
+              {[
+                { id: 'messages' as const, name: 'Чаты', icon: <MessageCircle className="w-4 h-4" /> },
+                { id: 'tasks' as const, name: 'Задачи', icon: <CheckSquare className="w-4 h-4" /> },
+                { id: 'calendar' as const, name: 'Календарь', icon: <Calendar className="w-4 h-4" /> },
+                { id: 'contacts' as const, name: 'Контакты', icon: <Users className="w-4 h-4" /> },
+                { id: 'links' as const, name: 'Ссылки', icon: <Globe className="w-4 h-4" /> },
+              ].map((tab, index, array) => {
+                const isVisible = visibleTabs[tab.id];
+                return (
+                  <Row
+                    key={tab.id}
+                    icon={tab.icon}
+                    iconBg="bg-[#007aff]"
+                    label={tab.name}
+                    toggle
+                    toggleValue={isVisible}
+                    onToggle={(checked) => handleVisibleTabsChange(tab.id, checked)}
+                    isLast={index === array.length - 1}
+                  />
+                );
+              })}
             </div>
           </Section>
 
