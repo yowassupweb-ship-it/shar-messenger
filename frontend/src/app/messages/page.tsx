@@ -223,6 +223,7 @@ export default function MessagesPage() {
   const [chatDrafts, setChatDrafts] = useState<Record<string, string>>({});
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [textareaHeight, setTextareaHeight] = useState(44); // Высота textarea для динамического отступа
   const [showRenameChatModal, setShowRenameChatModal] = useState(false);
   const [newChatName, setNewChatName] = useState('');
   const [showImageModal, setShowImageModal] = useState(false);
@@ -235,6 +236,9 @@ export default function MessagesPage() {
   const [showTextFormatMenu, setShowTextFormatMenu] = useState(false);
   const [formatMenuPosition, setFormatMenuPosition] = useState({ top: 0, left: 0 });
   const [textSelection, setTextSelection] = useState({ start: 0, end: 0, text: '' });
+  const [showMessageContextMenu, setShowMessageContextMenu] = useState(false);
+  const [contextMenuPosition, setContextMenuPosition] = useState({ top: 0, left: 0 });
+  const [contextMenuMessage, setContextMenuMessage] = useState<Message | null>(null);
   const [notificationSound] = useState(() => {
     if (typeof window !== 'undefined') {
       const audio = new Audio();
@@ -350,10 +354,22 @@ export default function MessagesPage() {
     // Восстанавливаем черновик нового чата
     if (chat && chatDrafts[chat.id]) {
       setNewMessage(chatDrafts[chat.id]);
+      setTimeout(() => {
+        if (messageInputRef.current) {
+          messageInputRef.current.value = chatDrafts[chat.id];
+          messageInputRef.current.style.height = 'auto';
+          const newHeight = Math.min(messageInputRef.current.scrollHeight, 120);
+          messageInputRef.current.style.height = newHeight + 'px';
+          setTextareaHeight(newHeight);
+        }
+      }, 0);
     } else {
+      setNewMessage('');
       if (messageInputRef.current) {
         messageInputRef.current.value = '';
+        messageInputRef.current.style.height = '44px';
       }
+      setTextareaHeight(44);
     }
     
     if (typeof window !== 'undefined') {
@@ -406,25 +422,29 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!currentUser) return;
     
-    // Обновляем свой статус сразу
-    updateUserStatus();
+    // ОТКЛЮЧЕНО для удаленной PostgreSQL - слишком медленно
+    // updateUserStatus();
     
-    // Обновляем статус каждые 30 секунд
+    // Обновляем статус каждые 5 минут (вместо 30 секунд)
     const statusInterval = setInterval(() => {
       // Не запрашиваем данные если вкладка не активна
       if (typeof document !== 'undefined' && document.hidden) return;
-      updateUserStatus();
-    }, 30000);
+      // ОТКЛЮЧЕНО
+      // updateUserStatus();
+    }, 300000);
     
-    // Загружаем статусы других пользователей каждые 10 секунд
+    // Загружаем статусы других пользователей каждые 2 минуты (вместо 10 секунд)
     const usersStatusInterval = setInterval(() => {
       // Не запрашиваем данные если вкладка не активна
       if (typeof document !== 'undefined' && document.hidden) return;
-      loadUserStatuses();
-    }, 10000);
+      // ОТКЛЮЧЕНО
+      // loadUserStatuses();
+    }, 120000);
     
-    // Обновляем статус при выходе со страницы
+    // Обновляем статус при выходе со страницы (ОТКЛЮЧЕНО для удаленной БД)
     const handleBeforeUnload = async () => {
+      // ОТКЛЮЧЕНО - слишком медленно для удаленной PostgreSQL
+      /*
       await fetch(`/api/users/${currentUser.id}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -434,6 +454,7 @@ export default function MessagesPage() {
         }),
         keepalive: true
       });
+      */
     };
     
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -1042,12 +1063,7 @@ export default function MessagesPage() {
         // }
         
         // Оптимизация: не обновляем messages если данные не изменились
-        setMessages(prevMessages => {
-          if (isPolling && JSON.stringify(prevMessages) === JSON.stringify(data)) {
-            return prevMessages;
-          }
-          return data;
-        });
+        setMessages(data);
         
         // Скролл к последнему сообщению:
         // - При первой загрузке всегда
@@ -1125,9 +1141,9 @@ export default function MessagesPage() {
         !chat.isGroup && 
         !chat.isNotificationsChat && 
         !chat.isFavoritesChat &&
-        chat.participantIds.length === 2 &&
-        chat.participantIds.includes(selectedUsers[0]) &&
-        chat.participantIds.includes(currentUser.id)
+        chat.participantIds?.length === 2 &&
+        chat.participantIds?.includes(selectedUsers[0]) &&
+        chat.participantIds?.includes(currentUser.id)
       );
       
       if (existingChat) {
@@ -1209,6 +1225,7 @@ export default function MessagesPage() {
           messageInputRef.current.value = '';
           messageInputRef.current.style.height = '44px';
         }
+        setTextareaHeight(44);
         setReplyToMessage(null);
         setAttachments([]);
         
@@ -1425,8 +1442,10 @@ export default function MessagesPage() {
       
       // Пересылаем каждое сообщение
       for (const message of messagesToForward) {
+        // Используем selectedChat.id вместо message.chatId
+        const sourceChatId = selectedChat?.id || message.chatId;
         const res = await fetch(
-          `/api/chats/${message.chatId}/messages/${message.id}/forward`,
+          `/api/chats/${sourceChatId}/messages/${message.id}/forward`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1516,7 +1535,7 @@ export default function MessagesPage() {
     if (!currentUser) return 'Чат';
     
     const otherParticipants = users.filter(u => 
-      chat.participantIds.includes(u.id) && u.id !== currentUser.id
+      chat.participantIds?.includes(u.id) && u.id !== currentUser.id
     );
     
     if (otherParticipants.length === 0) return 'Избранное';
@@ -1531,7 +1550,7 @@ export default function MessagesPage() {
     if (!currentUser) return 'C';
     
     const otherParticipants = users.filter(u => 
-      chat.participantIds.includes(u.id) && u.id !== currentUser.id
+      chat.participantIds?.includes(u.id) && u.id !== currentUser.id
     );
     
     if (otherParticipants.length === 0) return 'F';
@@ -1544,13 +1563,22 @@ export default function MessagesPage() {
     if (chat.isSystemChat || chat.isNotificationsChat) return { type: 'notifications', name: 'Уведомления' };
     if (chat.isGroup) return { type: 'group', name: chat.title || 'Группа' };
     
+    // Проверка на системные чаты по названию (для обратной совместимости)
+    if (chat.title === 'Уведомления') return { type: 'notifications', name: 'Уведомления' };
+    if (chat.title === 'Избранное') return { type: 'favorites', name: 'Избранное' };
+    
     if (!currentUser) return { type: 'user', name: 'Чат' };
     
     const otherParticipants = users.filter(u => 
-      chat.participantIds.includes(u.id) && u.id !== currentUser.id
+      chat.participantIds?.includes(u.id) && u.id !== currentUser.id
     );
     
-    if (otherParticipants.length === 0) return { type: 'favorites', name: 'Избранное' };
+    // Если нет других участников, проверяем тип чата
+    if (otherParticipants.length === 0) {
+      if (chat.isFavoritesChat) return { type: 'favorites', name: 'Избранное' };
+      if (chat.isSystemChat || chat.isNotificationsChat) return { type: 'notifications', name: 'Уведомления' };
+      return { type: 'user', name: 'Чат' };
+    }
     
     const participant = otherParticipants[0];
     return { 
@@ -1579,7 +1607,7 @@ export default function MessagesPage() {
       // Поиск по названию чата
       if (chat.title?.toLowerCase().includes(query)) return true;
       // Поиск по именам участников
-      const participants = users.filter(u => chat.participantIds.includes(u.id) && u.id !== currentUser?.id);
+      const participants = users.filter(u => chat.participantIds?.includes(u.id) && u.id !== currentUser?.id);
       return participants.some(p => 
         p.name?.toLowerCase().includes(query) || 
         p.username?.toLowerCase().includes(query)
@@ -1828,7 +1856,7 @@ export default function MessagesPage() {
               <div className="hidden md:block py-2 space-y-1">
                 {[...pinnedChats, ...unpinnedChats].map(chat => {
                   const avatarData = getChatAvatarData(chat);
-                  const otherParticipantId = !chat.isGroup ? chat.participantIds.find(id => id !== currentUser?.id) : undefined;
+                  const otherParticipantId = !chat.isGroup ? chat.participantIds?.find(id => id !== currentUser?.id) : undefined;
                   const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : undefined;
                   // В избранном не бывает непрочитанных сообщений
                   const hasUnread = !chat.isFavoritesChat && (chat.unreadCount || 0) > 0;
@@ -1872,7 +1900,7 @@ export default function MessagesPage() {
                           <div className="flex items-center gap-2 mb-2">
                             {chat.pinnedByUser?.[currentUser?.id || ''] && <Pin className="w-3 h-3 text-cyan-400 flex-shrink-0" />}
                             {chat.isGroup && <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />}
-                            <span className="font-medium text-sm text-[var(--text-primary)] truncate">{getChatTitle(chat)}</span>
+                            <span className="font-medium text-sm text-[var(--text-primary)] truncate select-none">{getChatTitle(chat)}</span>
                           </div>
                           {chat.lastMessage && (
                             <p className="text-xs text-[var(--text-muted)] line-clamp-2 mb-1">
@@ -1901,7 +1929,7 @@ export default function MessagesPage() {
                 {/* Закрепленные чаты */}
                 {pinnedChats.length > 0 && (
                   <div>
-                    <div className="px-3 py-2 text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">
+                    <div className="px-3 py-2 text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider select-none">
                       Закрепленные
                     </div>
                     <div className="divide-y divide-[var(--border-color)]">
@@ -1919,7 +1947,7 @@ export default function MessagesPage() {
                             <div className="flex items-start gap-3">
                               {(() => {
                                 const avatarData = getChatAvatarData(chat);
-                                const otherParticipantId = !chat.isGroup ? chat.participantIds.find(id => id !== currentUser?.id) : undefined;
+                                const otherParticipantId = !chat.isGroup ? chat.participantIds?.find(id => id !== currentUser?.id) : undefined;
                                 const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : undefined;
                                 return (
                                   <Avatar
@@ -1940,7 +1968,7 @@ export default function MessagesPage() {
                                     {chat.isGroup && (
                                       <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />
                                     )}
-                                    <h3 className="font-medium text-sm truncate">{getChatTitle(chat)}</h3>
+                                    <h3 className="font-medium text-sm truncate select-none">{getChatTitle(chat)}</h3>
                                   </div>
                                   {chat.lastMessage && (
                                     <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap ml-auto">
@@ -2057,7 +2085,7 @@ export default function MessagesPage() {
               {/* Закрепленные чаты */}
               {pinnedChats.length > 0 && (
                 <div>
-                  <div className="px-3 py-2 text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">
+                  <div className="px-3 py-2 text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider select-none">
                     Закрепленные
                   </div>
                   <div className="divide-y divide-[var(--border-color)]">
@@ -2075,7 +2103,7 @@ export default function MessagesPage() {
                           <div className="flex items-start gap-3">
                             {(() => {
                               const avatarData = getChatAvatarData(chat);
-                              const otherParticipantId = !chat.isGroup ? chat.participantIds.find(id => id !== currentUser?.id) : undefined;
+                              const otherParticipantId = !chat.isGroup ? chat.participantIds?.find(id => id !== currentUser?.id) : undefined;
                               const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : undefined;
                               return (
                                 <Avatar
@@ -2170,7 +2198,7 @@ export default function MessagesPage() {
                           <div className="flex items-start gap-3">
                             {(() => {
                               const avatarData = getChatAvatarData(chat);
-                              const otherParticipantId = !chat.isGroup ? chat.participantIds.find(id => id !== currentUser?.id) : undefined;
+                              const otherParticipantId = !chat.isGroup ? chat.participantIds?.find(id => id !== currentUser?.id) : undefined;
                               const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : undefined;
                               return (
                                 <Avatar
@@ -2266,25 +2294,7 @@ export default function MessagesPage() {
                   Выбрано: {selectedMessages.size}
                 </div>
                 <div className="flex gap-1.5">
-                  {/* Ответить - только если выбрано 1 сообщение */}
-                  {selectedMessages.size === 1 && (
-                    <button
-                      onClick={() => {
-                        const firstSelectedMessage = messages.find(m => selectedMessages.has(m.id));
-                        if (firstSelectedMessage) {
-                          setReplyToMessage(firstSelectedMessage);
-                          setIsSelectionMode(false);
-                          setSelectedMessages(new Set());
-                        }
-                      }}
-                      className="w-8 h-8 rounded-full backdrop-blur-xl bg-cyan-500/20 border border-cyan-500/30 hover:bg-cyan-500/30 flex items-center justify-center transition-all group/btn"
-                      title="Ответить"
-                    >
-                      <svg className="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                      </svg>
-                    </button>
-                  )}
+                  {/* Кнопка Ответить убрана - используйте правый клик на сообщении */}
                   {/* Переслать */}
                   <button
                     onClick={() => {
@@ -2393,11 +2403,11 @@ export default function MessagesPage() {
                   </p>
                 ) : (
                 <p className="text-[10px] text-[var(--text-muted)]">
-                  {selectedChat.isFavoritesChat ? '' : selectedChat.isSystemChat || selectedChat.isNotificationsChat ? 'Системные уведомления' : selectedChat.isGroup ? `${selectedChat.participantIds.length} участник${selectedChat.participantIds.length === 1 ? '' : selectedChat.participantIds.length < 5 ? 'а' : 'ов'}` : (() => {
+                  {selectedChat.isFavoritesChat ? '' : selectedChat.isSystemChat || selectedChat.isNotificationsChat ? '' : selectedChat.isGroup ? `${selectedChat.participantIds?.length || 0} участник${selectedChat.participantIds?.length === 1 ? '' : (selectedChat.participantIds?.length || 0) < 5 ? 'а' : 'ов'}` : (() => {
                     // Получаем собеседника
-                    const otherParticipantId = selectedChat.participantIds.find(id => id !== currentUser?.id);
+                    const otherParticipantId = selectedChat.participantIds?.find(id => id !== currentUser?.id);
                     const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : null;
-                    if (!otherUser) return 'не в сети';
+                    if (!otherUser) return '';
                     if (otherUser.isOnline) return 'в сети';
                     if (otherUser.lastSeen) {
                       const lastSeenDate = new Date(otherUser.lastSeen);
@@ -2549,10 +2559,10 @@ export default function MessagesPage() {
           )}
 
           {/* Messages */}
-          <div ref={messagesListRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 pt-20 md:pt-16 pb-20 md:pb-32 bg-transparent scrollbar-hide-mobile">
-            <div className="px-2 md:px-4 lg:px-8">
+          <div ref={messagesListRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 pt-20 md:pt-16 pb-20 md:pb-64 bg-transparent scrollbar-hide-mobile">
+            <div className="px-2 md:px-4 lg:px-8 h-full">
               {messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
+                <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)] select-none">
                   <MessageCircle className="w-16 h-16 mb-4 opacity-30" />
                   <p className="text-base font-medium">Нет сообщений</p>
                   <p className="text-sm mt-1 opacity-70">Начните общение</p>
@@ -2615,8 +2625,9 @@ export default function MessagesPage() {
                       if (!message.isDeleted && !message.isSystemMessage) {
                         e.preventDefault();
                         e.stopPropagation();
-                        setIsSelectionMode(true);
-                        setSelectedMessages(new Set([message.id]));
+                        setContextMenuMessage(message);
+                        setContextMenuPosition({ top: e.clientY, left: e.clientX });
+                        setShowMessageContextMenu(true);
                       }
                     }}
                   >
@@ -2859,7 +2870,7 @@ export default function MessagesPage() {
                                 {isLargeEmoji ? (
                                   <div className="relative">
                                     <p 
-                                      className="text-5xl md:text-7xl my-1 emoji-content emoji-native"
+                                      className="text-5xl md:text-7xl my-1 emoji-content emoji-native message-content"
                                       dangerouslySetInnerHTML={{ __html: message.content }}
                                     />
                                     {/* Время под эмодзи */}
@@ -2871,7 +2882,7 @@ export default function MessagesPage() {
                                 ) : isMediumEmoji ? (
                                   <div className="relative">
                                     <p 
-                                      className="text-3xl md:text-4xl my-1 emoji-content emoji-native"
+                                      className="text-3xl md:text-4xl my-1 emoji-content emoji-native message-content"
                                       dangerouslySetInnerHTML={{ __html: message.content }}
                                     />
                                     {/* Время под эмодзи */}
@@ -2884,7 +2895,7 @@ export default function MessagesPage() {
                               <>
                                 <span className="inline">
                                   <span
-                                    className={`${isMyMessage ? myBubbleTextClass : 'text-[var(--text-primary)]'} whitespace-pre-wrap [overflow-wrap:anywhere] ${isEditing ? 'bg-blue-500/10 -mx-2 -my-1 px-2 py-1 rounded border border-blue-400/30' : ''}`}
+                                    className={`message-content ${isMyMessage ? myBubbleTextClass : 'text-[var(--text-primary)]'} whitespace-pre-wrap [overflow-wrap:anywhere] ${isEditing ? 'bg-blue-500/10 -mx-2 -my-1 px-2 py-1 rounded border border-blue-400/30' : ''}`}
                                     style={fontSizeStyle}
                                     dangerouslySetInnerHTML={{
                                       __html: formatMessageText(message.content)
@@ -3098,13 +3109,13 @@ export default function MessagesPage() {
               })}
                 </div>
             )}
-              <div ref={messagesEndRef} />
+              <div ref={messagesEndRef} className="transition-all duration-150" style={{ height: `${Math.max(141, 97 + textareaHeight)}px` }} />
             </div>
           </div>
 
           {/* Message input */}
-          <div 
-            className={`absolute bottom-0 md:bottom-[50px] left-0 right-0 z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(env(safe-area-inset-bottom,8px),8px)] transition-all duration-300 ${
+          <div
+            className={`absolute bottom-0 md:bottom-[50px] left-0 right-0 z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(env(safe-area-inset-bottom,8px),8px)] ${
               isDragging ? 'scale-[1.02]' : ''
             }`}
             onDragOver={(e) => {
@@ -3206,9 +3217,9 @@ export default function MessagesPage() {
               <div className="relative hidden md:block">
                 <button
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  className="hidden md:flex w-11 h-11 rounded-full backdrop-blur-xl bg-[var(--bg-secondary)]/60 border border-white/10 hover:border-white/20 hover:bg-[var(--bg-tertiary)]/90 items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex-shrink-0 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4),0_0_15px_-5px_rgba(0,0,0,0.3)]"
+                  className="hidden md:flex w-11 h-11 rounded-full backdrop-blur-2xl bg-gradient-to-br from-white/10 to-white/5 border border-white/20 hover:border-white/30 hover:from-white/15 hover:to-white/10 items-center justify-center text-gray-400/90 hover:text-white transition-all flex-shrink-0 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.5),inset_0_1px_2px_rgba(255,255,255,0.1)] hover:shadow-[0_8px_40px_-8px_rgba(255,255,255,0.2),inset_0_1px_2px_rgba(255,255,255,0.15)]"
                 >
-                  <Smile className="w-4 h-4" />
+                  <Smile className="w-5 h-5" />
                 </button>
                 
                 {/* Emoji Picker Dropdown */}
@@ -3291,7 +3302,7 @@ export default function MessagesPage() {
               <div className="flex-1 min-w-0 flex flex-col bg-transparent">
                 {/* Edit indicator над инпутом */}
                 {editingMessageId && (
-                  <div className="mb-1 px-3 py-1.5 backdrop-blur-xl bg-blue-500/20 border border-blue-400/30 rounded-t-[18px] flex items-center justify-between">
+                  <div className="mb-1 px-3 py-1.5 backdrop-blur-xl bg-blue-500/20 border border-blue-400/30 rounded-t-[18px] rounded-b-[18px] flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Edit3 className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
                       <span className="text-[11px] text-blue-400 font-medium">Редактирование сообщения</span>
@@ -3311,7 +3322,7 @@ export default function MessagesPage() {
                 
                 {/* Reply indicator над инпутом */}
                 {replyToMessage && !editingMessageId && (
-                  <div className="mx-1 mb-1 px-3 py-2 backdrop-blur-xl bg-[var(--bg-secondary)]/80 border border-white/10 rounded-[35px] flex items-center justify-between gap-2">
+                  <div className="mx-1 mb-1 px-3 py-2 backdrop-blur-xl bg-[var(--bg-secondary)]/80 border border-white/10 rounded-[35px] flex items-center justify-between gap-2" style={{ maxHeight: '70%', overflowY: 'auto' }}>
                     <button
                       onClick={() => scrollToMessage(replyToMessage.id)}
                       className="flex items-center gap-2 text-left hover:opacity-80 transition-opacity min-w-0 flex-1"
@@ -3335,7 +3346,6 @@ export default function MessagesPage() {
                 
                 <textarea
                   ref={messageInputRef}
-                  defaultValue=""
                   onSelect={handleTextSelection}
                   onFocus={() => {
                     isUserActiveRef.current = true;
@@ -3385,6 +3395,23 @@ export default function MessagesPage() {
                     if (resizeDebounceRef.current) {
                       clearTimeout(resizeDebounceRef.current);
                     }
+                    
+                    // Функция для скролла к последнему сообщению
+                    const scrollToBottomOnResize = () => {
+                      if (messagesListRef.current) {
+                        const container = messagesListRef.current;
+                        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+                        if (isNearBottom) {
+                          setTimeout(() => {
+                            container.scrollTo({
+                              top: container.scrollHeight,
+                              behavior: 'smooth'
+                            });
+                          }, 50);
+                        }
+                      }
+                    };
+                    
                     // Немедленный resize для первого символа
                     if (value.length <= 1 || value.length % 10 === 0) {
                       target.style.height = 'auto';
@@ -3392,6 +3419,8 @@ export default function MessagesPage() {
                       const maxHeight = lineHeight * 6;
                       const newHeight = Math.min(target.scrollHeight, maxHeight);
                       target.style.height = newHeight + 'px';
+                      setTextareaHeight(newHeight);
+                      scrollToBottomOnResize();
                     } else {
                       // Debounced resize для остальных случаев
                       resizeDebounceRef.current = setTimeout(() => {
@@ -3400,6 +3429,8 @@ export default function MessagesPage() {
                         const maxHeight = lineHeight * 6;
                         const newHeight = Math.min(target.scrollHeight, maxHeight);
                         target.style.height = newHeight + 'px';
+                        setTextareaHeight(newHeight);
+                        scrollToBottomOnResize();
                       }, 50);
                     }
                   }}
@@ -3426,6 +3457,7 @@ export default function MessagesPage() {
                           const maxHeight = lineHeight * 6;
                           const newHeight = Math.min(target.scrollHeight, maxHeight);
                           target.style.height = newHeight + 'px';
+                          setTextareaHeight(newHeight);
                         });
                       } else {
                         // Enter - отправка или сохранение
@@ -3541,7 +3573,7 @@ export default function MessagesPage() {
                   <div className="absolute bottom-full left-0 right-0 mb-1 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg shadow-xl max-h-48 overflow-y-auto z-50">
                     {(() => {
                       const participants = users.filter(u => 
-                        selectedChat.participantIds.includes(u.id) && 
+                        selectedChat.participantIds?.includes(u.id) && 
                         u.id !== currentUser?.id &&
                         (u.name?.toLowerCase().includes(mentionQuery) || 
                          u.username?.toLowerCase().includes(mentionQuery) ||
@@ -3613,9 +3645,9 @@ export default function MessagesPage() {
                     setSavedMessageText('');
                   }}
                   disabled={false}
-                  className="w-11 h-11 rounded-full backdrop-blur-xl bg-green-500 hover:bg-green-600 border border-white/10 disabled:bg-[var(--bg-secondary)]/60 disabled:border-white/10 disabled:cursor-not-allowed flex items-center justify-center text-white disabled:text-[var(--text-muted)] transition-all flex-shrink-0 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4),0_0_15px_-5px_rgba(0,0,0,0.3)]"
+                  className="w-11 h-11 rounded-full backdrop-blur-2xl bg-gradient-to-br from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 border border-white/30 flex items-center justify-center text-white transition-all flex-shrink-0 shadow-[0_8px_32px_-8px_rgba(34,197,94,0.6),inset_0_1px_2px_rgba(255,255,255,0.2)] hover:shadow-[0_8px_40px_-8px_rgba(34,197,94,0.8),inset_0_1px_2px_rgba(255,255,255,0.25)]"
                 >
-                  <Check className="w-4 h-4" />
+                  <Check className="w-5 h-5" />
                 </button>
               ) : (
                 <button
@@ -3625,9 +3657,9 @@ export default function MessagesPage() {
                   }}
                   onClick={sendMessage}
                   disabled={selectedChat?.isNotificationsChat}
-                  className="w-10 h-10 md:w-11 md:h-11 rounded-full backdrop-blur-xl bg-blue-500/80 hover:bg-blue-500 border border-white/20 disabled:bg-[var(--bg-secondary)]/60 disabled:border-white/10 disabled:cursor-not-allowed flex items-center justify-center text-white disabled:text-[var(--text-muted)] transition-all flex-shrink-0 shadow-[0_4px_20px_-4px_rgba(59,130,246,0.5)]"
+                  className="w-10 h-10 md:w-11 md:h-11 rounded-full backdrop-blur-2xl bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 border border-white/30 disabled:from-white/5 disabled:to-white/5 disabled:border-white/10 flex items-center justify-center text-white disabled:text-[var(--text-muted)] transition-all flex-shrink-0 shadow-[0_8px_32px_-8px_rgba(59,130,246,0.6),inset_0_1px_2px_rgba(255,255,255,0.2)] hover:shadow-[0_8px_40px_-8px_rgba(59,130,246,0.8),inset_0_1px_2px_rgba(255,255,255,0.25)] disabled:shadow-none disabled:cursor-not-allowed"
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="w-4 h-4 md:w-5 md:h-5" />
                 </button>
               )}
             </div>
@@ -3692,7 +3724,7 @@ export default function MessagesPage() {
             <div className="fixed inset-0 z-50 lg:relative lg:inset-auto lg:z-auto w-full lg:w-80 lg:min-w-[320px] border-l-0 lg:border-l border-[var(--border-color)] flex flex-col bg-[var(--bg-secondary)] flex-shrink-0 overflow-hidden">
               {(() => {
                 // Определяем собеседника (не текущий пользователь)
-                const otherParticipantId = selectedChat?.participantIds.find(id => id !== currentUser?.id);
+                const otherParticipantId = selectedChat?.participantIds?.find(id => id !== currentUser?.id);
                 const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : null;
                 
                 // Статистика вложений
@@ -3773,7 +3805,7 @@ export default function MessagesPage() {
                         </div>
                         {selectedChat?.isGroup ? (
                           <p className="text-xs text-[var(--text-muted)] mt-1">
-                            {selectedChat.participantIds.length} участник{selectedChat.participantIds.length === 1 ? '' : selectedChat.participantIds.length < 5 ? 'а' : 'ов'}
+                            {selectedChat.participantIds?.length || 0} участник{(selectedChat.participantIds?.length || 0) === 1 ? '' : (selectedChat.participantIds?.length || 0) < 5 ? 'а' : 'ов'}
                           </p>
                         ) : otherUser && otherUser.email && (
                           <div className="flex items-center gap-1.5 mt-2 text-xs text-[var(--text-secondary)]">
@@ -4396,7 +4428,7 @@ export default function MessagesPage() {
                 {(() => {
                   const availableUsers = users.filter(u => {
                     // Исключаем уже добавленных в группу
-                    if (selectedChat?.participantIds.includes(u.id)) return false;
+                    if (selectedChat?.participantIds?.includes(u.id)) return false;
                     // Исключаем самого себя
                     if (u.id === currentUser?.id) return false;
                     // Фильтруем по поиску
@@ -4942,8 +4974,8 @@ export default function MessagesPage() {
                   .filter(chat => {
                     // Фильтруем уведомления и текущий чат
                     if (chat.isNotificationsChat) return false;
-                    // Если пересылаем одно сообщение, исключаем чат сообщения
-                    if (forwardingMessage) return chat.id !== forwardingMessage.chatId;
+                    // Если пересылаем одно сообщение, исключаем текущий чат (используем selectedChat)
+                    if (forwardingMessage && selectedChat) return chat.id !== selectedChat.id;
                     // Если множественный выбор, исключаем текущий чат (если открыт)
                     if (isSelectionMode && selectedChat) return chat.id !== selectedChat.id;
                     return true;
@@ -5096,6 +5128,131 @@ export default function MessagesPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Message Context Menu */}
+      {showMessageContextMenu && contextMenuMessage && (
+        <>
+          <div 
+            className="fixed inset-0 z-40" 
+            onClick={() => setShowMessageContextMenu(false)}
+          />
+          <div 
+            className="fixed z-50 bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl rounded-xl py-1 min-w-[200px]"
+            style={{
+              top: `${contextMenuPosition.top}px`,
+              left: `${contextMenuPosition.left}px`,
+            }}
+          >
+            {/* Ответить */}
+            <button
+              onClick={() => {
+                setReplyToMessage(contextMenuMessage);
+                setShowMessageContextMenu(false);
+                messageInputRef.current?.focus();
+              }}
+              className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
+            >
+              <Reply className="w-4 h-4 text-blue-400" />
+              Ответить
+            </button>
+
+            {/* Переслать */}
+            <button
+              onClick={() => {
+                setForwardingMessage(contextMenuMessage);
+                setShowForwardModal(true);
+                setShowMessageContextMenu(false);
+              }}
+              className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
+            >
+              <svg className="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12h18m0 0l-6-6m6 6l-6 6" />
+              </svg>
+              Переслать
+            </button>
+
+            {/* Копировать текст */}
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(contextMenuMessage.content);
+                  setShowMessageContextMenu(false);
+                  alert('Текст скопирован в буфер обмена');
+                } catch (error) {
+                  console.error('Ошибка копирования:', error);
+                  alert('Не удалось скопировать текст');
+                }
+              }}
+              className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
+            >
+              <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              Копировать текст
+            </button>
+
+            {/* Редактировать - только для своих сообщений */}
+            {contextMenuMessage.authorId === currentUser?.id && (
+              <button
+                onClick={() => {
+                  setEditingMessageId(contextMenuMessage.id);
+                  setSavedMessageText(messageInputRef.current?.value || '');
+                  if (messageInputRef.current) {
+                    messageInputRef.current.value = contextMenuMessage.content;
+                  }
+                  setNewMessage(contextMenuMessage.content);
+                  setShowMessageContextMenu(false);
+                  messageInputRef.current?.focus();
+                }}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
+              >
+                <Edit3 className="w-4 h-4 text-purple-400" />
+                Редактировать
+              </button>
+            )}
+
+            {/* Превратить в задачу */}
+            <button
+              onClick={async () => {
+                try {
+                  const taskTitle = contextMenuMessage.content.length > 100 
+                    ? contextMenuMessage.content.substring(0, 100) + '...' 
+                    : contextMenuMessage.content;
+                  
+                  const response = await fetch('/api/todos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      title: taskTitle,
+                      description: contextMenuMessage.content,
+                      status: 'todo',
+                      priority: 'medium',
+                      assignedToId: currentUser?.id,
+                      assignedById: currentUser?.id,
+                    })
+                  });
+
+                  if (response.ok) {
+                    const newTask = await response.json();
+                    setShowMessageContextMenu(false);
+                    // Перенаправляем на страницу задач
+                    router.push(`/todos?task=${newTask.id}`);
+                  } else {
+                    throw new Error('Ошибка создания задачи');
+                  }
+                } catch (error) {
+                  console.error('Ошибка создания задачи:', error);
+                  alert('Не удалось создать задачу');
+                }
+              }}
+              className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
+            >
+              <CheckSquare className="w-4 h-4 text-orange-400" />
+              Превратить в задачу
+            </button>
+          </div>
+        </>
       )}
 
       {/* Image Modal - Telegram-style image viewer with zoom */}

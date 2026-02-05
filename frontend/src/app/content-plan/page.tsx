@@ -2214,10 +2214,10 @@ export default function ContentPlanPage() {
       {/* Modal - 3-column layout like todos */}
       {showAddPost && (
         <div 
-          className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4"
+          className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
           onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
         >
-          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl w-full max-w-6xl shadow-2xl flex flex-col max-h-[95vh] sm:max-h-[90vh] overflow-hidden">
+          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 w-full h-full shadow-2xl flex flex-col overflow-hidden">
             {/* Header */}
             <div className="border-b border-gray-200 dark:border-white/10 px-3 sm:px-5 py-2.5 sm:py-3 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-2 sm:gap-3">
@@ -2258,7 +2258,7 @@ export default function ContentPlanPage() {
             {/* 3-column content */}
             <div className="flex flex-1 overflow-y-auto lg:overflow-hidden flex-col lg:flex-row">
               {/* Left column - Fields */}
-              <div className="w-full lg:w-[380px] flex-shrink-0 p-3 sm:p-4 overflow-y-auto border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-white/10 space-y-3 sm:space-y-4">
+              <div className="w-full lg:flex-1 flex-shrink-0 p-3 sm:p-4 overflow-y-auto border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-white/10 space-y-3 sm:space-y-4">
                 {/* Title */}
                 <div>
                   <input
@@ -2710,7 +2710,7 @@ export default function ContentPlanPage() {
               </div>
 
               {/* Middle column - Description */}
-              <div className="flex-1 lg:flex-none lg:w-[420px] flex flex-col bg-gray-50 dark:bg-[#0d0d0d] border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-white/10">
+              <div className="w-full lg:flex-1 flex flex-col bg-gray-50 dark:bg-[#0d0d0d] border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-white/10">
                 {/* Description Header with Formatting */}
                 <div className="px-3 py-2 border-b border-gray-200 dark:border-white/10">
                   <div className="flex items-center justify-between mb-2">

@@ -113,7 +113,9 @@ class Database:
             "trackedPosts": [],  # Отслеживаемые посты с UTM метками
             "parsingState": {},  # Состояние активных процессов парсинга {sourceId: {status, progress, ...}}
             "chats": [],  # Чаты пользователей
-            "messages": []  # Сообщения в чатах
+            "messages": [],  # Сообщения в чатах
+            "links": [],  # Сохранённые ссылки
+            "link_lists": []  # Списки для организации ссылок
         }
     
     # Settings
@@ -350,11 +352,11 @@ class Database:
         users = self.data.get("users", [])
         for user in users:
             # Ищем по username ИЛИ по email ИЛИ по name ИЛИ по части username до @
-            user_username = user.get("username", "")
-            user_email = user.get("email", "")
-            user_name = user.get("name", "")
+            user_username = user.get("username") or ""
+            user_email = user.get("email") or ""
+            user_name = user.get("name") or ""
             # Также проверяем часть до @ в username
-            user_username_prefix = user_username.split('@')[0] if '@' in user_username else user_username
+            user_username_prefix = user_username.split('@')[0] if user_username and '@' in user_username else user_username
             print(f"Checking user: username='{user_username}', email='{user_email}', name='{user_name}', prefix='{user_username_prefix}' vs '{username}'")
             if user_username == username or user_email == username or user_name == username or user_username_prefix == username:
                 print(f"MATCH FOUND: {user}")
@@ -856,7 +858,7 @@ class Database:
     def get_user_chats(self, user_id: str) -> List[Dict[str, Any]]:
         """Получить все чаты пользователя"""
         chats = self.data.get("chats", [])
-        return [c for c in chats if user_id in c.get("participantIds", [])]
+        return [c for c in chats if user_id in c.get("participant_ids", [])]
     
     def create_chat(self, chat_data: Dict[str, Any]) -> Dict[str, Any]:
         """Создать новый чат"""
@@ -867,17 +869,34 @@ class Database:
         self._save()
         return chat_data
     
+    def find_private_chat(self, user1_id: str, user2_id: str) -> Optional[Dict[str, Any]]:
+        """Найти приватный чат между двумя пользователями"""
+        chats = self.data.get("chats", [])
+        for chat in chats:
+            if not chat.get("is_group", False):
+                participant_ids = chat.get("participant_ids", [])
+                if set(participant_ids) == {user1_id, user2_id}:
+                    return chat
+        return None
+    
+    def find_chat_by_todo(self, todo_id: str) -> Optional[Dict[str, Any]]:
+        """Найти чат связанный с задачей"""
+        chats = self.data.get("chats", [])
+        for chat in chats:
+            if chat.get("todo_id") == todo_id:
+                return chat
+        return None
+    
     def get_chat_messages(self, chat_id: str) -> List[Dict[str, Any]]:
         """Получить все сообщения чата"""
         messages = self.data.get("messages", [])
-        chat_messages = [msg for msg in messages if msg.get("chatId") == chat_id]
-        chat_messages.sort(key=lambda x: x.get("createdAt", ""))
+        chat_messages = [msg for msg in messages if msg.get("chat_id") == chat_id]
+        chat_messages.sort(key=lambda x: x.get("created_at", ""))
         return chat_messages
     
     def add_message(self, message_data: Dict[str, Any]) -> Dict[str, Any]:
         """Добавить сообщение"""
-        # Перезагружаем данные перед добавлением чтобы не потерять внешние изменения
-        self.reload()
+        # НЕ перезагружаем данные - это удаляет свежедобавленные сообщения
         if "messages" not in self.data:
             self.data["messages"] = []
         
@@ -892,7 +911,7 @@ class Database:
         
         if message:
             message.update(update_data)
-            message["updatedAt"] = datetime.now().isoformat()
+            message["updated_at"] = datetime.now().isoformat()
             self._save()
             return message
         
@@ -907,6 +926,118 @@ class Database:
         
         if len(messages) < initial_length:
             self.data["messages"] = messages
+            self._save()
+            return True
+        
+        return False
+    
+    # ==================== LINKS ====================
+    
+    def get_links(self, user_id: Optional[str] = None, list_id: Optional[str] = None, department: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Получить ссылки с фильтрацией"""
+        links = self.data.get("links", [])
+        
+        if list_id:
+            links = [link for link in links if link.get("list_id") == list_id]
+        if department:
+            links = [link for link in links if link.get("department") == department]
+        
+        # Сортировка по порядку и дате создания
+        links.sort(key=lambda x: (x.get("order", 0), x.get("created_at", "")), reverse=True)
+        return links
+    
+    def get_link(self, link_id: str) -> Optional[Dict[str, Any]]:
+        """Получить ссылку по ID"""
+        links = self.data.get("links", [])
+        return next((link for link in links if link["id"] == link_id), None)
+    
+    def add_link(self, link_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Добавить ссылку"""
+        if "links" not in self.data:
+            self.data["links"] = []
+        
+        if "created_at" not in link_data:
+            link_data["created_at"] = datetime.now().isoformat()
+        if "updated_at" not in link_data:
+            link_data["updated_at"] = datetime.now().isoformat()
+        
+        self.data["links"].append(link_data)
+        self._save()
+        return link_data
+    
+    def update_link(self, link_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Обновить ссылку"""
+        links = self.data.get("links", [])
+        link = next((l for l in links if l["id"] == link_id), None)
+        
+        if link:
+            link.update(updates)
+            link["updated_at"] = datetime.now().isoformat()
+            self._save()
+            return link
+        
+        return None
+    
+    def delete_link(self, link_id: str) -> bool:
+        """Удалить ссылку"""
+        links = self.data.get("links", [])
+        initial_length = len(links)
+        
+        self.data["links"] = [l for l in links if l["id"] != link_id]
+        
+        if len(self.data["links"]) < initial_length:
+            self._save()
+            return True
+        
+        return False
+    
+    # ==================== LINK LISTS ====================
+    
+    def get_link_lists(self, department: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Получить списки ссылок"""
+        lists = self.data.get("link_lists", [])
+        
+        if department:
+            lists = [l for l in lists if l.get("department") == department]
+        
+        lists.sort(key=lambda x: (x.get("order", 0), x.get("created_at", "")))
+        return lists
+    
+    def add_link_list(self, list_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Добавить список ссылок"""
+        if "link_lists" not in self.data:
+            self.data["link_lists"] = []
+        
+        if "created_at" not in list_data:
+            list_data["created_at"] = datetime.now().isoformat()
+        if "updated_at" not in list_data:
+            list_data["updated_at"] = datetime.now().isoformat()
+        
+        self.data["link_lists"].append(list_data)
+        self._save()
+        return list_data
+    
+    def update_link_list(self, list_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Обновить список ссылок"""
+        lists = self.data.get("link_lists", [])
+        list_item = next((l for l in lists if l["id"] == list_id), None)
+        
+        if list_item:
+            list_item.update(updates)
+            list_item["updated_at"] = datetime.now().isoformat()
+            self._save()
+            return list_item
+        
+        return None
+    
+    def delete_link_list(self, list_id: str) -> bool:
+        """Удалить список ссылок"""
+        lists = self.data.get("link_lists", [])
+        initial_length = len(lists)
+        
+        self.data["link_lists"] = [l for l in lists if l["id"] != list_id]
+        
+        if len(self.data["link_lists"]) < initial_length:
             self._save()
             return True
         

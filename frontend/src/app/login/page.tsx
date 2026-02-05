@@ -109,13 +109,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 overflow-y-auto" style={{ background: '#0f0f0f' }}>
+    <div className="min-h-screen h-screen flex items-center justify-center p-4 overflow-y-auto" style={{ background: '#0f0f0f' }}>
       <div className="w-full max-w-md my-auto">
         <div className="rounded-2xl p-8" style={{
           background: '#1a1a1a',
           border: '1px solid rgba(255, 255, 255, 0.08)'
         }}>
-          <div className="text-center mb-8">
+          <div className="text-center mb-8 select-none">
             <p className="text-[#e0e0e0] opacity-70">
               Вход в систему
             </p>

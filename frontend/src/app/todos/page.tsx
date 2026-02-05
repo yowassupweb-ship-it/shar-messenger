@@ -1152,6 +1152,62 @@ export default function TodosPage() {
           commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }, 100);
 
+        // ========== СОЗДАЕМ ЧАТ И ДУБЛИРУЕМ КОММЕНТАРИЙ ==========
+        try {
+          // Собираем уникальных участников: автор задачи и исполнитель(и)
+          const participantIdsSet = new Set<string>();
+          
+          if (currentTodo.assignedById) participantIdsSet.add(currentTodo.assignedById);
+          if (currentTodo.assignedToId) participantIdsSet.add(currentTodo.assignedToId);
+          
+          // Добавляем всех исполнителей из assignedToIds
+          if (currentTodo.assignedToIds) {
+            currentTodo.assignedToIds.filter(id => id != null).forEach(id => participantIdsSet.add(id));
+          }
+          
+          const participantIds = Array.from(participantIdsSet);
+          
+          // Создаем чат только если есть минимум 2 разных участника
+          if (participantIds.length >= 2) {
+            const chatRes = await fetch('/api/chats', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                participantIds,
+                title: `Задача: ${currentTodo.title}`,
+                isGroup: participantIds.length > 2, // групповой только если 3+ участников
+                creatorId: myAccountId,
+                todoId: todoId
+              })
+            });
+            
+            if (chatRes.ok) {
+              const chat = await chatRes.json();
+              
+              // Отправляем комментарий как сообщение в чат
+              const msgRes = await fetch(`/api/chats/${chat.id}/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  authorId: myAccountId,
+                  content: `💬 Комментарий к задаче:\n${content.trim()}`,
+                  mentions: mentions
+                })
+              });
+              
+              if (!msgRes.ok) {
+                console.error('Failed to send message to chat:', await msgRes.text());
+              }
+            } else {
+              console.error('Failed to create chat for task:', await chatRes.text());
+            }
+          }
+        } catch (chatError) {
+          console.error('Error creating chat/message:', chatError);
+          // Не прерываем выполнение - комментарий уже сохранен
+        }
+        // =========================================================
+
         // Создаём уведомления для упомянутых и исполнителя
         const notifyUserIds = new Set<string>();
         
@@ -3294,7 +3350,7 @@ export default function TodosPage() {
                             <span className={todo.assignedById || todo.delegatedById ? "ml-2" : ""}>
                               Исполнители: {
                                 todo.assignedToIds && todo.assignedToIds.length > 0
-                                  ? todo.assignedToIds.map((id, idx) => (
+                                  ? todo.assignedToIds.filter(id => id != null).map((id, idx) => (
                                       <span key={id}>
                                         {idx > 0 && ', '}
                                         {getPersonNameById(people, id)}
@@ -3642,10 +3698,10 @@ export default function TodosPage() {
         )}
       </div>
 
-      {/* Hover Preview Tooltip */}
+      {/* Hover Preview Tooltip - only on desktop */}
       {hoveredTodo && (hoveredTodo.description || hoveredTodo.reviewComment) && (
         <div 
-          className="fixed z-[100] bg-white dark:bg-[#1f1f1f] border border-gray-200 dark:border-[var(--border-light)] rounded-xl shadow-2xl p-4 max-w-sm animate-in fade-in duration-200 text-gray-900 dark:text-white"
+          className="hidden md:block fixed z-[100] bg-white dark:bg-[#1f1f1f] border border-gray-200 dark:border-[var(--border-light)] rounded-xl shadow-2xl p-4 max-w-sm animate-in fade-in duration-200 text-gray-900 dark:text-white"
           style={{ 
             left: Math.min(hoverPosition.x, window.innerWidth - 350),
             top: Math.min(hoverPosition.y, window.innerHeight - 200),
@@ -3715,10 +3771,10 @@ export default function TodosPage() {
 
       {/* Edit Todo Modal */}
       {editingTodo && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-gradient-to-b dark:from-[#1a1a1a] dark:to-[#151515] border border-gray-200 dark:border-[var(--border-color)] rounded-xl w-full max-w-[95vw] xl:max-w-[1200px] shadow-2xl max-h-[90vh] flex flex-col my-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 overflow-y-auto">
+          <div className="bg-white dark:bg-gradient-to-b dark:from-[#1a1a1a] dark:to-[#151515] border border-gray-200 dark:border-[var(--border-color)] w-full h-full shadow-2xl flex flex-col">
             {/* Шапка */}
-            <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-gray-200 dark:border-[var(--border-color)] bg-gray-50 dark:bg-white/[0.02] sm:rounded-t-xl flex-shrink-0">
+            <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-gray-200 dark:border-[var(--border-color)] bg-gray-50 dark:bg-white/[0.02] flex-shrink-0">
               <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                 <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center border border-gray-200 dark:border-[var(--border-color)]">
                   <Edit3 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-500 dark:text-blue-400" />
@@ -3753,7 +3809,7 @@ export default function TodosPage() {
             {/* Три колонки - адаптивно */}
             <div className="flex flex-1 overflow-y-auto lg:overflow-hidden flex-col lg:flex-row min-h-0">
               {/* Левый блок - основные поля */}
-              <div className="w-full lg:w-[380px] p-2 sm:p-3 space-y-2 sm:space-y-3 border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-[var(--border-color)] lg:overflow-y-auto flex-shrink-0 bg-gray-50 dark:bg-[var(--bg-secondary)] order-2 lg:order-1">
+              <div className="w-full lg:flex-1 p-2 sm:p-3 space-y-2 sm:space-y-3 border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-[var(--border-color)] lg:overflow-y-auto flex-shrink-0 bg-gray-50 dark:bg-[var(--bg-secondary)] order-2 lg:order-1">
                 {/* Статус */}
                 <div>
                   <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide">Статус</label>
@@ -3939,7 +3995,7 @@ export default function TodosPage() {
                     >
                       <div className="flex flex-wrap gap-1">
                         {editingTodo.assignedToIds && editingTodo.assignedToIds.length > 0 ? (
-                          editingTodo.assignedToIds.map(id => {
+                          editingTodo.assignedToIds.filter(id => id != null).map(id => {
                             const person = people.find(p => p.id === id);
                             return person ? (
                               <span key={id} className="text-xs bg-green-500/20 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded flex items-center gap-1">
@@ -3947,14 +4003,14 @@ export default function TodosPage() {
                                 <span
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    const newIds = editingTodo.assignedToIds?.filter(i => i !== id) || [];
+                                    const newIds = editingTodo.assignedToIds?.filter(i => i !== id && i != null) || [];
                                     const newNames = editingTodo.assignedToNames?.filter((_, idx) => editingTodo.assignedToIds?.[idx] !== id) || [];
                                     setEditingTodo({ 
                                       ...editingTodo, 
                                       assignedToIds: newIds.length > 0 ? newIds : undefined,
                                       assignedToNames: newNames.length > 0 ? newNames : undefined,
                                       // Для обратной совместимости
-                                      assignedToId: newIds[0],
+                                      assignedToId: newIds[0] || undefined,
                                       assignedTo: newNames[0] || ''
                                     });
                                   }}
@@ -4006,10 +4062,10 @@ export default function TodosPage() {
                                 let newNames: string[];
                                 
                                 if (isSelected) {
-                                  newIds = currentIds.filter(id => id !== person.id);
+                                  newIds = currentIds.filter(id => id !== person.id && id != null);
                                   newNames = currentNames.filter((_, idx) => currentIds[idx] !== person.id);
                                 } else {
-                                  newIds = [...currentIds, person.id];
+                                  newIds = [...currentIds.filter(id => id != null), person.id];
                                   newNames = [...currentNames, person.name];
                                 }
                                 
@@ -4018,7 +4074,7 @@ export default function TodosPage() {
                                   assignedToIds: newIds.length > 0 ? newIds : undefined,
                                   assignedToNames: newNames.length > 0 ? newNames : undefined,
                                   // Для обратной совместимости - первый исполнитель
-                                  assignedToId: newIds[0],
+                                  assignedToId: newIds[0] || undefined,
                                   assignedTo: newNames[0] || ''
                                 });
                               }}
@@ -4352,7 +4408,7 @@ export default function TodosPage() {
               </div>
 
               {/* Средний блок - Название и Описание */}
-              <div className="flex-1 lg:flex-none lg:w-[420px] flex flex-col bg-white dark:bg-[var(--bg-secondary)] border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-[var(--border-color)] order-1 lg:order-2">
+              <div className="w-full lg:flex-1 flex flex-col bg-white dark:bg-[var(--bg-secondary)] border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-[var(--border-color)] order-1 lg:order-2">
                 {/* Название задачи */}
                 <div className="px-2 sm:px-3 pt-2 sm:pt-3 pb-1.5 sm:pb-2">
                   <input
@@ -4428,10 +4484,23 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        const editor = document.getElementById('description-editor');
-                        if (editor) {
-                          document.execCommand('insertUnorderedList', false);
-                          editor.focus();
+                        const selection = window.getSelection();
+                        if (selection && selection.rangeCount > 0) {
+                          const range = selection.getRangeAt(0);
+                          const selectedText = range.toString();
+                          const editor = document.getElementById('description-editor');
+                          if (editor && selectedText) {
+                            const items = selectedText.split('\n').filter(s => s.trim());
+                            const ul = `<ul class="list-disc ml-6 my-2">${items.map(item => `<li class="text-gray-900 dark:text-white">${item.trim()}</li>`).join('')}</ul>`;
+                            range.deleteContents();
+                            const template = document.createElement('template');
+                            template.innerHTML = ul;
+                            range.insertNode(template.content.firstChild!);
+                            editor.focus();
+                            if (editingTodo && descriptionEditorRef.current) {
+                              setEditingTodo(prev => prev ? { ...prev, description: descriptionEditorRef.current!.innerHTML } : prev);
+                            }
+                          }
                         }
                       }}
                       className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
@@ -4442,10 +4511,23 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        const editor = document.getElementById('description-editor');
-                        if (editor) {
-                          document.execCommand('insertOrderedList', false);
-                          editor.focus();
+                        const selection = window.getSelection();
+                        if (selection && selection.rangeCount > 0) {
+                          const range = selection.getRangeAt(0);
+                          const selectedText = range.toString();
+                          const editor = document.getElementById('description-editor');
+                          if (editor && selectedText) {
+                            const items = selectedText.split('\n').filter(s => s.trim());
+                            const ol = `<ol class="list-decimal ml-6 my-2">${items.map(item => `<li class="text-gray-900 dark:text-white">${item.trim()}</li>`).join('')}</ol>`;
+                            range.deleteContents();
+                            const template = document.createElement('template');
+                            template.innerHTML = ol;
+                            range.insertNode(template.content.firstChild!);
+                            editor.focus();
+                            if (editingTodo && descriptionEditorRef.current) {
+                              setEditingTodo(prev => prev ? { ...prev, description: descriptionEditorRef.current!.innerHTML } : prev);
+                            }
+                          }
                         }
                       }}
                       className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
@@ -4470,10 +4552,23 @@ export default function TodosPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              const editor = document.getElementById('description-editor');
-                              if (editor) {
-                                document.execCommand('formatBlock', false, '<h1>');
-                                editor.focus();
+                              const selection = window.getSelection();
+                              if (selection && selection.rangeCount > 0) {
+                                const range = selection.getRangeAt(0);
+                                const selectedText = range.toString();
+                                const editor = document.getElementById('description-editor');
+                                if (editor && selectedText) {
+                                  const h1 = `<h1 class="text-2xl font-bold my-2 text-gray-900 dark:text-white">${selectedText}</h1>`;
+                                  range.deleteContents();
+                                  const template = document.createElement('template');
+                                  template.innerHTML = h1;
+                                  range.insertNode(template.content.firstChild!);
+                                  editor.focus();
+                                  // Сохраняем изменения
+                                  if (editingTodo && descriptionEditorRef.current) {
+                                    setEditingTodo(prev => prev ? { ...prev, description: descriptionEditorRef.current!.innerHTML } : prev);
+                                  }
+                                }
                               }
                               setOpenDropdown(null);
                             }}
@@ -4484,10 +4579,23 @@ export default function TodosPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              const editor = document.getElementById('description-editor');
-                              if (editor) {
-                                document.execCommand('formatBlock', false, '<h2>');
-                                editor.focus();
+                              const selection = window.getSelection();
+                              if (selection && selection.rangeCount > 0) {
+                                const range = selection.getRangeAt(0);
+                                const selectedText = range.toString();
+                                const editor = document.getElementById('description-editor');
+                                if (editor && selectedText) {
+                                  const h2 = `<h2 class="text-xl font-semibold my-2 text-gray-900 dark:text-white">${selectedText}</h2>`;
+                                  range.deleteContents();
+                                  const template = document.createElement('template');
+                                  template.innerHTML = h2;
+                                  range.insertNode(template.content.firstChild!);
+                                  editor.focus();
+                                  // Сохраняем изменения
+                                  if (editingTodo && descriptionEditorRef.current) {
+                                    setEditingTodo(prev => prev ? { ...prev, description: descriptionEditorRef.current!.innerHTML } : prev);
+                                  }
+                                }
                               }
                               setOpenDropdown(null);
                             }}
@@ -4498,10 +4606,23 @@ export default function TodosPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              const editor = document.getElementById('description-editor');
-                              if (editor) {
-                                document.execCommand('formatBlock', false, '<h3>');
-                                editor.focus();
+                              const selection = window.getSelection();
+                              if (selection && selection.rangeCount > 0) {
+                                const range = selection.getRangeAt(0);
+                                const selectedText = range.toString();
+                                const editor = document.getElementById('description-editor');
+                                if (editor && selectedText) {
+                                  const h3 = `<h3 class="text-lg font-medium my-2 text-gray-900 dark:text-white">${selectedText}</h3>`;
+                                  range.deleteContents();
+                                  const template = document.createElement('template');
+                                  template.innerHTML = h3;
+                                  range.insertNode(template.content.firstChild!);
+                                  editor.focus();
+                                  // Сохраняем изменения
+                                  if (editingTodo && descriptionEditorRef.current) {
+                                    setEditingTodo(prev => prev ? { ...prev, description: descriptionEditorRef.current!.innerHTML } : prev);
+                                  }
+                                }
                               }
                               setOpenDropdown(null);
                             }}
@@ -4513,14 +4634,22 @@ export default function TodosPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              const editor = document.getElementById('description-editor');
-                              if (editor) {
-                                // Сначала убираем форматирование заголовка, затем применяем div
-                                const selection = window.getSelection();
-                                if (selection && selection.rangeCount > 0) {
-                                  document.execCommand('formatBlock', false, '<div>');
+                              const selection = window.getSelection();
+                              if (selection && selection.rangeCount > 0) {
+                                const range = selection.getRangeAt(0);
+                                const selectedText = range.toString();
+                                const editor = document.getElementById('description-editor');
+                                if (editor && selectedText) {
+                                  const span = `<span class="text-sm text-gray-900 dark:text-white">${selectedText}</span>`;
+                                  range.deleteContents();
+                                  const template = document.createElement('template');
+                                  template.innerHTML = span;
+                                  range.insertNode(template.content.firstChild!);
+                                  editor.focus();
+                                  if (editingTodo && descriptionEditorRef.current) {
+                                    setEditingTodo(prev => prev ? { ...prev, description: descriptionEditorRef.current!.innerHTML } : prev);
+                                  }
                                 }
-                                editor.focus();
                               }
                               setOpenDropdown(null);
                             }}
@@ -4535,13 +4664,28 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => {
+                        const selection = window.getSelection();
                         const editor = document.getElementById('description-editor');
-                        if (editor) {
-                          const url = prompt('Введите URL ссылки:');
-                          if (url) {
-                            document.execCommand('createLink', false, url);
-                          }
+                        if (!selection || !editor) return;
+                        
+                        const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+                        const selectedText = selection.toString();
+                        
+                        const url = prompt('Введите URL ссылки:', 'https://');
+                        if (url && url.trim() && range) {
+                          const linkText = selectedText || url;
+                          const linkHTML = `<a href="${url}" target="_blank" rel="noopener noreferrer" contenteditable="false" class="text-blue-500 hover:text-blue-600 underline cursor-pointer">${linkText}</a>`;
+                          
+                          range.deleteContents();
+                          const template = document.createElement('template');
+                          template.innerHTML = linkHTML;
+                          range.insertNode(template.content.firstChild!);
+                          
                           editor.focus();
+                          // Сохраняем изменения
+                          if (editingTodo && descriptionEditorRef.current) {
+                            setEditingTodo(prev => prev ? { ...prev, description: descriptionEditorRef.current!.innerHTML } : prev);
+                          }
                         }
                       }}
                       className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
@@ -4555,7 +4699,7 @@ export default function TodosPage() {
                         const editor = document.getElementById('description-editor');
                         if (editor) {
                           // Вставляем чек-лист
-                          const checkbox = '<div class="checklist-item flex items-center gap-2 my-1"><input type="checkbox" class="w-4 h-4 rounded border-white/30 bg-[var(--bg-glass-hover)] cursor-pointer" onclick="this.parentElement.classList.toggle(\'completed\')" /><span contenteditable="true" class="flex-1">Пункт чек-листа</span></div>';
+                          const checkbox = '<div class="checklist-item flex items-center gap-2 my-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"><input type="checkbox" data-checklist="true" class="w-4 h-4 rounded border-2 border-gray-300 dark:border-white/30 cursor-pointer accent-blue-500" /><span contenteditable="true" class="flex-1 text-gray-900 dark:text-white outline-none">Пункт чек-листа</span></div>';
                           document.execCommand('insertHTML', false, checkbox);
                           editor.focus();
                         }
@@ -4570,10 +4714,22 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        const editor = document.getElementById('description-editor');
-                        if (editor) {
-                          document.execCommand('removeFormat', false);
-                          editor.focus();
+                        const selection = window.getSelection();
+                        if (selection && selection.rangeCount > 0) {
+                          const range = selection.getRangeAt(0);
+                          const selectedText = range.toString();
+                          const editor = document.getElementById('description-editor');
+                          if (editor && selectedText) {
+                            // Заменяем выделенное на простой текст без форматирования
+                            const plainText = document.createTextNode(selectedText);
+                            range.deleteContents();
+                            range.insertNode(plainText);
+                            editor.focus();
+                            // Сохраняем изменения
+                            if (editingTodo && descriptionEditorRef.current) {
+                              setEditingTodo(prev => prev ? { ...prev, description: descriptionEditorRef.current!.innerHTML } : prev);
+                            }
+                          }
                         }
                       }}
                       className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
@@ -4635,11 +4791,51 @@ export default function TodosPage() {
                     </div>
                   )}
                   
-                  <textarea
-                    value={editingTodo?.description || ''}
-                    onChange={(e) => setEditingTodo(prev => prev ? { ...prev, description: e.target.value } : null)}
-                    placeholder="Добавьте описание задачи..."
-                    className="w-full flex-1 min-h-[150px] px-2 sm:px-3 py-2 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl text-sm text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 focus:outline-none focus:border-blue-500/30 transition-all resize-none whitespace-pre-wrap break-words"
+                  <div
+                    ref={descriptionEditorRef}
+                    id="description-editor"
+                    contentEditable
+                    suppressContentEditableWarning
+                    onInput={(e) => {
+                      if (editingTodo && e.currentTarget) {
+                        const newContent = e.currentTarget.innerHTML;
+                        setEditingTodo(prev => prev ? { ...prev, description: newContent } : prev);
+                      }
+                    }}
+                    onClick={(e) => {
+                      const target = e.target as HTMLElement;
+                      
+                      // Ctrl + клик по ссылке = переход
+                      if (target.tagName === 'A' && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        const link = target as HTMLAnchorElement;
+                        if (link.href) {
+                          window.open(link.href, '_blank', 'noopener,noreferrer');
+                        }
+                        return;
+                      }
+                      
+                      // Обработка кликов по чекбоксам чек-листа
+                      if (target.tagName === 'INPUT' && target.getAttribute('data-checklist') === 'true') {
+                        const checkbox = target as HTMLInputElement;
+                        const parent = checkbox.parentElement;
+                        if (parent) {
+                          if (checkbox.checked) {
+                            parent.style.opacity = '0.5';
+                            parent.style.textDecoration = 'line-through';
+                          } else {
+                            parent.style.opacity = '1';
+                            parent.style.textDecoration = 'none';
+                          }
+                          // Сохраняем изменения
+                          if (editingTodo && descriptionEditorRef.current) {
+                            setEditingTodo(prev => prev ? { ...prev, description: descriptionEditorRef.current!.innerHTML } : prev);
+                          }
+                        }
+                      }
+                    }}
+                    data-placeholder="Добавьте описание задачи..."
+                    className="w-full flex-1 min-h-[150px] px-2 sm:px-3 py-2 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl text-sm text-gray-900 dark:text-[var(--text-primary)] focus:outline-none focus:border-blue-500/30 transition-all whitespace-pre-wrap break-words overflow-y-auto empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400 empty:before:dark:text-white/30"
                     onDragOver={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -4730,7 +4926,8 @@ export default function TodosPage() {
                         }
                       }
                     }}
-                  />
+                  >
+                  </div>
                 </div>
 
                 {/* Вложения - файлы (не картинки) */}
@@ -4746,10 +4943,6 @@ export default function TodosPage() {
                       </span>
                     )}
                     <label className="ml-auto cursor-pointer px-2 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg text-xs transition-colors flex items-center gap-1">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      <span>Добавить</span>
                       <input
                         type="file"
                         multiple
@@ -4958,7 +5151,8 @@ export default function TodosPage() {
                                   </div>
                                 ) : (
                                   <>
-                                    <p className="text-xs text-gray-800 dark:text-white/90 whitespace-pre-wrap break-words"
+                                    <p className="text-xs text-gray-800 dark:text-white/90 whitespace-pre-wrap break-words overflow-wrap-anywhere"
+                                       style={{ overflowWrap: 'anywhere' }}
                                        dangerouslySetInnerHTML={{ 
                                          __html: comment.content
                                            .replace(

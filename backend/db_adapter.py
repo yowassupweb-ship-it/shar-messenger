@@ -116,6 +116,9 @@ if USE_POSTGRES:
         def get_chats(self, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
             return self.db.get_chats(user_id)
         
+        def get_user_chats(self, user_id: str) -> List[Dict[str, Any]]:
+            return self.db.get_user_chats(user_id)
+        
         def get_chat(self, chat_id: str) -> Optional[Dict[str, Any]]:
             return self.db.get_chat(chat_id)
         
@@ -133,6 +136,9 @@ if USE_POSTGRES:
         
         def get_messages(self, chat_id: str) -> List[Dict[str, Any]]:
             return self.db.get_messages(chat_id)
+        
+        def get_chat_messages(self, chat_id: str) -> List[Dict[str, Any]]:
+            return self.db.get_chat_messages(chat_id)
         
         def add_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
             return self.db.add_message(message)

@@ -1702,7 +1702,7 @@ def get_user(user_id: str):
     
     # Если не нашли по ID, попробуем найти по telegramId
     if not user:
-        all_users = db.get_all_users()
+        all_users = db.get_users()
         user = next((u for u in all_users if u.get("telegramId") == user_id), None)
     
     if not user:
@@ -3535,6 +3535,7 @@ class ChatCreate(BaseModel):
     title: Optional[str] = None
     isGroup: bool = False
     creatorId: Optional[str] = None
+    todoId: Optional[str] = None  # Связь с задачей
 
 class MessageCreate(BaseModel):
     authorId: str
@@ -3550,7 +3551,7 @@ def get_chats(user_id: Optional[str] = None):
         raise HTTPException(status_code=400, detail="user_id is required")
     
     import uuid
-    chats = db.get_chats(user_id)
+    chats = db.get_user_chats(user_id)
     
     # Автоматически создаем служебные чаты при первом запросе
     notifications_chat = next((c for c in chats if c.get('is_notifications_chat') and user_id in c.get('participant_ids', [])), None)
@@ -3566,7 +3567,7 @@ def get_chats(user_id: Optional[str] = None):
             "created_at": datetime.now().isoformat(),
             "read_messages_by_user": {}
         }
-        db.add_chat(notifications_chat)
+        db.create_chat(notifications_chat)
     
     favorites_chat = next((c for c in chats if c.get('is_favorites_chat') and user_id in c.get('participant_ids', [])), None)
     if not favorites_chat:
@@ -3581,17 +3582,17 @@ def get_chats(user_id: Optional[str] = None):
             "created_at": datetime.now().isoformat(),
             "read_messages_by_user": {}
         }
-        db.add_chat(favorites_chat)
+        db.create_chat(favorites_chat)
     
     # Перезагружаем чаты после добавления новых
-    chats = db.get_chats(user_id)
+    chats = db.get_user_chats(user_id)
     
-    # Фильтрация уже сделана в db.get_chats(user_id), не нужно делать заново
+    # Фильтрация уже сделана в db.get_user_chats(user_id), не нужно делать заново
     user_chats = chats
     
     # Добавляем информацию о последнем сообщении и непрочитанных
     for chat in user_chats:
-        chat_messages = db.get_messages(chat['id'])
+        chat_messages = db.get_chat_messages(chat['id'])
         
         if chat_messages:
             # Сообщения уже отсортированы по created_at DESC из базы
@@ -3670,6 +3671,12 @@ def create_chat(chat_data: ChatCreate):
         if existing_chat:
             return snake_to_camel(existing_chat)
     
+    # Если указан todoId, проверяем существование чата для этой задачи
+    if chat_data.todoId:
+        existing_chat = db.find_chat_by_todo(chat_data.todoId)
+        if existing_chat:
+            return snake_to_camel(existing_chat)
+    
     new_chat = {
         "id": str(uuid.uuid4()),
         "title": chat_data.title,
@@ -3683,7 +3690,11 @@ def create_chat(chat_data: ChatCreate):
     if chat_data.isGroup and chat_data.creatorId:
         new_chat["creator_id"] = chat_data.creatorId
     
-    result = db.add_chat(new_chat)
+    # Добавляем todoId если указан
+    if chat_data.todoId:
+        new_chat["todo_id"] = chat_data.todoId
+    
+    result = db.create_chat(new_chat)
     
     return snake_to_camel(result)
 
@@ -3710,7 +3721,7 @@ def delete_chat(chat_id: str):
 @app.get("/api/chats/{chat_id}/messages")
 def get_chat_messages(chat_id: str):
     """Получить все сообщения чата"""
-    chat_messages = db.get_messages(chat_id)
+    chat_messages = db.get_chat_messages(chat_id)
     return [snake_to_camel(msg) for msg in chat_messages]
 
 @app.post("/api/chats/{chat_id}/messages")
@@ -3735,7 +3746,7 @@ def send_message(chat_id: str, message_data: MessageCreate):
             "read_messages_by_user": {},
             "pinned_by_user": {user_id: True}
         }
-        chat = db.add_chat(new_chat)
+        chat = db.create_chat(new_chat)
     
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
@@ -3745,11 +3756,18 @@ def send_message(chat_id: str, message_data: MessageCreate):
     if not author:
         raise HTTPException(status_code=404, detail="Author not found")
     
+    # Получаем имя автора, игнорируя строку "null"
+    author_name = author.get('name')
+    if not author_name or author_name == 'null':
+        author_name = author.get('username')
+    if not author_name or author_name == 'null':
+        author_name = 'Unknown'
+    
     new_message = {
         "id": str(uuid.uuid4()),
         "chat_id": chat_id,
         "author_id": message_data.authorId,
-        "author_name": author.get('name') or author.get('username') or 'Unknown',
+        "author_name": author_name,
         "content": message_data.content,
         "mentions": message_data.mentions or [],
         "reply_to_id": message_data.replyToId,
@@ -3768,21 +3786,30 @@ def send_message(chat_id: str, message_data: MessageCreate):
 @app.patch("/api/chats/{chat_id}/messages/{message_id}")
 def update_message(chat_id: str, message_id: str, update_data: dict):
     """Обновить сообщение"""
-    # Пытаемся обновить сообщение
-    if 'content' in update_data:
-        success = db.update_message(message_id, update_data['content'])
-        if not success:
-            raise HTTPException(status_code=404, detail="Message not found")
-        
-        # Получаем обновленное сообщение
-        messages = db.get_messages(chat_id)
+    if 'content' not in update_data:
+        raise HTTPException(status_code=400, detail="No content to update")
+    
+    # Пытаемся найти сообщение с проверкой chat_id
+    messages = db.data.get('messages', [])
+    message = next((msg for msg in messages if msg['id'] == message_id and msg['chatId'] == chat_id), None)
+    
+    if not message:
+        # Fallback: ищем только по message_id
         message = next((msg for msg in messages if msg['id'] == message_id), None)
         if not message:
             raise HTTPException(status_code=404, detail="Message not found")
-        
-        return message
     
-    raise HTTPException(status_code=400, detail="No content to update")
+    # Обновляем сообщение
+    success = db.update_message(message_id, update_data['content'])
+    if not success:
+        raise HTTPException(status_code=404, detail="Message not found")
+    
+    # Возвращаем обновленное сообщение
+    updated_message = next((msg for msg in db.data.get('messages', []) if msg['id'] == message_id), None)
+    if not updated_message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    
+    return updated_message
 
 @app.post("/api/chats/{chat_id}/messages/{message_id}/forward")
 def forward_message(chat_id: str, message_id: str, forward_data: dict = Body(...)):
@@ -3842,9 +3869,14 @@ def delete_message(chat_id: str, message_id: str):
     """Мягкое удаление сообщения - помечает как удаленное"""
     messages = db.data.get('messages', [])
     
+    # Пытаемся найти сообщение с проверкой chat_id
     message = next((msg for msg in messages if msg['id'] == message_id and msg['chatId'] == chat_id), None)
+    
     if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
+        # Fallback: ищем только по message_id
+        message = next((msg for msg in messages if msg['id'] == message_id), None)
+        if not message:
+            raise HTTPException(status_code=404, detail="Message not found")
     
     message['isDeleted'] = True
     message['content'] = 'Сообщение удалено'
@@ -3904,7 +3936,7 @@ def get_or_create_notifications_chat(user_id: str):
     """Получить или создать чат уведомлений для пользователя"""
     import uuid
     
-    chats = db.get_chats(user_id)
+    chats = db.get_user_chats(user_id)
     
     # Ищем существующий чат уведомлений для этого пользователя
     notifications_chat = next(
@@ -3930,7 +3962,7 @@ def get_or_create_notifications_chat(user_id: str):
         "pinned_by_user": {user_id: True}  # Автоматически закрепляем
     }
     
-    db.add_chat(new_chat)
+    db.create_chat(new_chat)
     
     return new_chat
 

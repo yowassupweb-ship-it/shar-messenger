@@ -128,6 +128,7 @@ export const Avatar: React.FC<AvatarProps> = ({
           overflow-hidden
           flex-shrink-0
           shadow-sm
+          select-none
         `}
       >
         {renderContent()}

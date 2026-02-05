@@ -40,8 +40,15 @@ class PostgresConnection:
                 database=self.database,
                 user=self.user,
                 password=self.password,
-                connect_timeout=5
+                connect_timeout=10,
+                keepalives=1,
+                keepalives_idle=30,
+                keepalives_interval=10,
+                keepalives_count=5,
+                options='-c statement_timeout=30000'  # 30 секунд таймаут на запросы
             )
+            # Enable autocommit to avoid rollback on connection close
+            self.connection.autocommit = True
             print(f"Connected to PostgreSQL: {self.user}@{self.host}:{self.port}/{self.database}")
             return True
         except psycopg2.Error as e:
@@ -54,12 +61,30 @@ class PostgresConnection:
             self.connection.close()
             print("✅ Disconnected from PostgreSQL")
     
+    def is_connected(self) -> bool:
+        """Check if connection is alive"""
+        if not self.connection or self.connection.closed:
+            return False
+        try:
+            # Try to execute a simple query to verify connection
+            with self.connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+            return True
+        except (psycopg2.Error, psycopg2.InterfaceError):
+            return False
+    
+    def ensure_connection(self):
+        """Ensure connection is alive, reconnect if needed"""
+        if not self.is_connected():
+            print("⚠️ Connection lost, reconnecting...")
+            self.connect()
+    
     def execute_query(self, query: str, params: tuple = None) -> bool:
         """Execute INSERT/UPDATE/DELETE query"""
         try:
+            self.ensure_connection()
             with self.connection.cursor() as cursor:
                 cursor.execute(query, params or ())
-                self.connection.commit()
                 return True
         except psycopg2.Error as e:
             print(f"❌ Query execution error: {e}")
@@ -69,23 +94,23 @@ class PostgresConnection:
     def fetch_all(self, query: str, params: tuple = None) -> List[Dict[str, Any]]:
         """Fetch all results from SELECT query"""
         try:
+            self.ensure_connection()
             with self.connection.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute(query, params or ())
                 return cursor.fetchall()
         except psycopg2.Error as e:
             print(f"❌ Query fetch error: {e}")
-            self.connection.rollback()
             return []
     
     def fetch_one(self, query: str, params: tuple = None) -> Optional[Dict[str, Any]]:
         """Fetch one result from SELECT query"""
         try:
+            self.ensure_connection()
             with self.connection.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute(query, params or ())
                 return cursor.fetchone()
         except psycopg2.Error as e:
             print(f"❌ Query fetch error: {e}")
-            self.connection.rollback()
             return None
     
     def execute_batch(self, query: str, data: List[tuple]) -> bool:
@@ -94,11 +119,9 @@ class PostgresConnection:
             with self.connection.cursor() as cursor:
                 for params in data:
                     cursor.execute(query, params)
-                self.connection.commit()
                 return True
         except psycopg2.Error as e:
             print(f"❌ Batch execution error: {e}")
-            self.connection.rollback()
             return False
     
     def table_exists(self, table_name: str) -> bool:
@@ -120,12 +143,10 @@ class PostgresConnection:
             
             with self.connection.cursor() as cursor:
                 cursor.execute(sql_script)
-                self.connection.commit()
                 print(f"✅ SQL script executed: {file_path}")
                 return True
         except Exception as e:
             print(f"❌ Error executing SQL script: {e}")
-            self.connection.rollback()
             return False
 
 
@@ -503,6 +524,10 @@ class PostgresDatabase:
         
         return chats
     
+    def get_user_chats(self, user_id: str) -> List[Dict[str, Any]]:
+        """Get all chats for a specific user (alias for get_chats)"""
+        return self.get_chats(user_id=user_id)
+    
     def get_chat(self, chat_id: str) -> Optional[Dict[str, Any]]:
         """Get single chat"""
         query = """
@@ -637,6 +662,10 @@ class PostgresDatabase:
             ORDER BY created_at ASC
         """
         return self.conn.fetch_all(query, (chat_id,))
+    
+    def get_chat_messages(self, chat_id: str) -> List[Dict[str, Any]]:
+        """Get messages from chat (alias for get_messages)"""
+        return self.get_messages(chat_id)
     
     def add_message(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Add new message"""

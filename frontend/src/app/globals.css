@@ -1238,3 +1238,37 @@ input[type="radio"] {
     width: 6px;
   }
 }
+
+/* Disable text selection for UI elements */
+button,
+nav,
+header,
+.select-none,
+[role="button"],
+[role="tab"],
+[role="menuitem"] {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Allow selection for message content and inputs */
+input,
+textarea,
+[contenteditable="true"],
+.message-content,
+.selectable {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+/* Prevent selection on placeholders */
+::placeholder {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}

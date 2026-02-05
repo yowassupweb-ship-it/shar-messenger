@@ -1,6 +1,30 @@
 {
   "notifications": [
     {
+      "id": "notif-1770217977670-user_1770208723398",
+      "type": "comment",
+      "todoId": "20260204_124759_6tmzp6",
+      "todoTitle": "Сделать тест",
+      "fromUserId": "user_1769584624.933692",
+      "fromUserName": "Администратор",
+      "toUserId": "user_1770208723398",
+      "message": "Администратор оставил комментарий",
+      "read": false,
+      "createdAt": "2026-02-04T15:12:57.670Z"
+    },
+    {
+      "id": "notif-1770217977355-user_1770208723398",
+      "type": "comment",
+      "todoId": "20260204_124759_6tmzp6",
+      "todoTitle": "Сделать тест",
+      "fromUserId": "user_1769584624.933692",
+      "fromUserName": "Администратор",
+      "toUserId": "user_1770208723398",
+      "message": "Администратор оставил комментарий",
+      "read": false,
+      "createdAt": "2026-02-04T15:12:57.355Z"
+    },
+    {
       "id": "notif-1770130309425-customer",
       "type": "status_change",
       "todoId": "20260202_094528_6a62cw",
