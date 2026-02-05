@@ -3364,6 +3364,33 @@ def create_todo(todo_data: dict = Body(...)):
     result = db.add_task(new_todo)
     return snake_to_camel(result) if result else new_todo
 
+@app.get("/api/todos/people")
+def get_todo_people():
+    """Получить список людей для назначения задач"""
+    users = db.get_users()
+    # Возвращаем только нужные поля
+    people = []
+    for user in users:
+        person = {
+            'id': user.get('id'),
+            'username': user.get('username'),
+            'telegramId': user.get('telegramId'),
+            'todoPersonId': user.get('todoPersonId'),
+            'canSeeAllTasks': user.get('canSeeAllTasks', False)
+        }
+        people.append(person)
+    return people
+
+@app.get("/api/todos/telegram") 
+def get_todo_telegram():
+    """Получить telegram настройки для задач"""
+    settings = db.get_settings()
+    return {
+        'enabled': settings.get('telegramNotifications', False),
+        'botToken': settings.get('telegramBotToken', ''),
+        'chatId': settings.get('telegramChatId', '')
+    }
+
 @app.get("/api/links")
 def get_links(userId: Optional[str] = None, department: Optional[str] = None):
     """Получить список ссылок"""
