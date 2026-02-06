@@ -245,17 +245,17 @@ export default function ContactsPage() {
                         <p className="text-[10px] md:text-xs text-[var(--text-muted)] truncate">
                           {contact.position || 'Должность не указана'}
                         </p>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
                           {contact.phone && (
-                            <div className="flex items-center gap-1">
-                              <Phone className="w-2.5 h-2.5 md:w-3 md:h-3 text-blue-400" />
-                              <span className="text-[9px] md:text-[10px] text-blue-400">{contact.phone}</span>
+                            <div className="flex items-center gap-1 min-w-0">
+                              <Phone className="w-3 h-3 md:w-3.5 md:h-3.5 text-blue-400 flex-shrink-0" />
+                              <span className="text-[10px] md:text-xs text-blue-400 truncate">{contact.phone}</span>
                             </div>
                           )}
                           {contact.workSchedule && (
-                            <div className="flex items-center gap-1">
-                              <Calendar className="w-2.5 h-2.5 md:w-3 md:h-3 text-orange-400" />
-                              <span className="text-[9px] md:text-[10px] text-orange-400">{contact.workSchedule}</span>
+                            <div className="flex items-center gap-1 min-w-0 max-w-full">
+                              <Calendar className="w-3 h-3 md:w-3.5 md:h-3.5 text-orange-400 flex-shrink-0" />
+                              <span className="text-[10px] md:text-xs text-orange-400 truncate">{contact.workSchedule}</span>
                             </div>
                           )}
                         </div>

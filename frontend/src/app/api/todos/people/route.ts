@@ -1,94 +1,44 @@
+// PROXY TO BACKEND
 import { NextRequest, NextResponse } from 'next/server';
 
-export interface Person {
-  id: string;
-  name: string;
-  avatar?: string;
-  telegramId?: string;
-  telegramUsername?: string;
-  role: 'executor' | 'customer' | 'universal';
-  department?: string;  // Отдел пользователя
-  // Настройки уведомлений
-  notifyOnNewTask?: boolean;
-  notifyOnStatusChange?: boolean;
-  notifyOnComment?: boolean;
-  notifyOnMention?: boolean;
-  // Статус онлайн
-  lastSeen?: string;
-  createdAt: string;
-}
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-interface User {
-  id: string;
-  name?: string;
-  username?: string;
-  email?: string;
-  avatar?: string;
-  role: 'admin' | 'user';
-  todoRole?: 'executor' | 'customer' | 'universal';
-  telegramId?: string;
-  canSeeAllTasks?: boolean;
-  department?: string;  // Отдел
-  createdAt: string;
-}
-
-interface UsersData {
-  users: User[];
-}
-
-const DEFAULT_DATA: UsersData = {
-  users: []
-};
-
-// GET - получить всех пользователей как профили задач
-export async function GET(request: NextRequest) {
+async function proxyToBackend(request: NextRequest, method: string) {
   try {
-    const { searchParams } = new URL(request.url);
-    const role = searchParams.get('role');
+    const url = new URL(request.url);
+    const backendUrl = `${BACKEND_URL}/api/todos/people${url.search}`;
     
-    // Получаем пользователей через HTTP API backend
-    const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
-    console.log('[todos/people] Fetching users from:', `${backendUrl}/api/users`);
+    const options: RequestInit = {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+    };
     
-    const response = await fetch(`${backendUrl}/api/users`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      console.error('[todos/people] Backend returned:', response.status);
-      return NextResponse.json({ error: 'Failed to fetch users from backend' }, { status: response.status });
+    if (method === 'POST' || method === 'PUT') {
+      const body = await request.json();
+      options.body = JSON.stringify(body);
     }
     
-    const users: User[] = await response.json();
-    console.log('[todos/people] Found users:', users.length);
+    const response = await fetch(backendUrl, options);
+    const data = await response.json();
     
-    // Преобразуем пользователей в формат Person
-    let people: Person[] = users.map(user => ({
-      id: user.id,
-      name: user.name || user.username || 'Без имени',
-      avatar: user.avatar,
-      telegramId: user.telegramId,
-      telegramUsername: undefined,
-      role: user.todoRole || 'universal',  // Дефолт universal для старых аккаунтов
-      department: user.department,  // Передаём отдел
-      createdAt: user.createdAt
-    }));
-    
-    console.log('[todos/people] Converted to people:', people.length);
-    
-    // Фильтрация по роли
-    if (role === 'executor' || role === 'customer') {
-      people = people.filter(p => p.role === role || p.role === 'universal');
-      console.log('[todos/people] Filtered by role', role, ':', people.length);
-    }
-    
-    return NextResponse.json({ people });
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
-    console.error('Error reading people:', error);
-    return NextResponse.json({ error: 'Failed to read people' }, { status: 500 });
+    return NextResponse.json({ error: `Proxy error: ${error}` }, { status: 500 });
   }
 }
 
-// POST/PUT/DELETE не поддерживаются - используйте /api/users для управления пользователями
+export async function GET(request: NextRequest) {
+  return proxyToBackend(request, 'GET');
+}
+
+export async function POST(request: NextRequest) {
+  return proxyToBackend(request, 'POST');
+}
+
+export async function PUT(request: NextRequest) {
+  return proxyToBackend(request, 'PUT');
+}
+
+export async function DELETE(request: NextRequest) {
+  return proxyToBackend(request, 'DELETE');
+}

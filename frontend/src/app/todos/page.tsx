@@ -435,6 +435,9 @@ export default function TodosPage() {
   
   // Dropdown states for modal
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [searchAssignedBy, setSearchAssignedBy] = useState('');
+  const [searchDelegatedBy, setSearchDelegatedBy] = useState('');
+  const [searchAssignedTo, setSearchAssignedTo] = useState('');
   
   // Drag and Drop state for todos
   const [draggedTodo, setDraggedTodo] = useState<Todo | null>(null);
@@ -452,6 +455,10 @@ export default function TodosPage() {
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
   const settingsRef = useRef<HTMLDivElement>(null);
+  
+  // Autosave timer for editingTodo
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSavedTodoRef = useRef<string | null>(null);
 
   // Загрузка данных
   const loadData = useCallback(async () => {
@@ -777,8 +784,12 @@ export default function TodosPage() {
               
               setEditingTodo(prev => {
                 if (!prev) return null;
-                // Обновляем только если есть изменения в комментариях
-                if (JSON.stringify(prev.comments) !== JSON.stringify(updatedTodo.comments)) {
+                
+                // Обновляем только комментарии и метаданные, которые изменились на сервере
+                // НЕ перезаписываем поля, которые может редактировать пользователь
+                const shouldUpdateComments = JSON.stringify(prev.comments) !== JSON.stringify(updatedTodo.comments);
+                
+                if (shouldUpdateComments) {
                   // Автоскролл к новым комментариям или разделителю
                   if (newCommentsLength > prevCommentsLength) {
                     setTimeout(() => {
@@ -792,8 +803,29 @@ export default function TodosPage() {
                       }
                     }, 100);
                   }
-                  return { ...prev, comments: updatedTodo.comments };
+                  
+                  // Обновляем только комментарии и readCommentsByUser
+                  // Остальные поля остаются как они есть в editingTodo
+                  return {
+                    ...prev,
+                    comments: updatedTodo.comments,
+                    readCommentsByUser: updatedTodo.readCommentsByUser
+                  };
                 }
+                
+                // Если комментариев не изменилось, но status или другие поля - обновляем их
+                // но только те, которые не редактирует пользователь прямо сейчас
+                if (prev.status !== updatedTodo.status || 
+                    prev.completed !== updatedTodo.completed ||
+                    prev.dueDate !== updatedTodo.dueDate) {
+                  return {
+                    ...prev,
+                    status: updatedTodo.status,
+                    completed: updatedTodo.completed,
+                    dueDate: updatedTodo.dueDate
+                  };
+                }
+                
                 return prev;
               });
             }
@@ -908,6 +940,83 @@ export default function TodosPage() {
       }
     }
   }, [editingTodo?.id]); // Только при смене задачи, не при каждом изменении
+
+  // Автосохранение задачи при редактировании
+  useEffect(() => {
+    if (!editingTodo || editingTodo.id.startsWith('temp-')) {
+      // Не сохраняем новые задачи, они сохраняются при создании
+      return;
+    }
+
+    // Логирование изменения assignedToIds специально
+    if (editingTodo.assignedToIds && editingTodo.assignedToIds.length > 0) {
+      console.log('[AUTOSAVE] 👥 Multiple executors detected:', editingTodo.assignedToIds);
+      console.log('[AUTOSAVE] Executor names:', editingTodo.assignedToNames);
+    }
+
+    // Очищаем предыдущий таймер
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    // Сохраняем ссылку на текущее состояние для сравнения
+    const todoToSave = { ...editingTodo };
+    
+    // Устанавливаем новый таймер - сохраняем через 1.5 секунды после последнего изменения
+    autoSaveTimerRef.current = setTimeout(async () => {
+      // Проверяем, изменилась ли задача с момента последнего запроса
+      const todoString = JSON.stringify(todoToSave);
+      if (lastSavedTodoRef.current === todoString) {
+        console.log('[AUTOSAVE] ⏭️  Skipping - identical to last save');
+        return; // Ничего не изменилось
+      }
+
+      try {
+        // Обновляем описание из редактора если он открыт
+        if (descriptionEditorRef.current && editingTodo.id) {
+          todoToSave.description = descriptionEditorRef.current.innerHTML || '';
+        }
+
+        console.log('[AUTOSAVE] 🔄 Sending PUT request for task:', todoToSave.id);
+        console.log('[AUTOSAVE] assignedToIds in request:', todoToSave.assignedToIds);
+        console.log('[AUTOSAVE] assignedToNames in request:', todoToSave.assignedToNames);
+
+        const res = await fetch('/api/todos', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(todoToSave)
+        });
+
+        console.log('[AUTOSAVE] Response status:', res.status);
+
+        if (res.ok) {
+          const updated = await res.json();
+          lastSavedTodoRef.current = JSON.stringify(todoToSave);
+          
+          // Обновляем todos в списке с новыми данными с сервера
+          setTodos(prev => prev.map(t => t.id === updated.id ? updated : t));
+          
+          // Обновляем editingTodo если он еще открыт
+          setEditingTodo(prev => prev && prev.id === updated.id ? updated : prev);
+          
+          console.log('[AUTOSAVE] ✅ Task saved successfully:', todoToSave.id);
+        } else {
+          const errorText = await res.text();
+          console.error('[AUTOSAVE] ❌ Failed to save (HTTP ' + res.status + '):', errorText);
+        }
+      } catch (error) {
+        console.error('[AUTOSAVE] ❌ Error saving task:', error);
+      }
+    }, 1500); // 1.5 секунды задержки перед сохранением
+
+    // Cleanup функция для отмены таймера при unmount или при следующем срабатывании
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+    };
+  }, [editingTodo]); // Запускаем при любом изменении editingTodo
 
   // Загрузка и polling уведомлений
   useEffect(() => {
@@ -1799,10 +1908,15 @@ export default function TodosPage() {
       // Проверяем, является ли задача новой (temp-id)
       const isNewTodo = todo.id.startsWith('temp-');
       
+      console.log('[updateTodo] ' + (isNewTodo ? '🆕 Creating' : '✏️ Updating') + ' task:', todo.id);
+      console.log('[updateTodo] Task data keys:', Object.keys(todo).filter(k => todo[k as keyof Todo] !== undefined));
+      
       // Получаем текущую версию задачи для сравнения статуса (только для существующих задач)
       const currentTodo = !isNewTodo ? todos.find(t => t.id === todo.id) : null;
       const statusChanged = currentTodo && currentTodo.status !== todo.status;
       const oldStatus = currentTodo?.status;
+      
+      console.log('[updateTodo] Sending ' + (isNewTodo ? 'POST' : 'PUT') + ' request');
       
       const res = await fetch('/api/todos', {
         method: isNewTodo ? 'POST' : 'PUT',
@@ -1813,8 +1927,12 @@ export default function TodosPage() {
         } : todo)
       });
       
+      console.log('[updateTodo] Response status:', res.status);
+      
       if (res.ok) {
         let updated = await res.json();
+        
+        console.log('[updateTodo] ✅ Server returned task:', updated.id);
         
         // Если включена опция "Поместить на календарь" и ещё не добавлено
         if (todo.addToCalendar && !updated.calendarEventId) {
@@ -3030,7 +3148,7 @@ export default function TodosPage() {
                   draggable={typeof window !== 'undefined' && window.innerWidth >= 768}
                   onDragStart={(e) => handleListDragStart(e, list)}
                   onDragEnd={handleListDragEnd}
-                  className="bg-[#e5e5e5] dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-t-xl p-2 sm:p-2.5 flex-shrink-0 md:cursor-grab md:active:cursor-grabbing"
+                  className="bg-gradient-to-br from-white/5 to-white/10 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm rounded-t-xl p-2 sm:p-2.5 flex-shrink-0 md:cursor-grab md:active:cursor-grabbing"
                 >
                   <div className="flex items-center justify-between pointer-events-none">
                     <div className="flex items-center gap-1.5 sm:gap-1.5">
@@ -3771,8 +3889,8 @@ export default function TodosPage() {
 
       {/* Edit Todo Modal */}
       {editingTodo && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 overflow-y-auto">
-          <div className="bg-white dark:bg-gradient-to-b dark:from-[#1a1a1a] dark:to-[#151515] border border-gray-200 dark:border-[var(--border-color)] w-full h-full shadow-2xl flex flex-col">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white dark:bg-gradient-to-b dark:from-[#1a1a1a] dark:to-[#151515] border border-gray-200 dark:border-[var(--border-color)] w-full max-w-[1400px] h-full max-h-[95vh] shadow-2xl flex flex-col rounded-xl overflow-hidden">
             {/* Шапка */}
             <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-gray-200 dark:border-[var(--border-color)] bg-gray-50 dark:bg-white/[0.02] flex-shrink-0">
               <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
@@ -3807,9 +3925,10 @@ export default function TodosPage() {
             </div>
             
             {/* Три колонки - адаптивно */}
-            <div className="flex flex-1 overflow-y-auto lg:overflow-hidden flex-col lg:flex-row min-h-0">
+            <div className="flex flex-1 flex-col lg:flex-row min-h-0 overflow-hidden">
               {/* Левый блок - основные поля */}
-              <div className="w-full lg:flex-1 p-2 sm:p-3 space-y-2 sm:space-y-3 border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-[var(--border-color)] lg:overflow-y-auto flex-shrink-0 bg-gray-50 dark:bg-[var(--bg-secondary)] order-2 lg:order-1">
+              <div className="w-full lg:flex-1 border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-[var(--border-color)] flex-shrink-0 bg-gray-50 dark:bg-[var(--bg-secondary)] order-2 lg:order-1 overflow-y-auto">
+                <div className="p-2 sm:p-3 space-y-2 sm:space-y-3">
                 {/* Статус */}
                 <div>
                   <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide">Статус</label>
@@ -3819,8 +3938,8 @@ export default function TodosPage() {
                       onClick={() => setEditingTodo({ ...editingTodo, status: 'pending' })}
                       className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
                         !editingTodo.status || editingTodo.status === 'pending' 
-                          ? 'bg-orange-500/20 text-orange-500 dark:text-orange-400 ring-1 ring-orange-500/50' 
-                          : 'bg-gray-100 dark:bg-[var(--bg-glass)] text-gray-500 dark:text-white/50 hover:bg-orange-500/10 hover:text-orange-500 dark:hover:text-orange-400'
+                          ? 'bg-gradient-to-br from-orange-500/20 to-orange-600/30 text-orange-500 dark:text-orange-400 ring-1 ring-orange-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
+                          : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-orange-500/10 hover:to-orange-600/20 hover:text-orange-500 dark:hover:text-orange-400 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
                       }`}
                     >
                       В ожидании
@@ -3830,8 +3949,8 @@ export default function TodosPage() {
                       onClick={() => setEditingTodo({ ...editingTodo, status: 'in-progress' })}
                       className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
                         editingTodo.status === 'in-progress' 
-                          ? 'bg-blue-500/20 text-blue-500 dark:text-blue-400 ring-1 ring-blue-500/50' 
-                          : 'bg-gray-100 dark:bg-[var(--bg-glass)] text-gray-500 dark:text-white/50 hover:bg-blue-500/10 hover:text-blue-500 dark:hover:text-blue-400'
+                          ? 'bg-gradient-to-br from-blue-500/20 to-blue-600/30 text-blue-500 dark:text-blue-400 ring-1 ring-blue-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
+                          : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-blue-500/10 hover:to-blue-600/20 hover:text-blue-500 dark:hover:text-blue-400 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
                       }`}
                     >
                       В работе
@@ -3841,8 +3960,8 @@ export default function TodosPage() {
                       onClick={() => setEditingTodo({ ...editingTodo, status: 'review' })}
                       className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
                         editingTodo.status === 'review' 
-                          ? 'bg-green-500/20 text-green-500 dark:text-green-400 ring-1 ring-green-500/50' 
-                          : 'bg-gray-100 dark:bg-[var(--bg-glass)] text-gray-500 dark:text-white/50 hover:bg-green-500/10 hover:text-green-500 dark:hover:text-green-400'
+                          ? 'bg-gradient-to-br from-green-500/20 to-green-600/30 text-green-500 dark:text-green-400 ring-1 ring-green-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
+                          : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-green-500/10 hover:to-green-600/20 hover:text-green-500 dark:hover:text-green-400 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
                       }`}
                     >
                       Готово к проверке
@@ -3852,8 +3971,8 @@ export default function TodosPage() {
                       onClick={() => setEditingTodo({ ...editingTodo, status: 'cancelled' })}
                       className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
                         editingTodo.status === 'cancelled' 
-                          ? 'bg-red-500/20 text-red-500 dark:text-red-400 ring-1 ring-red-500/50' 
-                          : 'bg-gray-100 dark:bg-[var(--bg-glass)] text-gray-500 dark:text-white/50 hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400'
+                          ? 'bg-gradient-to-br from-red-500/20 to-red-600/30 text-red-500 dark:text-red-400 ring-1 ring-red-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
+                          : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-red-500/10 hover:to-red-600/20 hover:text-red-500 dark:hover:text-red-400 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
                       }`}
                     >
                       Отменена
@@ -3863,8 +3982,8 @@ export default function TodosPage() {
                       onClick={() => setEditingTodo({ ...editingTodo, status: 'stuck' })}
                       className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
                         editingTodo.status === 'stuck' 
-                          ? 'bg-yellow-500/20 text-yellow-500 ring-1 ring-yellow-500/50' 
-                          : 'bg-gray-100 dark:bg-[var(--bg-glass)] text-gray-500 dark:text-white/50 hover:bg-yellow-500/10 hover:text-yellow-500'
+                          ? 'bg-gradient-to-br from-yellow-500/20 to-yellow-600/30 text-yellow-500 ring-1 ring-yellow-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
+                          : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-yellow-500/10 hover:to-yellow-600/20 hover:text-yellow-500 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
                       }`}
                     >
                       Застряла
@@ -3876,7 +3995,8 @@ export default function TodosPage() {
                       <textarea
                         value={editingTodo.reviewComment || ''}
                         onChange={(e) => setEditingTodo({ ...editingTodo, reviewComment: e.target.value })}
-                        className="no-mobile-scale w-full px-3 py-2.5 bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-xl text-sm focus:outline-none focus:border-blue-500/50 transition-all text-gray-700 dark:text-[var(--text-secondary)] placeholder-gray-400 dark:placeholder-white/30 resize-none whitespace-pre-wrap break-words"
+                        className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm focus:outline-none focus:border-blue-500/50 transition-all text-gray-700 dark:text-[var(--text-secondary)] placeholder-gray-400 dark:placeholder-white/30 resize-none whitespace-pre-wrap break-words shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+                        style={{ borderRadius: '12px' }}
                         placeholder="Комментарий или замечания..."
                         rows={2}
                       />
@@ -3885,7 +4005,7 @@ export default function TodosPage() {
                 </div>
               
                 {/* Заказчик и Исполнитель */}
-                <div className="overflow-hidden space-y-2">
+                <div className="space-y-2">
                   {/* От кого и Делегировано */}
                   <div className="grid grid-cols-2 gap-2">
                   <div className="relative">
@@ -3896,32 +4016,50 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => setOpenDropdown(openDropdown === 'assignedBy' ? null : 'assignedBy')}
-                      className="no-mobile-scale w-full px-3 py-2.5 bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-xl text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all text-gray-900 dark:text-[var(--text-primary)]"
+                      className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all text-gray-900 dark:text-[var(--text-primary)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm overflow-hidden"
+                      style={{ borderRadius: '35px' }}
                     >
-                      <span className={editingTodo.assignedById ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}>
+                      <span className={`truncate ${editingTodo.assignedById ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
                         {editingTodo.assignedBy || 'Не выбран'}
                       </span>
                       <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform ${openDropdown === 'assignedBy' ? 'rotate-180' : ''}`} />
                     </button>
                     {openDropdown === 'assignedBy' && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto">
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-gradient-to-br from-white/10 to-white/5 border border-white/20 shadow-xl z-[9999] max-h-60 flex flex-col backdrop-blur-xl" style={{ borderRadius: '12px' }}>
+                        <div className="p-2 border-b border-white/10">
+                          <input
+                            type="text"
+                            value={searchAssignedBy}
+                            onChange={(e) => setSearchAssignedBy(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            placeholder="Поиск..."
+                            className="w-full px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-[var(--text-primary)] placeholder-white/40 focus:outline-none focus:border-blue-500/50"
+                            autoFocus
+                          />
+                        </div>
+                        <div className="overflow-y-auto max-h-40">
                         <button
                           type="button"
                           onClick={() => {
                             setEditingTodo({ ...editingTodo, assignedById: undefined, assignedBy: '' });
                             setOpenDropdown(null);
+                            setSearchAssignedBy('');
                           }}
                           className="w-full px-3 py-1.5 text-left text-gray-500 dark:text-white/50 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass)] transition-colors text-xs"
                         >
                           Не выбран
                         </button>
-                        {people.filter(p => p.role === 'customer' || p.role === 'universal').map(person => (
+                        {people
+                          .filter(p => p.role === 'customer' || p.role === 'universal')
+                          .filter(p => !searchAssignedBy || p.name.toLowerCase().includes(searchAssignedBy.toLowerCase()))
+                          .map(person => (
                           <button
                             key={person.id}
                             type="button"
                             onClick={() => {
                               setEditingTodo({ ...editingTodo, assignedById: person.id, assignedBy: person.name });
                               setOpenDropdown(null);
+                              setSearchAssignedBy('');
                             }}
                             className={`w-full px-3 py-1.5 text-left hover:bg-[var(--bg-glass)] transition-colors text-xs flex items-center justify-between ${
                               editingTodo.assignedById === person.id ? 'bg-[var(--bg-glass)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
@@ -3931,6 +4069,7 @@ export default function TodosPage() {
                             {person.telegramId && <span className="text-[9px] text-blue-400 bg-blue-500/20 px-1 py-0.5 rounded">TG</span>}
                           </button>
                         ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -3942,32 +4081,50 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => setOpenDropdown(openDropdown === 'delegatedBy' ? null : 'delegatedBy')}
-                      className="no-mobile-scale w-full px-3 py-2.5 bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-xl text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all text-gray-900 dark:text-[var(--text-primary)]"
+                      className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all text-gray-900 dark:text-[var(--text-primary)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm overflow-hidden"
+                      style={{ borderRadius: '35px' }}
                     >
-                      <span className={editingTodo.delegatedById ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}>
+                      <span className={`truncate ${editingTodo.delegatedById ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
                         {editingTodo.delegatedBy || 'Не выбран'}
                       </span>
                       <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform ${openDropdown === 'delegatedBy' ? 'rotate-180' : ''}`} />
                     </button>
                     {openDropdown === 'delegatedBy' && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto">
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-gradient-to-br from-white/10 to-white/5 border border-white/20 shadow-xl z-[9999] max-h-60 flex flex-col backdrop-blur-xl" style={{ borderRadius: '12px' }}>
+                        <div className="p-2 border-b border-white/10">
+                          <input
+                            type="text"
+                            value={searchDelegatedBy}
+                            onChange={(e) => setSearchDelegatedBy(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            placeholder="Поиск..."
+                            className="w-full px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-[var(--text-primary)] placeholder-white/40 focus:outline-none focus:border-blue-500/50"
+                            autoFocus
+                          />
+                        </div>
+                        <div className="overflow-y-auto max-h-40">
                         <button
                           type="button"
                           onClick={() => {
                             setEditingTodo({ ...editingTodo, delegatedById: undefined, delegatedBy: '' });
                             setOpenDropdown(null);
+                            setSearchDelegatedBy('');
                           }}
                           className="w-full px-3 py-1.5 text-left text-gray-500 dark:text-white/50 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass)] transition-colors text-xs"
                         >
                           Не выбран
                         </button>
-                        {people.filter(p => p.role === 'customer' || p.role === 'universal').map(person => (
+                        {people
+                          .filter(p => p.role === 'customer' || p.role === 'universal')
+                          .filter(p => !searchDelegatedBy || p.name.toLowerCase().includes(searchDelegatedBy.toLowerCase()))
+                          .map(person => (
                           <button
                             key={person.id}
                             type="button"
                             onClick={() => {
                               setEditingTodo({ ...editingTodo, delegatedById: person.id, delegatedBy: person.name });
                               setOpenDropdown(null);
+                              setSearchDelegatedBy('');
                             }}
                             className={`w-full px-3 py-1.5 text-left hover:bg-[var(--bg-glass)] transition-colors text-xs flex items-center justify-between ${
                               editingTodo.delegatedById === person.id ? 'bg-[var(--bg-glass)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
@@ -3977,6 +4134,7 @@ export default function TodosPage() {
                             {person.telegramId && <span className="text-[9px] text-blue-400 bg-blue-500/20 px-1 py-0.5 rounded">TG</span>}
                           </button>
                         ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -3991,7 +4149,8 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => setOpenDropdown(openDropdown === 'assignedTo' ? null : 'assignedTo')}
-                      className="no-mobile-scale w-full px-3 py-2.5 bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-xl text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all min-h-[42px] text-gray-900 dark:text-[var(--text-primary)]"
+                      className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all min-h-[42px] text-gray-900 dark:text-[var(--text-primary)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm overflow-hidden"
+                      style={{ borderRadius: '35px' }}
                     >
                       <div className="flex flex-wrap gap-1">
                         {editingTodo.assignedToIds && editingTodo.assignedToIds.length > 0 ? (
@@ -4030,7 +4189,19 @@ export default function TodosPage() {
                       <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform flex-shrink-0 ${openDropdown === 'assignedTo' ? 'rotate-180' : ''}`} />
                     </button>
                     {openDropdown === 'assignedTo' && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-gradient-to-br from-white/10 to-white/5 border border-white/20 shadow-xl z-[9999] max-h-60 flex flex-col backdrop-blur-xl" style={{ borderRadius: '12px' }}>
+                        <div className="p-2 border-b border-white/10">
+                          <input
+                            type="text"
+                            value={searchAssignedTo}
+                            onChange={(e) => setSearchAssignedTo(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            placeholder="Поиск..."
+                            className="w-full px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-[var(--text-primary)] placeholder-white/40 focus:outline-none focus:border-blue-500/50"
+                            autoFocus
+                          />
+                        </div>
+                        <div className="overflow-y-auto max-h-40">
                         <button
                           type="button"
                           onClick={() => {
@@ -4042,12 +4213,16 @@ export default function TodosPage() {
                               assignedToNames: undefined
                             });
                             setOpenDropdown(null);
+                            setSearchAssignedTo('');
                           }}
                           className="w-full px-3 py-1.5 text-left text-gray-500 dark:text-white/50 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass)] transition-colors text-xs border-b border-[var(--border-color)]"
                         >
                           Очистить выбор
                         </button>
-                        {people.filter(p => p.role === 'executor' || p.role === 'universal').map(person => {
+                        {people
+                          .filter(p => p.role === 'executor' || p.role === 'universal')
+                          .filter(p => !searchAssignedTo || p.name.toLowerCase().includes(searchAssignedTo.toLowerCase()))
+                          .map(person => {
                           const isSelected = editingTodo.assignedToIds?.includes(person.id) || editingTodo.assignedToId === person.id;
                           const lastSeenStatus = formatLastSeen(person.lastSeen);
                           return (
@@ -4102,6 +4277,7 @@ export default function TodosPage() {
                             </button>
                           );
                         })}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -4147,7 +4323,8 @@ export default function TodosPage() {
                       type="date"
                       value={editingTodo.dueDate || ''}
                       onChange={(e) => setEditingTodo({ ...editingTodo, dueDate: e.target.value })}
-                      className="no-mobile-scale w-full px-3 py-2.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-sm focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer"
+                      className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+                      style={{ borderRadius: '35px' }}
                     />
                   </div>
                 </div>
@@ -4162,7 +4339,8 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => setOpenDropdown(openDropdown === 'list' ? null : 'list')}
-                      className="no-mobile-scale w-full px-3 py-2.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all"
+                      className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm overflow-hidden"
+                      style={{ borderRadius: '35px' }}
                     >
                       <div className="flex items-center gap-1.5">
                         {(() => {
@@ -4178,7 +4356,7 @@ export default function TodosPage() {
                       <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform ${openDropdown === 'list' ? 'rotate-180' : ''}`} />
                     </button>
                     {openDropdown === 'list' && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto">
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-gradient-to-br from-white/10 to-white/5 border border-white/20 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto backdrop-blur-xl">
                         {lists.filter(l => !l.archived).map(list => (
                           <button
                             key={list.id}
@@ -4207,7 +4385,8 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => setOpenDropdown(openDropdown === 'category' ? null : 'category')}
-                      className="no-mobile-scale w-full px-3 py-2.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all"
+                      className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm overflow-hidden"
+                      style={{ borderRadius: '35px' }}
                     >
                       <div className="flex items-center gap-1.5">
                         {(() => {
@@ -4223,7 +4402,7 @@ export default function TodosPage() {
                       <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform ${openDropdown === 'category' ? 'rotate-180' : ''}`} />
                     </button>
                     {openDropdown === 'category' && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto">
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-gradient-to-br from-white/10 to-white/5 border border-white/20 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto backdrop-blur-xl">
                         <button
                           type="button"
                           onClick={() => {
@@ -4297,13 +4476,14 @@ export default function TodosPage() {
                       <button
                         type="button"
                         onClick={() => setOpenDropdown(openDropdown === 'link' ? null : 'link')}
-                        className="no-mobile-scale w-full px-3 py-2.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all"
+                        className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm overflow-hidden"
+                        style={{ borderRadius: '35px' }}
                       >
                         <span className="text-[var(--text-muted)] text-xs">Выбрать ссылку из базы...</span>
                         <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform ${openDropdown === 'link' ? 'rotate-180' : ''}`} />
                       </button>
                       {openDropdown === 'link' && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl z-50 max-h-60 overflow-hidden flex flex-col">
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-gradient-to-br from-white/10 to-white/5 border border-white/20 rounded-lg shadow-xl z-50 max-h-60 overflow-hidden flex flex-col backdrop-blur-xl">
                           <div className="p-2 border-b border-[var(--border-color)]">
                             <div className="flex items-center gap-2 px-2 py-1.5 bg-[var(--bg-glass)] rounded-[25px] border border-[var(--border-color)]">
                               <Search className="w-3 h-3 text-[var(--text-muted)]" />
@@ -4406,6 +4586,7 @@ export default function TodosPage() {
                   )}
                 </div>
               </div>
+              </div>
 
               {/* Средний блок - Название и Описание */}
               <div className="w-full lg:flex-1 flex flex-col bg-white dark:bg-[var(--bg-secondary)] border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-[var(--border-color)] order-1 lg:order-2">
@@ -4415,7 +4596,8 @@ export default function TodosPage() {
                     type="text"
                     value={editingTodo.title}
                     onChange={(e) => setEditingTodo({ ...editingTodo, title: e.target.value })}
-                    className="no-mobile-scale w-full px-3 py-2.5 bg-gray-50 dark:bg-[var(--bg-tertiary)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl text-base sm:text-lg font-medium focus:outline-none focus:border-blue-500/50 transition-all text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30"
+                    className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-base sm:text-lg font-medium focus:outline-none focus:border-blue-500/50 transition-all text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+                    style={{ borderRadius: '35px' }}
                     placeholder="Название задачи..."
                   />
                 </div>
@@ -5432,20 +5614,39 @@ export default function TodosPage() {
             </div>
             
             {/* Футер */}
-            <div className="flex justify-between items-center px-4 py-2.5 border-t border-[var(--border-color)] bg-white/[0.02] rounded-b-xl">
-              <div className="text-[10px] text-[var(--text-muted)]">
+            <div className="sticky bottom-0 flex flex-col sm:flex-row justify-between items-center gap-2 px-4 py-3 border-t border-[var(--border-color)] bg-[#1a1a1a]/95 backdrop-blur-xl">
+              <div className="text-[10px] text-[var(--text-muted)] w-full sm:w-auto text-center sm:text-left">
                 Создано: {new Date(editingTodo.createdAt).toLocaleDateString('ru-RU')}
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 w-full sm:w-auto">
                 <button
                   onClick={closeTodoModal}
-                  className="px-3 py-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-glass)] rounded-lg transition-all text-xs font-medium"
+                  className="flex-1 sm:flex-none px-3 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-glass)] transition-all text-sm font-medium shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm bg-gradient-to-br from-white/5 to-white/10 border border-white/10"
+                  style={{ borderRadius: '12px' }}
                 >
                   Отмена
                 </button>
                 <button
-                  onClick={() => updateTodo(editingTodo)}
-                  className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-all text-sm font-medium"
+                  onClick={() => {
+                    // Синхронизируем описание из редактора перед сохранением
+                    const updatedTodo = { ...editingTodo };
+                    if (descriptionEditorRef.current) {
+                      updatedTodo.description = descriptionEditorRef.current.innerHTML || '';
+                    }
+                    
+                    // Log for debugging multiple executors
+                    if (updatedTodo.assignedToIds && updatedTodo.assignedToIds.length > 0) {
+                      console.log('[SAVE BUTTON] 👥 Saving task with multiple executors:');
+                      console.log('[SAVE BUTTON]    assignedToIds:', updatedTodo.assignedToIds);
+                      console.log('[SAVE BUTTON]    assignedToNames:', updatedTodo.assignedToNames);
+                      console.log('[SAVE BUTTON]    assignedToId:', updatedTodo.assignedToId);
+                      console.log('[SAVE BUTTON]    assignedTo:', updatedTodo.assignedTo);
+                    }
+                    
+                    updateTodo(updatedTodo);
+                  }}
+                  className="flex-1 sm:flex-none px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white transition-all text-sm font-medium shadow-lg"
+                  style={{ borderRadius: '12px' }}
                 >
                   Сохранить
                 </button>

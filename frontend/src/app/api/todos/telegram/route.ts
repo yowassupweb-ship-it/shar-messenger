@@ -1,93 +1,40 @@
+// PROXY TO BACKEND
 import { NextRequest, NextResponse } from 'next/server';
-import { readJsonFile, writeJsonFile } from '@/lib/dataStore';
 
-interface TelegramSettings {
-  botToken: string;
-  enabled: boolean;
-}
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-const DEFAULT_SETTINGS: TelegramSettings = {
-  botToken: '',
-  enabled: false
-};
-
-// GET - получить настройки
-export async function GET() {
+async function proxyToBackend(request: NextRequest, method: string) {
   try {
-    const settings = readJsonFile<TelegramSettings>('telegram-settings.json', DEFAULT_SETTINGS);
-    // Не отправляем токен клиенту, только статус
-    return NextResponse.json({ 
-      enabled: settings.enabled,
-      hasToken: !!settings.botToken 
-    });
-  } catch (error) {
-    console.error('Error reading telegram settings:', error);
-    return NextResponse.json({ error: 'Failed to read settings' }, { status: 500 });
-  }
-}
-
-// PUT - обновить настройки
-export async function PUT(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const settings = readJsonFile<TelegramSettings>('telegram-settings.json', DEFAULT_SETTINGS);
+    const url = new URL(request.url);
+    const backendUrl = `${BACKEND_URL}/api/todos/telegram${url.search}`;
     
-    if (body.botToken !== undefined) {
-      settings.botToken = body.botToken;
-    }
-    if (body.enabled !== undefined) {
-      settings.enabled = body.enabled;
-    }
-    
-    writeJsonFile('telegram-settings.json', settings);
-    
-    return NextResponse.json({ 
-      enabled: settings.enabled,
-      hasToken: !!settings.botToken 
-    });
-  } catch (error) {
-    console.error('Error updating telegram settings:', error);
-    return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 });
-  }
-}
-
-// POST - отправить уведомление
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { chatId, message } = body;
-    
-    if (!chatId || !message) {
-      return NextResponse.json({ error: 'chatId and message are required' }, { status: 400 });
-    }
-    
-    const settings = readJsonFile<TelegramSettings>('telegram-settings.json', DEFAULT_SETTINGS);
-    
-    if (!settings.enabled || !settings.botToken) {
-      return NextResponse.json({ error: 'Telegram notifications are disabled or not configured' }, { status: 400 });
-    }
-    
-    // Отправляем сообщение через Telegram API
-    const response = await fetch(`https://api.telegram.org/bot${settings.botToken}/sendMessage`, {
-      method: 'POST',
+    const options: RequestInit = {
+      method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: message,
-        parse_mode: 'HTML'
-      })
-    });
+    };
     
-    const result = await response.json();
-    
-    if (!result.ok) {
-      console.error('Telegram API error:', result);
-      return NextResponse.json({ error: result.description || 'Failed to send message' }, { status: 500 });
+    if (method === 'POST' || method === 'PUT') {
+      const body = await request.json();
+      options.body = JSON.stringify(body);
     }
     
-    return NextResponse.json({ success: true });
+    const response = await fetch(backendUrl, options);
+    const data = await response.json();
+    
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
-    console.error('Error sending telegram notification:', error);
-    return NextResponse.json({ error: 'Failed to send notification' }, { status: 500 });
+    return NextResponse.json({ error: `Proxy error: ${error}` }, { status: 500 });
   }
+}
+
+export async function GET(request: NextRequest) {
+  return proxyToBackend(request, 'GET');
+}
+
+export async function POST(request: NextRequest) {
+  return proxyToBackend(request, 'POST');
+}
+
+export async function PUT(request: NextRequest) {
+  return proxyToBackend(request, 'PUT');
 }

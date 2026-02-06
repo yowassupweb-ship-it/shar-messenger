@@ -13,7 +13,46 @@
       "createdBy": "user_005",
       "createdAt": "2026-02-03T06:16:20.585Z",
       "updatedAt": "2026-02-03T06:16:20.585Z"
+    },
+    {
+      "id": "event_1770305265351_skkhpel23",
+      "title": "wwwwwww",
+      "description": "",
+      "type": "meeting",
+      "dateType": "single",
+      "startDate": "2026-02-05T00:00:00",
+      "color": "",
+      "tags": [],
+      "participants": [],
+      "createdAt": "2026-02-05T15:27:45.351Z",
+      "updatedAt": "2026-02-05T15:27:45.351Z"
+    },
+    {
+      "id": "event_1770307155059_y306x9hub",
+      "title": "Тестирую",
+      "description": "",
+      "type": "meeting",
+      "dateType": "single",
+      "startDate": "2026-02-05T00:00:00",
+      "color": "",
+      "tags": [],
+      "participants": [],
+      "createdAt": "2026-02-05T15:59:15.059Z",
+      "updatedAt": "2026-02-05T15:59:15.059Z"
+    },
+    {
+      "id": "event_1770308273226_oc8vw89ac",
+      "title": "кккккк",
+      "description": "ккккккк",
+      "type": "meeting",
+      "dateType": "single",
+      "startDate": "2026-02-05T00:00:00",
+      "color": "",
+      "tags": [],
+      "participants": [],
+      "createdAt": "2026-02-05T16:17:53.226Z",
+      "updatedAt": "2026-02-05T16:17:53.226Z"
     }
   ],
-  "lastUpdated": "2026-02-03T06:16:20.585Z"
+  "lastUpdated": "2026-02-05T16:17:53.226Z"
 }

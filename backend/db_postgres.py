@@ -642,6 +642,17 @@ class PostgresDatabase:
         
         return dict(result) if result else None
     
+    def create_chat(self, chat: Dict[str, Any]) -> Dict[str, Any]:
+        """Create new chat (alias for add_chat)"""
+        return self.add_chat(chat)
+    
+    def find_chat_by_todo(self, todo_id: str) -> Optional[Dict[str, Any]]:
+        """Find chat associated with a task (todo_id not in schema yet, returns None)"""
+        # TODO: After migration adds todo_id column, implement:
+        # query = "SELECT * FROM chats WHERE todo_id = %s LIMIT 1"
+        # return self.conn.fetch_one(query, (todo_id,))
+        return None
+    
     def delete_chat(self, chat_id: str) -> bool:
         """Delete chat (cascade deletes messages and participants)"""
         query = "DELETE FROM chats WHERE id = %s"
@@ -847,15 +858,26 @@ class PostgresDatabase:
     def get_tasks(self, user_id: Optional[str] = None, list_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get all tasks, optionally filtered by user or list"""
         if user_id:
-            query = """
-                SELECT * FROM tasks 
-                WHERE author_id = %s 
-                OR assigned_by_id = %s 
-                OR assigned_to = %s
-                OR %s = ANY(COALESCE((assigned_to_ids::text)::varchar[], ARRAY[]::varchar[]))
-                ORDER BY created_at DESC
-            """
-            return self.conn.fetch_all(query, (user_id, user_id, user_id, user_id))
+            # Проверяем может ли пользователь видеть все задачи
+            user_query = "SELECT can_see_all_tasks FROM users WHERE id = %s"
+            user_result = self.conn.fetch_one(user_query, (user_id,))
+            can_see_all = user_result and user_result.get('can_see_all_tasks', False)
+            
+            if can_see_all:
+                # Пользователь видит все задачи
+                query = "SELECT * FROM tasks ORDER BY created_at DESC"
+                return self.conn.fetch_all(query)
+            else:
+                # Фильтруем только по связанным задачам
+                query = """
+                    SELECT * FROM tasks 
+                    WHERE author_id = %s 
+                    OR assigned_by_id = %s 
+                    OR assigned_to = %s
+                    OR %s = ANY(COALESCE((assigned_to_ids::text)::varchar[], ARRAY[]::varchar[]))
+                    ORDER BY created_at DESC
+                """
+                return self.conn.fetch_all(query, (user_id, user_id, user_id, user_id))
         elif list_id:
             query = "SELECT * FROM tasks WHERE list_id = %s ORDER BY task_order, created_at DESC"
             return self.conn.fetch_all(query, (list_id,))
@@ -899,44 +921,72 @@ class PostgresDatabase:
     
     def update_task(self, task_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Update task"""
-        set_clauses = []
-        params = []
-        
+        # Поддержка и camelCase и snake_case
         field_map = {
             'title': 'title',
             'description': 'description',
             'status': 'status',
             'priority': 'priority',
             'dueDate': 'due_date',
+            'due_date': 'due_date',
             'assignedTo': 'assigned_to',
+            'assigned_to': 'assigned_to',
             'assignedToIds': 'assigned_to_ids',
+            'assigned_to_ids': 'assigned_to_ids',
             'authorId': 'author_id',
+            'author_id': 'author_id',
             'assignedById': 'assigned_by_id',
+            'assigned_by_id': 'assigned_by_id',
             'listId': 'list_id',
+            'list_id': 'list_id',
             'tags': 'tags',
+            'completed': 'is_completed',
             'isCompleted': 'is_completed',
+            'is_completed': 'is_completed',
             'addToCalendar': 'add_to_calendar',
-            'order': 'task_order'
+            'add_to_calendar': 'add_to_calendar',
+            'order': 'task_order',
+            'task_order': 'task_order',
+            'taskOrder': 'task_order'
         }
         
+        # Логирование для assigned_to_ids
+        if 'assignedToIds' in updates or 'assigned_to_ids' in updates:
+            print(f"[DB] 👥 Updating assigned_to_ids for task {task_id}")
+            print(f"[DB]    Input assignedToIds: {updates.get('assignedToIds')}")
+            print(f"[DB]    Input assigned_to_ids: {updates.get('assigned_to_ids')}")
+        
+        # Собираем уникальные db_field -> value
+        db_updates = {}
         for key, value in updates.items():
             if key in field_map:
                 db_field = field_map[key]
-                if key in ['tags', 'assignedToIds']:
-                    set_clauses.append(f"{db_field} = %s")
-                    params.append(Json(value))
+                # Для JSONB полей применяем Json()
+                if key in ['tags', 'assignedToIds', 'assigned_to_ids']:
+                    db_updates[db_field] = Json(value)
                 else:
-                    set_clauses.append(f"{db_field} = %s")
-                    params.append(value)
+                    db_updates[db_field] = value
         
-        if not set_clauses:
+        if not db_updates:
             return self.get_task(task_id)
+        
+        print(f"[DB] DB updates to apply: {list(db_updates.keys())}")
+        if 'assigned_to_ids' in db_updates:
+            print(f"[DB]    assigned_to_ids value: {db_updates['assigned_to_ids']}")
+        
+        # Формируем set_clauses и params из уникальных полей
+        set_clauses = [f"{field} = %s" for field in db_updates.keys()]
+        params = list(db_updates.values())
         
         set_clauses.append("updated_at = NOW()")
         params.append(task_id)
         
         query = f"UPDATE tasks SET {', '.join(set_clauses)} WHERE id = %s RETURNING *"
         result = self.conn.fetch_one(query, tuple(params))
+        
+        if result and 'assigned_to_ids' in dict(result):
+            print(f"[DB] ✅ Task {task_id} updated with assigned_to_ids: {dict(result)['assigned_to_ids']}")
+        
         return dict(result) if result else None
     
     def delete_task(self, task_id: str) -> bool:
@@ -969,11 +1019,100 @@ class PostgresDatabase:
         result = self.conn.fetch_one(query, params)
         return dict(result) if result else None
     
+    def update_todo_list(self, list_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Update todo list"""
+        set_clauses = []
+        params = []
+        
+        field_mapping = {
+            'name': 'name',
+            'color': 'color',
+            'icon': 'icon',
+            'department': 'department',
+            'order': 'list_order'
+        }
+        
+        for key, db_field in field_mapping.items():
+            if key in updates:
+                set_clauses.append(f"{db_field} = %s")
+                params.append(updates[key])
+        
+        if not set_clauses:
+            return None
+        
+        params.append(list_id)
+        query = f"""
+            UPDATE todo_lists 
+            SET {', '.join(set_clauses)}, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+            RETURNING *
+        """
+        result = self.conn.fetch_one(query, tuple(params))
+        return dict(result) if result else None
+    
+    def delete_todo_list(self, list_id: str) -> bool:
+        """Delete todo list"""
+        query = "DELETE FROM todo_lists WHERE id = %s"
+        return self.conn.execute_query(query, (list_id,))
+    
     # ==================== TODO CATEGORIES ====================
     def get_todo_categories(self) -> List[Dict[str, Any]]:
         """Get all todo categories"""
         query = "SELECT * FROM todo_categories ORDER BY category_order, created_at"
         return self.conn.fetch_all(query)
+    
+    def add_todo_category(self, category_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Add new todo category"""
+        query = """
+            INSERT INTO todo_categories 
+            (id, name, color, icon, category_order)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING *
+        """
+        params = (
+            category_data.get('id'),
+            category_data.get('name'),
+            category_data.get('color', '#6366f1'),
+            category_data.get('icon'),
+            category_data.get('order', 0)
+        )
+        result = self.conn.fetch_one(query, params)
+        return dict(result) if result else None
+    
+    def update_todo_category(self, category_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Update todo category"""
+        set_clauses = []
+        params = []
+        
+        field_mapping = {
+            'name': 'name',
+            'color': 'color',
+            'icon': 'icon',
+            'order': 'category_order'
+        }
+        
+        for key, db_field in field_mapping.items():
+            if key in updates:
+                set_clauses.append(f"{db_field} = %s")
+                params.append(updates[key])
+        
+        if not set_clauses:
+            return None
+        
+        params.append(category_id)
+        query = f"""
+            UPDATE todo_categories 
+            SET {', '.join(set_clauses)}, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+            RETURNING *
+        """
+        result = self.conn.fetch_one(query, tuple(params))
+        return dict(result) if result else None
+    
+    def delete_todo_category(self, category_id: str) -> bool:
+        """Delete todo category"""
+        query = "DELETE FROM todo_categories WHERE id = %s"
+        return self.conn.execute_query(query, (category_id,))
     
     # ==================== LINKS ====================
     def get_links(self, user_id: Optional[str] = None, list_id: Optional[str] = None, department: Optional[str] = None) -> List[Dict[str, Any]]:

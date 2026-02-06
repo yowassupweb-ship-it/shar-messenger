@@ -56,6 +56,28 @@ def snake_to_camel(data):
                 new_dict[camel_key] = 'system'
             else:
                 new_dict[camel_key] = snake_to_camel(value)
+        
+        # Обратная совместимость: isCompleted -> completed
+        if 'isCompleted' in new_dict:
+            new_dict['completed'] = new_dict['isCompleted']
+        
+        # Если есть metadata (задача из PostgreSQL), извлекаем поля в корень
+        if 'metadata' in new_dict and isinstance(new_dict['metadata'], dict):
+            metadata = new_dict['metadata']
+            # Извлекаем важные поля из metadata в корень объекта
+            if 'listId' in metadata:
+                new_dict['listId'] = metadata['listId']
+            if 'tags' in metadata:
+                new_dict['tags'] = metadata['tags']
+            if 'order' in metadata:
+                new_dict['order'] = metadata['order']
+            if 'archived' in metadata:
+                new_dict['archived'] = metadata['archived']
+            if 'completed' in metadata:
+                new_dict['completed'] = metadata['completed']
+            if 'comments' in metadata:
+                new_dict['comments'] = metadata['comments']
+        
         return new_dict
     elif isinstance(data, list):
         return [snake_to_camel(item) for item in data]
@@ -3341,45 +3363,137 @@ def get_todos(userId: Optional[str] = None):
 
 @app.post("/api/todos")
 def create_todo(todo_data: dict = Body(...)):
-    """Создать новую задачу"""
+    """Создать новую задачу, список или категорию"""
     import uuid
     
-    new_todo = {
-        'id': str(uuid.uuid4()),
-        'title': todo_data.get('title', ''),
-        'description': todo_data.get('description', ''),
-        'status': todo_data.get('status', 'todo'),
-        'priority': todo_data.get('priority', 'medium'),
-        'authorId': todo_data.get('authorId'),
-        'assignedTo': todo_data.get('assignedTo'),
-        'assignedToIds': todo_data.get('assignedToIds', []),
-        'assignedById': todo_data.get('assignedById'),
-        'dueDate': todo_data.get('dueDate'),
-        'listId': todo_data.get('listId'),
-        'tags': todo_data.get('tags', []),
-        'isCompleted': todo_data.get('isCompleted', False),
-        'addToCalendar': todo_data.get('addToCalendar', False)
-    }
+    todo_type = todo_data.get('type', 'todo')
     
-    result = db.add_task(new_todo)
-    return snake_to_camel(result) if result else new_todo
+    if todo_type == 'list':
+        new_list = {
+            'id': str(uuid.uuid4()),
+            'name': todo_data.get('name', 'Новый список'),
+            'color': todo_data.get('color', '#3b82f6'),
+            'icon': todo_data.get('icon', 'folder'),
+            'department': todo_data.get('department'),
+            'order': todo_data.get('order', 0)
+        }
+        result = db.add_todo_list(new_list)
+        return snake_to_camel(result) if result else new_list
+    
+    elif todo_type == 'category':
+        new_category = {
+            'id': str(uuid.uuid4()),
+            'name': todo_data.get('name', 'Новая категория'),
+            'color': todo_data.get('color', '#6366f1'),
+            'icon': todo_data.get('icon', 'tag'),
+            'order': todo_data.get('order', 0)
+        }
+        result = db.add_todo_category(new_category)
+        return snake_to_camel(result) if result else new_category
+    
+    else:
+        # Преобразуем camelCase в snake_case для БД
+        new_todo = {
+            'id': str(uuid.uuid4()),
+            'title': todo_data.get('title', ''),
+            'description': todo_data.get('description', ''),
+            'status': todo_data.get('status', 'todo'),
+            'priority': todo_data.get('priority', 'medium'),
+            'author_id': todo_data.get('authorId') or todo_data.get('author_id'),
+            'assigned_to': todo_data.get('assignedTo') or todo_data.get('assigned_to'),
+            'assigned_to_ids': todo_data.get('assignedToIds', []) or todo_data.get('assigned_to_ids', []),
+            'assigned_by_id': todo_data.get('assignedById') or todo_data.get('assigned_by_id'),
+            'due_date': todo_data.get('dueDate') or todo_data.get('due_date'),
+            'list_id': todo_data.get('listId') or todo_data.get('list_id'),
+            'tags': todo_data.get('tags', []),
+            'is_completed': todo_data.get('isCompleted', False) or todo_data.get('is_completed', False),
+            'add_to_calendar': todo_data.get('addToCalendar', False) or todo_data.get('add_to_calendar', False),
+            'task_order': todo_data.get('order', 0) or todo_data.get('task_order', 0)
+        }
+        
+        result = db.add_task(new_todo)
+        return snake_to_camel(result) if result else snake_to_camel(new_todo)
+
+@app.put("/api/todos")
+def update_todo(todo_data: dict = Body(...)):
+    """Обновить задачу, список или категорию"""
+    todo_id = todo_data.get('id')
+    todo_type = todo_data.get('type', 'todo')
+    
+    print(f"[PUT /api/todos] Received update request for {todo_type} ID: {todo_id}")
+    print(f"[PUT /api/todos] Update data keys: {list(todo_data.keys())}")
+    
+    if not todo_id:
+        raise HTTPException(status_code=400, detail="ID is required")
+    
+    updates = {k: v for k, v in todo_data.items() if k not in ['id', 'type']}
+    print(f"[PUT /api/todos] Processing updates: {list(updates.keys())}")
+    
+    if todo_type == 'list':
+        result = db.update_todo_list(todo_id, updates)
+    elif todo_type == 'category':
+        result = db.update_todo_category(todo_id, updates)
+    else:
+        # Log assignedToIds specifically
+        if 'assignedToIds' in updates or 'assigned_to_ids' in updates:
+            print(f"[PUT /api/todos] 👥 Multiple executors update:")
+            print(f"[PUT /api/todos]    assignedToIds: {updates.get('assignedToIds')}")
+            print(f"[PUT /api/todos]    assigned_to_ids: {updates.get('assigned_to_ids')}")
+        
+        print(f"[PUT /api/todos] Calling db.update_task({todo_id}, {list(updates.keys())})")
+        result = db.update_task(todo_id, updates)
+        if result:
+            print(f"[PUT /api/todos] Task updated successfully in DB: {result.get('id')}")
+            if 'assigned_to_ids' in result:
+                print(f"[PUT /api/todos] 👥 DB returned assigned_to_ids: {result.get('assigned_to_ids')}")
+        else:
+            print(f"[PUT /api/todos] ERROR: Task not found or update failed for ID: {todo_id}")
+    
+    if not result:
+        print(f"[PUT /api/todos] 404 - {todo_type.capitalize()} not found")
+        raise HTTPException(status_code=404, detail=f"{todo_type.capitalize()} not found")
+    
+    print(f"[PUT /api/todos] Returning successful response")
+    return snake_to_camel(result)
+
+@app.delete("/api/todos")
+def delete_todo(id: str, type: str = 'todo'):
+    """Удалить задачу, список или категорию"""
+    if not id:
+        raise HTTPException(status_code=400, detail="ID is required")
+    
+    if type == 'list':
+        success = db.delete_todo_list(id)
+    elif type == 'category':
+        success = db.delete_todo_category(id)
+    else:
+        success = db.delete_task(id)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail=f"{type.capitalize()} not found")
+    
+    return {"success": True}
 
 @app.get("/api/todos/people")
 def get_todo_people():
     """Получить список людей для назначения задач"""
     users = db.get_users()
-    # Возвращаем только нужные поля
+    # Возвращаем все нужные поля из users для фронтенда
     people = []
     for user in users:
         person = {
             'id': user.get('id'),
             'username': user.get('username'),
-            'telegramId': user.get('telegramId'),
-            'todoPersonId': user.get('todoPersonId'),
-            'canSeeAllTasks': user.get('canSeeAllTasks', False)
+            'name': user.get('name') or user.get('username'),  # fallback to username
+            'telegramId': user.get('telegram_id'),
+            'todoPersonId': user.get('todo_person_id'),
+            'canSeeAllTasks': user.get('can_see_all_tasks', False),
+            'role': user.get('todo_role', 'universal'),  # используем todo_role
+            'lastSeen': user.get('last_seen'),
+            'isOnline': user.get('is_online', False)
         }
         people.append(person)
-    return people
+    return {"people": people}
 
 @app.get("/api/todos/telegram") 
 def get_todo_telegram():

@@ -211,6 +211,7 @@ CREATE TABLE IF NOT EXISTS chats (
     is_system_chat BOOLEAN DEFAULT false,
     is_favorites_chat BOOLEAN DEFAULT false,
     creator_id VARCHAR(255),
+    todo_id VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     unread_count INTEGER DEFAULT 0,
@@ -293,17 +294,25 @@ CREATE TABLE IF NOT EXISTS tasks (
     assigned_to_ids JSONB DEFAULT '[]',
     author_id VARCHAR(255),
     assigned_by_id VARCHAR(255),
+    list_id VARCHAR(255),
+    tags JSONB DEFAULT '[]',
+    is_completed BOOLEAN DEFAULT false,
+    add_to_calendar BOOLEAN DEFAULT false,
+    task_order INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     metadata JSONB DEFAULT '{}',
     FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL,
-    FOREIGN KEY (assigned_by_id) REFERENCES users(id) ON DELETE SET NULL
+    FOREIGN KEY (assigned_by_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (list_id) REFERENCES todo_lists(id) ON DELETE SET NULL
 );
 
 CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_assigned_to ON tasks(assigned_to);
 CREATE INDEX idx_tasks_author_id ON tasks(author_id);
 CREATE INDEX idx_tasks_due_date ON tasks(due_date);
+CREATE INDEX idx_tasks_list_id ON tasks(list_id);
+CREATE INDEX idx_tasks_is_completed ON tasks(is_completed);
 
 -- Events table
 CREATE TABLE IF NOT EXISTS events (

@@ -164,23 +164,26 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { title, description, type, dateType, startDate, endDate, color, url, tags, impact, notes, participants, createdBy } = body;
 
-    if (!title || !type || !dateType || !startDate) {
+    if (!title || !type || !startDate) {
       return NextResponse.json(
-        { success: false, error: 'Missing required fields: title, type, dateType, startDate' },
+        { success: false, error: 'Missing required fields: title, type, startDate' },
         { status: 400 }
       );
     }
 
     const data = await loadEvents();
     
+    // Автоматически определяем dateType если не указан
+    const determinedDateType = dateType || (endDate ? 'range' : 'single');
+    
     const newEvent: Event = {
       id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       title,
       description,
       type,
-      dateType,
+      dateType: determinedDateType,
       startDate,
-      endDate: dateType === 'range' ? endDate : undefined,
+      endDate: endDate || undefined,
       color,
       url,
       tags: tags || [],

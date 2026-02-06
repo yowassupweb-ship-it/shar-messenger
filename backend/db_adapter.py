@@ -128,6 +128,12 @@ if USE_POSTGRES:
         def add_chat(self, chat: Dict[str, Any]) -> Dict[str, Any]:
             return self.db.add_chat(chat)
         
+        def create_chat(self, chat: Dict[str, Any]) -> Dict[str, Any]:
+            return self.db.create_chat(chat)
+        
+        def find_chat_by_todo(self, todo_id: str) -> Optional[Dict[str, Any]]:
+            return self.db.find_chat_by_todo(todo_id)
+        
         def update_chat(self, chat_id: str, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             return self.db.update_chat(chat_id, update_data)
         
@@ -201,8 +207,23 @@ if USE_POSTGRES:
         def add_todo_list(self, list_data: Dict[str, Any]) -> Dict[str, Any]:
             return self.db.add_todo_list(list_data)
         
+        def update_todo_list(self, list_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+            return self.db.update_todo_list(list_id, updates)
+        
+        def delete_todo_list(self, list_id: str) -> bool:
+            return self.db.delete_todo_list(list_id)
+        
         def get_todo_categories(self) -> List[Dict[str, Any]]:
             return self.db.get_todo_categories()
+        
+        def add_todo_category(self, category_data: Dict[str, Any]) -> Dict[str, Any]:
+            return self.db.add_todo_category(category_data)
+        
+        def update_todo_category(self, category_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+            return self.db.update_todo_category(category_id, updates)
+        
+        def delete_todo_category(self, category_id: str) -> bool:
+            return self.db.delete_todo_category(category_id)
         
         # Links
         def get_links(self, user_id: Optional[str] = None, list_id: Optional[str] = None, department: Optional[str] = None) -> List[Dict[str, Any]]:
