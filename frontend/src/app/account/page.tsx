@@ -573,8 +573,8 @@ export default function AccountPage() {
             onClick={() => handleTabChange('messages')}
             className={`relative w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
               activeTab === 'messages'
-                ? 'bg-[#007aff]/20 text-[#007aff] border border-[#007aff]/30'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10'
+                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
+                : 'text-[var(--text-secondary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm'
             }`}
           >
             <MessageCircle className="w-4 h-4" strokeWidth={2} />
@@ -591,8 +591,8 @@ export default function AccountPage() {
             onClick={() => handleTabChange('tasks')}
             className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
               activeTab === 'tasks'
-                ? 'bg-[#007aff]/20 text-[#007aff] border border-[#007aff]/30'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10'
+                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
+                : 'text-[var(--text-secondary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm'
             }`}
           >
             <CheckSquare className="w-4 h-4" strokeWidth={2} />
@@ -604,8 +604,8 @@ export default function AccountPage() {
             onClick={() => handleTabChange('calendar')}
             className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
               activeTab === 'calendar'
-                ? 'bg-[#007aff]/20 text-[#007aff] border border-[#007aff]/30'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10'
+                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
+                : 'text-[var(--text-secondary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm'
             }`}
           >
             <Calendar className="w-4 h-4" strokeWidth={2} />
@@ -617,8 +617,8 @@ export default function AccountPage() {
             onClick={() => handleTabChange('contacts')}
             className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
               activeTab === 'contacts'
-                ? 'bg-[#007aff]/20 text-[#007aff] border border-[#007aff]/30'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10'
+                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
+                : 'text-[var(--text-secondary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm'
             }`}
           >
             <Users className="w-4 h-4" strokeWidth={2} />
@@ -630,8 +630,8 @@ export default function AccountPage() {
             onClick={() => handleTabChange('links')}
             className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
               activeTab === 'links'
-                ? 'bg-[#007aff]/20 text-[#007aff] border border-[#007aff]/30'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10'
+                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
+                : 'text-[var(--text-secondary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm'
             }`}
           >
             <Globe className="w-4 h-4" strokeWidth={2} />
@@ -642,8 +642,8 @@ export default function AccountPage() {
             onClick={() => handleTabChange('tools')}
             className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
               activeTab === 'tools'
-                ? 'bg-[#007aff]/20 text-[#007aff] border border-[#007aff]/30'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10'
+                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
+                : 'text-[var(--text-secondary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm'
             }`}
           >
             <MoreVertical className="w-4 h-4" strokeWidth={2} />
@@ -767,32 +767,32 @@ export default function AccountPage() {
               return (
                 <div 
                   key={toolId} 
-                  className={`relative group flex-shrink-0 ${index >= 4 ? 'hidden xl:block' : ''} ${index >= 3 ? 'hidden lg:block' : ''}`}
+                  className={`relative group flex-shrink-0 ${index >= 5 ? 'hidden xl:block' : ''} ${index >= 4 ? 'hidden lg:block' : ''}`}
                 >
                   <Link
                     href={tool.href}
-                    className="px-2 py-1.5 rounded-[16px] flex items-center gap-1.5 text-xs font-medium transition-all bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]"
+                    className="flex items-center gap-1.5 text-[10px] font-medium transition-all px-2 py-1.5 rounded-xl bg-gradient-to-b from-white/10 to-white/5 border border-white/20 hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]"
                   >
-                    <div className={`w-5 h-5 rounded-[22%] bg-gradient-to-br ${tool.gradient} flex items-center justify-center relative overflow-hidden shadow-[0_4px_16px_-4px_rgba(0,0,0,0.25)]`}>
+                    <div className={`w-5 h-5 rounded-full bg-gradient-to-br ${tool.gradient} flex items-center justify-center relative overflow-hidden shadow-sm backdrop-blur-sm`}>
                       {/* Apple-style glass */}
-                      <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent opacity-80 rounded-[22%]" />
-                      <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/10 rounded-[22%]" />
+                      <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent opacity-80 rounded-full" />
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/10 rounded-full" />
                       {/* Highlight */}
                       <div className="absolute top-[8%] left-[12%] right-[12%] h-[25%] bg-white/50 rounded-full blur-sm" />
                       {/* Icon */}
                       <div className="relative z-10 drop-shadow-[0_1px_4px_rgba(0,0,0,0.3)]">
-                        {tool.id === 'feed-editor' && <Code2 className="w-3 h-3 text-white" strokeWidth={2} />}
-                        {tool.id === 'transliterator' && <Type className="w-3 h-3 text-white" strokeWidth={2} />}
-                        {tool.id === 'slovolov' && <Zap className="w-3 h-3 text-white" strokeWidth={2} />}
-                        {tool.id === 'utm-generator' && <Hash className="w-3 h-3 text-white" strokeWidth={2} />}
-                        {tool.id === 'slovolov-pro' && <Package2 className="w-3 h-3 text-white" strokeWidth={2} />}
-                        {tool.id === 'content-plan' && <PenTool className="w-3 h-3 text-white" strokeWidth={2} />}
-                        {tool.id === 'calculator' && <Calculator className="w-3 h-3 text-white" strokeWidth={2} />}
-                        {tool.id === 'links' && <Globe className="w-3 h-3 text-white" strokeWidth={2} />}
-                        {tool.id === 'admin' && <Shield className="w-3 h-3 text-white" strokeWidth={2} />}
+                        {tool.id === 'feed-editor' && <Code2 className="w-2.5 h-2.5 text-white" strokeWidth={2} />}
+                        {tool.id === 'transliterator' && <Type className="w-2.5 h-2.5 text-white" strokeWidth={2} />}
+                        {tool.id === 'slovolov' && <Zap className="w-2.5 h-2.5 text-white" strokeWidth={2} />}
+                        {tool.id === 'utm-generator' && <Hash className="w-2.5 h-2.5 text-white" strokeWidth={2} />}
+                        {tool.id === 'slovolov-pro' && <Package2 className="w-2.5 h-2.5 text-white" strokeWidth={2} />}
+                        {tool.id === 'content-plan' && <PenTool className="w-2.5 h-2.5 text-white" strokeWidth={2} />}
+                        {tool.id === 'calculator' && <Calculator className="w-2.5 h-2.5 text-white" strokeWidth={2} />}
+                        {tool.id === 'links' && <Globe className="w-2.5 h-2.5 text-white" strokeWidth={2} />}
+                        {tool.id === 'admin' && <Shield className="w-2.5 h-2.5 text-white" strokeWidth={2} />}
                       </div>
                     </div>
-                    <span className="hidden lg:inline">{tool.name}</span>
+                    <span className="hidden lg:inline text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">{tool.name}</span>
                   </Link>
                   <button
                     onClick={(e) => { e.preventDefault(); removePinnedTool(toolId); }}
@@ -830,13 +830,13 @@ export default function AccountPage() {
             <div className="relative">
               <button
                 onClick={() => setShowAccountMenu(!showAccountMenu)}
-                className="flex items-center gap-2 px-3 md:px-1.5 py-1.5 rounded-[20px] bg-gradient-to-b from-white/10 to-white/5 border border-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)] hover:from-white/15 hover:to-white/10 transition-all cursor-pointer"
+                className="flex items-center gap-2 transition-all cursor-pointer"
               >
                 <Avatar
                   type="user"
                   name={currentUser.name || 'User'}
                   src={currentUser.avatar}
-                  size="xs"
+                  size="sm"
                   isOnline={true}
                 />
                 <span className="md:hidden text-xs text-[var(--text-secondary)] max-w-[120px] truncate">

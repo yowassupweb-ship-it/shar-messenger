@@ -48,10 +48,12 @@ import {
   Send,
   Bot,
   Archive,
+  Info,
   RotateCcw,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Link2,
   ExternalLink,
   MessageCircle,
@@ -66,7 +68,8 @@ import {
   BellRing,
   Volume2,
   VolumeX,
-  AlertTriangle
+  AlertTriangle,
+  Filter
 } from 'lucide-react';
 import { 
   TaskNotificationManager, 
@@ -114,6 +117,7 @@ interface Toast {
 interface Person {
   id: string;
   name: string;
+  username?: string;
   telegramId?: string;
   telegramUsername?: string;
   role: 'executor' | 'customer' | 'universal';
@@ -169,6 +173,7 @@ interface Todo {
   linkTitle?: string;
   addToCalendar?: boolean;
   calendarEventId?: string;
+  calendarListId?: string;
   createdAt: string;
   updatedAt: string;
   order: number;
@@ -232,6 +237,14 @@ interface TodoList {
   creatorId?: string;
   allowedUsers?: string[];
   allowedDepartments?: string[];  // Разрешённые отделы
+}
+
+interface CalendarList {
+  id: string;
+  name: string;
+  color?: string;
+  allowedUsers?: string[];
+  allowedDepartments?: string[];
 }
 
 const PRIORITY_COLORS = {
@@ -332,6 +345,7 @@ export default function TodosPage() {
   const [lists, setLists] = useState<TodoList[]>([]);
   const [categories, setCategories] = useState<TodoCategory[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
+  const [calendarLists, setCalendarLists] = useState<CalendarList[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [returnUrl, setReturnUrl] = useState<string>('/account?tab=tasks');
   const [showAddList, setShowAddList] = useState(false);
@@ -377,6 +391,14 @@ export default function TodosPage() {
   const [newListAssigneeId, setNewListAssigneeId] = useState<string | null>(null);
   const [showNewListAssigneeDropdown, setShowNewListAssigneeDropdown] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'todo' | 'pending' | 'in-progress' | 'review' | 'stuck'>('all');
+  const [filterExecutor, setFilterExecutor] = useState<string | null>(null);
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+  const [executorDropdownOpen, setExecutorDropdownOpen] = useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [showMobileFiltersModal, setShowMobileFiltersModal] = useState(false);  // Модаль для фильтров
+  const [showMobileArchiveModal, setShowMobileArchiveModal] = useState(false);  // Модаль для архива
+  const [mobileHeaderMenuOpen, setMobileHeaderMenuOpen] = useState(false);  // Дропдаун в мобильном хедере
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [editingListName, setEditingListName] = useState('');
   const [showListSettings, setShowListSettings] = useState<string | null>(null);
@@ -439,6 +461,77 @@ export default function TodosPage() {
   const [searchDelegatedBy, setSearchDelegatedBy] = useState('');
   const [searchAssignedTo, setSearchAssignedTo] = useState('');
   
+  // Resizable columns for modal (left: 27.5%, center: 45%, right: 27.5% by default)
+  const [columnWidths, setColumnWidths] = useState<[number, number, number]>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('todos_modal_column_widths');
+      if (stored) {
+        try {
+          return JSON.parse(stored);
+        } catch {
+          return [27.5, 45, 27.5];
+        }
+      }
+    }
+    return [27.5, 45, 27.5];
+  });
+  const [isResizing, setIsResizing] = useState<number | null>(null); // 0 или 1 (между какими колонками)
+  const resizeStartXRef = useRef<number>(0);
+  const resizeStartWidthsRef = useRef<[number, number, number]>([27.5, 45, 27.5]);
+  
+  // Save column widths to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('todos_modal_column_widths', JSON.stringify(columnWidths));
+    }
+  }, [columnWidths]);
+  
+  // Resize handlers
+  useEffect(() => {
+    if (isResizing === null) return;
+    
+    // Prevent text selection during resize
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      e.preventDefault();
+      const deltaX = e.clientX - resizeStartXRef.current;
+      const containerWidth = typeof window !== 'undefined' ? window.innerWidth : 1000;
+      const deltaPercent = (deltaX / containerWidth) * 100;
+      
+      const [left, center, right] = resizeStartWidthsRef.current;
+      
+      if (isResizing === 0) {
+        // Resizing between left and center
+        const newLeft = Math.max(15, Math.min(50, left + deltaPercent));
+        const newCenter = Math.max(15, Math.min(60, center - deltaPercent));
+        setColumnWidths([newLeft, newCenter, right]);
+      } else if (isResizing === 1) {
+        // Resizing between center and right
+        const newCenter = Math.max(15, Math.min(60, center + deltaPercent));
+        const newRight = Math.max(15, Math.min(50, right - deltaPercent));
+        setColumnWidths([left, newCenter, newRight]);
+      }
+    };
+    
+    const handleMouseUp = () => {
+      setIsResizing(null);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+  }, [isResizing, columnWidths]);
+  
   // Drag and Drop state for todos
   const [draggedTodo, setDraggedTodo] = useState<Todo | null>(null);
   const [dragOverListId, setDragOverListId] = useState<string | null>(null);
@@ -464,19 +557,22 @@ export default function TodosPage() {
   const loadData = useCallback(async () => {
     try {
       const userId = myAccountId;
+      const username = localStorage.getItem('username') || '';
       console.log('[loadData] Loading with userId:', userId);
       
-      const [todosRes, peopleRes, telegramRes, linksRes] = await Promise.all([
+      const [todosRes, peopleRes, telegramRes, linksRes, calendarListsRes] = await Promise.all([
         fetch(`/api/todos${userId ? `?userId=${userId}` : ''}`),
         fetch('/api/todos/people'),
         fetch('/api/todos/telegram'),
-        fetch('/api/links')
+        fetch('/api/links'),
+        fetch(`/api/calendar-lists?userId=${encodeURIComponent(username)}`)
       ]);
       
       const todosData = await todosRes.json();
       const peopleData = await peopleRes.json();
       const telegramData = await telegramRes.json();
       const linksData = await linksRes.json();
+      const calendarListsData = await calendarListsRes.json();
       
       console.log('[loadData] Received lists:', todosData.lists?.length || 0);
       console.log('[loadData] Lists:', todosData.lists);
@@ -487,6 +583,7 @@ export default function TodosPage() {
       setPeople(peopleData.people || []);
       setTelegramEnabled(telegramData.enabled || false);
       setAvailableLinks(linksData.links || []);
+      setCalendarLists(Array.isArray(calendarListsData) ? calendarListsData : calendarListsData.lists || []);
     } catch (error) {
       console.error('Error loading todos:', error);
     } finally {
@@ -1991,6 +2088,7 @@ export default function TodosPage() {
         date: todo.dueDate || new Date().toISOString().split('T')[0],
         priority: todo.priority || 'medium',
         type: isTZ ? 'tz' : 'task',
+        listId: todo.calendarListId || (calendarLists.length > 0 ? calendarLists[0].id : undefined),
         sourceId: todo.id,
         assignedTo: todo.assignedTo,
         assignedBy: todo.assignedBy,
@@ -2664,44 +2762,17 @@ export default function TodosPage() {
 
   // Фильтрация задач по поиску, статусу, исполнителю и правам доступа
   const filterTodos = (todoList: Todo[], listId?: string) => {
-    // Проверяем, имеет ли пользователь ПОЛНЫЙ доступ к столбцу (создатель, в allowedUsers или в allowedDepartments)
-    const list = listId ? lists.find(l => l.id === listId) : null;
-    const hasFullListAccess = list && (
-      list.creatorId === myAccountId ||
-      (list.allowedUsers && list.allowedUsers.includes(myAccountId || '')) ||
-      (myDepartment && list.allowedDepartments && list.allowedDepartments.includes(myDepartment))
-    );
-    
     return todoList.filter(todo => {
       if (!showCompleted && todo.completed) return false;
       
-      // Фильтр по правам доступа (если не может видеть все задачи)
-      if (!canSeeAllTasks && myAccountId) {
-        const isExecutor = todo.assignedToId === myAccountId || todo.assignedToIds?.includes(myAccountId);
-        const isCustomer = todo.assignedById === myAccountId;
-        
-        // Если пользователь - руководитель отдела, показываем задачи его отдела
-        if (isDepartmentHead && myDepartment) {
-          // Получаем исполнителя задачи
-          const executor = people.find((u: Person) => u.id === todo.assignedToId || todo.assignedToIds?.includes(u.id));
-          const isDepartmentTask = executor && executor.department === myDepartment;
-          
-          // Если задача относится к отделу - показываем
-          if (isDepartmentTask) return true;
-        }
-        
-        // Если нет полного доступа к столбцу - показываем только свои задачи
-        if (!hasFullListAccess && !isExecutor && !isCustomer) return false;
-      }
-      
       // Фильтр по статусу
-      if (statusFilter !== 'all') {
-        if (todo.status !== statusFilter) return false;
+      if (filterStatus !== 'all') {
+        if (todo.status !== filterStatus) return false;
       }
       
       // Фильтр по исполнителю (включая множественных)
-      if (executorFilter !== 'all') {
-        const matchesFilter = todo.assignedToId === executorFilter || todo.assignedToIds?.includes(executorFilter);
+      if (filterExecutor !== null) {
+        const matchesFilter = todo.assignedToId === filterExecutor || todo.assignedToIds?.includes(filterExecutor);
         if (!matchesFilter) return false;
       }
       
@@ -2740,260 +2811,11 @@ export default function TodosPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col text-gray-900 dark:text-white bg-[var(--bg-primary)] overflow-hidden">
+    <div className="h-screen flex flex-col text-gray-900 dark:text-white overflow-hidden relative" style={{ background: 'transparent' }}>
       {/* Header */}
-      <header className="h-12 backdrop-blur-xl bg-[var(--bg-secondary)]/60 border-b border-white/10 flex items-center px-2 sm:px-4 flex-shrink-0 sticky top-0 z-40">
-        {/* Search - на мобилке иконка, на десктопе поле */}
-        {/* Mobile search toggle */}
-        <button
-          onClick={() => setShowMobileSearch(!showMobileSearch)}
-          className="sm:hidden w-8 h-8 rounded-full bg-[var(--bg-glass)] border border-[var(--border-color)] flex items-center justify-center hover:bg-[var(--bg-glass-hover)] transition-colors"
-        >
-          <Search className="w-4 h-4 text-[var(--text-muted)]" />
-        </button>
-        
-        {/* Desktop search */}
-        <div className="relative hidden sm:block flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
-          <input
-            type="text"
-            placeholder="Поиск..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 pr-4 py-1.5 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-[25px] w-full text-sm focus:outline-none focus:border-[var(--border-light)] transition-colors"
-          />
-        </div>
-        
-        {/* Mobile search expanded */}
-        {showMobileSearch && (
-          <div className="sm:hidden absolute left-0 right-0 top-full bg-[var(--bg-tertiary)] border-b border-[var(--border-secondary)] p-2 z-50">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
-              <input
-                type="text"
-                placeholder="Поиск..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                autoFocus
-                className="pl-9 pr-10 py-2 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-[25px] w-full text-sm focus:outline-none focus:border-[var(--border-light)] transition-colors"
-              />
-              <button
-                onClick={() => { setShowMobileSearch(false); setSearchQuery(''); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full hover:bg-white/10 flex items-center justify-center"
-              >
-                <X className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Status Filter Dropdown */}
-        <div className="relative ml-2 sm:ml-4" ref={statusFilterRef}>
-          <button
-            onClick={() => setShowStatusFilter(!showStatusFilter)}
-            className="flex-shrink-0 px-3 py-2 min-h-[36px] rounded-full text-xs font-medium transition-all flex items-center gap-2 border bg-[var(--bg-glass)] text-[var(--text-secondary)] border-[var(--border-color)] hover:bg-[var(--bg-glass-hover)]"
-          >
-            <span className={`w-2 h-2 rounded-full transition-colors ${
-              statusFilter === 'in-progress' ? 'bg-blue-400' :
-              statusFilter === 'pending' ? 'bg-orange-400' :
-              statusFilter === 'review' ? 'bg-green-400' : 
-              statusFilter === 'cancelled' ? 'bg-red-400' :
-              statusFilter === 'stuck' ? 'bg-yellow-500' : 'bg-white/40'
-            }`} />
-            <span>{statusFilter === 'all' ? 'Статус' : 
-             statusFilter === 'in-progress' ? 'В работе' :
-             statusFilter === 'pending' ? 'Ожидание' : 
-             statusFilter === 'cancelled' ? 'Отменена' :
-             statusFilter === 'stuck' ? 'Застряла' : 'Проверка'}</span>
-            <ChevronDown className={`w-3 h-3 transition-transform ${showStatusFilter ? 'rotate-180' : ''}`} />
-          </button>
-          
-          {showStatusFilter && (
-            <div className="absolute left-0 top-full mt-1 w-48 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl z-50 py-1">
-              <button
-                onClick={() => { setStatusFilter('all'); setShowStatusFilter(false); }}
-                className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-[var(--bg-glass)] transition-colors ${
-                  statusFilter === 'all' ? 'text-[var(--text-primary)] bg-[var(--bg-glass)]' : 'text-[var(--text-secondary)]'
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-white/40" />
-                Все статусы
-              </button>
-              <button
-                onClick={() => { setStatusFilter('in-progress'); setShowStatusFilter(false); }}
-                className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-[var(--bg-glass)] transition-colors ${
-                  statusFilter === 'in-progress' ? 'text-blue-400 bg-blue-500/10' : 'text-[var(--text-secondary)]'
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                В работе
-              </button>
-              <button
-                onClick={() => { setStatusFilter('pending'); setShowStatusFilter(false); }}
-                className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-[var(--bg-glass)] transition-colors ${
-                  statusFilter === 'pending' ? 'text-orange-400 bg-orange-500/10' : 'text-[var(--text-secondary)]'
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-                В ожидании
-              </button>
-              <button
-                onClick={() => { setStatusFilter('review'); setShowStatusFilter(false); }}
-                className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-[var(--bg-glass)] transition-colors ${
-                  statusFilter === 'review' ? 'text-green-400 bg-green-500/10' : 'text-[var(--text-secondary)]'
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                Готово к проверке
-              </button>
-              <button
-                onClick={() => { setStatusFilter('cancelled'); setShowStatusFilter(false); }}
-                className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-[var(--bg-glass)] transition-colors ${
-                  statusFilter === 'cancelled' ? 'text-red-400 bg-red-500/10' : 'text-[var(--text-secondary)]'
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                Отменена
-              </button>
-              <button
-                onClick={() => { setStatusFilter('stuck'); setShowStatusFilter(false); }}
-                className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-[var(--bg-glass)] transition-colors ${
-                  statusFilter === 'stuck' ? 'text-yellow-500 bg-yellow-500/10' : 'text-[var(--text-secondary)]'
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
-                Застряла
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Executor Filter Dropdown - иконка на мобильных */}
-        <div className="relative ml-2 hidden sm:block" ref={executorFilterRef}>
-          <button
-            onClick={() => setShowExecutorFilter(!showExecutorFilter)}
-            className={`flex-shrink-0 px-3 py-2 min-h-[36px] rounded-full text-xs font-medium transition-all flex items-center gap-2 border ${
-              executorFilter !== 'all'
-                ? 'bg-purple-500/20 text-purple-400 border-purple-500/50'
-                : 'bg-[var(--bg-glass)] text-[var(--text-secondary)] border-[var(--border-color)] hover:bg-[var(--bg-glass-hover)]'
-            }`}
-          >
-            <UserCheck className="w-3.5 h-3.5" />
-            {executorFilter === 'all' 
-              ? 'Исполнитель' 
-              : people.find(p => p.id === executorFilter)?.name || 'Исполнитель'}
-            <ChevronDown className={`w-3 h-3 transition-transform ${showExecutorFilter ? 'rotate-180' : ''}`} />
-          </button>
-          
-          {showExecutorFilter && (
-            <div className="absolute left-0 top-full mt-1 w-56 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl z-50 py-1 max-h-64 overflow-y-auto">
-              <button
-                onClick={() => { setExecutorFilter('all'); setShowExecutorFilter(false); }}
-                className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-[var(--bg-glass)] transition-colors ${
-                  executorFilter === 'all' ? 'text-[var(--text-primary)] bg-[var(--bg-glass)]' : 'text-[var(--text-secondary)]'
-                }`}
-              >
-                <Users className="w-3.5 h-3.5" />
-                Все исполнители
-              </button>
-              {people.filter(p => p.role === 'executor' || p.role === 'universal').map(person => (
-                <button
-                  key={person.id}
-                  onClick={() => { setExecutorFilter(person.id); setShowExecutorFilter(false); }}
-                  className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-[var(--bg-glass)] transition-colors ${
-                    executorFilter === person.id ? 'text-purple-400 bg-purple-500/10' : 'text-[var(--text-secondary)]'
-                  }`}
-                >
-                  <UserCheck className="w-3.5 h-3.5" />
-                  {person.name}
-                  {person.id === myAccountId && (
-                    <span className="ml-auto text-[10px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded">Я</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="flex-1" />
-
-        {/* Controls */}
-        <div className="flex items-center gap-3">
-
-          {/* Settings Dropdown */}
-          <div className="relative" ref={settingsRef}>
-            <button
-              onClick={() => setShowSettingsMenu(!showSettingsMenu)}
-              title="Настройки"
-              className="flex-shrink-0 w-8 h-8 bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] rounded-full transition-colors flex items-center justify-center border border-[var(--border-glass)] backdrop-blur-sm"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-            
-            {showSettingsMenu && (
-              <div className="absolute right-0 top-full mt-1 w-56 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl z-50 py-1">
-                <label className="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer text-[var(--text-secondary)] hover:bg-[var(--bg-glass)] transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={showCompleted}
-                    onChange={(e) => setShowCompleted(e.target.checked)}
-                    className="rounded w-3.5 h-3.5"
-                  />
-                  <span>Выполненные задачи</span>
-                </label>
-                <label className="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer text-[var(--text-secondary)] hover:bg-[var(--bg-glass)] transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={soundEnabled}
-                    onChange={toggleSound}
-                    className="rounded w-3.5 h-3.5"
-                  />
-                  <span>Звук уведомлений</span>
-                  {soundEnabled && <Volume2 className="w-3 h-3 text-green-400 ml-auto" />}
-                </label>
-                <div className="border-t border-[var(--border-color)] my-1" />
-                <button
-                  onClick={() => { setShowTelegramSettings(true); setShowSettingsMenu(false); }}
-                  className={`w-full px-3 py-2 text-xs text-left flex items-center gap-2 transition-colors ${
-                    telegramEnabled 
-                      ? 'text-cyan-400 hover:bg-cyan-500/10' 
-                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-glass)]'
-                  }`}
-                >
-                  <Bot className="w-3.5 h-3.5" />
-                  Уведомления
-                  {telegramEnabled && <span className="ml-auto text-[10px] bg-cyan-500/20 px-1.5 py-0.5 rounded">ON</span>}
-                </button>
-                <button
-                  onClick={() => { setShowCategoryManager(true); setShowSettingsMenu(false); }}
-                  className="w-full px-3 py-2 text-xs text-left flex items-center gap-2 text-[var(--text-secondary)] hover:bg-[var(--bg-glass)] transition-colors"
-                >
-                  <Tag className="w-3.5 h-3.5" />
-                  Категории
-                  <span className="ml-auto text-[10px] text-[var(--text-muted)]">{categories.length}</span>
-                </button>
-              </div>
-            )}
-          </div>
-          
-          {/* Кнопка архива - всегда показываем */}
-          <button
-            onClick={() => setShowArchive(!showArchive)}
-            title="Архив"
-            className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all border backdrop-blur-sm ${
-              showArchive 
-                ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' 
-                : 'bg-[var(--bg-glass)] text-[var(--text-secondary)] border-[var(--border-glass)] hover:bg-[var(--bg-glass-hover)] hover:text-orange-400'
-            }`}
-          >
-            <Archive className="w-4 h-4" />
-          </button>
-        </div>
-      </header>
-
-      {/* Mobile Column Switcher - только на мобильных */}
-      <div className="md:hidden flex-shrink-0 bg-white/50 dark:bg-[var(--bg-tertiary)] backdrop-blur-md border-b border-gray-200/50 dark:border-[var(--border-color)]/50">
-        <div className="flex items-center gap-1 px-2 py-3">
+      <div className="absolute top-0 left-0 right-0 z-10 w-full px-3 py-2 flex-shrink-0">
+        {/* Mobile header - all in one line */}
+        <div className="flex items-center gap-2 w-full md:hidden">
           {/* Левая стрелка */}
           <button
             onClick={() => {
@@ -3003,58 +2825,67 @@ export default function TodosPage() {
               }
             }}
             disabled={selectedColumnIndex === 0}
-            className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+            className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all ${
               selectedColumnIndex === 0
-                ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
-                : 'text-blue-500 dark:text-blue-400 bg-white/80 dark:bg-[var(--bg-secondary)]/80 shadow-sm hover:shadow-md active:scale-95'
+                ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed bg-gray-200/10 dark:bg-white/5 border border-white/10'
+                : 'text-[var(--text-primary)] bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] active:scale-95 backdrop-blur-xl'
             }`}
           >
-            <ChevronLeft className="w-5 h-5" />
+            <ChevronLeft className="w-4 h-4" />
           </button>
 
-          {/* Скроллящийся список */}
-          <div 
-            className="flex-1 flex gap-2 items-center overflow-x-auto overflow-y-hidden"
-            style={{
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-              WebkitOverflowScrolling: 'touch',
-              touchAction: 'pan-x'
-            }}
-          >
-            <style jsx>{`
-              div::-webkit-scrollbar {
-                display: none;
-              }
-            `}</style>
-            
-            {/* Кнопка добавления списка */}
+          {/* Search */}
+          <div className="relative flex-1">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-primary)] flex items-center justify-center z-10 pointer-events-none">
+              <Search className="w-4 h-4" strokeWidth={2.5} />
+            </div>
+            <input
+              type="text"
+              placeholder="Поиск..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-9 pl-9 pr-3 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 rounded-[20px] text-xs focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-white/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
+            />
+          </div>
+
+          {/* More menu dropdown */}
+          <div className="relative">
             <button
-              onClick={() => setShowAddList(true)}
-              className="flex-shrink-0 w-10 h-10 rounded-full bg-white/80 dark:bg-[var(--bg-secondary)]/80 backdrop-blur-sm shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center text-blue-500 dark:text-blue-400 transition-all border border-blue-200 dark:border-blue-500/30"
+              onClick={() => setMobileHeaderMenuOpen(!mobileHeaderMenuOpen)}
+              className="flex-shrink-0 w-9 h-9 flex items-center justify-center bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all duration-200 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
             >
-              <Plus className="w-5 h-5" />
+              <MoreVertical className="w-4 h-4" />
             </button>
-            
-            {/* Показываем ТОЛЬКО активную вкладку */}
-            {(() => {
-              const sortedLists = lists.filter(l => !l.archived).sort((a, b) => a.order - b.order);
-              const activeList = sortedLists[selectedColumnIndex];
-              if (!activeList) return null;
-              const listTodos = getTodosForList(activeList.id, showArchive);
-              return (
-                <div
-                  className="flex-shrink-0 px-5 py-2.5 text-sm font-semibold bg-gradient-to-br text-white shadow-lg rounded-2xl flex items-center gap-2 whitespace-nowrap"
-                  style={{ backgroundImage: `linear-gradient(135deg, ${activeList.color}, ${activeList.color}dd)` }}
-                >
-                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-white/80" />
-                  <span className="max-w-[120px] truncate">{activeList.name}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 text-white">
-                    {listTodos.length}
-                  </span>
+            {mobileHeaderMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setMobileHeaderMenuOpen(false)} />
+                <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden">
+                  <div className="py-1">
+                    <button
+                      onClick={() => { setShowMobileFiltersModal(true); setMobileHeaderMenuOpen(false); }}
+                      className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                    >
+                      <Filter className="w-4 h-4" />
+                      Фильтры
+                    </button>
+                    <button
+                      onClick={() => { setShowMobileArchiveModal(true); setMobileHeaderMenuOpen(false); }}
+                      className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                    >
+                      <Archive className="w-4 h-4" />
+                      Архив
+                    </button>
+                    <button
+                      onClick={() => { setShowAddList(true); setMobileHeaderMenuOpen(false); }}
+                      className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors text-green-400"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Добавить список
+                    </button>
+                  </div>
                 </div>
-              );
-            })()}
+              </>
+            )}
           </div>
 
           {/* Правая стрелка */}
@@ -3066,22 +2897,129 @@ export default function TodosPage() {
               }
             }}
             disabled={selectedColumnIndex >= lists.filter(l => !l.archived).length - 1}
-            className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+            className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all ${
               selectedColumnIndex >= lists.filter(l => !l.archived).length - 1
-                ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
-                : 'text-blue-500 dark:text-blue-400 bg-white/80 dark:bg-[var(--bg-secondary)]/80 shadow-sm hover:shadow-md active:scale-95'
+                ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed bg-gray-200/10 dark:bg-white/5 border border-white/10'
+                : 'text-[var(--text-primary)] bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] active:scale-95 backdrop-blur-xl'
             }`}
           >
-            <ChevronRight className="w-5 h-5" />
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Desktop header */}
+        <div className="hidden md:flex items-center justify-center gap-2 whitespace-nowrap">
+          {/* Search */}
+          <div className="relative flex-none">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-primary)] flex items-center justify-center z-10 pointer-events-none">
+              <Search className="w-5 h-5" strokeWidth={2.5} />
+            </div>
+            <input
+              type="text"
+              placeholder="Поиск..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-[200px] h-10 pl-10 pr-3 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 rounded-[20px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-white/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
+            />
+          </div>
+
+          {/* Status Filter */}
+          <div className="relative hidden md:block">
+            <button
+              onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
+              className="flex items-center gap-1.5 px-3 h-10 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all duration-200 text-sm border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] backdrop-blur-xl"
+            >
+              <Filter className="w-4 h-4 flex-shrink-0" />
+              <span className="truncate max-w-[120px]">{filterStatus === 'all' ? 'Все' : filterStatus === 'todo' ? 'К выполнению' : filterStatus === 'pending' ? 'В ожидании' : filterStatus === 'in-progress' ? 'В работе' : filterStatus === 'review' ? 'Готово к проверке' : 'Застряла'}</span>
+              <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
+            </button>
+            {statusDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setStatusDropdownOpen(false)} />
+                <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden">
+                  <div className="py-1">
+                    {[{ value: 'all', label: 'Все статусы' }, { value: 'todo', label: 'К выполнению' }, { value: 'pending', label: 'В ожидании' }, { value: 'in-progress', label: 'В работе' }, { value: 'review', label: 'Готово к проверке' }, { value: 'stuck', label: 'Застряла' }].map(status => (
+                      <button
+                        key={status.value}
+                        onClick={() => { setFilterStatus(status.value as any); setStatusDropdownOpen(false); }}
+                        className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-white/5 transition-colors ${
+                          filterStatus === status.value ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : ''
+                        }`}
+                      >
+                        {status.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Executor Filter */}
+          <div className="relative hidden md:block">
+            <button
+              onClick={() => setExecutorDropdownOpen(!executorDropdownOpen)}
+              className="flex items-center gap-1.5 px-3 h-10 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all duration-200 text-sm border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] backdrop-blur-xl"
+            >
+              <User className="w-4 h-4 flex-shrink-0" />
+              <span className="truncate max-w-[100px]">{filterExecutor ? people.find(p => p.id === filterExecutor)?.name || 'Все' : 'Все'}</span>
+              <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
+            </button>
+            {executorDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setExecutorDropdownOpen(false)} />
+                <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden max-h-64 overflow-y-auto">
+                  <div className="py-1">
+                    <button
+                      onClick={() => { setFilterExecutor(null); setExecutorDropdownOpen(false); }}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-white/5 transition-colors ${
+                        filterExecutor === null ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : ''
+                      }`}
+                    >
+                      Все исполнители
+                    </button>
+                    {people.length === 0 && (
+                      <div className="px-4 py-2 text-sm text-[var(--text-muted)] italic">
+                        Нет исполнителей
+                      </div>
+                    )}
+                    {people.map(person => (
+                      <button
+                        key={person.id}
+                        onClick={() => { setFilterExecutor(person.id); setExecutorDropdownOpen(false); }}
+                        className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-white/5 transition-colors ${
+                          filterExecutor === person.id ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : ''
+                        }`}
+                      >
+                        {person.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Archive Toggle */}
+          <button
+            onClick={() => setShowArchive(!showArchive)}
+            className={`hidden md:flex w-10 h-10 items-center justify-center rounded-[20px] transition-all duration-200 border flex-shrink-0 backdrop-blur-xl ${
+              showArchive
+                ? 'bg-blue-500/20 text-blue-400 border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)]'
+                : 'bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)]'
+            }`}
+            title={showArchive ? 'Скрыть архив' : 'Показать архив'}
+          >
+            <Archive className="w-4 h-4" />
           </button>
         </div>
       </div>
 
       {/* Kanban Board */}
-      <div className="flex-1 min-h-0 pb-36 md:pb-16 overflow-y-auto md:overflow-y-auto">
+      <div className="flex-1 min-h-0 pb-20 md:pb-16 pt-[60px] overflow-y-auto md:overflow-y-auto">
         <div 
           ref={boardRef}
-          className="px-1 sm:px-4 py-2 sm:py-4 flex flex-col md:flex-row gap-2 sm:gap-4 md:overflow-x-auto scrollbar-hide"
+          className="px-0 sm:px-4 py-2 sm:py-4 flex flex-col md:flex-row gap-3 sm:gap-4 md:overflow-x-auto scrollbar-hide"
           style={{ cursor: typeof window !== 'undefined' && window.innerWidth >= 768 ? 'grab' : 'default' }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
@@ -3135,11 +3073,11 @@ export default function TodosPage() {
                     handleListDrop(e, list);
                   }
                 }}
-                className={`flex-shrink-0 w-full md:w-80 flex flex-col rounded-xl transition-all ${
+                className={`flex-shrink-0 w-full md:w-80 flex flex-col rounded-xl transition-[opacity,transform] ${
                   isNotSelectedOnMobile ? 'hidden md:flex' : 'flex'
                 } ${
                   isDropTarget ? 'ring-2 ring-white/30 ring-opacity-50' : ''
-                } ${isListDropTarget ? 'ring-2 ring-blue-500/50' : ''} ${draggedList?.id === list.id ? 'opacity-50 scale-95' : ''}`}
+                } ${isListDropTarget ? 'ring-2 ring-blue-500/50' : ''} ${draggedList?.id === list.id ? 'opacity-50 scale-95' : ''} mt-[10px] md:mt-0`}
                 onDragEnter={(e) => handleDragEnter(e, list.id)}
                 onDragLeave={handleDragLeave}
               >
@@ -3148,7 +3086,7 @@ export default function TodosPage() {
                   draggable={typeof window !== 'undefined' && window.innerWidth >= 768}
                   onDragStart={(e) => handleListDragStart(e, list)}
                   onDragEnd={handleListDragEnd}
-                  className="bg-gradient-to-br from-white/5 to-white/10 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm rounded-t-xl p-2 sm:p-2.5 flex-shrink-0 md:cursor-grab md:active:cursor-grabbing"
+                  className="bg-[var(--bg-secondary)] border-x border-t border-[var(--border-color)] rounded-t-xl p-2 sm:p-2.5 flex-shrink-0 md:cursor-grab md:active:cursor-grabbing"
                 >
                   <div className="flex items-center justify-between pointer-events-none">
                     <div className="flex items-center gap-1.5 sm:gap-1.5">
@@ -3226,7 +3164,7 @@ export default function TodosPage() {
                             setNewTodoAssigneeId(list.defaultExecutorId);
                           }
                         }}
-                        className="flex-shrink-0 w-7 h-7 bg-[var(--bg-glass)] hover:bg-green-500/30 rounded-full transition-all duration-200 text-green-400 flex items-center justify-center border border-[var(--border-glass)] backdrop-blur-sm"
+                        className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-all bg-gradient-to-br from-white/10 to-white/5 hover:from-green-500/20 hover:to-green-500/10 border border-white/20 hover:border-green-500/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-md text-green-400"
                         title="Добавить задачу"
                       >
                         <Plus className="w-3.5 h-3.5" />
@@ -3235,7 +3173,7 @@ export default function TodosPage() {
                       <div className="relative">
                         <button
                           onClick={() => setShowListMenu(showListMenu === list.id ? null : list.id)}
-                          className="w-7 h-7 bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] rounded-full transition-all duration-200 text-[var(--text-muted)] hover:text-[var(--text-secondary)] flex items-center justify-center border border-[var(--border-glass)] backdrop-blur-sm"
+                          className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-gradient-to-br from-white/10 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-md text-[var(--text-primary)]"
                           title="Действия со списком"
                         >
                           <MoreVertical className="w-3.5 h-3.5" />
@@ -3297,7 +3235,7 @@ export default function TodosPage() {
                         value={newTodoDescription}
                         onChange={(e) => setNewTodoDescription(e.target.value)}
                         rows={2}
-                        className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg mb-2 focus:outline-none focus:border-white/30 resize-none text-sm"
+                        className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-[20px] mb-2 focus:outline-none focus:border-white/30 resize-none text-sm"
                       />
                       {/* Выбор исполнителя */}
                       <div className="relative mb-2">
@@ -3561,10 +3499,10 @@ export default function TodosPage() {
             </div>
           )}
 
-          {/* Add List Form */}
+          {/* Add List Form - оптимизировано для мобильных */}
           {showAddList && (
-            <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 pt-20 md:relative md:inset-auto md:bg-transparent md:p-0 md:pt-0 md:flex-shrink-0 md:w-80">
-              <div className="w-full max-w-sm md:max-w-none bg-white dark:bg-[var(--bg-tertiary)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl p-4 shadow-2xl md:shadow-none max-h-[80vh] overflow-y-auto md:max-h-none md:overflow-visible">
+            <div className="fixed inset-0 bg-black/50 z-50 flex flex-col md:relative md:inset-auto md:bg-transparent md:z-auto p-0 md:p-0">
+              <div className="bg-white dark:bg-[var(--bg-tertiary)] border border-gray-200 dark:border-[var(--border-color)] rounded-t-3xl md:rounded-xl p-4 md:p-4 shadow-2xl md:shadow-none max-h-[90vh] md:max-h-none overflow-y-auto md:overflow-visible flex-1 md:flex-none w-80">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-gray-900 dark:text-[var(--text-primary)]">Новый список</h3>
                   <button 
@@ -3588,7 +3526,7 @@ export default function TodosPage() {
                 value={newListDescription}
                 onChange={(e) => setNewListDescription(e.target.value)}
                 rows={3}
-                className="w-full px-3 py-2.5 bg-gray-50 dark:bg-[var(--bg-secondary)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl mb-3 focus:outline-none focus:border-blue-500 dark:focus:border-[var(--accent-primary)] text-gray-900 dark:text-[var(--text-primary)] resize-none"
+                className="w-full px-3 py-2.5 bg-gray-50 dark:bg-[var(--bg-secondary)] border border-gray-200 dark:border-[var(--border-color)] rounded-[20px] mb-3 focus:outline-none focus:border-blue-500 dark:focus:border-[var(--accent-primary)] text-gray-900 dark:text-[var(--text-primary)] resize-none"
               />
               <div className="mb-4">
                 <label className="block text-sm text-gray-500 dark:text-[var(--text-muted)] mb-2">Цвет</label>
@@ -3889,15 +3827,15 @@ export default function TodosPage() {
 
       {/* Edit Todo Modal */}
       {editingTodo && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <div className="bg-white dark:bg-gradient-to-b dark:from-[#1a1a1a] dark:to-[#151515] border border-gray-200 dark:border-[var(--border-color)] w-full max-w-[1400px] h-full max-h-[95vh] shadow-2xl flex flex-col rounded-xl overflow-hidden">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex z-[100] md:p-4">
+          <div className="bg-white dark:bg-gradient-to-b dark:from-[#1a1a1a] dark:to-[#151515] border-0 md:border md:border-gray-200 md:dark:border-[var(--border-color)] md:rounded-2xl w-full h-full md:shadow-2xl flex flex-col overflow-hidden select-none">
             {/* Шапка */}
-            <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-gray-200 dark:border-[var(--border-color)] bg-gray-50 dark:bg-white/[0.02] flex-shrink-0">
+            <div className="flex items-center justify-between px-0 sm:px-4 py-2.5 border-b border-gray-200 dark:border-[var(--border-color)] bg-gray-50 dark:bg-white/[0.02] flex-shrink-0 select-none">
               <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                 <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center border border-gray-200 dark:border-[var(--border-color)]">
                   <Edit3 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-500 dark:text-blue-400" />
                 </div>
-                <h3 className="font-medium text-sm text-gray-900 dark:text-white">Редактировать задачу</h3>
+                <h3 className="hidden sm:inline font-medium text-sm text-gray-900 dark:text-white select-none">Редактировать задачу</h3>
                 {/* Кнопка выполнения в шапке - хорошо видна */}
                 <button
                   onClick={() => {
@@ -3905,7 +3843,7 @@ export default function TodosPage() {
                     setEditingTodo({ ...editingTodo, completed: newCompleted });
                     toggleTodo(editingTodo);
                   }}
-                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-[background-color,color] select-none ${
                     editingTodo.completed
                       ? 'bg-green-500/30 text-green-300 ring-1 ring-green-500/50 hover:bg-green-500/40'
                       : 'bg-[var(--bg-glass)] text-[var(--text-secondary)] hover:bg-green-500/20 hover:text-green-400 ring-1 ring-white/10'
@@ -3924,19 +3862,24 @@ export default function TodosPage() {
               </button>
             </div>
             
-            {/* Три колонки - адаптивно */}
-            <div className="flex flex-1 flex-col lg:flex-row min-h-0 overflow-hidden">
+            {/* Три колонки - адаптивно с регулируемой шириной */}
+            <div className="flex flex-1 flex-col lg:flex-row min-h-0 overflow-y-auto lg:overflow-hidden relative">
               {/* Левый блок - основные поля */}
-              <div className="w-full lg:flex-1 border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-[var(--border-color)] flex-shrink-0 bg-gray-50 dark:bg-[var(--bg-secondary)] order-2 lg:order-1 overflow-y-auto">
-                <div className="p-2 sm:p-3 space-y-2 sm:space-y-3">
+              <div 
+                className="w-full border-b-0 lg:border-b-0 lg:border-r border-gray-200 dark:border-[var(--border-color)] flex-shrink-0 bg-gray-50 dark:bg-[var(--bg-secondary)] order-2 lg:order-1 lg:overflow-y-auto"
+                style={{ 
+                  width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? `${columnWidths[0]}%` : '100%'
+                }}
+              >
+                <div className="p-0 sm:p-3 space-y-2 sm:space-y-3">
                 {/* Статус */}
                 <div>
-                  <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide">Статус</label>
+                  <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide select-none">Статус</label>
                   <div className="flex gap-1.5 flex-wrap">
                     <button
                       type="button"
                       onClick={() => setEditingTodo({ ...editingTodo, status: 'pending' })}
-                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
+                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-[background-color,color] select-none ${
                         !editingTodo.status || editingTodo.status === 'pending' 
                           ? 'bg-gradient-to-br from-orange-500/20 to-orange-600/30 text-orange-500 dark:text-orange-400 ring-1 ring-orange-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
                           : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-orange-500/10 hover:to-orange-600/20 hover:text-orange-500 dark:hover:text-orange-400 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
@@ -3947,7 +3890,7 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => setEditingTodo({ ...editingTodo, status: 'in-progress' })}
-                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
+                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-[background-color,color] select-none ${
                         editingTodo.status === 'in-progress' 
                           ? 'bg-gradient-to-br from-blue-500/20 to-blue-600/30 text-blue-500 dark:text-blue-400 ring-1 ring-blue-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
                           : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-blue-500/10 hover:to-blue-600/20 hover:text-blue-500 dark:hover:text-blue-400 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
@@ -3958,7 +3901,7 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => setEditingTodo({ ...editingTodo, status: 'review' })}
-                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
+                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-[background-color,color] select-none ${
                         editingTodo.status === 'review' 
                           ? 'bg-gradient-to-br from-green-500/20 to-green-600/30 text-green-500 dark:text-green-400 ring-1 ring-green-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
                           : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-green-500/10 hover:to-green-600/20 hover:text-green-500 dark:hover:text-green-400 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
@@ -3969,7 +3912,7 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => setEditingTodo({ ...editingTodo, status: 'cancelled' })}
-                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
+                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-[background-color,color] select-none ${
                         editingTodo.status === 'cancelled' 
                           ? 'bg-gradient-to-br from-red-500/20 to-red-600/30 text-red-500 dark:text-red-400 ring-1 ring-red-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
                           : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-red-500/10 hover:to-red-600/20 hover:text-red-500 dark:hover:text-red-400 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
@@ -3980,7 +3923,7 @@ export default function TodosPage() {
                     <button
                       type="button"
                       onClick={() => setEditingTodo({ ...editingTodo, status: 'stuck' })}
-                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
+                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-[background-color,color] select-none ${
                         editingTodo.status === 'stuck' 
                           ? 'bg-gradient-to-br from-yellow-500/20 to-yellow-600/30 text-yellow-500 ring-1 ring-yellow-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
                           : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-yellow-500/10 hover:to-yellow-600/20 hover:text-yellow-500 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
@@ -3991,12 +3934,11 @@ export default function TodosPage() {
                   </div>
                   {editingTodo.status === 'review' && (
                     <div className="mt-2">
-                      <label className="block text-[10px] font-medium text-gray-500 dark:text-[var(--text-muted)] mb-1">Комментарий руководителя</label>
+                      <label className="block text-[10px] font-medium text-gray-500 dark:text-[var(--text-muted)] mb-1 select-none">Комментарий руководителя</label>
                       <textarea
                         value={editingTodo.reviewComment || ''}
                         onChange={(e) => setEditingTodo({ ...editingTodo, reviewComment: e.target.value })}
-                        className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm focus:outline-none focus:border-blue-500/50 transition-all text-gray-700 dark:text-[var(--text-secondary)] placeholder-gray-400 dark:placeholder-white/30 resize-none whitespace-pre-wrap break-words shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
-                        style={{ borderRadius: '12px' }}
+                        className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 rounded-[20px] text-sm focus:outline-none focus:border-blue-500/50 transition-all text-gray-700 dark:text-[var(--text-secondary)] placeholder-gray-400 dark:placeholder-white/30 resize-none whitespace-pre-wrap break-words shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
                         placeholder="Комментарий или замечания..."
                         rows={2}
                       />
@@ -4009,7 +3951,7 @@ export default function TodosPage() {
                   {/* От кого и Делегировано */}
                   <div className="grid grid-cols-2 gap-2">
                   <div className="relative">
-                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
+                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1 select-none">
                       <User className="w-2.5 h-2.5" />
                       От кого
                     </label>
@@ -4019,7 +3961,7 @@ export default function TodosPage() {
                       className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all text-gray-900 dark:text-[var(--text-primary)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm overflow-hidden"
                       style={{ borderRadius: '35px' }}
                     >
-                      <span className={`truncate ${editingTodo.assignedById ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
+                      <span className={`truncate whitespace-nowrap ${editingTodo.assignedById ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
                         {editingTodo.assignedBy || 'Не выбран'}
                       </span>
                       <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform ${openDropdown === 'assignedBy' ? 'rotate-180' : ''}`} />
@@ -4074,7 +4016,7 @@ export default function TodosPage() {
                     )}
                   </div>
                   <div className="relative">
-                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
+                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1 select-none">
                       <User className="w-2.5 h-2.5" />
                       Делегировано
                     </label>
@@ -4084,7 +4026,7 @@ export default function TodosPage() {
                       className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all text-gray-900 dark:text-[var(--text-primary)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm overflow-hidden"
                       style={{ borderRadius: '35px' }}
                     >
-                      <span className={`truncate ${editingTodo.delegatedById ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
+                      <span className={`truncate whitespace-nowrap ${editingTodo.delegatedById ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
                         {editingTodo.delegatedBy || 'Не выбран'}
                       </span>
                       <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform ${openDropdown === 'delegatedBy' ? 'rotate-180' : ''}`} />
@@ -4142,7 +4084,7 @@ export default function TodosPage() {
                   
                   {/* Исполнители - отдельная строка */}
                   <div className="relative">
-                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
+                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1 select-none">
                       <UserCheck className="w-2.5 h-2.5" />
                       Исполнители
                     </label>
@@ -4286,7 +4228,7 @@ export default function TodosPage() {
                 {/* Приоритет и Срок */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide">Приоритет</label>
+                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide select-none">Приоритет</label>
                     <div className="flex gap-1.5">
                       {(['low', 'medium', 'high'] as const).map((p) => (
                         <button
@@ -4315,7 +4257,7 @@ export default function TodosPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
+                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1 select-none">
                       <Clock className="w-2.5 h-2.5" />
                       Срок
                     </label>
@@ -4332,7 +4274,7 @@ export default function TodosPage() {
                 {/* Список и Категория */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="relative">
-                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
+                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1 select-none">
                       <Inbox className="w-2.5 h-2.5" />
                       Список
                     </label>
@@ -4342,15 +4284,15 @@ export default function TodosPage() {
                       className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm overflow-hidden"
                       style={{ borderRadius: '35px' }}
                     >
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
                         {(() => {
                           const list = lists.find(l => l.id === editingTodo.listId);
                           return list ? (
                             <>
-                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: list.color }} />
-                              <span className="text-[var(--text-primary)] text-xs">{list.name}</span>
+                              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: list.color }} />
+                              <span className="text-[var(--text-primary)] text-xs truncate whitespace-nowrap">{list.name}</span>
                             </>
-                          ) : <span className="text-[var(--text-muted)] text-xs">Выберите список</span>;
+                          ) : <span className="text-[var(--text-muted)] text-xs whitespace-nowrap">Выберите список</span>;
                         })()}
                       </div>
                       <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform ${openDropdown === 'list' ? 'rotate-180' : ''}`} />
@@ -4378,7 +4320,7 @@ export default function TodosPage() {
                   </div>
 
                   <div className="relative">
-                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
+                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1 select-none">
                       <Tag className="w-2.5 h-2.5" />
                       Категория
                     </label>
@@ -4388,15 +4330,15 @@ export default function TodosPage() {
                       className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm overflow-hidden"
                       style={{ borderRadius: '35px' }}
                     >
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
                         {(() => {
                           const cat = categories.find(c => c.id === editingTodo.categoryId);
                           return cat ? (
                             <>
-                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
-                              <span className="text-[var(--text-primary)] text-xs">{cat.name}</span>
+                              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+                              <span className="text-[var(--text-primary)] text-xs truncate whitespace-nowrap">{cat.name}</span>
                             </>
-                          ) : <span className="text-[var(--text-muted)] text-xs">Без категории</span>;
+                          ) : <span className="text-[var(--text-muted)] text-xs whitespace-nowrap">Без категории</span>;
                         })()}
                       </div>
                       <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform ${openDropdown === 'category' ? 'rotate-180' : ''}`} />
@@ -4438,7 +4380,7 @@ export default function TodosPage() {
 
                 {/* Прикреплённая ссылка */}
                 <div className="relative">
-                  <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
+                  <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1 select-none">
                     <Link2 className="w-2.5 h-2.5" />
                     Прикреплённая ссылка
                   </label>
@@ -4483,23 +4425,33 @@ export default function TodosPage() {
                         <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform ${openDropdown === 'link' ? 'rotate-180' : ''}`} />
                       </button>
                       {openDropdown === 'link' && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-gradient-to-br from-white/10 to-white/5 border border-white/20 rounded-lg shadow-xl z-50 max-h-60 overflow-hidden flex flex-col backdrop-blur-xl">
-                          <div className="p-2 border-b border-[var(--border-color)]">
-                            <div className="flex items-center gap-2 px-2 py-1.5 bg-[var(--bg-glass)] rounded-[25px] border border-[var(--border-color)]">
-                              <Search className="w-3 h-3 text-[var(--text-muted)]" />
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-gradient-to-br from-[#1e293b]/95 to-[#0f172a]/95 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl z-50 max-h-[300px] overflow-hidden flex flex-col">
+                          {/* Search & Tabs */}
+                          <div className="p-3 border-b border-white/10 space-y-2 bg-white/5">
+                             <div className="flex items-center gap-2 px-3 py-2 bg-black/20 rounded-xl border border-white/5">
+                              <Search className="w-3.5 h-3.5 text-white/40" />
                               <input
                                 type="text"
                                 value={linksSearchQuery}
                                 onChange={(e) => setLinksSearchQuery(e.target.value)}
                                 placeholder="Поиск ссылки..."
-                                className="bg-transparent text-xs text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 outline-none flex-1"
+                                className="bg-transparent text-xs text-white placeholder-white/30 outline-none flex-1"
                                 autoFocus
                               />
                             </div>
+                            
+                            {/* Mock Tabs for visual consistency with Messages Picker */}
+                             <div className="flex p-0.5 gap-0.5 bg-black/20 rounded-lg border border-white/5 mx-1">
+                                <button className="flex-1 py-1.5 text-[10px] font-medium text-white bg-white/10 rounded shadow-sm border border-white/10">Все</button>
+                                <button className="flex-1 py-1.5 text-[10px] font-medium text-white/40 hover:text-white/70">Люди</button>
+                                <button className="flex-1 py-1.5 text-[10px] font-medium text-white/40 hover:text-white/70">Отделы</button>
+                             </div>
                           </div>
-                          <div className="overflow-y-auto flex-1">
+                          
+                          <div className="overflow-y-auto flex-1 p-1 custom-scrollbar">
                             {availableLinks.length === 0 ? (
-                              <div className="px-3 py-4 text-center text-[var(--text-muted)] text-xs">
+                              <div className="px-3 py-6 text-center text-white/30 text-xs flex flex-col items-center gap-2">
+                                <Link2 className="w-6 h-6 opacity-20" /> 
                                 Нет сохранённых ссылок
                               </div>
                             ) : (
@@ -4509,7 +4461,7 @@ export default function TodosPage() {
                                   link.title.toLowerCase().includes(linksSearchQuery.toLowerCase()) ||
                                   link.url.toLowerCase().includes(linksSearchQuery.toLowerCase())
                                 )
-                                .slice(0, 20)
+                                .slice(0, 50)
                                 .map(link => (
                                   <button
                                     key={link.id}
@@ -4524,16 +4476,14 @@ export default function TodosPage() {
                                       setOpenDropdown(null);
                                       setLinksSearchQuery('');
                                     }}
-                                    className="w-full px-3 py-2 text-left hover:bg-[var(--bg-glass)] transition-colors flex items-center gap-2 border-b border-[var(--border-secondary)] last:border-0"
+                                    className="w-full px-3 py-2.5 text-left hover:bg-white/10 transition-all flex items-start gap-3 rounded-lg group"
                                   >
-                                    {link.favicon ? (
-                                      <img src={link.favicon} alt="" className="w-4 h-4 rounded flex-shrink-0" />
-                                    ) : (
-                                      <Link2 className="w-4 h-4 text-[var(--text-muted)] flex-shrink-0" />
-                                    )}
+                                    <div className="w-7 h-7 rounded-lg bg-indigo-500/20 flex items-center justify-center flex-shrink-0 border border-indigo-500/20 mt-0.5 group-hover:border-indigo-500/40">
+                                       <Link2 className="w-3.5 h-3.5 text-indigo-400" />
+                                    </div>
                                     <div className="flex-1 min-w-0">
-                                      <div className="text-xs text-[var(--text-primary)] truncate">{link.title}</div>
-                                      <div className="text-[10px] text-[var(--text-muted)] truncate">{link.url}</div>
+                                      <div className="text-xs font-medium text-white/90 truncate group-hover:text-cyan-200 transition-colors">{link.title || link.url}</div>
+                                      <div className="text-[10px] text-white/40 truncate font-mono mt-0.5">{link.url}</div>
                                     </div>
                                   </button>
                                 ))
@@ -4548,7 +4498,7 @@ export default function TodosPage() {
                 {/* Поместить на календарь */}
                 <div className="mt-2">
                   <label 
-                    className="flex items-center gap-2 cursor-pointer group"
+                    className="flex items-center gap-2 cursor-pointer group select-none"
                     onClick={() => setEditingTodo({ ...editingTodo, addToCalendar: !editingTodo.addToCalendar })}
                   >
                     <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
@@ -4570,6 +4520,32 @@ export default function TodosPage() {
                       )}
                     </div>
                   </label>
+                  {editingTodo.addToCalendar && (
+                    <div className="mt-2 ml-7">
+                      <label className="text-[10px] text-[var(--text-muted)] mb-1 block select-none">Календарь</label>
+                      {calendarLists.length === 0 ? (
+                        <p className="text-[10px] text-[var(--text-muted)] italic">Нет доступных календарей</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {calendarLists.map(list => (
+                            <button
+                              key={list.id}
+                              type="button"
+                              onClick={() => setEditingTodo({ ...editingTodo, calendarListId: list.id })}
+                              className={`px-2.5 py-1.5 rounded-full text-[11px] font-medium transition-[background-color,color] select-none whitespace-nowrap ${
+                                editingTodo.calendarListId === list.id || (!editingTodo.calendarListId && list.id === calendarLists[0]?.id)
+                                  ? 'bg-purple-500 text-white shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)]'
+                                  : 'bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-[var(--text-secondary)] hover:border-purple-500/30'
+                              }`}
+                              title={list.name}
+                            >
+                              {list.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {editingTodo.calendarEventId && (
                     <div className="mt-1.5 flex items-center gap-1 text-[10px] text-green-400">
                       <Check className="w-3 h-3" />
@@ -4588,16 +4564,36 @@ export default function TodosPage() {
               </div>
               </div>
 
+              {/* Resize handle between left and center */}
+              <div 
+                className="hidden lg:block w-1 cursor-col-resize bg-transparent hover:bg-blue-500/30 active:bg-blue-500/50 transition-colors relative z-10 flex-shrink-0 group"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  resizeStartXRef.current = e.clientX;
+                  resizeStartWidthsRef.current = columnWidths;
+                  setIsResizing(0);
+                }}
+                title="Перетащите для изменения ширины"
+              >
+                <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-4 flex items-center justify-center">
+                  <div className="w-0.5 h-6 bg-gray-300 dark:bg-white/20 group-hover:bg-blue-500 transition-colors rounded-full"></div>
+                </div>
+              </div>
+
               {/* Средний блок - Название и Описание */}
-              <div className="w-full lg:flex-1 flex flex-col bg-white dark:bg-[var(--bg-secondary)] border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-[var(--border-color)] order-1 lg:order-2">
+              <div 
+                className="w-full flex flex-col bg-white dark:bg-[var(--bg-secondary)] border-b-0 lg:border-b-0 lg:border-r border-gray-200 dark:border-[var(--border-color)] order-1 lg:order-2"
+                style={{ 
+                  width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? `${columnWidths[1]}%` : '100%'
+                }}
+              >
                 {/* Название задачи */}
                 <div className="px-2 sm:px-3 pt-2 sm:pt-3 pb-1.5 sm:pb-2">
                   <input
                     type="text"
                     value={editingTodo.title}
                     onChange={(e) => setEditingTodo({ ...editingTodo, title: e.target.value })}
-                    className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-base sm:text-lg font-medium focus:outline-none focus:border-blue-500/50 transition-all text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
-                    style={{ borderRadius: '35px' }}
+                    className="no-mobile-scale w-full px-4 py-3 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 rounded-[20px] text-xl sm:text-2xl font-semibold focus:outline-none focus:border-blue-500/50 transition-all text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
                     placeholder="Название задачи..."
                   />
                 </div>
@@ -5118,7 +5114,7 @@ export default function TodosPage() {
                     <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500 dark:text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                     </svg>
-                    <span className="text-xs text-gray-500 dark:text-white/50">Вложения</span>
+                    <span className="text-xs text-gray-500 dark:text-white/50 select-none">Вложения</span>
                     {editingTodo.attachments && editingTodo.attachments.length > 0 && (
                       <span className="text-[10px] bg-[var(--bg-glass-hover)] text-white/50 px-1.5 py-0.5 rounded-full">
                         {editingTodo.attachments.length}
@@ -5227,13 +5223,34 @@ export default function TodosPage() {
                 </div>
               </div>
 
+              {/* Resize handle between center and right */}
+              <div 
+                className="hidden lg:block w-1 cursor-col-resize bg-transparent hover:bg-blue-500/30 active:bg-blue-500/50 transition-colors relative z-10 flex-shrink-0 group"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  resizeStartXRef.current = e.clientX;
+                  resizeStartWidthsRef.current = columnWidths;
+                  setIsResizing(1);
+                }}
+                title="Перетащите для изменения ширины"
+              >
+                <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-4 flex items-center justify-center">
+                  <div className="w-0.5 h-6 bg-gray-300 dark:bg-white/20 group-hover:bg-blue-500 transition-colors rounded-full"></div>
+                </div>
+              </div>
+
               {/* Правый блок - Комментарии */}
-              <div className="w-full lg:flex-1 flex flex-col bg-[var(--bg-secondary)] order-3 lg:order-3">
+              <div 
+                className="w-full flex flex-col bg-[var(--bg-secondary)] order-3 lg:order-3"
+                style={{ 
+                  width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? `${columnWidths[2]}%` : '100%'
+                }}
+              >
                 {/* Заголовок */}
                 <div className="px-3 py-2 border-b border-[var(--border-color)] flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <MessageCircle className="w-4 h-4 text-blue-400" />
-                    <span className="text-xs font-medium text-[var(--text-secondary)]">Комментарии</span>
+                    <span className="text-xs font-medium text-[var(--text-secondary)] select-none">Комментарии</span>
                     {(editingTodo.comments?.length || 0) > 0 && (
                       <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full">
                         {editingTodo.comments?.length}
@@ -5309,7 +5326,7 @@ export default function TodosPage() {
                                     <textarea
                                       value={editingCommentText}
                                       onChange={(e) => setEditingCommentText(e.target.value)}
-                                      className="w-full px-2 py-1 bg-[var(--bg-glass-hover)] border border-[var(--border-light)] rounded text-xs text-[var(--text-primary)] resize-none focus:outline-none whitespace-pre-wrap break-words"
+                                      className="w-full px-2 py-1 bg-[var(--bg-glass-hover)] border border-[var(--border-light)] rounded-[20px] text-xs text-[var(--text-primary)] resize-none focus:outline-none whitespace-pre-wrap break-words"
                                       rows={2}
                                       autoFocus
                                     />
@@ -5519,7 +5536,7 @@ export default function TodosPage() {
                           }
                         }}
                         placeholder="Написать... (@упомянуть)"
-                        className="w-full px-3 py-2 pr-12 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl text-xs text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 resize-none focus:outline-none focus:border-blue-500/30 transition-all whitespace-pre-wrap break-words"
+                        className="w-full px-3 py-2 pr-12 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-[20px] text-xs text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 resize-none focus:outline-none focus:border-blue-500/30 transition-all whitespace-pre-wrap break-words"
                         rows={1}
                         style={{
                           minHeight: '40px',
@@ -5614,15 +5631,15 @@ export default function TodosPage() {
             </div>
             
             {/* Футер */}
-            <div className="sticky bottom-0 flex flex-col sm:flex-row justify-between items-center gap-2 px-4 py-3 border-t border-[var(--border-color)] bg-[#1a1a1a]/95 backdrop-blur-xl">
+            <div className="sticky bottom-0 flex flex-col sm:flex-row justify-between items-center gap-2 px-4 py-3 border-t border-[var(--border-color)] bg-[var(--bg-secondary)]/95 backdrop-blur-xl">
               <div className="text-[10px] text-[var(--text-muted)] w-full sm:w-auto text-center sm:text-left">
                 Создано: {new Date(editingTodo.createdAt).toLocaleDateString('ru-RU')}
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
                 <button
                   onClick={closeTodoModal}
-                  className="flex-1 sm:flex-none px-3 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-glass)] transition-all text-sm font-medium shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm bg-gradient-to-br from-white/5 to-white/10 border border-white/10"
-                  style={{ borderRadius: '12px' }}
+                  className="flex-1 sm:flex-none px-6 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-glass)] transition-all text-sm font-medium shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm bg-gradient-to-br from-white/5 to-white/10 border border-white/10"
+                  style={{ borderRadius: '50px' }}
                 >
                   Отмена
                 </button>
@@ -5645,8 +5662,8 @@ export default function TodosPage() {
                     
                     updateTodo(updatedTodo);
                   }}
-                  className="flex-1 sm:flex-none px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white transition-all text-sm font-medium shadow-lg"
-                  style={{ borderRadius: '12px' }}
+                  className="flex-1 sm:flex-none px-8 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white transition-all text-sm font-medium shadow-lg"
+                  style={{ borderRadius: '50px' }}
                 >
                   Сохранить
                 </button>
@@ -5658,8 +5675,8 @@ export default function TodosPage() {
 
       {/* Category Manager Modal */}
       {showCategoryManager && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4">
+          <div className="bg-[var(--bg-tertiary)] border-0 sm:border border-[var(--border-color)] rounded-t-2xl sm:rounded-xl w-full max-w-lg max-h-[95vh] sm:max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
               <h3 className="font-semibold flex items-center gap-2">
                 <Settings className="w-5 h-5 text-[var(--text-secondary)]" />
@@ -5850,8 +5867,8 @@ export default function TodosPage() {
 
       {/* People Manager Modal */}
       {showPeopleManager && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4">
+          <div className="bg-[var(--bg-tertiary)] border-0 sm:border border-[var(--border-color)] rounded-t-2xl sm:rounded-xl w-full max-w-lg max-h-[95vh] sm:max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
               <h3 className="font-semibold flex items-center gap-2">
                 <Users className="w-5 h-5 text-[var(--text-secondary)]" />
@@ -6109,10 +6126,193 @@ export default function TodosPage() {
         </div>
       )}
 
+      {/* Mobile Filters Modal */}
+      {showMobileFiltersModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50 backdrop-blur-sm">
+          <div className="bg-[var(--bg-tertiary)] border-t border-[var(--border-color)] rounded-t-2xl w-full max-h-[85vh] flex flex-col shadow-2xl animate-slide-up">
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
+              <h3 className="font-semibold flex items-center gap-2 text-[var(--text-primary)]">
+                <Filter className="w-5 h-5 text-cyan-400" />
+                Фильтры
+              </h3>
+              <div className="flex items-center gap-2">
+                {(filterStatus !== 'all' || filterExecutor !== 'all' || searchQuery) && (
+                  <button 
+                    onClick={() => {
+                      setFilterStatus('all');
+                      setFilterExecutor('all');
+                      setSearchQuery('');
+                    }}
+                    className="text-xs text-[var(--text-muted)] hover:text-white transition-colors"
+                  >
+                    Сбросить
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowMobileFiltersModal(false)}
+                  className="p-1 hover:bg-[var(--bg-glass)] rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-[var(--text-muted)]" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-4 space-y-6 overflow-y-auto">
+              {/* Поиск */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Поиск</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Поиск по задачам..."
+                    className="w-full pl-9 pr-4 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl text-sm focus:outline-none focus:border-cyan-500/50 transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Статус */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Статус</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: 'all', label: 'Все статусы' }, 
+                    { value: 'todo', label: 'К выполнению' }, 
+                    { value: 'pending', label: 'В ожидании' }, 
+                    { value: 'in-progress', label: 'В работе' }, 
+                    { value: 'review', label: 'На проверке' }
+                  ].map(status => (
+                    <button
+                      key={status.value}
+                      onClick={() => setFilterStatus(status.value as any)}
+                      className={`px-3 py-2 rounded-lg text-sm text-center transition-all border ${
+                        filterStatus === status.value
+                          ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300'
+                          : 'bg-[var(--bg-glass)] border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--border-light)]'
+                      }`}
+                    >
+                      {status.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Исполнитель */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Исполнитель</label>
+                <div className="space-y-1 max-h-48 overflow-y-auto p-1 custom-scrollbar">
+                  <button
+                    onClick={() => setFilterExecutor('all')}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all ${
+                      filterExecutor === 'all'
+                        ? 'bg-green-500/20 text-green-300'
+                        : 'hover:bg-[var(--bg-glass)] text-[var(--text-secondary)]'
+                    }`}
+                  >
+                    <span>Все исполнители</span>
+                    {filterExecutor === 'all' && <Check className="w-4 h-4" />}
+                  </button>
+                  {people.length === 0 ? (
+                    <div className="px-3 py-4 text-center text-sm text-[var(--text-muted)] bg-[var(--bg-secondary)] rounded-lg border border-dashed border-[var(--border-color)]">
+                      Нет доступных исполнителей
+                    </div>
+                  ) : (
+                    people.map(person => (
+                      <button
+                        key={person.id}
+                        onClick={() => setFilterExecutor(person.id)}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all ${
+                          filterExecutor === person.id
+                            ? 'bg-green-500/20 text-green-300'
+                            : 'hover:bg-[var(--bg-glass)] text-[var(--text-secondary)]'
+                        }`}
+                      >
+                        <span>{person.name || person.username}</span>
+                        {filterExecutor === person.id && <Check className="w-4 h-4" />}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-[var(--border-color)] bg-[var(--bg-secondary)]/50">
+              <button
+                onClick={() => setShowMobileFiltersModal(false)}
+                className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-medium rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all"
+              >
+                Применить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Archive Modal */}
+      {showMobileArchiveModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50 backdrop-blur-sm">
+          <div className="bg-[var(--bg-tertiary)] border-t border-[var(--border-color)] rounded-t-2xl w-full flex flex-col shadow-2xl animate-slide-up">
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
+              <h3 className="font-semibold flex items-center gap-2 text-[var(--text-primary)]">
+                <Archive className="w-5 h-5 text-orange-400" />
+                Архив
+              </h3>
+              <button
+                onClick={() => setShowMobileArchiveModal(false)}
+                className="p-1 hover:bg-[var(--bg-glass)] rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-[var(--text-muted)]" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div className="flex items-center justify-between p-4 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl">
+                <div className="flex-1">
+                  <div className="font-medium text-[var(--text-primary)] mb-1">Показывать архив</div>
+                  <div className="text-xs text-[var(--text-muted)]">
+                    Отображать скрытые списки и завершенные задачи
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer ml-4">
+                  <input
+                    type="checkbox"
+                    checked={showArchive}
+                    onChange={(e) => setShowArchive(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-[var(--bg-glass)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                </label>
+              </div>
+
+              <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl">
+                <h4 className="text-sm font-medium text-orange-400 mb-2 flex items-center gap-2">
+                  <Info className="w-4 h-4" />
+                  Как работает архив
+                </h4>
+                <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                  Архивированные списки скрыты с главной доски. В архиве вы можете просматривать старые задачи и при необходимости восстанавливать их.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-[var(--border-color)] bg-[var(--bg-secondary)]/50">
+              <button
+                onClick={() => setShowMobileArchiveModal(false)}
+                className="w-full py-3 bg-[var(--bg-glass-hover)] text-[var(--text-primary)] font-medium rounded-xl border border-[var(--border-color)] active:scale-95 transition-all"
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Telegram Settings Modal */}
       {showTelegramSettings && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl w-full max-w-md">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4">
+          <div className="bg-[var(--bg-tertiary)] border-0 sm:border border-[var(--border-color)] rounded-t-2xl sm:rounded-xl w-full max-w-md max-h-[95vh] sm:max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
               <h3 className="font-semibold flex items-center gap-2">
                 <Bot className="w-5 h-5 text-cyan-400" />
@@ -6195,8 +6395,8 @@ export default function TodosPage() {
         if (!settingsList) return null;
         
         return (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl w-full max-w-md max-h-[90vh] flex flex-col">
+          <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4">
+            <div className="bg-[var(--bg-tertiary)] border-0 sm:border border-[var(--border-color)] rounded-t-2xl sm:rounded-xl w-full max-w-md max-h-[95vh] sm:max-h-[90vh] flex flex-col">
               <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)] flex-shrink-0">
                 <h3 className="font-semibold flex items-center gap-2">
                   <Settings className="w-5 h-5 text-blue-400" />

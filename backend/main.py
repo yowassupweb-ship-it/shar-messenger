@@ -1717,6 +1717,16 @@ def get_user_statuses():
     
     return statuses
 
+@app.get("/api/departments")
+def get_departments():
+    """Получить список отделов из базы пользователей"""
+    try:
+        departments = db.get_departments()
+        return {"departments": [snake_to_camel(dept) for dept in departments]}
+    except Exception as e:
+        logger.error(f"Error fetching departments: {e}")
+        return {"departments": []}
+
 @app.get("/api/users/{user_id}")
 def get_user(user_id: str):
     """Получить пользователя по ID с динамическим isOnline"""
@@ -3488,7 +3498,7 @@ def get_todo_people():
             'telegramId': user.get('telegram_id'),
             'todoPersonId': user.get('todo_person_id'),
             'canSeeAllTasks': user.get('can_see_all_tasks', False),
-            'role': user.get('todo_role', 'universal'),  # используем todo_role
+            'role': user.get('todo_role') or 'universal',  # используем todo_role
             'lastSeen': user.get('last_seen'),
             'isOnline': user.get('is_online', False)
         }

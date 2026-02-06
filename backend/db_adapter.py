@@ -113,6 +113,28 @@ if USE_POSTGRES:
         def update_user(self, user_id: str, updates: Dict[str, Any]):
             return self.db.update_user(user_id, updates)
         
+        def get_departments(self) -> List[Dict[str, Any]]:
+            """Get list of unique departments"""
+            if hasattr(self.db, 'get_departments'):
+                return self.db.get_departments()
+            else:
+                # Fallback for JSON database
+                users = self.db.get_users()
+                departments_set = set()
+                for user in users:
+                    dept = user.get('department')
+                    if dept:
+                        departments_set.add(dept)
+                
+                departments = []
+                for idx, dept_name in enumerate(sorted(departments_set)):
+                    departments.append({
+                        'id': dept_name.lower().replace(' ', '_'),
+                        'name': dept_name,
+                        'order': idx
+                    })
+                return departments
+        
         def get_chats(self, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
             return self.db.get_chats(user_id)
         

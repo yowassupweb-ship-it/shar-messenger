@@ -812,48 +812,49 @@ export default function EventsPage() {
   return (
     <div className="h-full flex flex-col text-white bg-[var(--bg-primary)]">
       {/* Header */}
-      <header className="backdrop-blur-xl bg-[var(--bg-secondary)]/60 border-b border-white/10 flex items-center px-3 sm:px-4 py-3 flex-shrink-0 relative z-40">
-        <Link
-          href="/"
-          className="flex items-center justify-center w-9 h-9 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-all mr-3"
-          title="На главную"
-        >
-          <ArrowLeft className="w-4 h-4" strokeWidth={2} />
-        </Link>
-        
-        <div className="flex items-center gap-2 mr-4">
-          <CalendarDays className="w-5 h-5 text-cyan-400" />
-          <span className="font-semibold text-base">Календарь событий</span>
-        </div>
-
-        {/* Search */}
-        <div className="relative mr-2 sm:mr-3 flex-1 sm:flex-initial">
-          <Search className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 sm:w-4 h-3.5 sm:h-4 text-white/40" />
-          <input
-            type="text"
-            placeholder="Поиск..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-7 sm:pl-9 pr-3 py-2 backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl w-full sm:w-48 text-xs sm:text-sm focus:outline-none focus:border-cyan-500/50 focus:bg-white/10 transition-all"
-          />
-        </div>
-
-        {/* Participant Filter */}
-        <div className="relative mr-2 sm:mr-3 hidden sm:block" ref={participantFilterRef}>
-          <button
-            onClick={() => setShowParticipantFilter(!showParticipantFilter)}
-            className={`px-2 sm:px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 sm:gap-2 border ${
-              participantFilter !== 'all'
-                ? 'backdrop-blur-xl bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
-                : 'backdrop-blur-xl bg-white/5 text-white/60 border-white/10 hover:bg-white/10'
-            }`}
+      <header className="flex-shrink-0 h-12 backdrop-blur-xl bg-white/15 dark:bg-black/15 border-b border-white/20 flex items-center px-4 z-40 relative">
+        <div className="flex items-center gap-3 w-full max-w-7xl mx-auto">
+          <Link
+            href="/"
+            className="flex items-center justify-center w-9 h-9 rounded-full bg-[var(--bg-glass)] border border-[var(--border-glass)] hover:bg-[var(--bg-glass-hover)] transition-all backdrop-blur-sm"
+            title="На главную"
           >
-            <Filter className="w-3.5 h-3.5" />
-            {participantFilter === 'all' 
-              ? 'Участник' 
-              : users.find(u => u.id === participantFilter)?.name || 'Участник'}
-            <ChevronDown className={`w-3 h-3 transition-transform ${ showParticipantFilter ? 'rotate-180' : ''}`} />
-          </button>
+            <ArrowLeft className="w-4 h-4" strokeWidth={2} />
+          </Link>
+          
+          <div className="flex items-center gap-2">
+            <CalendarDays className="w-5 h-5 text-cyan-400" />
+            <span className="font-semibold text-sm sm:text-base">Календарь событий</span>
+          </div>
+
+          {/* Search */}
+          <div className="relative flex-1 sm:flex-initial" style={{ maxWidth: '200px' }}>
+            <Search className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 sm:w-4 h-3.5 sm:h-4 text-[var(--text-muted)]" />
+            <input
+              type="text"
+              placeholder="Поиск..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-7 sm:pl-9 pr-3 py-1.5 bg-[var(--bg-glass)] border border-[var(--border-glass)] rounded-xl w-full text-xs sm:text-sm focus:outline-none focus:border-cyan-500/50 transition-all placeholder:text-[var(--text-muted)] backdrop-blur-sm"
+            />
+          </div>
+
+          {/* Participant Filter */}
+          <div className="relative hidden sm:block" ref={participantFilterRef}>
+            <button
+              onClick={() => setShowParticipantFilter(!showParticipantFilter)}
+              className={`px-2 sm:px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 sm:gap-2 border backdrop-blur-sm ${
+                participantFilter !== 'all'
+                  ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
+                  : 'bg-[var(--bg-glass)] border-[var(--border-glass)] hover:bg-[var(--bg-glass-hover)]'
+              }`}
+            >
+              <Filter className="w-3.5 h-3.5" />
+              {participantFilter === 'all' 
+                ? 'Участник' 
+                : users.find(u => u.id === participantFilter)?.name || 'Участник'}
+              <ChevronDown className={`w-3 h-3 transition-transform ${ showParticipantFilter ? 'rotate-180' : ''}`} />
+            </button>
           
           {showParticipantFilter && (
             <div className="absolute left-0 top-full mt-1 w-56 backdrop-blur-xl bg-[var(--bg-tertiary)]/95 border border-white/10 rounded-xl shadow-xl z-[60] py-1 max-h-64 overflow-y-auto">
@@ -890,27 +891,27 @@ export default function EventsPage() {
           )}
         </div>
 
-        <div className="flex-1" />
+          <div className="flex-1" />
 
-        {/* Controls */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => openAddEvent()}
-            className="px-3 py-2 backdrop-blur-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 text-cyan-400 hover:text-cyan-300 rounded-xl flex items-center gap-1.5 transition-all text-xs outline-none font-medium"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Добавить
-          </button>
-
-          {/* Tools Menu */}
-          <div className="relative" ref={settingsRef}>
+          {/* Controls */}
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="p-2 backdrop-blur-xl bg-white/5 hover:bg-white/10 rounded-xl text-xs transition-all flex items-center border border-white/10"
-              title="Инструменты"
+              onClick={() => openAddEvent()}
+              className="px-3 py-1.5 backdrop-blur-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 text-cyan-400 hover:text-cyan-300 rounded-xl flex items-center gap-1.5 transition-all text-xs outline-none font-medium"
             >
-              <Settings className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
+              Добавить
             </button>
+
+            {/* Tools Menu */}
+            <div className="relative" ref={settingsRef}>
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="p-2 backdrop-blur-xl bg-white/10 dark:bg-white/5 hover:bg-white/20 dark:hover:bg-white/10 rounded-xl text-xs transition-all flex items-center border border-white/20"
+                title="Инструменты"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
             
             {showSettings && (
               <div className="absolute right-0 top-full mt-1 w-64 backdrop-blur-xl bg-[var(--bg-tertiary)]/95 border border-white/10 rounded-xl shadow-2xl z-[60] py-1">
@@ -1018,50 +1019,40 @@ export default function EventsPage() {
             )}
           </div>
         </div>
+        </div>
       </header>
 
       {/* Mobile Month Switcher - только на мобильных */}
       <div className="md:hidden flex-shrink-0 bg-white/50 dark:bg-[var(--bg-tertiary)] backdrop-blur-md border-b border-gray-200/50 dark:border-[var(--border-color)]/50">
-        <div className="flex items-center gap-1 px-2 py-3">
-          {/* Левая стрелка - предыдущий месяц */}
-          <button
-            onClick={goToPreviousMonth}
-            className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all text-cyan-500 dark:text-cyan-400 bg-white/80 dark:bg-[var(--bg-secondary)]/80 shadow-sm hover:shadow-md active:scale-95"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-
-          {/* Скроллящийся список месяцев */}
-          <div 
-            className="flex-1 flex gap-2 items-center overflow-x-auto overflow-y-hidden justify-center"
-            style={{
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-              WebkitOverflowScrolling: 'touch',
-              touchAction: 'pan-x'
-            }}
-          >
-            {/* Кнопка Сегодня */}
+        <div className="flex items-center justify-between px-3 py-2">
+          
+          {/* Навигация по месяцам */}
+          <div className="flex items-center gap-1 bg-white/10 dark:bg-white/5 rounded-lg p-0.5 border border-gray-200 dark:border-white/10">
             <button
-              onClick={goToToday}
-              className="flex-shrink-0 px-4 py-2 text-xs font-medium transition-all rounded-xl bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30"
+              onClick={goToPreviousMonth}
+              className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white/20 active:bg-white/30 text-gray-600 dark:text-white/70 transition-all"
             >
-              Сегодня
+              <ChevronLeft className="w-4 h-4" />
             </button>
             
-            {/* Текущий месяц */}
-            <div className="flex-shrink-0 px-5 py-2.5 text-sm font-semibold bg-gradient-to-br from-cyan-500 to-cyan-600 text-white shadow-lg rounded-2xl flex items-center gap-2">
-              <CalendarIcon className="w-4 h-4" />
-              <span>{MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}</span>
-            </div>
+            <span className="text-sm font-semibold text-gray-800 dark:text-white/90 px-2 min-w-[110px] text-center">
+              {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
+            </span>
+
+            <button
+              onClick={goToNextMonth}
+              className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white/20 active:bg-white/30 text-gray-600 dark:text-white/70 transition-all"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
 
-          {/* Правая стрелка - следующий месяц */}
+          {/* Кнопка Сегодня */}
           <button
-            onClick={goToNextMonth}
-            className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all text-cyan-500 dark:text-cyan-400 bg-white/80 dark:bg-[var(--bg-secondary)]/80 shadow-sm hover:shadow-md active:scale-95"
+            onClick={goToToday}
+            className="px-3 py-1.5 text-xs font-medium bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 rounded-lg hover:bg-cyan-500/20 transition-all"
           >
-            <ChevronRight className="w-5 h-5" />
+            Сегодня
           </button>
         </div>
       </div>
@@ -1070,7 +1061,7 @@ export default function EventsPage() {
         <div className="flex flex-col lg:flex-row gap-3 sm:gap-6 relative">
           {/* Календарь */}
           <div className={`transition-all duration-300 w-full ${isSidebarCollapsed ? 'lg:flex-1 lg:max-w-4xl lg:mx-auto' : 'lg:flex-1'}`}>
-            <div className="backdrop-blur-xl bg-white/60 dark:bg-[var(--bg-secondary)]/60 border border-gray-200 dark:border-white/10 rounded-xl p-2 sm:p-4">
+            <div className="backdrop-blur-xl bg-gradient-to-br from-white/80 to-white/60 dark:from-white/15 dark:to-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-2 sm:p-4 shadow-sm dark:shadow-[inset_0_1px_2px_rgba(255,255,255,0.1),0_4px_24px_rgba(0,0,0,0.2)]">
               {/* Навигация - скрыта на мобильных, там Mobile Month Switcher */}
               <div className="hidden md:flex items-center justify-between mb-3 sm:mb-4">
                 <button

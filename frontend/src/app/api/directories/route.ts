@@ -26,12 +26,25 @@ export async function GET(request: NextRequest) {
     const data = readJsonFile<DirectoriesData>('directories.json', DEFAULT_DATA);
     
     // Убедимся что данные инициализированы
+    let needsSave = false;
     if (!data.departments?.length) {
+      console.log('[Directories API] Initializing departments with defaults');
       data.departments = DEFAULT_DEPARTMENTS;
+      needsSave = true;
     }
     if (!data.positions?.length) {
+      console.log('[Directories API] Initializing positions with defaults');
       data.positions = DEFAULT_POSITIONS;
+      needsSave = true;
     }
+    
+    // Сохраняем инициализированные данные
+    if (needsSave) {
+      console.log('[Directories API] Saving initialized data to directories.json');
+      writeJsonFile('directories.json', data);
+    }
+    
+    console.log(`[Directories API] Returning ${data.departments.length} departments, ${data.positions.length} positions`);
     
     if (type === 'departments') {
       return NextResponse.json({ 

@@ -1,0 +1,78 @@
+{
+  "departments": [
+    {
+      "id": "marketing",
+      "name": "Маркетинг",
+      "color": "#3b82f6",
+      "order": 0
+    },
+    {
+      "id": "sales",
+      "name": "Продажи",
+      "color": "#10b981",
+      "order": 1
+    },
+    {
+      "id": "development",
+      "name": "Разработка",
+      "color": "#8b5cf6",
+      "order": 2
+    },
+    {
+      "id": "support",
+      "name": "Поддержка",
+      "color": "#f59e0b",
+      "order": 3
+    },
+    {
+      "id": "hr",
+      "name": "HR",
+      "color": "#ec4899",
+      "order": 4
+    },
+    {
+      "id": "finance",
+      "name": "Финансы",
+      "color": "#14b8a6",
+      "order": 5
+    },
+    {
+      "id": "management",
+      "name": "Руководство",
+      "color": "#f43f5e",
+      "order": 6
+    }
+  ],
+  "positions": [
+    {
+      "id": "director",
+      "name": "Директор",
+      "order": 0
+    },
+    {
+      "id": "manager",
+      "name": "Менеджер",
+      "order": 1
+    },
+    {
+      "id": "lead",
+      "name": "Руководитель направления",
+      "order": 2
+    },
+    {
+      "id": "specialist",
+      "name": "Специалист",
+      "order": 3
+    },
+    {
+      "id": "junior",
+      "name": "Младший специалист",
+      "order": 4
+    },
+    {
+      "id": "intern",
+      "name": "Стажер",
+      "order": 5
+    }
+  ]
+}

@@ -6,12 +6,11 @@ interface CalendarEvent {
   title: string;
   description: string;
   date: string;
-  priority: string;
-  type: 'tz' | 'task';
-  sourceId: string;
+  time?: string;
+  type: 'work' | 'meeting' | 'event' | 'holiday';
+  listId?: string; // ID календарного листа
   assignedTo?: string;
   assignedBy?: string;
-  listName?: string;
   linkUrl?: string;
   linkTitle?: string;
   createdAt: string;
@@ -47,12 +46,11 @@ export async function POST(request: NextRequest) {
       title: body.title || 'Без названия',
       description: body.description || '',
       date: body.date || new Date().toISOString().split('T')[0],
-      priority: body.priority || 'medium',
-      type: body.type || 'task',
-      sourceId: body.sourceId || '',
+      time: body.time,
+      type: body.type || 'work',
+      listId: body.listId, // Не используем fallback - если нет listId, значит undefined
       assignedTo: body.assignedTo,
       assignedBy: body.assignedBy,
-      listName: body.listName,
       linkUrl: body.linkUrl,
       linkTitle: body.linkTitle,
       createdAt: new Date().toISOString()

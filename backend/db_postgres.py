@@ -490,6 +490,29 @@ class PostgresDatabase:
         result = self.conn.fetch_one(query, tuple(params))
         return dict(result) if result else None
     
+    def get_departments(self) -> List[Dict[str, Any]]:
+        """Get list of unique departments from users"""
+        query = """
+            SELECT DISTINCT department, COUNT(*) as employee_count
+            FROM users 
+            WHERE department IS NOT NULL AND department != ''
+            GROUP BY department
+            ORDER BY department
+        """
+        results = self.conn.fetch_all(query)
+        
+        # Format as department objects with id, name, and count
+        departments = []
+        for idx, row in enumerate(results):
+            departments.append({
+                'id': row['department'].lower().replace(' ', '_'),
+                'name': row['department'],
+                'employee_count': row['employee_count'],
+                'order': idx
+            })
+        
+        return departments
+    
     # ==================== CHATS ====================
     def get_chats(self, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get chats, optionally filtered by user"""

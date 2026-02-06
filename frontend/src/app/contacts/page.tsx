@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { User, Mail, Phone, Briefcase, Shield, Calendar, MessageCircle, CheckSquare, Plus, X, Inbox } from 'lucide-react';
+import { User, Mail, Phone, Briefcase, Shield, Calendar, MessageCircle, CheckSquare, Plus, X, Inbox, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useTheme } from '@/contexts/ThemeContext';
 import Avatar from '@/components/Avatar';
 
 interface Contact {
@@ -35,9 +36,11 @@ interface TodoList {
 
 export default function ContactsPage() {
   const router = useRouter();
+  const { theme } = useTheme();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [showListModal, setShowListModal] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [showContactCard, setShowContactCard] = useState(false);
@@ -149,17 +152,22 @@ export default function ContactsPage() {
     return a.localeCompare(b, 'ru');
   });
 
-  // Функция для получения цвета фона отдела
-  const getDepartmentColor = (index: number) => {
-    const colors = [
-      'bg-gradient-to-br from-blue-500/8 to-cyan-500/8 border-blue-500/30 dark:from-blue-500/15 dark:to-cyan-500/15 dark:border-blue-500/40',
-      'bg-gradient-to-br from-purple-500/8 to-pink-500/8 border-purple-500/30 dark:from-purple-500/15 dark:to-pink-500/15 dark:border-purple-500/40',
-      'bg-gradient-to-br from-green-500/8 to-emerald-500/8 border-green-500/30 dark:from-green-500/15 dark:to-emerald-500/15 dark:border-green-500/40',
-      'bg-gradient-to-br from-orange-500/8 to-amber-500/8 border-orange-500/30 dark:from-orange-500/15 dark:to-amber-500/15 dark:border-orange-500/40',
-      'bg-gradient-to-br from-red-500/8 to-rose-500/8 border-red-500/30 dark:from-red-500/15 dark:to-rose-500/15 dark:border-red-500/40',
-      'bg-gradient-to-br from-teal-500/8 to-cyan-500/8 border-teal-500/30 dark:from-teal-500/15 dark:to-cyan-500/15 dark:border-teal-500/40',
+  // Функция для получения стиля фона отдела (Pantone)
+  const getDepartmentStyle = (index: number) => {
+    const pantoneColors = [
+      '#0F4C81', '#FF6F61', '#5F4B8B', '#88B04B', '#955251',
+      '#B565A7', '#009B77', '#DD4124', '#D65076', '#45B5AA',
+      '#EFC050', '#5A5B9F', '#9B1B30', '#7FCDCD', '#BC243C'
     ];
-    return colors[index % colors.length];
+    
+    let backgroundColor = pantoneColors[index % pantoneColors.length];
+    
+    // Всегда используем яркие цвета без затемнения
+    return {
+        backgroundColor
+        // Убрали принудительный белый цвет текста, чтобы карточки сотрудников внутри
+        // могли использовать свои стандартные цвета темы (черный в светлой, белый в темной)
+    };
   };
 
   if (loading) {
@@ -171,49 +179,44 @@ export default function ContactsPage() {
   }
 
   return (
-    <div className="h-full bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col overflow-hidden">
-      {/* Header */}
-      <header className="h-12 bg-[var(--bg-secondary)] border-b border-[var(--border-secondary)] flex items-center px-2 md:px-4 flex-shrink-0">
-        <div className="flex items-center gap-2 mr-2 md:mr-4">
-          <span className="font-medium text-sm">Контакты</span>
-          <span className="text-xs text-[var(--text-muted)]">({filteredContacts.length})</span>
+    <div className="h-full text-[var(--text-primary)] bg-[var(--bg-primary)] flex flex-col overflow-hidden relative">
+      {/* Header - поиск как хедер */}
+      <div className="absolute top-0 left-0 right-0 z-10 flex-shrink-0 px-3 md:px-4 py-2 md:py-3 border-none">
+        <div className="flex items-center gap-2 w-full md:justify-center">
+          {/* Search */}
+          <div className="relative flex-1 md:flex-none">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)] flex items-center justify-center z-10 pointer-events-none">
+              <Search className="w-5 h-5" strokeWidth={2.5} />
+            </div>
+            <input
+              type="text"
+              placeholder="Поиск..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full md:w-[200px] h-10 pl-10 pr-3 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 rounded-[20px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-white/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
+            />
+          </div>
         </div>
-
-        {/* Search */}
-        <div className="relative flex-1 max-w-md">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Поиск по имени, email, должности, отделу..."
-            className="w-full pl-2 md:pl-3 pr-2 md:pr-3 py-1.5 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] text-xs placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
-          />
-        </div>
-        
-        {/* Статистика по отделам */}
-        <div className="hidden lg:flex items-center gap-2 ml-4">
-          <span className="text-xs text-[var(--text-muted)]">{sortedDepartments.length} отделов</span>
-        </div>
-      </header>
+      </div>
 
       {/* Main Content - только один скролл */}
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-        <div className="p-2 md:p-3">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pt-[60px] md:pt-[70px]">
+        <div className="p-0 md:p-3">
           <div className="max-w-6xl mx-auto">
 
         {/* Contacts grouped by department */}
         <div className="space-y-4 md:space-y-6 pb-20">
           {sortedDepartments.map((department, index) => (
-            <div key={department} className={`rounded-xl border p-3 md:p-4 ${getDepartmentColor(index)}`}>
+            <div key={department} className="rounded-xl border border-white/20 p-2 md:p-4 shadow-lg md:mx-0 mx-2 mt-[10px]" style={getDepartmentStyle(index)}>
               {/* Department Header */}
               <div className="flex items-center gap-2 md:gap-3 px-1 md:px-2 py-1.5 md:py-2 mb-3">
                 <div className="flex items-center gap-2">
                   <div>
-                    <h2 className="font-semibold text-sm md:text-base text-[var(--text-primary)]">{department}</h2>
-                    <p className="text-[10px] md:text-xs text-[var(--text-muted)]">{contactsByDepartment[department].length} сотрудник{contactsByDepartment[department].length === 1 ? '' : contactsByDepartment[department].length < 5 ? 'а' : 'ов'}</p>
+                    <h2 className="font-semibold text-sm md:text-base text-white drop-shadow-md">{department}</h2>
+                    <p className="text-[10px] md:text-xs text-white/90 drop-shadow-sm">{contactsByDepartment[department].length} сотрудник{contactsByDepartment[department].length === 1 ? '' : contactsByDepartment[department].length < 5 ? 'а' : 'ов'}</p>
                   </div>
                 </div>
-                <div className="flex-1 h-px bg-gradient-to-r from-[var(--border-color)] to-transparent"></div>
+                <div className="flex-1 h-px bg-gradient-to-r from-white/30 to-transparent"></div>
               </div>
 
               {/* Department Contacts */}
@@ -225,7 +228,7 @@ export default function ContactsPage() {
                       setViewingContact(contact);
                       setShowContactCard(true);
                     }}
-                    className="bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl p-2 md:p-3 hover:bg-[var(--bg-glass-hover)] transition-all group cursor-pointer"
+                    className="bg-white/90 dark:bg-black/40 backdrop-blur-md border border-white/40 dark:border-white/10 rounded-[50px] p-2 md:p-3 hover:bg-white dark:hover:bg-black/60 transition-all duration-200 group cursor-pointer shadow-sm"
                   >
                     <div className="flex items-center gap-2 md:gap-3">
                       {/* Avatar */}
@@ -245,20 +248,6 @@ export default function ContactsPage() {
                         <p className="text-[10px] md:text-xs text-[var(--text-muted)] truncate">
                           {contact.position || 'Должность не указана'}
                         </p>
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
-                          {contact.phone && (
-                            <div className="flex items-center gap-1 min-w-0">
-                              <Phone className="w-3 h-3 md:w-3.5 md:h-3.5 text-blue-400 flex-shrink-0" />
-                              <span className="text-[10px] md:text-xs text-blue-400 truncate">{contact.phone}</span>
-                            </div>
-                          )}
-                          {contact.workSchedule && (
-                            <div className="flex items-center gap-1 min-w-0 max-w-full">
-                              <Calendar className="w-3 h-3 md:w-3.5 md:h-3.5 text-orange-400 flex-shrink-0" />
-                              <span className="text-[10px] md:text-xs text-orange-400 truncate">{contact.workSchedule}</span>
-                            </div>
-                          )}
-                        </div>
                       </div>
 
                       {/* Quick Actions - всегда видны */}
@@ -266,10 +255,10 @@ export default function ContactsPage() {
                         {contact.email && (
                           <a 
                             href={`mailto:${contact.email}`}
-                            className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-blue-500/15 hover:bg-blue-500/25 dark:bg-blue-500/15 dark:hover:bg-blue-500/25 flex items-center justify-center transition-colors border border-blue-500/20 dark:border-blue-500/20"
+                            className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 flex items-center justify-center transition-all"
                             title={contact.email}
                           >
-                            <Mail className="w-3 h-3 md:w-3.5 md:h-3.5 text-blue-600 dark:text-blue-400" />
+                            <Mail className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-600 dark:text-gray-300" />
                           </a>
                         )}
                         <button
@@ -317,20 +306,20 @@ export default function ContactsPage() {
                               console.error('[Contacts] Error opening chat:', error);
                             }
                           }}
-                          className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-purple-500/20 hover:bg-purple-500/30 dark:bg-purple-500/40 dark:hover:bg-purple-500/50 flex items-center justify-center transition-all border border-purple-500/30 dark:border-purple-500/40 shadow-sm shadow-purple-500/20"
+                          className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 flex items-center justify-center transition-all"
                           title="Написать сообщение"
                         >
-                          <MessageCircle className="w-3 h-3 md:w-3.5 md:h-3.5 text-purple-600 dark:text-purple-200" />
+                          <MessageCircle className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-600 dark:text-gray-300" />
                         </button>
                         <button
                           onClick={() => {
                             setSelectedContact(contact);
                             setShowListModal(true);
                           }}
-                          className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-green-500/20 hover:bg-green-500/30 dark:bg-green-500/40 dark:hover:bg-green-500/50 flex items-center justify-center transition-all border border-green-500/30 dark:border-green-500/40 shadow-sm shadow-green-500/20"
+                          className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 flex items-center justify-center transition-all"
                           title="Поставить задачу"
                         >
-                          <CheckSquare className="w-3 h-3 md:w-3.5 md:h-3.5 text-green-600 dark:text-green-200" />
+                          <CheckSquare className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-600 dark:text-gray-300" />
                         </button>
                       </div>
                     </div>
@@ -498,11 +487,21 @@ export default function ContactsPage() {
           }}
         >
           <div 
-            className="bg-gradient-to-b from-[var(--bg-secondary)] to-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+            className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl w-full max-w-md shadow-2xl overflow-y-auto custom-scrollbar relative max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
+            <button
+              onClick={() => {
+                setShowContactCard(false);
+                setViewingContact(null);
+              }}
+              className="absolute top-4 right-4 z-20 p-2 rounded-full bg-black/20 hover:bg-black/40 transition-colors"
+            >
+              <X className="w-4 h-4 text-white" />
+            </button>
+
             {/* Header with Avatar */}
-            <div className="relative h-32 bg-gradient-to-br from-cyan-500/30 to-blue-600/30">
+            <div className="relative h-32 bg-gradient-to-br from-[var(--bg-tertiary)] to-[var(--bg-secondary)] border-b border-[var(--border-light)]">
               <div className="absolute -bottom-10 left-1/2 -translate-x-1/2">
                 <div className="relative">
                   <Avatar
@@ -514,19 +513,10 @@ export default function ContactsPage() {
                   />
                 </div>
               </div>
-              <button
-                onClick={() => {
-                  setShowContactCard(false);
-                  setViewingContact(null);
-                }}
-                className="absolute top-3 right-3 p-2 rounded-full bg-black/20 hover:bg-black/40 transition-colors"
-              >
-                <X className="w-4 h-4 text-white" />
-              </button>
             </div>
 
             {/* Content */}
-            <div className="pt-14 pb-6 px-6 max-h-[70vh] overflow-y-auto">
+            <div className="pt-14 pb-6 px-6">
               {/* Name & Status */}
               <div className="text-center mb-6">
                 <h2 className="text-xl font-semibold text-[var(--text-primary)]">

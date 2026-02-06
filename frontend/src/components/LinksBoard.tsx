@@ -405,9 +405,9 @@ export default function LinksBoard() {
   }
 
   return (
-    <div className="h-full flex flex-col text-white">
+    <div className="h-full flex flex-col text-white bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl">
       {/* Header */}
-      <header className="h-12 bg-[var(--bg-secondary)] border-b border-[var(--border-primary)] flex items-center px-3 md:px-4 flex-shrink-0">
+      <header className="h-12 bg-white/5 border-b border-white/10 flex items-center px-3 md:px-4 flex-shrink-0">
         <button
           onClick={() => setShowMobileSidebar(!showMobileSidebar)}
           className="md:hidden flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors mr-3"
@@ -514,21 +514,20 @@ export default function LinksBoard() {
         </div>
       )}
 
-      {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar - Desktop only */}
-        <aside className="hidden md:flex w-64 flex-shrink-0 border-r border-[var(--border-primary)] flex-col bg-[var(--bg-tertiary)] overflow-hidden">
+        <aside className="hidden md:flex w-64 flex-shrink-0 border-r border-white/10 flex-col bg-transparent overflow-hidden">
 
         {/* Search */}
-        <div className="p-3 border-b border-[var(--border-primary)]">
+        <div className="p-3 border-b border-white/10">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)]" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Поиск..."
-              className="w-full pl-9 pr-3 py-2 bg-[var(--bg-primary)] border border-[var(--border-primary)] rounded-lg text-sm focus:outline-none focus:border-blue-500/50 text-[var(--text-primary)] placeholder-[var(--text-tertiary)]"
+              className="w-full pl-9 pr-3 py-2 bg-black/20 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-blue-500/50 text-white placeholder-white/40"
             />
           </div>
         </div>
@@ -783,11 +782,11 @@ export default function LinksBoard() {
                   <div
                     key={link.id}
                     onContextMenu={(e) => handleContextMenu(e, 'link', link)}
-                    className={`group p-3 bg-[var(--bg-secondary)] rounded-xl border transition-all hover:border-[var(--border-secondary)] ${
+                    className={`group p-2 sm:p-3 bg-[var(--bg-secondary)] rounded-xl border transition-all hover:border-[var(--border-secondary)] ${
                       link.isPinned ? 'border-blue-500/30' : 'border-[var(--border-primary)]'
                     }`}
                   >
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-2 sm:gap-3">
                       {/* Favicon */}
                       <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-[var(--bg-primary)] flex items-center justify-center flex-shrink-0 overflow-hidden">
                         {link.favicon ? (
@@ -799,27 +798,27 @@ export default function LinksBoard() {
                       
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-start gap-2">
                           <a 
                             href={link.url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="font-medium text-sm text-[var(--text-primary)] hover:text-blue-400 transition-colors line-clamp-2"
+                            className="font-medium text-xs sm:text-sm text-[var(--text-primary)] hover:text-blue-400 transition-colors line-clamp-2 flex-1"
                           >
                             {link.title}
                           </a>
                         </div>
-                        <p className="text-xs text-[var(--text-tertiary)] truncate mt-0.5">{new URL(link.url).hostname}</p>
+                        <p className="text-[10px] sm:text-xs text-[var(--text-tertiary)] truncate mt-0.5">{new URL(link.url).hostname}</p>
                         {link.description && (
-                          <p className="text-xs text-[var(--text-tertiary)] mt-1 line-clamp-2">{link.description}</p>
+                          <p className="text-[10px] sm:text-xs text-[var(--text-tertiary)] mt-1 line-clamp-2">{link.description}</p>
                         )}
                         
                         {/* Tags and Actions - на одном уровне */}
-                        <div className="flex items-center justify-between gap-2 mt-2">
-                          <div className="flex items-center gap-2 flex-wrap flex-1">
+                        <div className="flex items-center justify-between gap-2 mt-2 flex-wrap sm:flex-nowrap">
+                          <div className="flex items-center gap-1 sm:gap-2 flex-wrap flex-1 min-w-0">
                             {list && (
                               <span 
-                                className="px-2 py-0.5 rounded text-xs"
+                                className="px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-xs truncate max-w-[100px] sm:max-w-none"
                                 style={{ backgroundColor: `${list.color}20`, color: list.color }}
                               >
                                 {list.name}
@@ -828,7 +827,7 @@ export default function LinksBoard() {
                             
                             {category && (
                               <span 
-                                className="px-2 py-0.5 rounded text-xs"
+                                className="px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-xs truncate max-w-[100px] sm:max-w-none"
                                 style={{ backgroundColor: `${category.color}20`, color: category.color }}
                               >
                                 {category.name}
@@ -837,21 +836,21 @@ export default function LinksBoard() {
                           </div>
                           
                           {/* Actions - рядом с тегами */}
-                          <div className="flex items-center gap-1 flex-shrink-0">
+                          <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
                       <button
                           onClick={() => toggleBookmark(link)}
-                          className={`p-1.5 md:p-2 rounded-full transition-colors ${
+                          className={`p-1 sm:p-1.5 md:p-2 rounded-full transition-colors ${
                             link.isBookmarked 
                               ? 'text-yellow-400 bg-yellow-500/10' 
                               : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]'
                           }`}
                           title="В избранное"
                         >
-                          <Star className="w-4 h-4" fill={link.isBookmarked ? 'currentColor' : 'none'} />
+                          <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill={link.isBookmarked ? 'currentColor' : 'none'} />
                         </button>
                         <button
                           onClick={() => togglePin(link)}
-                          className={`p-1.5 md:p-2 rounded-full transition-colors ${
+                          className={`hidden sm:flex p-1.5 md:p-2 rounded-full transition-colors ${
                             link.isPinned 
                               ? 'text-blue-400 bg-blue-500/10' 
                               : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]'
@@ -862,40 +861,40 @@ export default function LinksBoard() {
                         </button>
                         <button 
                           onClick={() => copyToClipboard(link.url)} 
-                          className="p-1.5 md:p-2 hover:bg-[var(--bg-primary)] rounded-full transition-colors"
+                          className="p-1 sm:p-1.5 md:p-2 hover:bg-[var(--bg-primary)] rounded-full transition-colors"
                           title="Копировать URL"
                         >
-                          <Copy className="w-4 h-4 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]" />
+                          <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]" />
                         </button>
                         <a
                           href={link.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-1.5 md:p-2 hover:bg-[var(--bg-primary)] rounded-full transition-colors"
+                          className="p-1 sm:p-1.5 md:p-2 hover:bg-[var(--bg-primary)] rounded-full transition-colors"
                           title="Открыть"
                         >
-                          <ExternalLink className="w-4 h-4 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]" />
+                          <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]" />
                         </a>
                         <button 
                           onClick={() => setEditingLink(link)} 
-                          className="p-1.5 md:p-2 hover:bg-[var(--bg-primary)] rounded-full transition-colors"
+                          className="hidden sm:flex p-1.5 md:p-2 hover:bg-[var(--bg-primary)] rounded-full transition-colors"
                           title="Редактировать"
                         >
                           <Edit3 className="w-4 h-4 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]" />
                         </button>
                         <button 
                           onClick={() => deleteLink(link.id)} 
-                          className="p-1.5 md:p-2 hover:bg-red-500/10 rounded-full transition-colors"
+                          className="hidden sm:flex p-1.5 md:p-2 hover:bg-red-500/10 rounded-full transition-colors"
                           title="Удалить"
                         >
                           <Trash2 className="w-4 h-4 text-red-400/50 hover:text-red-400" />
                         </button>
                         <button 
                           onClick={(e) => { e.stopPropagation(); handleContextMenu(e, 'link', link); }} 
-                          className="p-1.5 md:p-2 hover:bg-[var(--bg-primary)] rounded-full transition-colors"
+                          className="p-1 sm:p-1.5 md:p-2 hover:bg-[var(--bg-primary)] rounded-full transition-colors"
                           title="Еще"
                         >
-                          <MoreHorizontal className="w-4 h-4 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]" />
+                          <MoreHorizontal className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]" />
                         </button>
                           </div>
                         </div>

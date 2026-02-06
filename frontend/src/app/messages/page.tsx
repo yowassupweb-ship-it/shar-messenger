@@ -2,11 +2,29 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageCircle, Send, ArrowLeft, Users, Search, Plus, MoreVertical, Check, Edit3, Trash2, Reply, Pin, PinOff, X, Paperclip, FileText, Link as LinkIcon, Calendar, Image, File, Info, Grid, List, Play, Music, Download, CheckSquare, Mail, Phone, Upload, Smile, Star, Bell, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { MessageCircle, Send, ArrowLeft, Users, Search, Plus, MoreVertical, Check, Edit3, Trash2, Reply, Pin, PinOff, X, Paperclip, FileText, Link as LinkIcon, Calendar, CalendarPlus, Image, File, Info, Grid, List, Play, Music, Download, CheckSquare, Mail, Phone, Upload, Smile, Star, Bell, ChevronLeft, ChevronRight, ChevronDown, Building, Globe, Moon, Sun } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
 import Avatar from '@/components/Avatar';
 import EmojiPicker from '@/components/EmojiPicker';
+
+const DEPARTMENT_COLORS = [
+  '#0F4C81', // Classic Blue
+  '#FF6F61', // Living Coral
+  '#6B5B95', // Ultra Violet
+  '#88B04B', // Greenery
+  '#F7CAC9', // Rose Quartz
+  '#92A8D1', // Serenity
+  '#955251', // Marsala
+  '#B565A7', // Radiant Orchid
+  '#009B77', // Emerald
+  '#DD4124', // Tangerine Tango
+  '#D65076', // Honeysuckle
+  '#45B8AC', // Turquoise
+  '#EFC050', // Mimosa
+  '#5B5EA6', // Blue Iris
+  '#9B2335', // Chili Pepper
+];
 
 interface User {
   id: string;
@@ -176,7 +194,7 @@ function LinkPreview({ url, isMyMessage }: { url: string; isMyMessage: boolean }
 
 export default function MessagesPage() {
   const router = useRouter();
-  const { theme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
@@ -198,6 +216,7 @@ export default function MessagesPage() {
   const [attachments, setAttachments] = useState<any[]>([]);
   const [showTaskPicker, setShowTaskPicker] = useState(false);
   const [showLinkPicker, setShowLinkPicker] = useState(false);
+  const [linkPickerTab, setLinkPickerTab] = useState<'people' | 'department' | 'all'>('all');
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [showEventPicker, setShowEventPicker] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -239,6 +258,9 @@ export default function MessagesPage() {
   const [showMessageContextMenu, setShowMessageContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ top: 0, left: 0 });
   const [contextMenuMessage, setContextMenuMessage] = useState<Message | null>(null);
+  const [showEventCalendarSelector, setShowEventCalendarSelector] = useState(false);
+  const [calendarLists, setCalendarLists] = useState<any[]>([]);
+  const [creatingEventFromMessage, setCreatingEventFromMessage] = useState<Message | null>(null);
   const [notificationSound] = useState(() => {
     if (typeof window !== 'undefined') {
       const audio = new Audio();
@@ -1442,8 +1464,8 @@ export default function MessagesPage() {
       
       // Пересылаем каждое сообщение
       for (const message of messagesToForward) {
-        // Используем selectedChat.id вместо message.chatId
-        const sourceChatId = selectedChat?.id || message.chatId;
+        // Используем ID чата сообщения, так как пересылаемое сообщение может быть из другого чата
+        const sourceChatId = message.chatId;
         const res = await fetch(
           `/api/chats/${sourceChatId}/messages/${message.id}/forward`,
           {
@@ -1683,11 +1705,13 @@ export default function MessagesPage() {
     document.body.style.top = '0';
     document.documentElement.style.overflow = 'hidden';
     
+    /* 
     // Убираем фон body на мобильных для прозрачности инпута
     if (window.innerWidth < 768) {
       document.body.style.background = 'var(--bg-primary)';
       document.documentElement.style.background = 'var(--bg-primary)';
     }
+    */
     
     // Инициализация
     updateHeight();
@@ -1721,83 +1745,30 @@ export default function MessagesPage() {
   return (
     <div 
       ref={messagesContainerRef}
-      className="bg-[var(--bg-primary)] text-[var(--text-primary)] flex overflow-hidden rounded-none md:rounded-[25px] overscroll-none"
+      className="bg-[var(--bg-primary)] text-[var(--text-primary)] flex overflow-hidden rounded-none overscroll-none"
       style={{ height: '100dvh', maxHeight: '100dvh' }}
     >
       {/* Левая панель - список чатов (единый блок с разными состояниями) */}
       <div className={`
         ${selectedChat ? 'hidden md:flex' : 'flex'} 
         w-full ${isChatListCollapsed ? 'md:w-[72px]' : 'md:w-80'} 
-        border-r border-[var(--border-color)] flex-col h-full min-h-0 transition-all duration-200
+        border-r border-[var(--border-color)] flex-col h-full min-h-0 transition-all duration-200 bg-[var(--bg-secondary)]
       `}>
-        {/* Header */}
-        <div className={`h-12 backdrop-blur-xl bg-[var(--bg-secondary)]/60 border-b border-white/10 flex items-center ${isChatListCollapsed ? 'md:justify-center md:px-2' : ''} px-3 gap-2 flex-shrink-0`}>
-          {isChatListCollapsed ? (
-            /* Свернутый хедер - только на десктопе */
-            <>
-              {/* Мобильный хедер (как обычно) */}
-              <div className="flex md:hidden items-center gap-2 w-full">
-                <Link
-                  href="/account?tab=messages"
-                  className="no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-all border border-[var(--border-glass)] backdrop-blur-sm"
-                >
-                  <ArrowLeft className="w-4 h-4" strokeWidth={2} />
-                </Link>
-                <span className="font-medium text-sm">Сообщения</span>
-                <button
-                  onClick={() => setShowNewChatModal(true)}
-                  className="no-mobile-scale ml-auto flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] transition-all border border-[var(--border-glass)] backdrop-blur-sm"
-                  title="Новый чат"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </div>
-              {/* Десктоп свёрнутый хедер - кнопка разворачивания */}
-              <button
-                onClick={() => setIsChatListCollapsed(false)}
-                className="hidden md:flex w-10 h-10 rounded-full bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] items-center justify-center transition-all border border-[var(--border-glass)]"
-                title="Развернуть"
-              >
-                <ChevronRight className="w-5 h-5 text-[var(--text-muted)]" />
-              </button>
-            </>
-          ) : (
-            /* Развернутый хедер */
-            <>
-              <span className="font-medium text-sm">Сообщения</span>
-              <div className="ml-auto flex items-center gap-1">
-                <button
-                  onClick={() => setIsChatListCollapsed(true)}
-                  className="no-mobile-scale hidden md:flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] transition-all border border-[var(--border-glass)] backdrop-blur-sm"
-                  title="Свернуть"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setShowNewChatModal(true)}
-                  className="no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] transition-all border border-[var(--border-glass)] backdrop-blur-sm"
-                  title="Новый чат"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-
         {/* Search / New Chat Button */}
         {isChatListCollapsed ? (
           <>
-            {/* Мобильный поиск (как обычно) */}
-            <div className="px-1.5 py-1 border-b border-[var(--border-color)] flex-shrink-0 md:hidden">
-              <div className="relative">
-                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-[var(--text-muted)]" />
+            {/* Мобильный поиск - glass стилизация */}
+            <div className="px-2 py-1.5 flex-shrink-0 md:hidden">
+              <div className="relative flex-1">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-primary)] flex items-center justify-center z-10 pointer-events-none">
+                  <Search className="w-4 h-4" strokeWidth={2.5} />
+                </div>
                 <input
                   type="text"
-                  placeholder="Поиск чатов..."
+                  placeholder="Поиск..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-7 pr-2 py-0.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-[25px] text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-light)]"
+                  className="w-full h-9 pl-9 pr-3 bg-gradient-to-br from-white/15 to-white/5 border border-white/20 rounded-[20px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-white/40 shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)] backdrop-blur-sm"
                 />
               </div>
             </div>
@@ -1817,19 +1788,43 @@ export default function MessagesPage() {
               >
                 <Plus className="w-5 h-5 text-white" />
               </button>
+              <button
+                onClick={toggleTheme}
+                className="w-10 h-10 rounded-full bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center transition-all border border-[var(--border-glass)]"
+                title={theme === 'dark' ? 'Светлая тема' : 'Темная тема'}
+              >
+                {theme === 'dark' ? <Sun className="w-5 h-5 text-[var(--text-muted)]" /> : <Moon className="w-5 h-5 text-[var(--text-muted)]" />}
+              </button>
             </div>
           </>
         ) : (
-          <div className="px-1 py-0.5 md:p-3 border-b border-[var(--border-color)] flex-shrink-0">
-            <div className="relative">
+          <div className="px-2 py-1.5 md:p-3 flex-shrink-0 flex items-center gap-2">
+            <div className="relative flex-1 md:flex-none">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-primary)] flex items-center justify-center z-10 pointer-events-none">
+                <Search className="w-5 h-5" strokeWidth={2.5} />
+              </div>
               <input
                 type="text"
-                placeholder="Поиск чатов..."
+                placeholder="Поиск..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-2 py-[3px] md:px-3 md:py-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-[20px] text-[9px] leading-tight md:text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-light)]"
+                className="w-full md:w-[200px] h-10 pl-10 pr-3 bg-gradient-to-br from-white/15 to-white/5 border border-white/20 rounded-[20px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-white/40 shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)] backdrop-blur-sm"
               />
             </div>
+            <button
+              onClick={() => setShowNewChatModal(true)}
+              className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 flex items-center justify-center transition-all border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-sm"
+              title="Новый чат"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+            <button
+              onClick={toggleTheme}
+              className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 flex items-center justify-center transition-all border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-sm"
+              title={theme === 'dark' ? 'Светлая тема' : 'Темная тема'}
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
           </div>
         )}
 
@@ -2277,7 +2272,7 @@ export default function MessagesPage() {
           <div className="flex-1 min-h-0 flex flex-col relative bg-transparent">
           {/* Chat header */}
           <div 
-            className={`absolute top-2 left-2 right-2 z-20 h-[56px] md:h-12 border border-white/20 rounded-[50px] flex items-center px-3 md:px-4 py-[10px] gap-2 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.2)] md:absolute md:top-2 md:left-2 md:right-2 backdrop-blur-xl !bg-white/15 dark:!bg-black/15`}
+            className={`absolute top-2 left-2 right-2 z-20 h-[56px] md:h-12 bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border border-white/20 rounded-[22px] flex items-center px-3 md:px-4 py-[10px] gap-2 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] md:absolute md:top-2 md:left-2 md:right-2`}
           >
             {isSelectionMode ? (
               <>
@@ -3217,7 +3212,7 @@ export default function MessagesPage() {
               <div className="relative hidden md:block">
                 <button
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  className="hidden md:flex w-11 h-11 rounded-full backdrop-blur-2xl bg-gradient-to-br from-white/10 to-white/5 border border-white/20 hover:border-white/30 hover:from-white/15 hover:to-white/10 items-center justify-center text-gray-400/90 hover:text-white transition-all flex-shrink-0 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.5),inset_0_1px_2px_rgba(255,255,255,0.1)] hover:shadow-[0_8px_40px_-8px_rgba(255,255,255,0.2),inset_0_1px_2px_rgba(255,255,255,0.15)]"
+                  className="hidden md:flex w-11 h-11 rounded-full bg-gradient-to-br from-white/15 to-white/5 items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] border border-white/20 backdrop-blur-sm flex-shrink-0 text-gray-400/90"
                 >
                   <Smile className="w-5 h-5" />
                 </button>
@@ -3251,7 +3246,7 @@ export default function MessagesPage() {
               {!selectedChat?.isNotificationsChat && (
               <button
                 onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-                className="w-10 h-10 md:w-11 md:h-11 rounded-full backdrop-blur-xl bg-[var(--bg-secondary)]/60 border border-white/20 hover:border-white/30 hover:bg-[var(--bg-tertiary)]/80 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex-shrink-0 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.3)]"
+                className="w-10 h-10 md:w-11 md:h-11 rounded-full bg-gradient-to-br from-white/15 to-white/5 flex items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] border border-white/20 backdrop-blur-sm flex-shrink-0 text-[var(--text-secondary)]"
               >
                 <Paperclip className="w-4 h-4" />
               </button>
@@ -3563,7 +3558,7 @@ export default function MessagesPage() {
                   
                   placeholder={selectedChat?.isNotificationsChat ? "Чат только для чтения" : editingMessageId ? "Редактируйте сообщение..." : "Сообщение..."}
                   disabled={selectedChat?.isNotificationsChat}
-                  className={`w-full px-4 py-2.5 backdrop-blur-xl bg-[var(--bg-secondary)]/40 border border-white/20 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-white/30 resize-none overflow-hidden shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4),-8px_0_20px_-10px_rgba(0,0,0,0.3),8px_0_20px_-10px_rgba(0,0,0,0.3),0_8px_25px_-8px_rgba(0,0,0,0.4)] disabled:opacity-50 disabled:cursor-not-allowed ${(replyToMessage && !editingMessageId) || editingMessageId ? 'rounded-b-[22px] rounded-t-none border-t-0' : 'rounded-[22px]'}`}
+                  className={`w-full px-4 py-2.5 bg-gradient-to-br from-white/15 to-white/5 border border-white/20 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-white/30 resize-none overflow-hidden shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl disabled:opacity-50 disabled:cursor-not-allowed ${(replyToMessage && !editingMessageId) || editingMessageId ? 'rounded-b-[22px] rounded-t-none border-t-0' : 'rounded-[22px]'}`}
                   style={{ minHeight: '44px', maxHeight: '120px', lineHeight: '20px', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                   rows={1}
                 />
@@ -4214,9 +4209,9 @@ export default function MessagesPage() {
 
       {/* New Chat Modal */}
       {showNewChatModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl w-full max-w-md max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
+        <div className="fixed inset-0 bg-black/50 z-50 flex flex-col items-center justify-center p-0 md:p-4">
+          <div className="bg-[var(--bg-secondary)] border-0 md:border border-[var(--border-color)] rounded-none md:rounded-xl w-full h-full md:h-auto md:w-full md:max-w-md md:max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)] shrink-0">
               <h3 className="font-semibold flex items-center gap-2">
                 <MessageCircle className="w-5 h-5 text-cyan-400" />
                 Новый чат
@@ -4588,26 +4583,144 @@ export default function MessagesPage() {
 
       {/* Link Picker Modal */}
       {showLinkPicker && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
-              <h3 className="font-semibold flex items-center gap-2">
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all duration-300"
+          onClick={() => setShowLinkPicker(false)}
+        >
+          <div 
+            className="w-full max-w-lg bg-gradient-to-br from-[#1e293b]/95 to-[#0f172a]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] transition-all duration-300"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/5">
+              <h3 className="font-semibold text-lg text-white/90 flex items-center gap-2.5">
                 <LinkIcon className="w-5 h-5 text-cyan-400" />
-                Выбрать ссылку
+                База ссылок
               </h3>
               <button
                 onClick={() => setShowLinkPicker(false)}
-                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors group"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5 text-white/50 group-hover:text-white/90 transition-colors" />
               </button>
             </div>
-            <div className="p-4 max-h-96 overflow-y-auto">
-              {(() => {
-                // Ссылки загружены из базы данных
-                const userLinks = Array.isArray(links) ? links : [];
 
-                // Сортируем по дате (новые первыми)
+            {/* Tabs */}
+            <div className="px-6 pt-6 pb-2">
+              <div className="flex p-1 gap-1 bg-black/20 rounded-xl border border-white/5">
+                <button
+                  onClick={() => setLinkPickerTab('all')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+                    linkPickerTab === 'all' 
+                      ? 'bg-white/10 text-white shadow-sm border border-white/10' 
+                      : 'text-white/40 hover:text-white/70 hover:bg-white/5'
+                  }`}
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  Все
+                </button>
+                <button
+                  onClick={() => setLinkPickerTab('people')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+                    linkPickerTab === 'people' 
+                      ? 'bg-white/10 text-white shadow-sm border border-white/10' 
+                      : 'text-white/40 hover:text-white/70 hover:bg-white/5'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  Люди
+                </button>
+                <button
+                  onClick={() => setLinkPickerTab('department')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+                    linkPickerTab === 'department' 
+                      ? 'bg-white/10 text-white shadow-sm border border-white/10' 
+                      : 'text-white/40 hover:text-white/70 hover:bg-white/5'
+                  }`}
+                >
+                  <Building className="w-3.5 h-3.5" />
+                  Отделы
+                </button>
+              </div>
+            </div>
+
+            {/* Content List */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 custom-scrollbar min-h-[300px]">
+              {(() => {
+                // Determine content based on tab
+                if (linkPickerTab === 'people') {
+                   return (
+                     <div className="space-y-2">
+                       {/* Show users list */}
+                       {users.map(u => (
+                         <div key={u.id} className="group flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all cursor-pointer">
+                            <Avatar name={u.name || u.username} src={u.avatar} className="w-10 h-10 text-sm" />
+                            <div className="flex-1">
+                               <p className="text-sm font-medium text-white/90">{u.name || u.username}</p>
+                               <p className="text-xs text-white/40">Нажмите для просмотра ссылок</p>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50" />
+                         </div>
+                       ))}
+                     </div>
+                   )
+                }
+                
+                if (linkPickerTab === 'department') {
+                   // Departments with Pantone colors
+                   const depts = [
+                     { id: 'marketing', name: 'Маркетинг', count: 12 },
+                     { id: 'sales', name: 'Продажи', count: 8 },
+                     { id: 'it', name: 'Разработка', count: 24 },
+                     { id: 'hr', name: 'HR', count: 5 },
+                     { id: 'legal', name: 'Юристы', count: 3 },
+                     { id: 'logistics', name: 'Логистика', count: 7 },
+                     { id: 'design', name: 'Дизайн', count: 15 },
+                     { id: 'management', name: 'Руков.', count: 2 },
+                     { id: 'support', name: 'Поддержка', count: 18 },
+                     { id: 'finance', name: 'Финансы', count: 9 },
+                     { id: 'security', name: 'Охрана', count: 4 },
+                     { id: 'pr', name: 'PR', count: 6 },
+                     { id: 'analytics', name: 'Аналитика', count: 8 },
+                     { id: 'devops', name: 'DevOps', count: 2 },
+                     { id: 'content', name: 'Контент', count: 11 }
+                   ];
+                   
+                   return (
+                     <div className="grid grid-cols-3 gap-3">
+                       {depts.map((d, index) => {
+                         const color = DEPARTMENT_COLORS[index % DEPARTMENT_COLORS.length];
+                         return (
+                           <div 
+                             key={d.id} 
+                             className="group relative h-28 p-3 rounded-2xl border border-white/10 overflow-hidden cursor-pointer shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all flex flex-col items-center justify-center"
+                           >
+                              {/* Background color layer */}
+                              <div className="absolute inset-0 opacity-85 transition-opacity group-hover:opacity-100" style={{ backgroundColor: color }} />
+                              
+                              {/* Gradient overlay for depth */}
+                              <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/20" />
+                              
+                              {/* Content */}
+                              <div className="relative z-10 flex flex-col items-center gap-2">
+                                  <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
+                                      <Building className="w-4 h-4 text-white" strokeWidth={2.5} />
+                                  </div>
+                                  <div className="text-center w-full px-1">
+                                       <h4 className="text-white font-bold text-xs uppercase tracking-wider shadow-black/10 drop-shadow-sm truncate w-full">{d.name}</h4>
+                                       <span className="text-[9px] text-white/90 font-semibold bg-black/20 px-1.5 py-0.5 rounded-md mt-1 inline-block backdrop-blur-sm">{d.count}</span>
+                                  </div>
+                              </div>
+                           </div>
+                         );
+                       })}
+                     </div>
+                   )
+                }
+
+                // Default: All Links
+                const userLinks = Array.isArray(links) ? links : [];
+                // Sort by date (newest first)
                 const sortedLinks = userLinks.sort((a, b) => 
                   new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
                 );
@@ -4619,9 +4732,14 @@ export default function MessagesPage() {
                 });
 
                 return sortedLinks.length === 0 ? (
-                  <p className="text-sm text-[var(--text-secondary)] text-center py-8">Нет сохраненных ссылок</p>
+                  <div className="flex flex-col items-center justify-center h-full py-10 text-center">
+                    <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
+                      <LinkIcon className="w-8 h-8 text-white/20" />
+                    </div>
+                    <p className="text-sm text-white/50">Нет сохраненных ссылок</p>
+                  </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {sortedLinks.map((link, index) => (
                       <button
                         key={link.id || index}
@@ -4633,21 +4751,31 @@ export default function MessagesPage() {
                           }]);
                           setShowLinkPicker(false);
                         }}
-                        className="w-full text-left p-3 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition-colors"
+                        className="w-full group text-left p-3.5 bg-gradient-to-br from-white/5 to-white/0 hover:from-white/10 hover:to-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-all"
                       >
-                        <div className="flex items-start gap-2">
-                          <LinkIcon className="w-4 h-4 text-purple-400 flex-shrink-0 mt-1" />
+                        <div className="flex items-start gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center flex-shrink-0 border border-indigo-500/20 mt-0.5">
+                             <LinkIcon className="w-4 h-4 text-indigo-400" />
+                          </div>
+                          
                           <div className="flex-1 min-w-0">
                             {link.title && (
-                              <p className="text-xs font-medium text-[var(--text-primary)] mb-0.5">{link.title}</p>
+                              <p className="text-sm font-medium text-white/90 mb-0.5 group-hover:text-cyan-200 transition-colors line-clamp-1">{link.title}</p>
                             )}
-                            <p className="text-[10px] text-[var(--text-muted)] reak-all line-clamp-1">{link.url}</p>
+                            <p className="text-[11px] text-white/40 font-mono truncate">{link.url}</p>
                             {link.description && (
-                              <p className="text-[10px] text-[var(--text-secondary)] mt-1 line-clamp-2">{link.description}</p>
+                              <p className="text-[11px] text-white/50 mt-1.5 line-clamp-2 leading-relaxed">{link.description}</p>
                             )}
-                            <p className="text-[9px] text-[var(--text-muted)] mt-1">
-                              {new Date(link.createdAt).toLocaleDateString('ru-RU')}
-                            </p>
+                            
+                            <div className="flex items-center gap-2 mt-2">
+                               <span className="px-1.5 py-0.5 rounded bg-white/5 text-[9px] text-white/30 border border-white/5">
+                                 {new Date(link.createdAt).toLocaleDateString('ru-RU')}
+                               </span>
+                            </div>
+                          </div>
+                          
+                          <div className="self-center opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0 duration-300">
+                             <Plus className="w-5 h-5 text-cyan-400" />
                           </div>
                         </div>
                       </button>
@@ -4656,17 +4784,19 @@ export default function MessagesPage() {
                 );
               })()}
             </div>
-            <div className="flex gap-2 p-4 border-t border-[var(--border-color)]">
-              <button
-                onClick={() => setShowLinkPicker(false)}
-                className="flex-1 py-2 bg-[var(--bg-tertiary)] rounded-lg text-sm hover:bg-[var(--bg-primary)]"
-              >
-                Отмена
-              </button>
+            
+            {/* Footer */}
+            <div className="p-4 border-t border-white/10 bg-white/5 backdrop-blur-md flex justify-between items-center text-xs text-white/40">
+                <span>Всего ссылок: {Array.isArray(links) ? links.length : 0}</span>
+                <Link href="/links" className="hover:text-cyan-400 transition-colors flex items-center gap-1">
+                   Управление
+                   <ArrowLeft className="w-3 h-3 rotate-180" />
+                </Link>
             </div>
           </div>
         </div>
       )}
+
 
       {/* Event Picker Modal */}
       {showEventPicker && (
@@ -4769,31 +4899,31 @@ export default function MessagesPage() {
           
           {/* Modal */}
           <div 
-            className="relative w-full sm:w-auto sm:min-w-[360px] max-w-md bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-t-[25px] sm:rounded-[25px] shadow-2xl overflow-hidden"
+            className="relative w-full sm:w-auto sm:min-w-[360px] max-w-md bg-gradient-to-br from-[#1e293b]/95 to-[#0f172a]/95 backdrop-blur-xl border border-white/10 rounded-t-[25px] sm:rounded-[25px] shadow-2xl overflow-hidden pb-safe min-h-[50vh] sm:min-h-0"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Handle для мобильных */}
             <div className="flex justify-center pt-3 pb-2 sm:hidden">
-              <div className="w-10 h-1 rounded-full bg-[var(--border-color)]" />
+              <div className="w-10 h-1 rounded-full bg-white/20" />
             </div>
             
             {/* Header */}
-            <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
-              <h3 className="font-semibold text-sm flex items-center gap-2 text-[var(--text-primary)]">
+            <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+              <h3 className="font-semibold text-sm flex items-center gap-2 text-white/90">
                 <Paperclip className="w-4 h-4 text-cyan-400" />
                 Добавить вложение
               </h3>
               <button
                 onClick={() => setShowAttachmentMenu(false)}
-                className="w-8 h-8 rounded-full hover:bg-[var(--bg-tertiary)] flex items-center justify-center transition-colors"
+                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"
               >
-                <X className="w-4 h-4 text-[var(--text-muted)]" />
+                <X className="w-4 h-4 text-white/60" />
               </button>
             </div>
             
             {/* Drop Zone - только на десктопе */}
             <div 
-              className="hidden md:block mx-4 mt-4 p-6 border-2 border-dashed border-[var(--border-color)] rounded-[20px] hover:border-cyan-400/50 hover:bg-cyan-500/5 transition-all cursor-pointer"
+              className="hidden md:block mx-4 mt-4 p-6 border-2 border-dashed border-white/10 rounded-[20px] hover:border-cyan-400/50 hover:bg-cyan-500/5 transition-all cursor-pointer"
               onClick={() => fileInputRef.current?.click()}
               onDragOver={(e) => {
                 e.preventDefault();
@@ -5251,6 +5381,30 @@ export default function MessagesPage() {
               <CheckSquare className="w-4 h-4 text-orange-400" />
               Превратить в задачу
             </button>
+
+            {/* Создать событие */}
+            <button
+              onClick={async () => {
+                setCreatingEventFromMessage(contextMenuMessage);
+                setShowMessageContextMenu(false);
+                // Загружаем календари пользователя
+                try {
+                  const username = localStorage.getItem('username');
+                  const res = await fetch(`/api/calendar-lists?userId=${encodeURIComponent(username || '')}`);
+                  if (res.ok) {
+                    const data = await res.json();
+                    setCalendarLists(Array.isArray(data) ? data : data.lists || []);
+                  }
+                } catch (error) {
+                  console.error('Error loading calendars:', error);
+                }
+                setShowEventCalendarSelector(true);
+              }}
+              className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
+            >
+              <CalendarPlus className="w-4 h-4 text-purple-400" />
+              Сделать событием
+            </button>
           </div>
         </>
       )}
@@ -5421,6 +5575,79 @@ export default function MessagesPage() {
                 }
               }}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Modal выбора календаря для создания события */}
+      {showEventCalendarSelector && creatingEventFromMessage && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100]">
+          <div className="bg-white dark:bg-gradient-to-b dark:from-[#1a1a1a] dark:to-[#151515] border-0 sm:border border-gray-200 dark:border-white/10 rounded-t-2xl sm:rounded-xl w-full sm:w-96 max-h-[95vh] shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-white/10">
+              <h3 className="font-medium text-gray-900 dark:text-white">Выберите календарь</h3>
+              <button
+                onClick={() => {
+                  setShowEventCalendarSelector(false);
+                  setCreatingEventFromMessage(null);
+                }}
+                className="w-8 h-8 rounded-full bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 flex items-center justify-center transition-colors"
+              >
+                <X className="w-4 h-4 text-gray-500 dark:text-white/60" />
+              </button>
+            </div>
+            <div className="p-4 flex flex-col gap-2 overflow-y-auto">
+              {/* Календари пользователя */}
+              {calendarLists.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 dark:text-white/50">
+                  <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p className="text-sm">Нет доступных календарей</p>
+                  <p className="text-xs mt-1">Создайте календарь в настройках</p>
+                </div>
+              ) : (
+                calendarLists.map(list => (
+                <button
+                  key={list.id}
+                  onClick={async () => {
+                    try {
+                      const eventTitle = creatingEventFromMessage.content.length > 100
+                        ? creatingEventFromMessage.content.substring(0, 100) + '...'
+                        : creatingEventFromMessage.content;
+                      
+                      const res = await fetch('/api/events', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          title: eventTitle,
+                          description: creatingEventFromMessage.content,
+                          type: 'other',
+                          dateType: 'single',
+                          startDate: new Date().toISOString().split('T')[0],
+                          color: list.color,
+                          createdBy: localStorage.getItem('username') || 'guest'
+                        })
+                      });
+                      
+                      if (res.ok) {
+                        setShowEventCalendarSelector(false);
+                        setCreatingEventFromMessage(null);
+                        router.push('/events');
+                      } else {
+                        throw new Error('Ошибка создания события');
+                      }
+                    } catch (error) {
+                      console.error('Error creating event:', error);
+                      alert('Не удалось создать событие');
+                    }
+                  }}
+                  className="w-full px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl flex items-center gap-3 transition-colors"
+                  style={{ borderLeft: `3px solid ${list.color || '#3B82F6'}` }}
+                >
+                  <Calendar className="w-5 h-5 text-gray-400 dark:text-white/60" />
+                  <span className="text-gray-900 dark:text-white font-medium">{list.name}</span>
+                </button>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}

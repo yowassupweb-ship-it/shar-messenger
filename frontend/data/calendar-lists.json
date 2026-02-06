@@ -1,0 +1,26 @@
+{
+  "lists": [
+    {
+      "id": "default",
+      "name": "Основной календарь",
+      "description": "Основной календарь событий",
+      "color": "#3B82F6",
+      "createdAt": "2026-02-06T09:23:17.306Z",
+      "updatedAt": "2026-02-06T09:23:17.307Z",
+      "isDefault": true,
+      "allowedUsers": []
+    },
+    {
+      "id": "20260206_105119_1affow",
+      "name": "111111",
+      "color": "#3B82F6",
+      "createdAt": "2026-02-06T10:51:19.386Z",
+      "updatedAt": "2026-02-06T11:14:18.347Z",
+      "allowedUsers": [],
+      "allowedDepartments": [
+        "бухгалтерия"
+      ]
+    }
+  ],
+  "activeListId": "default"
+}
