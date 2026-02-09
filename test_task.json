@@ -1,7 +1,0 @@
-{
-  "title": "Тестовая задача",
-  "description": "Проверка создания задачи через API",
-  "status": "todo",
-  "priority": "medium",
-  "authorId": "user_001"
-}

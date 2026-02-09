@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -30,12 +30,7 @@ import {
   Link2,
   Copy,
   Trash2,
-  Bell,
   ExternalLink,
-  BellRing,
-  AtSign,
-  UserCheck,
-  Flag,
   Globe,
   Settings
 } from 'lucide-react';
@@ -44,235 +39,107 @@ import {
   getPostRelatedUsers,
   getStatusLabel 
 } from '@/services/notificationService';
-
-interface Person {
-  id: string;
-  name: string;
-  avatar?: string;
-  color: string;
-  role: 'customer' | 'executor' | 'universal';
-}
-
-interface LinkItem {
-  id: string;
-  url: string;
-  title: string;
-  description?: string;
-  favicon?: string;
-}
-
-interface ContentPost {
-  id: string;
-  title: string;
-  postText?: string;
-  platform: 'telegram' | 'vk' | 'dzen' | 'max' | 'mailing' | 'site';
-  contentType: 'post' | 'story' | 'article' | 'mailing';
-  publishDate: string;
-  publishTime?: string;
-  mediaUrls?: string[];
-  postStatus: 'draft' | 'scheduled' | 'approved';
-  roles?: ('smm' | 'manager')[];
-  participants?: string[];
-  assignedById?: string;
-  assignedToIds?: string[];
-  linkId?: string;
-  linkUrl?: string;
-  linkTitle?: string;
-  createdBy?: string;
-  createdAt: string;
-  updatedAt: string;
-  comments?: Comment[];
-}
-
-interface Comment {
-  id: string;
-  text: string;
-  authorId: string;
-  createdAt: string;
-  readBy?: string[];
-}
-
-interface Toast {
-  id: string;
-  type: 'info' | 'success' | 'warning' | 'error';
-  title: string;
-  message: string;
-  postId?: string;
-  createdAt: number;
-}
-
-interface Notification {
-  id: string;
-  type?: 'new_post' | 'comment' | 'mention' | 'status_change' | 'assignment' | 'new_task' | 'event_invite' | 'event_update' | 'event_reminder';
-  postId?: string;
-  postTitle?: string;
-  todoId?: string;
-  todoTitle?: string;
-  eventId?: string;
-  eventTitle?: string;
-  fromUserId: string;
-  fromUserName: string;
-  toUserId: string;
-  message: string;
-  read: boolean;
-  createdAt: string;
-}
-
-const PLATFORM_CONFIG: Record<string, { color: string; name: string; icon: string; iconBg?: string }> = {
-  telegram: { color: '#29b6f6', name: 'Telegram', icon: '/icons/telegram.svg' },
-  vk: { color: '#0077FF', name: 'VK', icon: '/icons/vk.svg' },
-  dzen: { color: '#FFFFFF', name: 'Дзен', icon: '/icons/dzen.svg' },
-  max: { color: '#8B5CF6', name: 'MAX', icon: '/icons/max.svg' },
-  mailing: { color: '#f59e0b', name: 'Рассылка', icon: '' },
-  site: { color: '#10b981', name: 'Сайт', icon: '' }
-};
-
-// Ограничения контента по платформам
-const PLATFORM_CONTENT_TYPES: Record<string, { id: string; label: string }[]> = {
-  telegram: [
-    { id: 'post', label: 'Пост' },
-    { id: 'story', label: 'История' }
-  ],
-  vk: [
-    { id: 'post', label: 'Пост' },
-    { id: 'story', label: 'История' }
-  ],
-  dzen: [
-    { id: 'article', label: 'Статья' }
-  ],
-  max: [
-    { id: 'post', label: 'Пост' },
-    { id: 'story', label: 'История' }
-  ],
-  mailing: [
-    { id: 'mailing', label: 'Рассылка' }
-  ],
-  site: [
-    { id: 'post', label: 'Пост' }
-  ]
-};
-
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft: { label: 'Черновик', color: 'text-white/50', bg: 'bg-white/10' },
-  scheduled: { label: 'Запланирован', color: 'text-blue-400', bg: 'bg-blue-500/20' },
-  approved: { label: 'Согласовано', color: 'text-green-400', bg: 'bg-green-500/20' }
-};
-
-const CONTENT_TYPE_LABELS: Record<string, string> = {
-  post: 'Пост',
-  story: 'История',
-  article: 'Статья',
-  mailing: 'Рассылка'
-};
-
-// Получение дней недели
-const getWeekDays = (startDate: Date) => {
-  const days = [];
-  const start = new Date(startDate);
-  start.setDate(start.getDate() - start.getDay() + 1);
-  
-  for (let i = 0; i < 7; i++) {
-    const day = new Date(start);
-    day.setDate(start.getDate() + i);
-    days.push(day);
-  }
-  return days;
-};
-
-const formatDateKey = (date: Date) => {
-  return date.toISOString().split('T')[0];
-};
+import type {
+  ContentPost,
+  Person,
+  LinkItem,
+  Toast,
+  Notification,
+  Comment,
+  ContentPlanMeta,
+  Platform,
+  ContentType,
+  PostStatus
+} from '@/types/contentPlan';
+import {
+  PLATFORM_CONFIG,
+  PLATFORM_CONTENT_TYPES,
+  STATUS_CONFIG,
+  CONTENT_TYPE_LABELS,
+  WEEKDAYS,
+  MONTHS,
+  PLAN_COLORS
+} from '@/constants/contentPlanConfig';
+import {
+  formatDateKey,
+  getWeekDays,
+  getCalendarDays,
+  goToPreviousWeek,
+  goToNextWeek,
+  goToCurrentWeek,
+  goToPreviousMonth,
+  goToNextMonth,
+  goToCurrentMonth
+} from '@/utils/contentPlanHelpers';
+import { useContentPlanState } from '@/hooks/useContentPlanState';
+import ContentPlanPostModal from '@/components/content-plan/ContentPlanPostModal';
+import ContentPlanHeader from '@/components/content-plan/ContentPlanHeader';
+import ContentPlanColumns from '@/components/content-plan/ContentPlanColumns';
+import ContentPlanCalendar from '@/components/content-plan/ContentPlanCalendar';
+import CreatePlanModal from '@/components/content-plan/CreatePlanModal';
+import PlanSettingsModal from '@/components/content-plan/PlanSettingsModal';
+import ToastNotifications from '@/components/content-plan/ToastNotifications';
 
 export default function ContentPlanPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [posts, setPosts] = useState<ContentPost[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showAddPost, setShowAddPost] = useState(false);
-  const [selectedPlatform, setSelectedPlatform] = useState<'telegram' | 'vk' | 'dzen' | 'max' | 'mailing' | 'site' | null>(null);
-  const [editingPost, setEditingPost] = useState<ContentPost | null>(null);
-  const [users, setUsers] = useState<Person[]>([]);
-  const [myAccountId, setMyAccountId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [newComment, setNewComment] = useState('');
-  const [currentWeekStart, setCurrentWeekStart] = useState(() => {
-    const now = new Date();
-    now.setDate(now.getDate() - now.getDay() + 1);
-    now.setHours(0, 0, 0, 0);
-    return now;
-  });
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [draggedPost, setDraggedPost] = useState<ContentPost | null>(null);
-  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-  const [selectedPlatformFilters, setSelectedPlatformFilters] = useState<string[]>([]);
-  const [showFilters, setShowFilters] = useState(false);
-  const [viewMode, setViewMode] = useState<'columns' | 'calendar'>('columns');
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const hasOpenedFromUrlRef = useRef(false);
-  const [isDirty, setIsDirty] = useState(false);
-  const initialFormRef = useRef<typeof postForm | null>(null);
   
-  // Drag to scroll
-  const [isDraggingBoard, setIsDraggingBoard] = useState(false);
-  const [startX, setStartX] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
+  // Используем hook для состояния
+  const state = useContentPlanState();
+  const {
+    posts, setPosts,
+    users, setUsers,
+    availableLinks, setAvailableLinks,
+    myAccountId, setMyAccountId,
+    isLoading, setIsLoading,
+    showAddPost, setShowAddPost,
+    editingPost, setEditingPost,
+    selectedPlatform, setSelectedPlatform,
+    openDropdown, setOpenDropdown,
+    searchQuery, setSearchQuery,
+    selectedPlatformFilters, setSelectedPlatformFilters,
+    showFilters, setShowFilters,
+    viewMode, setViewMode,
+    currentWeekStart, setCurrentWeekStart,
+    currentMonth, setCurrentMonth,
+    draggedPost, setDraggedPost,
+    dragOverDate, setDragOverDate,
+    selectedDate, setSelectedDate,
+    isDraggingBoard, setIsDraggingBoard,
+    startX, setStartX,
+    scrollLeft, setScrollLeft,
+    newComment, setNewComment,
+    editingCommentId, setEditingCommentId,
+    editingCommentText, setEditingCommentText,
+    replyingToComment, setReplyingToComment,
+
+    toasts, setToasts,
+    contentPlans, setContentPlans,
+    activePlanId, setActivePlanId,
+    showPlanSelector, setShowPlanSelector,
+    showCreatePlan, setShowCreatePlan,
+    editingPlan, setEditingPlan,
+    editingPlanName, setEditingPlanName,
+    editingPlanNameValue, setEditingPlanNameValue,
+    showPlanSettings, setShowPlanSettings,
+    planSettingsData, setPlanSettingsData,
+    linksSearchQuery, setLinksSearchQuery,
+    showMentionDropdown, setShowMentionDropdown,
+    mentionFilter, setMentionFilter,
+    showLinkUrlModal, setShowLinkUrlModal,
+    linkUrlInput, setLinkUrlInput,
+    postForm, setPostForm,
+    isDirty, setIsDirty,
+    hasOpenedFromUrlRef,
+    initialFormRef,
+    scrollContainerRef,
+    descriptionEditorRef,
+    commentInputRef
+  } = state;
   
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const descriptionEditorRef = useRef<HTMLDivElement>(null);
-  const commentInputRef = useRef<HTMLTextAreaElement>(null);
-  
-  // Состояния для редактирования/ответа на комментарии
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editingCommentText, setEditingCommentText] = useState('');
-  const [replyingToComment, setReplyingToComment] = useState<Comment | null>(null);
-  
-  // Toast уведомления
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  
-  // Inbox (Почтовый ящик) состояние
-  const [showInbox, setShowInbox] = useState(false);
-  const [inboxTab, setInboxTab] = useState<'new' | 'history'>('new');
-  const [myNotifications, setMyNotifications] = useState<Notification[]>([]);
   const unreadCount = myNotifications.filter(n => !n.read).length;
   
-  // Ссылки
-  const [availableLinks, setAvailableLinks] = useState<LinkItem[]>([]);
-  const [linksSearchQuery, setLinksSearchQuery] = useState('');
-  
-  // Mentions (упоминания)
-  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
-  const [mentionFilter, setMentionFilter] = useState('');
-  
-  // Link URL input modal
-  const [showLinkUrlModal, setShowLinkUrlModal] = useState(false);
-  const [linkUrlInput, setLinkUrlInput] = useState('');
-  
-  // Контент-планы (множественные)
-  interface ContentPlanMeta {
-    id: string;
-    name: string;
-    description?: string;
-    color: string;
-    createdBy?: string;
-    createdAt: string;
-    updatedAt: string;
-    isDefault?: boolean;
-    allowedUsers?: string[]; // ID пользователей с доступом (пустой = все)
-  }
-  const [contentPlans, setContentPlans] = useState<ContentPlanMeta[]>([]);
-  const [activePlanId, setActivePlanId] = useState<string>('default');
-  const [showPlanSelector, setShowPlanSelector] = useState(false);
-  const [showCreatePlan, setShowCreatePlan] = useState(false);
-  const [newPlanName, setNewPlanName] = useState('');
-  const [newPlanColor, setNewPlanColor] = useState('#8B5CF6');
-  const [editingPlan, setEditingPlan] = useState<ContentPlanMeta | null>(null);
-  const [editingPlanName, setEditingPlanName] = useState<string | null>(null); // ID плана в режиме редактирования имени
-  const [editingPlanNameValue, setEditingPlanNameValue] = useState('');
-  const [showPlanSettings, setShowPlanSettings] = useState(false);
-  const [planSettingsData, setPlanSettingsData] = useState<ContentPlanMeta | null>(null);
-  
-  // Удаление toast
+
   const removeToast = useCallback((toastId: string) => {
     setToasts(prev => prev.filter(t => t.id !== toastId));
   }, []);
@@ -297,7 +164,7 @@ export default function ContentPlanPage() {
       const res = await fetch(`/api/notifications?userId=${myAccountId}`);
       if (res.ok) {
         const data = await res.json();
-        setMyNotifications(data.notifications || []);
+
       }
     } catch (error) {
       console.error('Error loading notifications:', error);
@@ -640,79 +507,16 @@ export default function ContentPlanPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showFilters]);
 
-  // Навигация по неделям
-  const goToPreviousWeek = () => {
-    setCurrentWeekStart(prev => {
-      const newDate = new Date(prev);
-      newDate.setDate(newDate.getDate() - 7);
-      return newDate;
-    });
-  };
+  // Навигация по неделям (теперь используем импортированные функции)
+  const handleGoToPreviousWeek = () => goToPreviousWeek(currentWeekStart, setCurrentWeekStart);
+  const handleGoToNextWeek = () => goToNextWeek(currentWeekStart, setCurrentWeekStart);
+  const handleGoToCurrentWeek = () => goToCurrentWeek(setCurrentWeekStart);
 
-  const goToNextWeek = () => {
-    setCurrentWeekStart(prev => {
-      const newDate = new Date(prev);
-      newDate.setDate(newDate.getDate() + 7);
-      return newDate;
-    });
-  };
-
-  const goToCurrentWeek = () => {
-    const now = new Date();
-    now.setDate(now.getDate() - now.getDay() + 1);
-    now.setHours(0, 0, 0, 0);
-    setCurrentWeekStart(now);
-  };
-
-  // Календарные функции
-  const getCalendarDays = () => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    
-    const days: { date: Date; isCurrentMonth: boolean }[] = [];
-    
-    // Дни предыдущего месяца
-    const firstDayOfWeek = (firstDay.getDay() + 6) % 7;
-    for (let i = firstDayOfWeek - 1; i >= 0; i--) {
-      const date = new Date(year, month, -i);
-      days.push({ date, isCurrentMonth: false });
-    }
-    
-    // Дни текущего месяца
-    for (let i = 1; i <= lastDay.getDate(); i++) {
-      days.push({ date: new Date(year, month, i), isCurrentMonth: true });
-    }
-    
-    // Дни следующего месяца
-    const remainingDays = 42 - days.length;
-    for (let i = 1; i <= remainingDays; i++) {
-      const date = new Date(year, month + 1, i);
-      days.push({ date, isCurrentMonth: false });
-    }
-    
-    return days;
-  };
-
-  const goToPreviousMonth = () => {
-    setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-  };
-
-  const goToNextMonth = () => {
-    setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-  };
-
-  const goToCurrentMonth = () => {
-    setCurrentMonth(new Date());
-  };
-
-  const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-  const MONTHS = [
-    'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
-  ];
+  // Календарные функции (теперь используем импортированные функции)
+  const handleGetCalendarDays = () => getCalendarDays(currentMonth);
+  const handleGoToPreviousMonth = () => goToPreviousMonth(currentMonth, setCurrentMonth);
+  const handleGoToNextMonth = () => goToNextMonth(currentMonth, setCurrentMonth);
+  const handleGoToCurrentMonth = () => goToCurrentMonth(setCurrentMonth);
 
   // Получение постов для дня
   const getPostsForDay = (date: Date) => {
@@ -1569,646 +1373,65 @@ export default function ContentPlanPage() {
           )}
         </div>
 
-        {/* View Mode Toggle */}
-        <div className="flex items-center bg-gray-200 dark:bg-white/5 rounded-lg p-0.5 mr-2 sm:mr-4">
-          <button
-            onClick={() => setViewMode('columns')}
-            className={`p-1.5 sm:p-2 rounded-md transition-all ${
-              viewMode === 'columns' 
-                ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' 
-                : 'text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/70'
-            }`}
-            title="Колонки"
-          >
-            <LayoutGrid className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setViewMode('calendar')}
-            className={`p-1.5 sm:p-2 rounded-md transition-all ${
-              viewMode === 'calendar' 
-                ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' 
-                : 'text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/70'
-            }`}
-            title="Календарь"
-          >
-            <CalendarDays className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Navigation - depends on view mode */}
-        {viewMode === 'columns' ? (
-          <>
-            <div className="hidden sm:flex items-center gap-2 mr-4 bg-gray-200 dark:bg-white/5 rounded-xl p-1">
-              <button
-                onClick={goToPreviousWeek}
-                className="p-2 hover:bg-gray-300 dark:hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                onClick={goToCurrentWeek}
-                className="px-4 py-1.5 text-xs font-medium bg-purple-500/20 text-purple-600 dark:text-purple-400 hover:bg-purple-500/30 rounded-lg transition-colors"
-              >
-                Сегодня
-              </button>
-              <button
-                onClick={goToNextWeek}
-                className="p-2 hover:bg-gray-300 dark:hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-            <span className="hidden lg:inline text-sm text-gray-500 dark:text-white/60">
-              {weekDays[0].toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })} — {weekDays[6].toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </span>
-          </>
-        ) : (
-          <>
-            <div className="hidden sm:flex items-center gap-2 mr-4 bg-gray-200 dark:bg-white/5 rounded-xl p-1">
-              <button
-                onClick={goToPreviousMonth}
-                className="p-2 hover:bg-gray-300 dark:hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                onClick={goToCurrentMonth}
-                className="px-4 py-1.5 text-xs font-medium bg-purple-500/20 text-purple-600 dark:text-purple-400 hover:bg-purple-500/30 rounded-lg transition-colors"
-              >
-                Сегодня
-              </button>
-              <button
-                onClick={goToNextMonth}
-                className="p-2 hover:bg-gray-300 dark:hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-            <span className="hidden lg:inline text-sm text-gray-500 dark:text-white/60">
-              {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-            </span>
-          </>
-        )}
-
-        <div className="flex-1" />
-
-        {/* Platform Filters */}
-        <div className="relative mr-2 sm:mr-3" data-filter-menu>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg transition-all ${
-              selectedPlatformFilters.length > 0 
-                ? 'bg-purple-500/20 border border-purple-500/30 text-purple-600 dark:text-purple-400' 
-                : 'bg-gray-200 dark:bg-white/5 border border-gray-300 dark:border-white/10 hover:bg-gray-300 dark:hover:bg-white/10 text-gray-600 dark:text-white/70'
-            }`}
-          >
-            <Filter className="w-3.5 h-3.5" />
-            <span className="text-xs font-medium hidden sm:inline">Каналы</span>
-            {selectedPlatformFilters.length > 0 && (
-              <span className="text-[10px] bg-purple-500 text-white px-1.5 rounded-full">
-                {selectedPlatformFilters.length}
-              </span>
-            )}
-            <ChevronDown className={`w-3 h-3 transition-transform hidden sm:block ${showFilters ? 'rotate-180' : ''}`} />
-          </button>
-          
-          {showFilters && (
-            <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 py-1">
-              <div className="px-3 py-2 border-b border-gray-200 dark:border-white/10 flex items-center justify-between">
-                <span className="text-xs text-gray-500 dark:text-white/50">Фильтр по каналам</span>
-                {selectedPlatformFilters.length > 0 && (
-                  <button
-                    onClick={() => setSelectedPlatformFilters([])}
-                    className="text-[10px] text-purple-600 dark:text-purple-400 hover:text-purple-500 dark:hover:text-purple-300"
-                  >
-                    Сбросить
-                  </button>
-                )}
-              </div>
-              {platforms.map(platform => {
-                const config = PLATFORM_CONFIG[platform];
-                const isSelected = selectedPlatformFilters.includes(platform);
-                return (
-                  <button
-                    key={platform}
-                    onClick={() => togglePlatformFilter(platform)}
-                    className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors ${
-                      isSelected ? 'text-gray-900 dark:text-white bg-gray-100 dark:bg-white/5' : 'text-gray-600 dark:text-white/70'
-                    }`}
-                  >
-                    <div className={`w-5 h-5 flex items-center justify-center flex-shrink-0 ${config.iconBg ? 'bg-white rounded-full p-0.5' : ''}`}>
-                      {config.icon ? (
-                        <Image src={config.icon} alt={config.name} width={16} height={16} className="w-4 h-4 object-contain" />
-                      ) : (
-                        <Mail className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
-                      )}
-                    </div>
-                    <span className="flex-1">{config.name}</span>
-                    {isSelected && (
-                      <Check className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Inbox Button */}
-        <div className="relative mr-2 sm:mr-3">
-          <button
-            onClick={() => setShowInbox(!showInbox)}
-            title="Почтовый ящик"
-            className="p-1.5 bg-gray-200 dark:bg-white/5 hover:bg-gray-300 dark:hover:bg-white/10 rounded-lg text-xs transition-colors flex items-center border border-gray-300 dark:border-white/10 relative"
-          >
-            {unreadCount > 0 ? <BellRing className="w-4 h-4 text-orange-500 dark:text-orange-400" /> : <Bell className="w-4 h-4" />}
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center font-medium">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </button>
-
-          {/* Inbox Dropdown */}
-          {showInbox && (
-            <div className="absolute right-0 top-full mt-1 w-80 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl shadow-xl z-50 max-h-[450px] flex flex-col">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-white/10">
-                <div className="flex items-center gap-2">
-                  <Bell className="w-4 h-4 text-blue-500 dark:text-blue-400" />
-                  <span className="text-sm font-medium">Уведомления</span>
-                </div>
-                {inboxTab === 'new' && unreadCount > 0 && (
-                  <button
-                    onClick={markAllNotificationsRead}
-                    className="text-[10px] text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300"
-                  >
-                    Прочитать все
-                  </button>
-                )}
-              </div>
-
-              {/* Tabs */}
-              <div className="flex border-b border-gray-200 dark:border-white/10">
-                <button
-                  onClick={() => setInboxTab('new')}
-                  className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-                    inboxTab === 'new' 
-                      ? 'text-blue-500 dark:text-blue-400 border-b-2 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-500/5' 
-                      : 'text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/70'
-                  }`}
-                >
-                  Новые {unreadCount > 0 && <span className="ml-1 px-1.5 py-0.5 bg-red-100 dark:bg-red-500/20 text-red-500 dark:text-red-400 rounded-full text-[10px]">{unreadCount}</span>}
-                </button>
-                <button
-                  onClick={() => setInboxTab('history')}
-                  className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-                    inboxTab === 'history' 
-                      ? 'text-blue-500 dark:text-blue-400 border-b-2 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-500/5' 
-                      : 'text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/70'
-                  }`}
-                >
-                  История
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto">
-                {(() => {
-                  const filteredNotifs = inboxTab === 'new' 
-                    ? myNotifications.filter(n => !n.read)
-                    : myNotifications.filter(n => n.read);
-                  
-                  if (filteredNotifs.length === 0) {
-                    return (
-                      <div className="flex flex-col items-center justify-center py-8 text-gray-400 dark:text-white/30">
-                        <Bell className="w-8 h-8 mb-2 opacity-50" />
-                        <p className="text-xs">{inboxTab === 'new' ? 'Нет новых уведомлений' : 'История пуста'}</p>
-                      </div>
-                    );
-                  }
-                  
-                  return filteredNotifs.slice(0, 30).map(notif => {
-                    const isEventNotification = notif.type?.startsWith('event_');
-                    const isTodoNotification = notif.todoId;
-                    const isPostNotification = notif.postId;
-                    return (
-                      <div
-                        key={notif.id}
-                        onClick={async () => {
-                          markNotificationRead(notif.id);
-                          setShowInbox(false);
-                          // Переход в зависимости от типа уведомления
-                          if (isEventNotification) {
-                            window.location.href = '/events';
-                          } else if (isTodoNotification) {
-                            window.location.href = '/todos';
-                          } else if (isPostNotification) {
-                            // Открываем пост в модалке
-                            const post = posts.find(p => p.id === notif.postId);
-                            if (post) {
-                              openEditPost(post);
-                            }
-                          }
-                        }}
-                        className={`px-3 py-2.5 border-b border-gray-100 dark:border-white/5 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${
-                          !notif.read ? 'bg-blue-50 dark:bg-blue-500/5' : ''
-                        }`}
-                      >
-                        <div className="flex items-start gap-2">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
-                            notif.type === 'new_post' ? 'bg-green-500/20 text-green-400' :
-                            notif.type === 'mention' ? 'bg-purple-500/20 text-purple-400' :
-                            notif.type === 'comment' ? 'bg-blue-500/20 text-blue-400' :
-                            notif.type === 'assignment' ? 'bg-orange-500/20 text-orange-400' :
-                            notif.type === 'status_change' ? 'bg-yellow-500/20 text-yellow-400' :
-                            notif.type === 'new_task' ? 'bg-green-500/20 text-green-400' :
-                            notif.type === 'event_invite' ? 'bg-pink-500/20 text-pink-400' :
-                            notif.type === 'event_update' ? 'bg-cyan-500/20 text-cyan-400' :
-                            notif.type === 'event_reminder' ? 'bg-yellow-500/20 text-yellow-400' :
-                            'bg-orange-500/20 text-orange-400'
-                          }`}>
-                            {(notif.type === 'new_post' || notif.type === 'new_task') && <Plus className="w-3 h-3" />}
-                            {notif.type === 'mention' && <AtSign className="w-3 h-3" />}
-                            {notif.type === 'comment' && <MessageCircle className="w-3 h-3" />}
-                            {notif.type === 'assignment' && <UserCheck className="w-3 h-3" />}
-                            {notif.type === 'status_change' && <Flag className="w-3 h-3" />}
-                            {notif.type === 'event_invite' && <Calendar className="w-3 h-3" />}
-                            {notif.type === 'event_update' && <Calendar className="w-3 h-3" />}
-                            {notif.type === 'event_reminder' && <Bell className="w-3 h-3" />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-700 dark:text-white/90 line-clamp-1">{notif.message}</p>
-                            <p className="text-[10px] text-gray-500 dark:text-white/40 truncate mt-0.5">
-                              {isEventNotification ? notif.eventTitle : isTodoNotification ? notif.todoTitle : notif.postTitle}
-                            </p>
-                            <p className="text-[9px] text-gray-400 dark:text-white/30 mt-1">
-                              {new Date(notif.createdAt).toLocaleString('ru-RU', { 
-                                day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' 
-                              })}
-                            </p>
-                          </div>
-                          {!notif.read && (
-                            <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1" />
-                          )}
-                        </div>
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Search */}
-        <div className="relative mr-2 sm:mr-3 hidden sm:block">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-white/30" />
-          <input
-            type="text"
-            placeholder="Поиск..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 pr-4 py-1.5 bg-gray-100 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-lg w-40 text-sm focus:outline-none focus:border-gray-400 dark:focus:border-white/20 transition-colors"
-          />
-        </div>
+        <ContentPlanHeader
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          weekDays={weekDays}
+          currentMonth={currentMonth}
+          platforms={platforms}
+          selectedPlatformFilters={selectedPlatformFilters}
+          showFilters={showFilters}
+          setShowFilters={setShowFilters}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          handleGoToPreviousWeek={handleGoToPreviousWeek}
+          handleGoToCurrentWeek={handleGoToCurrentWeek}
+          handleGoToNextWeek={handleGoToNextWeek}
+          handleGoToPreviousMonth={handleGoToPreviousMonth}
+          handleGoToCurrentMonth={handleGoToCurrentMonth}
+          handleGoToNextMonth={handleGoToNextMonth}
+          togglePlatformFilter={togglePlatformFilter}
+        />
       </header>
 
       {/* Main Content */}
       {viewMode === 'columns' ? (
-        /* Kanban-style columns by days - horizontal scroll, NEVER wrap */
-        <div 
-          ref={scrollContainerRef}
-          className="flex-1 overflow-x-auto overflow-y-auto p-4 cursor-grab"
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseLeave}
-        >
-          <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
-            {weekDays.map((day, idx) => {
-              const dateKey = formatDateKey(day);
-              const dayPosts = getPostsForDay(day);
-              const isToday = dateKey === formatDateKey(new Date());
-              const isDropTarget = dragOverDate === dateKey;
-              
-              return (
-                <div
-                  key={dateKey}
-                  style={{ width: '260px', minWidth: '260px', flexShrink: 0 }}
-                  className={`flex flex-col rounded-xl border transition-all ${
-                    isDropTarget ? 'ring-2 ring-purple-500/50 border-purple-500/50' : 'border-gray-300 dark:border-white/10'
-                  } ${
-                    isToday ? 'border-purple-500/40' : ''
-                  }`}
-                  onDragOver={(e) => handleDragOver(e, dateKey)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, day)}
-                >
-                  {/* Column Header - compact */}
-                  <div className={`px-2.5 py-1.5 rounded-t-xl border-b flex items-center justify-between ${
-                    isToday 
-                      ? 'bg-purple-500/20 border-purple-500/30' 
-                      : 'bg-gray-100 dark:bg-[#1a1a1a] border-gray-200 dark:border-white/10'
-                  }`}>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-lg font-bold ${isToday ? 'text-purple-600 dark:text-purple-400' : 'text-gray-900 dark:text-white'}`}>
-                        {day.getDate()}
-                      </span>
-                      <span className={`text-[10px] font-medium ${isToday ? 'text-purple-500 dark:text-purple-400/70' : 'text-gray-500 dark:text-white/40'}`}>
-                        {day.toLocaleDateString('ru-RU', { month: 'short' })}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className={`text-[10px] font-medium ${isToday ? 'text-purple-500 dark:text-purple-400/70' : 'text-gray-500 dark:text-white/40'}`}>
-                        {dayNames[idx]}
-                      </span>
-                      <span className="text-[9px] text-gray-500 dark:text-white/30 bg-gray-200 dark:bg-white/10 px-1.5 py-0.5 rounded font-medium">
-                        {dayPosts.length}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Cards Container */}
-                  <div className={`flex-1 p-2.5 space-y-3 rounded-b-xl min-h-[100px] ${
-                    isToday ? 'bg-purple-50 dark:bg-purple-500/5' : 'bg-gray-50 dark:bg-[#141414]'
-                  }`}>
-                    {dayPosts.map(post => {
-                      const platformConfig = PLATFORM_CONFIG[post.platform] || { color: '#666', name: 'Unknown', icon: '' };
-                      const isLargeIcon = post.platform === 'telegram' || post.platform === 'vk';
-                      return (
-                        <div
-                          key={post.id}
-                          className="relative"
-                        >
-                          <div
-                            draggable="true"
-                            onDragStart={(e) => handleDragStart(e, post)}
-                            onDragEnd={handleDragEnd}
-                            onClick={() => openEditPost(post)}
-                            className={`relative p-2.5 rounded-lg bg-gradient-to-br from-white dark:from-[#1a1a1a] to-gray-50 dark:to-[#161616] border cursor-grab active:cursor-grabbing transition-all ${
-                              draggedPost?.id === post.id 
-                                ? 'opacity-50 scale-95 border-gray-300 dark:border-white/20' 
-                                : 'border-gray-200 dark:border-white/10 hover:border-purple-400 dark:hover:border-purple-500/30 hover:shadow-lg hover:shadow-purple-500/10'
-                            }`}
-                          >
-                            {/* Platform icon badge in card corner */}
-                            <div 
-                              className={`absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center z-10 border-2 shadow-md ${
-                                isToday ? 'border-purple-200 dark:border-purple-500/30' : 'border-gray-100 dark:border-[#141414]'
-                              }`}
-                              style={{ backgroundColor: platformConfig.color }}
-                              title={platformConfig.name}
-                            >
-                              {platformConfig.icon === 'globe' ? (
-                                <Globe className="w-3 h-3 text-white" />
-                              ) : platformConfig.icon ? (
-                                <Image 
-                                  src={platformConfig.icon} 
-                                  alt={platformConfig.name} 
-                                  width={isLargeIcon ? 20 : 16} 
-                                  height={isLargeIcon ? 20 : 16} 
-                                  className={isLargeIcon ? "w-5 h-5 object-contain" : "w-4 h-4 object-contain"} 
-                                />
-                              ) : (
-                                <Mail className="w-3 h-3 text-white" />
-                              )}
-                            </div>
-                            {/* Card Header */}
-                            <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100 dark:border-white/5">
-                              <div className="flex items-center gap-1.5">
-                                <GripVertical className="w-3 h-3 text-white/30 cursor-grab flex-shrink-0 hover:text-white/50" />
-                                <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-semibold ${STATUS_CONFIG[post.postStatus].bg} ${STATUS_CONFIG[post.postStatus].color}`}>
-                                  {STATUS_CONFIG[post.postStatus].label}
-                                </span>
-                                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-purple-500/10 text-purple-300 font-semibold border border-purple-500/20">
-                                  {CONTENT_TYPE_LABELS[post.contentType]}
-                                </span>
-                              </div>
-                              {post.publishTime && (
-                                <span className="text-[10px] text-gray-500 dark:text-white/60 flex items-center gap-1 font-semibold">
-                                  <Clock className="w-3 h-3" />
-                                  {post.publishTime}
-                                </span>
-                              )}
-                            </div>
-
-                          {/* Title */}
-                          <div className="text-sm font-bold text-gray-900 dark:text-white line-clamp-2 mb-2 leading-tight">
-                            {post.title}
-                          </div>
-
-                          {/* Tags & Badges Row */}
-                          <div className="flex flex-wrap items-center gap-1 mb-2">
-                            {post.assignedById && (() => {
-                              const customer = users.find(u => u.id === post.assignedById);
-                              return customer ? (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30">
-                                  {customer.name}
-                                </span>
-                              ) : null;
-                            })()}
-                            {post.assignedToIds?.map(execId => {
-                              const executor = users.find(u => u.id === execId);
-                              return executor ? (
-                                <span key={execId} className="text-[9px] px-1.5 py-0.5 rounded-md bg-blue-500/20 text-blue-300 font-semibold border border-blue-500/30">
-                                  {executor.name}
-                                </span>
-                              ) : null;
-                            })}
-                            {post.linkId && post.linkUrl && (
-                              <a 
-                                href={post.linkUrl} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 transition-colors font-semibold border border-cyan-500/30"
-                                title={post.linkTitle || post.linkUrl}
-                              >
-                                <Link2 className="w-2.5 h-2.5 flex-shrink-0" />
-                                <span className="truncate max-w-[90px]">{post.linkTitle || 'Ссылка'}</span>
-                              </a>
-                            )}
-                          </div>
-
-                          {/* Text Preview */}
-                          {post.postText && (
-                            <div className="text-[10px] text-gray-400 dark:text-white/40 line-clamp-2 mb-2 leading-relaxed italic" dangerouslySetInnerHTML={{ __html: post.postText.replace(/<[^>]*>/g, ' ').slice(0, 70) + '...' }} />
-                          )}
-
-                          {/* Footer */}
-                          <div className="flex items-center justify-between pt-2 mt-2 border-t border-gray-100 dark:border-white/5">
-                            {/* Comments */}
-                            <div className="flex items-center gap-1">
-                              {post.comments && post.comments.length > 0 && (() => {
-                                // Проверяем, есть ли непрочитанные комментарии для текущего пользователя
-                                const isParticipant = post.assignedById === myAccountId || post.assignedToIds?.includes(myAccountId || '');
-                                const hasUnread = isParticipant && post.comments.some(c => 
-                                  c.authorId !== myAccountId && (!c.readBy || !c.readBy.includes(myAccountId || ''))
-                                );
-                                
-                                return (
-                                  <div className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold border relative ${
-                                    hasUnread 
-                                      ? 'bg-red-500/20 text-red-300 border-red-500/30' 
-                                      : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
-                                  }`}>
-                                    <MessageCircle className="w-3 h-3" />
-                                    <span>{post.comments.length}</span>
-                                    {hasUnread && (
-                                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                                    )}
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                            {/* Action Buttons */}
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={(e) => copyPost(post, e)}
-                                className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 dark:bg-white/5 hover:bg-purple-100 dark:hover:bg-purple-500/20 border border-gray-200 dark:border-white/10 hover:border-purple-300 dark:hover:border-purple-500/30 text-gray-400 dark:text-white/40 hover:text-purple-500 dark:hover:text-purple-300 transition-all"
-                                title="Копировать"
-                              >
-                                <Copy className="w-3 h-3" />
-                              </button>
-                              <button
-                                onClick={(e) => copyPostLink(post.id, e)}
-                                className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 dark:bg-white/5 hover:bg-purple-100 dark:hover:bg-purple-500/20 border border-gray-200 dark:border-white/10 hover:border-purple-300 dark:hover:border-purple-500/30 text-gray-400 dark:text-white/40 hover:text-purple-500 dark:hover:text-purple-300 transition-all"
-                                title="Скопировать ссылку"
-                              >
-                                <Link2 className="w-3 h-3" />
-                              </button>
-                            </div>
-                          </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {/* Add Button */}
-                    <button
-                      onClick={() => openAddPost(day)}
-                      className="w-full p-2 flex items-center justify-center gap-1.5 border border-dashed border-gray-300 dark:border-white/10 rounded-lg hover:border-gray-400 dark:hover:border-white/20 hover:bg-gray-100 dark:hover:bg-white/[0.02] transition-all group"
-                    >
-                      <Plus className="w-3.5 h-3.5 text-gray-400 dark:text-white/30 group-hover:text-gray-600 dark:group-hover:text-white/50" />
-                      <span className="text-xs text-gray-400 dark:text-white/30 group-hover:text-gray-600 dark:group-hover:text-white/50 font-medium">Добавить</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <ContentPlanColumns
+          weekDays={weekDays}
+          draggedPost={draggedPost}
+          dragOverDate={dragOverDate}
+          myAccountId={myAccountId}
+          users={users}
+          scrollContainerRef={scrollContainerRef}
+          getPostsForDay={getPostsForDay}
+          handleMouseDown={handleMouseDown}
+          handleMouseMove={handleMouseMove}
+          handleMouseUp={handleMouseUp}
+          handleMouseLeave={handleMouseLeave}
+          handleDragOver={handleDragOver}
+          handleDragLeave={handleDragLeave}
+          handleDrop={handleDrop}
+          handleDragStart={handleDragStart}
+          handleDragEnd={handleDragEnd}
+          openEditPost={openEditPost}
+          openAddPost={openAddPost}
+          copyPost={copyPost}
+          copyPostLink={copyPostLink}
+        />
       ) : (
-        /* Calendar View */
-        <div className="flex-1 overflow-auto p-2 sm:p-4">
-          <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
-            {/* Calendar Header */}
-            <div className="grid grid-cols-7 border-b border-gray-200 dark:border-white/10">
-              {WEEKDAYS.map(day => (
-                <div key={day} className="p-1.5 sm:p-2 text-center text-[10px] sm:text-xs font-medium text-gray-500 dark:text-white/50 border-r border-gray-100 dark:border-white/5 last:border-r-0">
-                  {day}
-                </div>
-              ))}
-            </div>
-            
-            {/* Calendar Grid */}
-            <div className="grid grid-cols-7">
-              {getCalendarDays().map(({ date, isCurrentMonth }, idx) => {
-                const dateKey = formatDateKey(date);
-                const dayPosts = getPostsForDay(date);
-                const isToday = dateKey === formatDateKey(new Date());
-                const isDropTarget = dragOverDate === dateKey;
-                
-                return (
-                  <div
-                    key={idx}
-                    className={`group min-h-[100px] sm:min-h-[140px] p-1.5 sm:p-2 border-r border-b border-gray-100 dark:border-white/5 last:border-r-0 transition-all ${
-                      !isCurrentMonth ? 'bg-gray-100 dark:bg-black/20' : 'bg-white dark:bg-transparent'
-                    } ${isDropTarget ? 'bg-purple-100 dark:bg-purple-500/20 ring-2 ring-inset ring-purple-500/50' : ''} ${isToday ? 'bg-purple-50 dark:bg-purple-500/5' : ''}`}
-                    onDragOver={(e) => handleDragOver(e, dateKey)}
-                    onDragLeave={handleDragLeave}
-                    onDrop={(e) => handleDrop(e, date)}
-                  >
-                    {/* Day Number */}
-                    <div className="flex items-center justify-between mb-1 px-0.5 sm:px-1">
-                      <span className={`text-[10px] sm:text-xs font-medium ${
-                        isToday ? 'text-purple-600 dark:text-purple-400' : isCurrentMonth ? 'text-gray-700 dark:text-white/70' : 'text-gray-400 dark:text-white/30'
-                      }`}>
-                        {date.getDate()}
-                      </span>
-                      {dayPosts.length > 0 && (
-                        <span className="text-[9px] text-gray-500 dark:text-white/40 bg-gray-200 dark:bg-white/10 px-1 rounded">
-                          {dayPosts.length}
-                        </span>
-                      )}
-                    </div>
-                    
-                    {/* Posts */}
-                    <div className="space-y-2 pt-1 pr-1">
-                      {dayPosts.slice(0, 3).map(post => {
-                        const platformConfig = PLATFORM_CONFIG[post.platform] || { color: '#666', name: 'Unknown', icon: '' };
-                        return (
-                          <div
-                            key={post.id}
-                            draggable="true"
-                            onDragStart={(e) => handleDragStart(e, post)}
-                            onDragEnd={handleDragEnd}
-                            onClick={() => openEditPost(post)}
-                            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] cursor-grab active:cursor-grabbing transition-all border ${
-                              draggedPost?.id === post.id ? 'opacity-50 scale-95' : 'hover:brightness-110'
-                            }`}
-                            style={{ 
-                              backgroundColor: `${platformConfig.color}15`, 
-                              borderColor: `${platformConfig.color}40`
-                            }}
-                            title={post.title}
-                          >
-                            {post.publishTime && (
-                              <span className="text-[9px] text-gray-600 dark:text-white/60 flex-shrink-0 font-medium">{post.publishTime}</span>
-                            )}
-                            <span className="truncate font-medium flex-1 text-gray-900 dark:text-white">{post.title}</span>
-                            {/* Platform icon badge */}
-                            <div 
-                              className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
-                              style={{ backgroundColor: platformConfig.color }}
-                              title={platformConfig.name}
-                            >
-                              {platformConfig.icon ? (
-                                <Image 
-                                  src={platformConfig.icon} 
-                                  alt={platformConfig.name} 
-                                  width={post.platform === 'telegram' || post.platform === 'vk' ? 12 : 10} 
-                                  height={post.platform === 'telegram' || post.platform === 'vk' ? 12 : 10} 
-                                  className={(post.platform === 'telegram' || post.platform === 'vk') ? "w-3 h-3 object-contain" : "w-2.5 h-2.5 object-contain"} 
-                                />
-                              ) : (
-                                <Mail className="w-2.5 h-2.5 text-white" />
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {dayPosts.length > 3 && (
-                        <div className="text-[10px] text-gray-500 dark:text-white/50 px-2 py-0.5 bg-gray-100 dark:bg-white/5 rounded text-center">
-                          +{dayPosts.length - 3} ещё
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Add Button */}
-                    {isCurrentMonth && (
-                      <button
-                        onClick={() => openAddPost(date)}
-                        className={`w-full mt-1 p-1 flex items-center justify-center text-gray-300 dark:text-white/20 hover:text-gray-500 dark:hover:text-white/40 hover:bg-gray-100 dark:hover:bg-white/5 rounded transition-all ${dayPosts.length > 0 ? 'opacity-0 group-hover:opacity-100' : ''}`}
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+        <ContentPlanCalendar
+          calendarDays={handleGetCalendarDays()}
+          draggedPost={draggedPost}
+          dragOverDate={dragOverDate}
+          getPostsForDay={getPostsForDay}
+          handleDragOver={handleDragOver}
+          handleDragLeave={handleDragLeave}
+          handleDrop={handleDrop}
+          handleDragStart={handleDragStart}
+          handleDragEnd={handleDragEnd}
+          openEditPost={openEditPost}
+          openAddPost={openAddPost}
+        />
       )}
 
       {/* Modal - 3-column layout like todos */}
@@ -3448,354 +2671,50 @@ export default function ContentPlanPage() {
         </div>
       )}
       
-      {/* Toast Notifications */}
-      <div className="fixed top-20 right-6 z-[100] flex flex-col gap-2 pointer-events-none max-h-[calc(100vh-120px)] overflow-hidden">
-        {toasts.slice(0, 5).map((toast) => (
-          <div
-            key={toast.id}
-            className="pointer-events-auto animate-slide-in-right"
-          >
-            <div className={`
-              flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl backdrop-blur-xl min-w-[280px] max-w-[360px]
-              bg-gradient-to-r ${
-                toast.type === 'success' ? 'from-green-500/20 to-green-500/5 border-green-500/30' :
-                toast.type === 'warning' ? 'from-orange-500/20 to-orange-500/5 border-orange-500/30' :
-                toast.type === 'error' ? 'from-red-500/20 to-red-500/5 border-red-500/30' :
-                'from-blue-500/20 to-blue-500/5 border-blue-500/30'
-              } border
-            `}>
-              <div className={`relative flex-shrink-0 ${
-                toast.type === 'success' ? 'text-green-400' :
-                toast.type === 'warning' ? 'text-orange-400' :
-                toast.type === 'error' ? 'text-red-400' :
-                'text-blue-400'
-              }`}>
-                {toast.type === 'success' ? <Check className="w-4 h-4" /> :
-                 toast.type === 'warning' ? <Bell className="w-4 h-4" /> :
-                 toast.type === 'error' ? <X className="w-4 h-4" /> :
-                 <MessageCircle className="w-4 h-4" />}
-              </div>
-              
-              <div className="flex-1 min-w-0">
-                <span className="text-xs font-medium text-gray-900 dark:text-white truncate block">{toast.title}</span>
-                <div className="text-[10px] text-gray-500 dark:text-white/60 truncate">{toast.message}</div>
-              </div>
-
-              {toast.postId && (
-                <button
-                  onClick={() => {
-                    const post = posts.find(p => p.id === toast.postId);
-                    if (post) openEditPost(post);
-                    removeToast(toast.id);
-                  }}
-                  className={`p-1.5 rounded-lg transition-all flex-shrink-0 ${
-                    toast.type === 'success' ? 'hover:bg-green-500/20 text-green-400' :
-                    toast.type === 'warning' ? 'hover:bg-orange-500/20 text-orange-400' :
-                    toast.type === 'error' ? 'hover:bg-red-500/20 text-red-400' :
-                    'hover:bg-blue-500/20 text-blue-400'
-                  }`}
-                  title="Открыть пост"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </button>
-              )}
-              
-              <button
-                onClick={() => removeToast(toast.id)}
-                className="text-gray-400 dark:text-white/30 hover:text-gray-600 dark:hover:text-white/60 p-1 rounded transition-all flex-shrink-0"
-                title="Закрыть"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        ))}
-        
-        {toasts.length > 1 && (
-          <button
-            onClick={() => setToasts([])}
-            className="pointer-events-auto text-[10px] text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/70 transition-colors self-end px-2 py-1"
-          >
-            Очистить все ({toasts.length})
-          </button>
-        )}
-      </div>
+      <ToastNotifications
+        toasts={toasts}
+        posts={posts}
+        onRemove={removeToast}
+        onClearAll={() => setToasts([])}
+        onOpenPost={openEditPost}
+      />
 
       {/* Create Content Plan Modal */}
-      {showCreatePlan && (
-        <div 
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowCreatePlan(false)}
-        >
-          <div 
-            className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl w-full max-w-md shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="border-b border-gray-200 dark:border-white/10 px-5 py-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Создать контент-план</h3>
-              <button
-                onClick={() => setShowCreatePlan(false)}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1.5">Название</label>
-                <input
-                  type="text"
-                  value={newPlanName}
-                  onChange={e => setNewPlanName(e.target.value)}
-                  placeholder="Например: SMM план на февраль"
-                  className="w-full px-3 py-2 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm focus:outline-none focus:border-purple-500"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-1.5">Цвет</label>
-                <div className="flex gap-2">
-                  {['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#6366F1'].map(color => (
-                    <button
-                      key={color}
-                      onClick={() => setNewPlanColor(color)}
-                      className={`w-8 h-8 rounded-lg transition-all ${newPlanColor === color ? 'ring-2 ring-offset-2 ring-gray-400 dark:ring-white/30' : ''}`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-            
-            <div className="border-t border-gray-200 dark:border-white/10 px-5 py-4 flex justify-end gap-2">
-              <button
-                onClick={() => setShowCreatePlan(false)}
-                className="px-4 py-2 text-sm text-gray-600 dark:text-white/60 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={async () => {
-                  if (!newPlanName.trim()) return;
-                  try {
-                    const res = await fetch('/api/content-plans', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        name: newPlanName,
-                        color: newPlanColor,
-                        createdBy: myAccountId
-                      })
-                    });
-                    if (res.ok) {
-                      const newPlan = await res.json();
-                      setContentPlans(prev => [...prev, newPlan]);
-                      setActivePlanId(newPlan.id);
-                      await fetch('/api/content-plans', {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ activePlanId: newPlan.id })
-                      });
-                      loadPosts(newPlan.id);
-                      setNewPlanName('');
-                      setNewPlanColor('#8B5CF6');
-                      setShowCreatePlan(false);
-                      addToast({
-                        type: 'success',
-                        title: 'План создан',
-                        message: `"${newPlan.name}" готов к использованию`
-                      });
-                    }
-                  } catch (error) {
-                    console.error('Error creating plan:', error);
-                  }
-                }}
-                disabled={!newPlanName.trim()}
-                className="px-4 py-2 text-sm bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
-              >
-                Создать
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CreatePlanModal
+        isOpen={showCreatePlan}
+        onClose={() => setShowCreatePlan(false)}
+        myAccountId={myAccountId}
+        onPlanCreated={(newPlan) => {
+          setContentPlans(prev => [...prev, newPlan]);
+          setActivePlanId(newPlan.id);
+          loadPosts(newPlan.id);
+        }}
+        onActivePlanChange={(planId) => setActivePlanId(planId)}
+        addToast={addToast}
+      />
 
-      {/* Plan Settings Modal */}
-      {showPlanSettings && planSettingsData && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-white/10">
-              <div className="flex items-center gap-3">
-                <div 
-                  className="w-4 h-4 rounded-full" 
-                  style={{ backgroundColor: planSettingsData.color }}
-                />
-                <h3 className="font-semibold">Настройки плана</h3>
-              </div>
-              <button
-                onClick={() => {
-                  setShowPlanSettings(false);
-                  setPlanSettingsData(null);
-                }}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1.5">Название плана</label>
-                <input
-                  type="text"
-                  value={planSettingsData.name}
-                  onChange={e => setPlanSettingsData({ ...planSettingsData, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm focus:outline-none focus:border-purple-500"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-1.5">Цвет</label>
-                <div className="flex gap-2">
-                  {['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#6366F1'].map(color => (
-                    <button
-                      key={color}
-                      onClick={() => setPlanSettingsData({ ...planSettingsData, color })}
-                      className={`w-8 h-8 rounded-lg transition-all ${planSettingsData.color === color ? 'ring-2 ring-offset-2 ring-gray-400 dark:ring-white/30' : ''}`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-1.5">Доступ к плану</label>
-                <p className="text-xs text-gray-500 dark:text-white/50 mb-2">
-                  Выберите пользователей, которые могут видеть и редактировать этот план. Если никто не выбран — доступен всем.
-                </p>
-                <div className="max-h-48 overflow-y-auto space-y-1 border border-gray-200 dark:border-white/10 rounded-lg p-2">
-                  {users.map(user => {
-                    const isAllowed = !planSettingsData.allowedUsers?.length || planSettingsData.allowedUsers.includes(user.id);
-                    const isExplicitlyAllowed = planSettingsData.allowedUsers?.includes(user.id);
-                    return (
-                      <label
-                        key={user.id}
-                        className="flex items-center gap-3 p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isExplicitlyAllowed || false}
-                          onChange={(e) => {
-                            const currentAllowed = planSettingsData.allowedUsers || [];
-                            if (e.target.checked) {
-                              setPlanSettingsData({
-                                ...planSettingsData,
-                                allowedUsers: [...currentAllowed, user.id]
-                              });
-                            } else {
-                              setPlanSettingsData({
-                                ...planSettingsData,
-                                allowedUsers: currentAllowed.filter(id => id !== user.id)
-                              });
-                            }
-                          }}
-                          className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                        />
-                        {user.avatar ? (
-                          <img src={user.avatar} alt="" className="w-6 h-6 rounded-full" />
-                        ) : (
-                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-medium">
-                            {(user.name || user.username || '?').charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        <span className="text-sm">{user.name || user.username}</span>
-                        {user.role === 'admin' && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 rounded">admin</span>
-                        )}
-                      </label>
-                    );
-                  })}
-                </div>
-                {!planSettingsData.allowedUsers?.length && (
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-1 flex items-center gap-1">
-                    <Check className="w-3 h-3" />
-                    Доступен всем пользователям
-                  </p>
-                )}
-              </div>
-            </div>
-            
-            <div className="border-t border-gray-200 dark:border-white/10 px-5 py-4 flex justify-between">
-              {!planSettingsData.isDefault && (
-                <button
-                  onClick={async () => {
-                    if (!confirm(`Удалить план "${planSettingsData.name}"?`)) return;
-                    try {
-                      await fetch(`/api/content-plans?id=${planSettingsData.id}`, { method: 'DELETE' });
-                      setContentPlans(prev => prev.filter(p => p.id !== planSettingsData.id));
-                      if (activePlanId === planSettingsData.id) {
-                        const defaultPlan = contentPlans.find(p => p.isDefault) || contentPlans[0];
-                        if (defaultPlan) {
-                          setActivePlanId(defaultPlan.id);
-                          loadPosts(defaultPlan.id);
-                        }
-                      }
-                      setShowPlanSettings(false);
-                      setPlanSettingsData(null);
-                      addToast({ type: 'success', title: 'План удалён' });
-                    } catch (error) {
-                      console.error('Error deleting plan:', error);
-                    }
-                  }}
-                  className="px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
-                >
-                  Удалить план
-                </button>
-              )}
-              <div className="flex gap-2 ml-auto">
-                <button
-                  onClick={() => {
-                    setShowPlanSettings(false);
-                    setPlanSettingsData(null);
-                  }}
-                  className="px-4 py-2 text-sm text-gray-600 dark:text-white/60 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
-                >
-                  Отмена
-                </button>
-                <button
-                  onClick={async () => {
-                    try {
-                      const res = await fetch('/api/content-plans', {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          id: planSettingsData.id,
-                          name: planSettingsData.name,
-                          color: planSettingsData.color,
-                          allowedUsers: planSettingsData.allowedUsers
-                        })
-                      });
-                      if (res.ok) {
-                        const updated = await res.json();
-                        setContentPlans(prev => prev.map(p => p.id === updated.id ? updated : p));
-                        setShowPlanSettings(false);
-                        setPlanSettingsData(null);
-                        addToast({ type: 'success', title: 'Настройки сохранены' });
-                      }
-                    } catch (error) {
-                      console.error('Error updating plan:', error);
-                    }
-                  }}
-                  className="px-4 py-2 text-sm bg-purple-600 text-white hover:bg-purple-700 rounded-lg transition-colors"
-                >
-                  Сохранить
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <PlanSettingsModal
+        isOpen={showPlanSettings}
+        planData={planSettingsData}
+        users={users}
+        contentPlans={contentPlans}
+        activePlanId={activePlanId}
+        onClose={() => {
+          setShowPlanSettings(false);
+          setPlanSettingsData(null);
+        }}
+        onUpdate={(updated) => {
+          setContentPlans(prev => prev.map(p => p.id === updated.id ? updated : p));
+        }}
+        onDelete={(planId) => {
+          setContentPlans(prev => prev.filter(p => p.id !== planId));
+        }}
+        onActivePlanChange={(planId) => {
+          setActivePlanId(planId);
+          loadPosts(planId);
+        }}
+        addToast={addToast}
+      />
     </div>
   );
 }

@@ -1,403 +1,169 @@
 
 'use client';
 
-// Корректируем selectedColumnIndex если список изменился
-// (перенесено ниже, после объявления хуков)
-
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { useDebounce } from '@/hooks/useDebounce';
-import TaskLeftPanel from '@/components/TaskModal/TaskLeftPanel';
-import TaskCenterPanel from '@/components/TaskModal/TaskCenterPanel';
-import StatusButtonGroup, { StatusOption } from '@/components/ui/StatusButtonGroup';
-import PersonSelector from '@/components/ui/PersonSelector';
-import MultiPersonSelector from '@/components/ui/MultiPersonSelector';
-import DateTimePicker from '@/components/ui/DateTimePicker';
-import TextArea from '@/components/ui/TextArea';
-import FormField from '@/components/ui/FormField';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  PeopleManager,
-  CategoryManager,
-  TelegramSettings,
-  MobileFilters,
-  AddList,
-  ListSettings,
-  Editingtodo,
   Statusdropdown,
   Executordropdown,
   NewTodoAssigneeDropdown,
   Mobileheadermenu,
-  MobileArchiveModal
-} from '@/components/todos-auto';
-import TodoItem from '@/components/todos/TodoItem';
-import AddTodoForm from '@/components/todos/AddTodoForm';
-import { 
-  Plus, 
-  Check, 
-  CheckSquare,
-  Trash2, 
-  Edit3, 
-  Calendar,
-  CalendarPlus,
-  Tag,
-  Inbox,
-  Briefcase,
-  FolderOpen,
-  Clock,
-  Flag,
-  X,
-  ArrowLeft,
-  MoreHorizontal,
-  MoreVertical,
-  Search,
-  GripVertical,
-  User,
-  UserCheck,
-  FileText,
-  Megaphone,
-  BarChart3,
-  Share2,
-  Mail,
-  Palette,
-  Code,
-  Settings,
-  Star,
-  Heart,
-  Target,
-  Bookmark,
-  Zap,
-  Trophy,
-  Rocket,
-  Users,
-  Send,
-  Bot,
-  Archive,
-  Info,
-  RotateCcw,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
-  Link2,
-  ExternalLink,
-  MessageCircle,
-  AtSign,
-  Bold,
-  Italic,
-  Underline,
-  List,
-  ListOrdered,
-  Type,
-  Bell,
-  BellRing,
-  Volume2,
-  VolumeX,
-  AlertTriangle,
-  Filter
-} from 'lucide-react';
+} from '@/components/features/todos-auto';
+import TodoItem from '@/components/features/todos/todos/TodoItem';
+import AddTodoForm from '@/components/features/todos/todos/AddTodoForm';
+import TodoListColumn from '@/components/features/todos/TodoListColumn';
+import TodoHeader from '@/components/features/todos/TodoHeader';
+import ArchivedSection from '@/components/features/todos/ArchivedSection';
+import TodoHoverPreview from '@/components/features/todos/TodoHoverPreview';
+import TodoListHeader from '@/components/features/todos/TodoListHeader';
+import { useMobileView } from '@/hooks/useMobileView';
+import { useAutoSave } from '@/hooks/useAutoSave';
+import { useClickOutside } from '@/hooks/useClickOutside';
+import { useTodoComputedValues } from '@/hooks/useTodoComputedValues';
+import { useTodoState } from '@/hooks/useTodoState';
+import { useResizableColumns } from '@/hooks/useResizableColumns';
+import { useNotifications } from '@/hooks/useNotifications';
+import { useTodoPolling } from '@/hooks/useTodoPolling';
+import { useDeadlineChecker } from '@/hooks/useDeadlineChecker';
+import { useHover } from '@/hooks/useHover';
+import { useTodoActions } from '@/hooks/useTodoActions';
+import { useListActions } from '@/hooks/useListActions';
+import { useCategoryActions } from '@/hooks/useCategoryActions';
+import { usePeopleActions } from '@/hooks/usePeopleActions';
+import { useTodoDragDrop } from '@/hooks/useTodoDragDrop';
+import { useListDragDrop } from '@/hooks/useListDragDrop';
+import { useBoardScroll } from '@/hooks/useBoardScroll';
+import { useTodoDataLoader } from '@/hooks/useTodoDataLoader';
+import { useTodoNotifications } from '@/hooks/useTodoNotifications';
+import { useTodoUrlHandlers } from '@/hooks/useTodoUrlHandlers';
+import * as Icons from '@/constants/todoIcons';
 import { 
   TaskNotificationManager, 
   getTaskRelatedUsers,
   getStatusLabel 
 } from '@/services/notificationService';
+import type { 
+  Todo, 
+  TodoList, 
+  Person, 
+  TodoCategory, 
+  Toast, 
+  Notification, 
+  CalendarList,
+  Comment,
+  ChecklistItem,
+  Attachment,
+  LinkItem
+} from '@/types/todos';
+import { PRIORITY_COLORS, PRIORITY_BG, PRIORITY_LABELS, StatusOption } from '@/types/todos';
+import { LIST_COLORS, CATEGORY_ICONS, TZ_LIST_ID } from '@/utils/todoConstants';
+import { Archive } from 'lucide-react';
 
-interface Comment {
-  id: string;
-  todoId: string;
-  authorId: string;
-  authorName: string;
-  content: string;
-  mentions: string[];
-  createdAt: string;
-}
-
-interface Notification {
-  id: string;
-  type: 'new_task' | 'comment' | 'status_change' | 'assignment' | 'mention' | 'event_invite' | 'event_reminder' | 'event_update';
-  todoId?: string;
-  todoTitle?: string;
-  eventId?: string;
-  eventTitle?: string;
-  fromUserId: string;
-  fromUserName: string;
-  toUserId: string;
-  message: string;
-  read: boolean;
-  createdAt: string;
-}
-
-interface Toast {
-  id: string;
-  type: 'info' | 'success' | 'warning' | 'error';
-  title: string;
-  message: string;
-  todoId?: string;
-  createdAt: number;
-  // Для группировки
-  groupKey?: string;  // Ключ группировки (например, "comment_taskId" или "status_taskId")
-  count?: number;  // Количество событий в группе
-}
-
-interface Person {
-  id: string;
-  name: string;
-  username?: string;
-  telegramId?: string;
-  telegramUsername?: string;
-  role: 'executor' | 'customer' | 'universal';
-  department?: string;  // Отдел пользователя
-  // Настройки уведомлений
-  notifyOnNewTask?: boolean;  // Уведомление о новой задаче
-  notifyOnStatusChange?: boolean;  // Уведомление при смене статуса
-  notifyOnComment?: boolean;  // Уведомление о комментариях
-  notifyOnMention?: boolean;  // Уведомление при упоминании
-  // Статус онлайн
-  lastSeen?: string;  // ISO дата последней активности
-  createdAt: string;
-}
-
-interface TodoCategory {
-  id: string;
-  name: string;
-  color: string;
-  icon: string;
-  order: number;
-}
-
-interface LinkItem {
-  id: string;
-  url: string;
-  title: string;
-  description?: string;
-  favicon?: string;
-}
-
-interface Todo {
-  id: string;
-  title: string;
-  description?: string;
-  completed: boolean;
-  priority: 'low' | 'medium' | 'high';
-  status?: 'todo' | 'in-progress' | 'pending' | 'review' | 'cancelled' | 'stuck';
-  reviewComment?: string;
-  dueDate?: string;
-  listId: string;
-  categoryId?: string;
-  tags: string[];
-  assignedById?: string;
-  assignedBy?: string;
-  delegatedById?: string;  // Делегировал (второй уровень)
-  delegatedBy?: string;
-  assignedToId?: string;
-  assignedTo?: string;
-  assignedToIds?: string[];  // Множественные исполнители
-  assignedToNames?: string[];  // Имена множественных исполнителей
-  linkId?: string;
-  linkUrl?: string;
-  linkTitle?: string;
-  addToCalendar?: boolean;
-  calendarEventId?: string;
-  calendarListId?: string;
-  chatId?: string;  // ID чата для обсуждения задачи
-  createdAt: string;
-  updatedAt: string;
-  order: number;
-  archived?: boolean;
-  comments?: Comment[];
-  // Трекинг прочитанных комментариев
-  readCommentsByUser?: Record<string, string>;  // userId -> lastReadCommentId
-  // Чек-лист
-  checklist?: ChecklistItem[];
-  // Прикреплённые файлы
-  attachments?: Attachment[];
-}
-
-interface ChecklistItem {
-  id: string;
-  text: string;
-  completed: boolean;
-}
-
-interface Attachment {
-  id: string;
-  name: string;
-  url: string;
-  type: 'image' | 'file';
-  size?: number;
-  uploadedAt: string;
-}
-
-// ID списка "Техническое задание"
-const TZ_LIST_ID = 'tz-list';
-
-const STATUS_LABELS: Record<string, string> = {
-  'todo': 'К выполнению',
-  'pending': 'В ожидании',
-  'in-progress': 'В работе',
-  'review': 'Готово к проверке',
-  'cancelled': 'Отменена',
-  'stuck': 'Застряла'
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  'todo': 'bg-gray-500',
-  'pending': 'bg-orange-500',
-  'in-progress': 'bg-blue-500',
-  'review': 'bg-green-500',
-  'cancelled': 'bg-red-500',
-  'stuck': 'bg-yellow-600'
-};
-
-interface TodoList {
-  id: string;
-  name: string;
-  color: string;
-  icon: string;
-  createdAt: string;
-  order: number;
-  archived?: boolean;
-  defaultExecutorId?: string;
-  defaultCustomerId?: string;
-  defaultAddToCalendar?: boolean;
-  creatorId?: string;
-  allowedUsers?: string[];
-  allowedDepartments?: string[];  // Разрешённые отделы
-}
-
-interface CalendarList {
-  id: string;
-  name: string;
-  color?: string;
-  allowedUsers?: string[];
-  allowedDepartments?: string[];
-}
-
-const PRIORITY_COLORS = {
-  low: 'border-l-blue-400 dark:border-l-blue-500',
-  medium: 'border-l-yellow-400 dark:border-l-yellow-500',
-  high: 'border-l-red-400 dark:border-l-red-500'
-};
-
-const PRIORITY_BG = {
-  low: 'bg-blue-400/10',
-  medium: 'bg-yellow-400/10', 
-  high: 'bg-red-400/10'
-};
-
-const PRIORITY_LABELS = {
-  low: 'Низкий',
-  medium: 'Средний', 
-  high: 'Высокий'
-};
-
-// Хелпер для форматирования статуса онлайн
-const formatLastSeen = (lastSeen?: string): { text: string; isOnline: boolean; color: string } => {
-  if (!lastSeen) return { text: 'Никогда', isOnline: false, color: 'text-[var(--text-muted)]' };
-  
-  const lastSeenDate = new Date(lastSeen);
-  const now = new Date();
-  const diffMs = now.getTime() - lastSeenDate.getTime();
-  const diffMinutes = Math.floor(diffMs / 60000);
-  
-  if (diffMinutes < 2) {
-    return { text: 'Онлайн', isOnline: true, color: 'text-green-400' };
-  } else if (diffMinutes < 5) {
-    return { text: 'Был(а) только что', isOnline: false, color: 'text-green-400/70' };
-  } else if (diffMinutes < 60) {
-    return { text: `Был(а) ${diffMinutes} мин. назад`, isOnline: false, color: 'text-white/50' };
-  } else if (diffMinutes < 1440) { // меньше суток
-    const hours = Math.floor(diffMinutes / 60);
-    return { text: `Был(а) ${hours} ч. назад`, isOnline: false, color: 'text-[var(--text-muted)]' };
-  } else {
-    const days = Math.floor(diffMinutes / 1440);
-    return { text: `Был(а) ${days} дн. назад`, isOnline: false, color: 'text-[var(--text-muted)]' };
-  }
-};
-
-// Хелпер для получения имени человека по ID
-const getPersonNameById = (people: Person[], personId: string | undefined, fallbackName?: string): string => {
-  if (!personId) return fallbackName || '';
+// Вспомогательная функция для получения имени пользователя
+const getPersonNameById = (people: any[], personId: string | undefined): string => {
+  if (!personId) return '';
   const person = people.find(p => p.id === personId);
-  return person?.name || fallbackName || personId;
+  return person?.name || '';
 };
-
-const LIST_ICONS: Record<string, React.ReactNode> = {
-  inbox: <Inbox className="w-4 h-4" />,
-  calendar: <Calendar className="w-4 h-4" />,
-  briefcase: <Briefcase className="w-4 h-4" />,
-  folder: <FolderOpen className="w-4 h-4" />,
-  star: <Star className="w-4 h-4" />,
-  heart: <Heart className="w-4 h-4" />,
-  target: <Target className="w-4 h-4" />,
-  bookmark: <Bookmark className="w-4 h-4" />,
-  flag: <Flag className="w-4 h-4" />,
-  zap: <Zap className="w-4 h-4" />,
-  trophy: <Trophy className="w-4 h-4" />,
-  rocket: <Rocket className="w-4 h-4" />
-};
-
-const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  search: <Search className="w-4 h-4" />,
-  'file-text': <FileText className="w-4 h-4" />,
-  megaphone: <Megaphone className="w-4 h-4" />,
-  'bar-chart': <BarChart3 className="w-4 h-4" />,
-  'share-2': <Share2 className="w-4 h-4" />,
-  mail: <Mail className="w-4 h-4" />,
-  palette: <Palette className="w-4 h-4" />,
-  code: <Code className="w-4 h-4" />,
-  tag: <Tag className="w-4 h-4" />,
-};
-
-const LIST_COLORS = [
-  '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', 
-  '#f59e0b', '#22c55e', '#06b6d4', '#3b82f6'
-];
 
 export default function TodosPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
-  const [todos, setTodos] = useState<Todo[]>([]);
-  const [lists, setLists] = useState<TodoList[]>([]);
-  const [categories, setCategories] = useState<TodoCategory[]>([]);
-  const [people, setPeople] = useState<Person[]>([]);
-  const [calendarLists, setCalendarLists] = useState<CalendarList[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [returnUrl, setReturnUrl] = useState<string>('/account?tab=tasks');
-  const [showAddList, setShowAddList] = useState(false);
-  const [showAddCategory, setShowAddCategory] = useState(false);
-  const [showCategoryManager, setShowCategoryManager] = useState(false);
-  const [showPeopleManager, setShowPeopleManager] = useState(false);
-  const [showTelegramSettings, setShowTelegramSettings] = useState(false);
-  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<TodoCategory | null>(null);
-  const [editingPerson, setEditingPerson] = useState<Person | null>(null);
-  const [showEditPersonModal, setShowEditPersonModal] = useState(false);
-  const [newListName, setNewListName] = useState('');
-  const [newListDescription, setNewListDescription] = useState('');
-  const [newListColor, setNewListColor] = useState('#6366f1');
-  const [newCategoryName, setNewCategoryName] = useState('');
-  const [newCategoryColor, setNewCategoryColor] = useState('#6366f1');
-  const [newCategoryIcon, setNewCategoryIcon] = useState('tag');
-  const [newPersonName, setNewPersonName] = useState('');
-  const [newPersonTelegramId, setNewPersonTelegramId] = useState('');
-  const [newPersonTelegramUsername, setNewPersonTelegramUsername] = useState('');
-  const [newPersonRole, setNewPersonRole] = useState<'executor' | 'customer' | 'universal'>('executor');
-  const [telegramToken, setTelegramToken] = useState('');
-  const [telegramEnabled, setTelegramEnabled] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showMobileSearch, setShowMobileSearch] = useState(false);
-  const [showCompleted, setShowCompleted] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'in-progress' | 'pending' | 'review' | 'cancelled' | 'stuck'>('all');
-  const [showStatusFilter, setShowStatusFilter] = useState(false);
-  const [executorFilter, setExecutorFilter] = useState<string>('all');
-  const [showExecutorFilter, setShowExecutorFilter] = useState(false);
-  const [myAccountId, setMyAccountId] = useState<string | null>(null);
-  const [myDepartment, setMyDepartment] = useState<string | null>(null);  // Отдел текущего пользователя
-  const [canSeeAllTasks, setCanSeeAllTasks] = useState<boolean>(false);  // По умолчанию false - видны только свои задачи
-  const [isDepartmentHead, setIsDepartmentHead] = useState<boolean>(false);  // Руководитель отдела
-  const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+  // All state via custom hook
+  const state = useTodoState();
+  const {
+    todos, setTodos,
+    lists, setLists,
+    categories, setCategories,
+    people, setPeople,
+    calendarLists, setCalendarLists,
+    isLoading, setIsLoading,
+    returnUrl, setReturnUrl,
+    showAddList, setShowAddList,
+    showAddCategory, setShowAddCategory,
+    showCategoryManager, setShowCategoryManager,
+    showPeopleManager, setShowPeopleManager,
+    showTelegramSettings, setShowTelegramSettings,
+    showSettingsMenu, setShowSettingsMenu,
+    showEditPersonModal, setShowEditPersonModal,
+    showMobileFiltersModal, setShowMobileFiltersModal,
+    showMobileArchiveModal, setShowMobileArchiveModal,
+    editingCategory, setEditingCategory,
+    editingPerson, setEditingPerson,
+    editingTodo, setEditingTodo,
+    editingListId, setEditingListId,
+    editingListName, setEditingListName,
+    newListName, setNewListName,
+    newListDescription, setNewListDescription,
+    newListColor, setNewListColor,
+    newListAssigneeId, setNewListAssigneeId,
+    showNewListAssigneeDropdown, setShowNewListAssigneeDropdown,
+    newCategoryName, setNewCategoryName,
+    newCategoryColor, setNewCategoryColor,
+    newCategoryIcon, setNewCategoryIcon,
+    newPersonName, setNewPersonName,
+    newPersonTelegramId, setNewPersonTelegramId,
+    newPersonTelegramUsername, setNewPersonTelegramUsername,
+    newPersonRole, setNewPersonRole,
+    newTodoTitle, setNewTodoTitle,
+    newTodoDescription, setNewTodoDescription,
+    newTodoAssigneeId, setNewTodoAssigneeId,
+    showNewTodoAssigneeDropdown, setShowNewTodoAssigneeDropdown,
+    addingToList, setAddingToList,
+    telegramToken, setTelegramToken,
+    telegramEnabled, setTelegramEnabled,
+    searchQuery, setSearchQuery,
+    showMobileSearch, setShowMobileSearch,
+    showCompleted, setShowCompleted,
+    statusFilter, setStatusFilter,
+    showStatusFilter, setShowStatusFilter,
+    executorFilter, setExecutorFilter,
+    showExecutorFilter, setShowExecutorFilter,
+    filterStatus, setFilterStatus,
+    filterExecutor, setFilterExecutor,
+    statusDropdownOpen, setStatusDropdownOpen,
+    executorDropdownOpen, setExecutorDropdownOpen,
+    mobileFiltersOpen, setMobileFiltersOpen,
+    showArchive, setShowArchive,
+    myAccountId, setMyAccountId,
+    myDepartment, setMyDepartment,
+    canSeeAllTasks, setCanSeeAllTasks,
+    isDepartmentHead, setIsDepartmentHead,
+    mobileHeaderMenuOpen, setMobileHeaderMenuOpen,
+    showListSettings, setShowListSettings,
+    showListMenu, setShowListMenu,
+    listSettingsDropdown, setListSettingsDropdown,
+    notifications, setNotifications,
+    showInbox, setShowInbox,
+    inboxTab, setInboxTab,
+    soundEnabled, setSoundEnabled,
+    toasts, setToasts,
+    openDropdown, setOpenDropdown,
+    searchAssignedBy, setSearchAssignedBy,
+    searchDelegatedBy, setSearchDelegatedBy,
+    searchAssignedTo, setSearchAssignedTo,
+    draggedTodo, setDraggedTodo,
+    dragOverListId, setDragOverListId,
+    dragOverTodoId, setDragOverTodoId,
+    draggedList, setDraggedList,
+    dragOverListOrder, setDragOverListOrder,
+    isDraggingBoard, setIsDraggingBoard,
+    startX, setStartX,
+    scrollLeft, setScrollLeft,
+    titleInputRef,
+    descriptionEditorRef,
+    autoSaveTimerRef,
+    lastSavedTodoRef,
+    notificationSoundRef,
+    lastNotificationCountRef,
+    statusFilterRef,
+    executorFilterRef,
+    hasOpenedFromUrlRef,
+    dragCounter,
+    boardRef,
+    settingsRef
+  } = state;
   
   // 🚀 PERFORMANCE: Статусы для переиспользуемого компонента
   const statusOptions: StatusOption[] = [
@@ -413,332 +179,91 @@ export default function TodosPage() {
     setEditingTodo(prev => prev ? { ...prev, ...updates } : prev);
   }, []);
   
-  const [addingToList, setAddingToList] = useState<string | null>(null);
-  const [newTodoTitle, setNewTodoTitle] = useState('');
-  const [newTodoDescription, setNewTodoDescription] = useState('');
-  const [newTodoAssigneeId, setNewTodoAssigneeId] = useState<string | null>(null);
-  const [showNewTodoAssigneeDropdown, setShowNewTodoAssigneeDropdown] = useState(false);
-  const [newListAssigneeId, setNewListAssigneeId] = useState<string | null>(null);
-  const [showNewListAssigneeDropdown, setShowNewListAssigneeDropdown] = useState(false);
-  const [showArchive, setShowArchive] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<'all' | 'todo' | 'pending' | 'in-progress' | 'review' | 'stuck'>('all');
-  const [filterExecutor, setFilterExecutor] = useState<string | null>(null);
-  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
-  const [executorDropdownOpen, setExecutorDropdownOpen] = useState(false);
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const [showMobileFiltersModal, setShowMobileFiltersModal] = useState(false);  // Модаль для фильтров
-  const [showMobileArchiveModal, setShowMobileArchiveModal] = useState(false);  // Модаль для архива
-  const [mobileHeaderMenuOpen, setMobileHeaderMenuOpen] = useState(false);  // Дропдаун в мобильном хедере
-  const [editingListId, setEditingListId] = useState<string | null>(null);
-  const [editingListName, setEditingListName] = useState('');
-  const [showListSettings, setShowListSettings] = useState<string | null>(null);
-  const [showListMenu, setShowListMenu] = useState<string | null>(null);  // Для выпадающего меню "..."
-  const [listSettingsDropdown, setListSettingsDropdown] = useState<'executor' | 'customer' | null>(null);
+  // Mobile view and window width management
+  const { windowWidth, mobileView, selectedColumnIndex, setSelectedColumnIndex } = useMobileView();
   
-  // 🚀 PERFORMANCE: Кэшируем ширину окна вместо множественных проверок window.innerWidth
-  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
-  const [mobileView, setMobileView] = useState<'board' | 'single'>(windowWidth < 768 ? 'single' : 'board');
-  
-  // 🚀 PERFORMANCE: Passive resize listener для плавной адаптации
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    let resizeTimeout: NodeJS.Timeout;
-    const handleResize = () => {
-      clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(() => {
-        const newWidth = window.innerWidth;
-        setWindowWidth(newWidth);
-        setMobileView(newWidth < 768 ? 'single' : 'board');
-      }, 200);
-    };
-    
-    window.addEventListener('resize', handleResize, { passive: true });
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      clearTimeout(resizeTimeout);
-    };
-  }, []);
-  const [selectedColumnIndex, setSelectedColumnIndex] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('todos_selected_column');
-      if (stored !== null) return Number(stored);
-    }
-    return 0;
-  });
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('todos_selected_column', String(selectedColumnIndex));
-    }
-  }, [selectedColumnIndex]);
-  
-  // 🚀 PERFORMANCE: title и description живут в refs, НЕ вызывают re-render при вводе
-  // Автосохранение раз в 15 секунд + при закрытии модалки
-  const titleInputRef = useRef<HTMLInputElement>(null);
-  const descriptionEditorRef = useRef<HTMLDivElement>(null);
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const lastSavedTodoRef = useRef<string | null>(null);
-  
-  // Notifications (Inbox) state
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [showInbox, setShowInbox] = useState(false);
-  const [inboxTab, setInboxTab] = useState<'new' | 'history'>('new');
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const notificationSoundRef = useRef<HTMLAudioElement | null>(null);
-  
-  // Toast notifications state
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const lastNotificationCountRef = useRef<number>(0);
-  
-  // Hover preview state
-  const [hoveredTodo, setHoveredTodo] = useState<Todo | null>(null);
-  const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
-  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const statusFilterRef = useRef<HTMLDivElement>(null);
-  const executorFilterRef = useRef<HTMLDivElement>(null);
-  const isClosingModalRef = useRef(false);
-  const hasOpenedFromUrlRef = useRef(false);
-  
-  // Dropdown states for modal
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-  const [searchAssignedBy, setSearchAssignedBy] = useState('');
-  const [searchDelegatedBy, setSearchDelegatedBy] = useState('');
-  const [searchAssignedTo, setSearchAssignedTo] = useState('');
-  
-  // Resizable columns for modal (left: 27.5%, center: 45%, right: 27.5% by default)
-  const [columnWidths, setColumnWidths] = useState<[number, number, number]>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('todos_modal_column_widths');
-      if (stored) {
-        try {
-          return JSON.parse(stored);
-        } catch {
-          return [27.5, 45, 27.5];
-        }
-      }
-    }
-    return [27.5, 45, 27.5];
-  });
-  const [isResizing, setIsResizing] = useState<number | null>(null); // 0 или 1 (между какими колонками)
+  // Resizable columns for modal
+  const { columnWidths, isResizing, startResize } = useResizableColumns({ windowWidth });
   const resizeStartXRef = useRef<number>(0);
   const resizeStartWidthsRef = useRef<[number, number, number]>([27.5, 45, 27.5]);
-  
-  // Save column widths to localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('todos_modal_column_widths', JSON.stringify(columnWidths));
-    }
-  }, [columnWidths]);
-  
-  // Resize handlers
-  useEffect(() => {
-    if (isResizing === null) return;
-    
-    // Prevent text selection during resize
-    document.body.style.userSelect = 'none';
-    document.body.style.cursor = 'col-resize';
-    
-    const handleMouseMove = (e: MouseEvent) => {
-      e.preventDefault();
-      const deltaX = e.clientX - resizeStartXRef.current;
-      const containerWidth = windowWidth;
-      const deltaPercent = (deltaX / containerWidth) * 100;
-      
-      const [left, center, right] = resizeStartWidthsRef.current;
-      
-      if (isResizing === 0) {
-        // Resizing between left and center
-        const newLeft = Math.max(15, Math.min(50, left + deltaPercent));
-        const newCenter = Math.max(15, Math.min(60, center - deltaPercent));
-        setColumnWidths([newLeft, newCenter, right]);
-      } else if (isResizing === 1) {
-        // Resizing between center and right
-        const newCenter = Math.max(15, Math.min(60, center + deltaPercent));
-        const newRight = Math.max(15, Math.min(50, right - deltaPercent));
-        setColumnWidths([left, newCenter, newRight]);
-      }
-    };
-    
-    const handleMouseUp = () => {
-      setIsResizing(null);
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
-    };
-    
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
-    };
-  }, [isResizing, windowWidth]); // Убрали columnWidths из зависимостей - используется только ref
-  
-  // Drag and Drop state for todos
-  const [draggedTodo, setDraggedTodo] = useState<Todo | null>(null);
-  const [dragOverListId, setDragOverListId] = useState<string | null>(null);
-  const [dragOverTodoId, setDragOverTodoId] = useState<string | null>(null);
-  const dragCounter = useRef(0);
-  
-  // Drag and Drop state for lists
-  const [draggedList, setDraggedList] = useState<TodoList | null>(null);
-  const [dragOverListOrder, setDragOverListOrder] = useState<number | null>(null);
-  
-  // Drag to scroll state
-  const boardRef = useRef<HTMLDivElement>(null);
-  const [isDraggingBoard, setIsDraggingBoard] = useState(false);
-  const [startX, setStartX] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
-  const settingsRef = useRef<HTMLDivElement>(null);
 
+  // Data loader via hook
+  const { loadData } = useTodoDataLoader({
+    myAccountId,
+    setTodos,
+    setLists,
+    setCategories,
+    setPeople,
+    setCalendarLists,
+    setIsLoading
+  });
 
-  // Загрузка данных
-  const loadData = useCallback(async () => {
-    try {
-      const userId = myAccountId;
-      const username = localStorage.getItem('username') || '';
-      console.log('[loadData] Loading with userId:', userId);
-      
-      const [todosRes, peopleRes, telegramRes, calendarListsRes] = await Promise.all([
-        fetch(`/api/todos${userId ? `?userId=${userId}` : ''}`),
-        fetch('/api/todos/people'),
-        fetch('/api/todos/telegram'),
-        fetch(`/api/calendar-lists?userId=${encodeURIComponent(username)}`)
-      ]);
-      
-      const todosData = await todosRes.json();
-      const peopleData = await peopleRes.json();
-      const telegramData = await telegramRes.json();
-      const calendarListsData = await calendarListsRes.json();
-      
-      console.log('[loadData] Received lists:', todosData.lists?.length || 0);
-      console.log('[loadData] Lists:', todosData.lists);
-      
-      setTodos(todosData.todos || []);
-      setLists(todosData.lists || []);
-      setCategories(todosData.categories || []);
-      setPeople(peopleData.people || []);
-      setTelegramEnabled(telegramData.enabled || false);
-      setCalendarLists(Array.isArray(calendarListsData) ? calendarListsData : calendarListsData.lists || []);
-    } catch (error) {
-      console.error('Error loading todos:', error);
-    } finally {
-      setIsLoading(false);
+  // Функция воспроизведения звука
+  const playNotificationSound = useCallback(() => {
+    if (soundEnabled && notificationSoundRef.current) {
+      notificationSoundRef.current.currentTime = 0;
+      notificationSoundRef.current.play().catch(() => {});
     }
-  }, [myAccountId]);
+  }, [soundEnabled]);
 
-  // Загрузка уведомлений из API
-  const loadNotifications = useCallback(async (playSound = false) => {
-    if (!myAccountId) return;
-    // Не запрашиваем данные если вкладка не активна
-    if (typeof document !== 'undefined' && document.hidden) return;
-    
-    try {
-      const res = await fetch(`/api/notifications?userId=${myAccountId}`);
-      if (res.ok) {
-        const data: Notification[] = await res.json();
-        
-        // Проверяем, есть ли новые непрочитанные уведомления
-        if (playSound) {
-          const newUnreadCount = data.filter(n => !n.read).length;
-          
-          // Находим новые уведомления (которых не было раньше)
-          if (newUnreadCount > lastNotificationCountRef.current) {
-            // Играем звук
-            if (soundEnabled && notificationSoundRef.current) {
-              notificationSoundRef.current.currentTime = 0;
-              notificationSoundRef.current.play().catch(() => {});
-            }
-            
-            // Показываем toast для каждого нового уведомления с группировкой
-            // Используем setNotifications с коллбэком чтобы получить текущие уведомления
-            setNotifications(prevNotifications => {
-              const existingIds = new Set(prevNotifications.map(n => n.id));
-              const newNotifs = data.filter(n => !n.read && !existingIds.has(n.id));
-            
-            // Группируем уведомления по типу и задаче
-            const groups = new Map<string, typeof newNotifs>();
-            newNotifs.forEach(notif => {
-              const groupKey = `${notif.type}_${notif.todoId || 'general'}`;
-              if (!groups.has(groupKey)) {
-                groups.set(groupKey, []);
-              }
-              groups.get(groupKey)!.push(notif);
-            });
-            
-            // Создаём toast для каждой группы
-            groups.forEach((groupNotifs, groupKey) => {
-              const firstNotif = groupNotifs[0];
-              const count = groupNotifs.length;
-              
-              const toast: Toast = {
-                id: `toast-${firstNotif.id}`,
-                type: firstNotif.type === 'mention' ? 'warning' : 
-                      firstNotif.type === 'status_change' ? 'success' : 'info',
-                title: firstNotif.type === 'comment' ? '💬 Новый комментарий' :
-                       firstNotif.type === 'mention' ? '📢 Вас упомянули' :
-                       firstNotif.type === 'status_change' ? '✅ Статус изменён' :
-                       firstNotif.type === 'new_task' ? '📋 Новая задача' :
-                       '🔔 Уведомление',
-                message: count > 1 
-                  ? `${firstNotif.fromUserName}: +${count} ${firstNotif.type === 'comment' ? 'комментариев' : 'уведомлений'}`
-                  : firstNotif.message,
-                todoId: firstNotif.todoId,
-                createdAt: Date.now(),
-                groupKey,
-                count
-              };
-              
-              // Обновляем существующий toast или добавляем новый
-              setToasts(prev => {
-                const existingIndex = prev.findIndex(t => t.groupKey === groupKey);
-                if (existingIndex >= 0) {
-                  // Обновляем счётчик существующего
-                  const updated = [...prev];
-                  updated[existingIndex] = {
-                    ...updated[existingIndex],
-                    count: (updated[existingIndex].count || 1) + count,
-                    message: `${firstNotif.fromUserName}: +${(updated[existingIndex].count || 1) + count} ${firstNotif.type === 'comment' ? 'комментариев' : 'уведомлений'}`,
-                    createdAt: Date.now()
-                  };
-                  return updated;
-                }
-                return [...prev.slice(-4), toast]; // Максимум 5 toast
-              });
-            });
-            
-              return data; // Возвращаем новые данные
-            });
-          } else {
-            setNotifications(data);
-          }
-          
-          lastNotificationCountRef.current = newUnreadCount;
-        } else {
-          // Если нет новых уведомлений, просто обновляем данные
-          setNotifications(data);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading notifications:', error);
-    }
-  }, [myAccountId, soundEnabled]); // Убрали notifications из зависимостей чтобы избежать бесконечного цикла
+  // Notifications via hook
+  const { loadNotifications, saveNotification } = useNotifications({
+    myAccountId,
+    soundEnabled,
+    setNotifications,
+    setToasts,
+    notificationSoundRef
+  });
 
-  // Сохранение уведомления в API
-  const saveNotification = useCallback(async (notification: Notification) => {
-    try {
-      await fetch('/api/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(notification)
-      });
-    } catch (error) {
-      console.error('Error saving notification:', error);
-    }
-  }, []);
+  // Task notifications via hook
+  const { createTaskNotification } = useTodoNotifications({
+    myAccountId,
+    people,
+    setNotifications,
+    playNotificationSound,
+    saveNotification
+  });
+
+  // Real-time polling via hook
+  useTodoPolling({
+    myAccountId,
+    soundEnabled,
+    editingTodo,
+    setTodos,
+    setToasts,
+    setEditingTodo,
+    notificationSoundRef
+  });
+
+  // Deadline checker via hook
+  useDeadlineChecker({
+    myAccountId,
+    todos,
+    people,
+    setToasts
+  });
+
+  // Computed values via hook (replaces all useMemo blocks)
+  const {
+    myNotifications,
+    unreadCount,
+    filteredAndSortedTodos,
+    filterTodos,
+    getTodosForList,
+    getArchivedTodos,
+    nonArchivedLists,
+    listCounts
+  } = useTodoComputedValues({
+    todos,
+    lists,
+    notifications,
+    myAccountId,
+    searchQuery,
+    filterStatus,
+    filterExecutor,
+    showCompleted,
+    showArchive
+  });
 
   // Обновление статуса lastSeen для текущего пользователя
   // ОТКЛЮЧЕНО: используйте /api/users/[id] для обновления пользователей
@@ -760,249 +285,18 @@ export default function TodosPage() {
     loadData();
   }, [loadData]);
 
-  // Автоматическое открытие модалки создания задачи из URL параметров
-  useEffect(() => {
-    const createTask = searchParams.get('createTask');
-    const listId = searchParams.get('listId');
-    const assignTo = searchParams.get('assignTo');
-    const assignToName = searchParams.get('assignToName');
-    const taskTitle = searchParams.get('taskTitle');
-    const authorId = searchParams.get('authorId');
-    const authorName = searchParams.get('authorName');
-    const from = searchParams.get('from');
-    
-    // Сохраняем URL откуда пришли для возврата
-    if (from) {
-      setReturnUrl(from);
-    }
-    
-    if (createTask === 'true' && listId && assignTo && people.length > 0 && lists.length > 0) {
-      // Убираем параметры из URL
-      router.replace('/todos', { scroll: false });
-      
-      // Находим список и открываем полную модалку создания
-      setTimeout(() => {
-        const targetList = lists.find(l => l.id === listId);
-        if (targetList && !editingTodo) {
-          // Находим имена для заказчика и исполнителя
-          const assignedByPerson = people.find(p => p.id === (authorId || myAccountId));
-          const assignedToPerson = people.find(p => p.id === assignTo);
-          
-          // Создаём новую задачу с предзаполненными данными
-          const newTodo: Todo = {
-            id: `temp-${Date.now()}`,
-            title: taskTitle || '',
-            description: '',
-            listId: listId,
-            status: 'todo',
-            priority: 'medium',
-            completed: false,
-            order: 0,
-            assignedToId: assignTo,
-            assignedTo: assignedToPerson?.name || assignToName || '',
-            assignedById: authorId || myAccountId || undefined,
-            assignedBy: assignedByPerson?.name || authorName || '',
-            tags: [],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          };
-          setEditingTodo(newTodo);
-        }
-      }, 200);
-    }
-  }, [searchParams, people, router, lists, myAccountId, editingTodo]);
-
-  // Polling задач каждые 3 секунды для real-time синхронизации
-  useEffect(() => {
-    const pollTodos = async () => {
-      // Не запрашиваем данные если вкладка не активна
-      if (typeof document !== 'undefined' && document.hidden) return;
-      
-      try {
-        const userId = myAccountId;
-        const res = await fetch(`/api/todos${userId ? `?userId=${userId}` : ''}`);
-        if (res.ok) {
-          const data = await res.json();
-          const newTodos: Todo[] = data.todos || [];
-          
-          // Проверяем, есть ли новые задачи или комментарии
-          setTodos(prev => {
-            const prevMap = new Map(prev.map(t => [t.id, t]));
-            
-            if (myAccountId) {
-              newTodos.forEach((newTodo: Todo) => {
-                const oldTodo = prevMap.get(newTodo.id);
-                
-                // Не показываем уведомления если модалка с этой задачей уже открыта
-                const isModalOpenForThis = editingTodo?.id === newTodo.id;
-                
-                // Новая задача назначена мне (и модалка не открыта)
-                if (!oldTodo && newTodo.assignedToId === myAccountId && !isModalOpenForThis) {
-                  const toast: Toast = {
-                    id: `toast-new-${newTodo.id}`,
-                    type: 'info',
-                    title: '📋 Новая задача',
-                    message: newTodo.title,
-                    todoId: newTodo.id,
-                    createdAt: Date.now()
-                  };
-                  setToasts(toastPrev => [...toastPrev.slice(-2), toast]);
-                  
-                  if (soundEnabled && notificationSoundRef.current) {
-                    notificationSoundRef.current.currentTime = 0;
-                    notificationSoundRef.current.play().catch(() => {});
-                  }
-                }
-                
-                // Новый комментарий в моей задаче (я заказчик или исполнитель)
-                const isMyTask = newTodo.assignedToId === myAccountId || newTodo.assignedById === myAccountId;
-                // Не показываем уведомление о комментарии если модалка открыта
-                if (oldTodo && isMyTask && newTodo.comments && oldTodo.comments && !isModalOpenForThis) {
-                  const oldCommentsCount = oldTodo.comments.length;
-                  const newCommentsCount = newTodo.comments.length;
-                  
-                  if (newCommentsCount > oldCommentsCount) {
-                    const lastComment = newTodo.comments[newTodo.comments.length - 1];
-                    // Не показываем уведомление о своём комментарии
-                    if (lastComment && lastComment.authorId !== myAccountId) {
-                      const toast: Toast = {
-                        id: `toast-comment-${lastComment.id}`,
-                        type: 'info',
-                        title: '💬 Новый комментарий',
-                        message: `${lastComment.authorName}: ${lastComment.content.slice(0, 50)}${lastComment.content.length > 50 ? '...' : ''}`,
-                        todoId: newTodo.id,
-                        createdAt: Date.now()
-                      };
-                      setToasts(toastPrev => [...toastPrev.slice(-2), toast]);
-                      
-                      if (soundEnabled && notificationSoundRef.current) {
-                        notificationSoundRef.current.currentTime = 0;
-                        notificationSoundRef.current.play().catch(() => {});
-                      }
-                    }
-                  }
-                }
-                
-                // Статус изменён на "review" - уведомляем заказчика (если модалка не открыта)
-                if (oldTodo && newTodo.status === 'review' && oldTodo.status !== 'review' && newTodo.assignedById === myAccountId && !isModalOpenForThis) {
-                  const toast: Toast = {
-                    id: `toast-review-${newTodo.id}`,
-                    type: 'success',
-                    title: '✅ Задача готова',
-                    message: newTodo.title,
-                    todoId: newTodo.id,
-                    createdAt: Date.now()
-                  };
-                  setToasts(toastPrev => [...toastPrev.slice(-2), toast]);
-                  
-                  if (soundEnabled && notificationSoundRef.current) {
-                    notificationSoundRef.current.currentTime = 0;
-                    notificationSoundRef.current.play().catch(() => {});
-                  }
-                }
-              });
-            }
-            
-            return newTodos;
-          });
-          
-          setLists(data.lists || []);
-          setCategories(data.categories || []);
-          
-          // Обновляем editingTodo если модалка открыта
-          if (editingTodo) {
-            const updatedTodo = newTodos.find((t: Todo) => t.id === editingTodo.id);
-            if (updatedTodo) {
-              const prevCommentsLength = editingTodo.comments?.length || 0;
-              const newCommentsLength = updatedTodo.comments?.length || 0;
-              
-              setEditingTodo(prev => {
-                if (!prev) return null;
-                
-                // Обновляем только комментарии и метаданные, которые изменились на сервере
-                // НЕ перезаписываем поля, которые может редактировать пользователь
-                const shouldUpdateComments = JSON.stringify(prev.comments) !== JSON.stringify(updatedTodo.comments);
-                
-                if (shouldUpdateComments) {
-                  // Автоскролл к новым комментариям или разделителю
-                  if (newCommentsLength > prevCommentsLength) {
-                    // setTimeout(() => {
-                      // Сначала пробуем прокрутить к разделителю непрочитанных
-                      // const unreadDivider = document.getElementById('unread-divider');
-                      // if (unreadDivider) {
-                      //   unreadDivider.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      // } else {
-                      //   // Если разделителя нет, прокручиваем к концу
-                      //   // commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-                      // }
-                    // }, 100);
-                  }
-                  
-                  // Обновляем только комментарии и readCommentsByUser
-                  // Остальные поля остаются как они есть в editingTodo
-                  return {
-                    ...prev,
-                    comments: updatedTodo.comments,
-                    readCommentsByUser: updatedTodo.readCommentsByUser
-                  };
-                }
-                
-                // Если комментариев не изменилось, но status или другие поля - обновляем их
-                // но только те, которые не редактирует пользователь прямо сейчас
-                if (prev.status !== updatedTodo.status || 
-                    prev.completed !== updatedTodo.completed ||
-                    prev.dueDate !== updatedTodo.dueDate) {
-                  return {
-                    ...prev,
-                    status: updatedTodo.status,
-                    completed: updatedTodo.completed,
-                    dueDate: updatedTodo.dueDate
-                  };
-                }
-                
-                return prev;
-              });
-            }
-          }
-        }
-      } catch (error) {
-        // Silently fail
-      }
-    };
-
-    // 🚀 PERFORMANCE: Polling каждые 30 секунд (вместо 10s для производительности)
-    const interval = setInterval(pollTodos, 30000);
-    
-    return () => clearInterval(interval);
-  }, [myAccountId, soundEnabled, editingTodo?.id]);
-
-  // Отслеживание непрочитанных комментариев при открытии модалки
-  // useEffect(() => {
-  //   if (editingTodo?.comments && editingTodo.comments.length > 0) {
-  //     const lastComment = editingTodo.comments[editingTodo.comments.length - 1];
-  //     if (!lastReadCommentId) {
-  //       setLastReadCommentId(lastComment.id);
-  //       setUnreadCommentsCount(0);
-  //     }
-  //   } else {
-  //     setLastReadCommentId(null);
-  //     setUnreadCommentsCount(0);
-  //   }
-  // }, [editingTodo?.id]);
-
-  // Обновляем количество непрочитанных при изменении комментариев
-  // useEffect(() => {
-  //   if (editingTodo?.comments && lastReadCommentId) {
-  //     const lastReadIndex = editingTodo.comments.findIndex(c => c.id === lastReadCommentId);
-  //     if (lastReadIndex !== -1) {
-  //       const unreadCount = editingTodo.comments.length - lastReadIndex - 1;
-  //       const unreadFromOthers = editingTodo.comments
-  //         .slice(lastReadIndex + 1)
-  //         .filter(c => c.authorId !== myAccountId).length;
-  //       setUnreadCommentsCount(unreadFromOthers);
-  //     }
-  //   }
-  // }, [editingTodo?.comments, lastReadCommentId, myAccountId]);
+  // URL handlers via hook
+  const { isClosingModalRef } = useTodoUrlHandlers({
+    todos,
+    people,
+    isLoading,
+    myAccountId,
+    setEditingTodo,
+    setAddingToList,
+    setNewTodoTitle,
+    setNewTodoAssigneeId,
+    setReturnUrl
+  });
 
   // Помечаем комментарии как прочитанные при клике на инпут
   const markLocalCommentsAsRead = useCallback(async () => {
@@ -1247,138 +541,12 @@ export default function TodosPage() {
     }
   };
 
-  // Функция воспроизведения звука
-  const playNotificationSound = useCallback(() => {
-    if (soundEnabled && notificationSoundRef.current) {
-      notificationSoundRef.current.currentTime = 0;
-      notificationSoundRef.current.play().catch(() => {});
-    }
-  }, [soundEnabled]);
-
   // Переключение звука
   const toggleSound = () => {
     const newValue = !soundEnabled;
     setSoundEnabled(newValue);
     localStorage.setItem('todos_soundEnabled', String(newValue));
   };
-
-  // Добавление комментария
-  const addComment = useCallback(async (todoId: string, content: string) => {
-    // Закомментировано - функциональность комментариев удалена
-  }, []);
-
-  // Редактирование комментария
-  const updateComment = useCallback(async (todoId: string, commentId: string, newContent: string) => {
-    // Закомментировано - функциональность комментариев удалена
-  }, []);
-
-  // Удаление комментария
-  const deleteComment = useCallback(async (todoId: string, commentId: string) => {
-    // Закомментировано - функциональность комментариев удалена
-  }, []);
-
-  // Ответ на комментарий
-  const startReply = useCallback((comment: Comment) => {
-    // Закомментировано - функциональность комментариев удалена
-  }, []);
-
-  // Создание менеджера уведомлений
-  const notificationManager = useCallback(() => {
-    const author = people.find(p => p.id === myAccountId);
-    if (!myAccountId || !author) return null;
-    return new TaskNotificationManager(myAccountId, author.name);
-  }, [myAccountId, people]);
-
-  // Создание уведомления о новой задаче
-  const createTaskNotification = useCallback(async (todo: Todo, type: 'new_task' | 'assignment' | 'status_change', oldStatus?: string) => {
-    if (!myAccountId) return;
-    
-    const author = people.find(p => p.id === myAccountId);
-    if (!author) return;
-
-    const manager = notificationManager();
-    if (!manager) return;
-
-    // Собираем всех связанных пользователей
-    const relatedUsers = getTaskRelatedUsers({
-      authorId: todo.assignedById,
-      assignedById: todo.assignedById,
-      assignedToId: todo.assignedToId
-    });
-
-    // Уведомляем исполнителя (если назначен и это не автор)
-    if (todo.assignedToId && todo.assignedToId !== myAccountId) {
-      const notification: Notification = {
-        id: `notif-${Date.now()}`,
-        type,
-        todoId: todo.id,
-        todoTitle: todo.title,
-        fromUserId: myAccountId,
-        fromUserName: author.name,
-        toUserId: todo.assignedToId,
-        message: type === 'new_task' 
-          ? `${author.name} создал задачу для вас`
-          : type === 'assignment'
-            ? `${author.name} назначил вас исполнителем`
-            : `${author.name} изменил статус задачи`,
-        read: false,
-        createdAt: new Date().toISOString()
-      };
-      // Сохраняем в API и локальный state
-      saveNotification(notification);
-      setNotifications(prev => [notification, ...prev]);
-      playNotificationSound();
-    }
-
-    // Уведомляем заказчика если статус "Готово к проверке" (review)
-    if (type === 'status_change' && todo.status === 'review' && todo.assignedById && todo.assignedById !== myAccountId) {
-      const notification: Notification = {
-        id: `notif-${Date.now()}-customer`,
-        type: 'status_change',
-        todoId: todo.id,
-        todoTitle: todo.title,
-        fromUserId: myAccountId,
-        fromUserName: author.name,
-        toUserId: todo.assignedById,
-        message: `${author.name} завершил задачу и ждёт проверки`,
-        read: false,
-        createdAt: new Date().toISOString()
-      };
-      // Сохраняем в API и локальный state
-      saveNotification(notification);
-      setNotifications(prev => [notification, ...prev]);
-      playNotificationSound();
-    }
-
-    // Отправляем уведомления в чат уведомлений
-    switch (type) {
-      case 'new_task':
-        await manager.notifyNewTask(
-          todo.assignedToId ? [todo.assignedToId] : [],
-          todo.id,
-          todo.title,
-          todo.assignedById
-        );
-        break;
-      case 'status_change':
-        await manager.notifyStatusChanged(
-          relatedUsers,
-          todo.id,
-          todo.title,
-          oldStatus || 'todo',
-          todo.status || 'todo'
-        );
-        break;
-      case 'assignment':
-        await manager.notifyNewTask(
-          todo.assignedToId ? [todo.assignedToId] : [],
-          todo.id,
-          todo.title,
-          todo.assignedById
-        );
-        break;
-    }
-  }, [myAccountId, people, playNotificationSound, saveNotification, notificationManager]);
 
   // Пометить уведомление как прочитанное
   const markNotificationRead = useCallback(async (notifId: string) => {
@@ -1412,17 +580,7 @@ export default function TodosPage() {
       console.error('Error marking all notifications as read:', error);
     }
   }, [myAccountId]);
-
-  // 🚀 CRITICAL FIX: Мемоизируем уведомления (выполнялось при каждом render!)
-  const myNotifications = useMemo(
-    () => notifications.filter(n => n.toUserId === myAccountId), 
-    [notifications, myAccountId]
-  );
-  const unreadCount = useMemo(
-    () => myNotifications.filter(n => !n.read).length,
-    [myNotifications]
-  );
-
+  
   // Открытие задачи по параметру URL ?task=ID
   useEffect(() => {
     const taskId = searchParams.get('task');
@@ -1583,22 +741,15 @@ export default function TodosPage() {
     setReturnUrl('/account?tab=tasks');
   };
 
-  // Закрытие dropdown при клике вне
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
-        setShowSettingsMenu(false);
-      }
-      if (statusFilterRef.current && !statusFilterRef.current.contains(event.target as Node)) {
-        setShowStatusFilter(false);
-      }
-      if (executorFilterRef.current && !executorFilterRef.current.contains(event.target as Node)) {
-        setShowExecutorFilter(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  // Click outside handlers via hook
+  useClickOutside({
+    settingsRef,
+    statusFilterRef,
+    executorFilterRef,
+    setShowSettingsMenu,
+    setShowStatusFilter,
+    setShowExecutorFilter
+  });
 
   // Глобальный сброс состояния перетаскивания при mouseup за пределами элемента
   useEffect(() => {
@@ -1651,577 +802,147 @@ export default function TodosPage() {
     };
   }, [editingTodo, showCategoryManager, showPeopleManager]);
 
-  // Hover preview handlers
-  const handleTodoMouseEnter = (e: React.MouseEvent, todo: Todo) => {
-    if (!todo.description && !todo.reviewComment) return; // Нет смысла показывать пустое превью
-    
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-    }
-    
-    hoverTimeoutRef.current = setTimeout(() => {
-      const rect = (e.target as HTMLElement).getBoundingClientRect();
-      setHoverPosition({ 
-        x: rect.right + 10, 
-        y: rect.top 
-      });
-      setHoveredTodo(todo);
-    }, 400); // Задержка 400мс перед показом
-  };
-  
-  const handleTodoMouseLeave = () => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-    }
-    setHoveredTodo(null);
-  };
+  // Hover handling via hook
+  const { hovered: hoveredTodo, position: hoverPosition, handleMouseEnter: handleTodoMouseEnter, handleMouseLeave: handleTodoMouseLeave } = useHover<Todo>(500);
 
   // Добавление задачи
-  const addTodo = useCallback(async (listId: string) => {
-    if (!newTodoTitle.trim()) return;
-    
-    // Получаем данные myAccount для автозаполнения
-    const myAccount = myAccountId ? people.find(p => p.id === myAccountId) : null;
-    const isExecutor = myAccount && myAccount.role === 'executor';
-    const isCustomer = myAccount && (myAccount.role === 'customer' || myAccount.role === 'universal');
-    
-    // Если выбран исполнитель вручную - используем его
-    const selectedAssignee = newTodoAssigneeId ? people.find(p => p.id === newTodoAssigneeId) : null;
-    
-    try {
-      const res = await fetch('/api/todos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: newTodoTitle,
-          description: newTodoDescription,
-          listId: listId,
-          priority: 'medium',
-          // Если выбран исполнитель вручную - используем его
-          ...(selectedAssignee && { assignedToId: selectedAssignee.id, assignedTo: selectedAssignee.name }),
-          // Иначе если текущий пользователь исполнитель - ставим его
-          ...(!selectedAssignee && isExecutor && { assignedToId: myAccount.id, assignedTo: myAccount.name }),
-          // Если руководитель/универсал - ставим его постановщиком
-          ...(isCustomer && { assignedById: myAccount.id, assignedBy: myAccount.name })
-        })
-      });
-      
-      if (res.ok) {
-        const newTodo = await res.json();
-        setTodos(prev => [...prev, newTodo]);
+  // Todo CRUD operations via hook
+  const todoActions = useTodoActions(
+    todos,
+    setTodos,
+    people,
+    lists,
+    calendarLists,
+    myAccountId,
+    createTaskNotification,
+    closeTodoModal,
+    TZ_LIST_ID
+  );
+
+  const addTodo = useCallback(async () => {
+    await todoActions.addTodo(
+      addingToList!,
+      newTodoTitle,
+      newTodoDescription,
+      newTodoAssigneeId,
+      () => {
         setNewTodoTitle('');
         setNewTodoDescription('');
         setNewTodoAssigneeId(null);
         setShowNewTodoAssigneeDropdown(false);
         setAddingToList(null);
-        
-        // Отправляем уведомление исполнителю о новой задаче
-        if (newTodo.assignedToId) {
-          createTaskNotification(newTodo, 'new_task');
-        }
       }
-    } catch (error) {
-      console.error('Error adding todo:', error);
-    }
-  }, [newTodoTitle, newTodoDescription, newTodoAssigneeId, myAccountId, people, createTaskNotification]);
+    );
+  }, [todoActions, addingToList, newTodoTitle, newTodoDescription, newTodoAssigneeId]);
 
-  // Переключение статуса задачи
-  const toggleTodo = useCallback(async (todo: Todo) => {
-    try {
-      const res = await fetch('/api/todos', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: todo.id,
-          completed: !todo.completed
-        })
-      });
-      
-      if (res.ok) {
-        setTodos(prev => prev.map(t => 
-          t.id === todo.id ? { ...t, completed: !t.completed } : t
-        ));
-      }
-    } catch (error) {
-      console.error('Error toggling todo:', error);
-    }
-  }, []);
+  const { updateTodo, deleteTodo, toggleTodo, moveTodo, toggleArchiveTodo } = todoActions;
 
-  // Обновление задачи
-  const updateTodo = async (todo: Todo) => {
-    try {
-      // Проверяем, является ли задача новой (temp-id)
-      const isNewTodo = todo.id.startsWith('temp-');
-      
-      console.log('[updateTodo] ' + (isNewTodo ? '🆕 Creating' : '✏️ Updating') + ' task:', todo.id);
-      console.log('[updateTodo] Task data keys:', Object.keys(todo).filter(k => todo[k as keyof Todo] !== undefined));
-      
-      // Получаем текущую версию задачи для сравнения статуса (только для существующих задач)
-      const currentTodo = !isNewTodo ? todos.find(t => t.id === todo.id) : null;
-      const statusChanged = currentTodo && currentTodo.status !== todo.status;
-      const oldStatus = currentTodo?.status;
-      
-      console.log('[updateTodo] Sending ' + (isNewTodo ? 'POST' : 'PUT') + ' request');
-      
-      const res = await fetch('/api/todos', {
-        method: isNewTodo ? 'POST' : 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(isNewTodo ? {
-          ...todo,
-          id: undefined, // Удаляем temp-id для создания
-        } : todo)
-      });
-      
-      console.log('[updateTodo] Response status:', res.status);
-      
-      if (res.ok) {
-        let updated = await res.json();
-        
-        console.log('[updateTodo] ✅ Server returned task:', updated.id);
-        
-        // Если включена опция "Поместить на календарь" и ещё не добавлено
-        if (todo.addToCalendar && !updated.calendarEventId) {
-          const calendarResult = await sendToCalendar(updated);
-          if (calendarResult) {
-            // Обновляем задачу с calendarEventId
-            updated = { ...updated, calendarEventId: calendarResult };
-          }
-        }
-        
-        // Отправляем уведомление при изменении статуса
-        if (statusChanged) {
-          createTaskNotification(todo, 'status_change', oldStatus);
-        }
-        
-        // Отправляем уведомление при назначении/смене исполнителя
-        const assigneeChanged = currentTodo && currentTodo.assignedToId !== todo.assignedToId;
-        if (assigneeChanged && todo.assignedToId) {
-          createTaskNotification(todo, 'assignment');
-        }
-        
-        // Для новых задач - добавляем, для существующих - обновляем
-        if (isNewTodo) {
-          setTodos(prev => [...prev, updated]);
-          // Отправляем уведомление о создании
-          if (todo.assignedToId) {
-            createTaskNotification(updated, 'assignment');
-          }
-        } else {
-          setTodos(prev => prev.map(t => t.id === todo.id ? updated : t));
-        }
-        
-        closeTodoModal();
-      }
-    } catch (error) {
-      console.error('Error updating todo:', error);
-    }
-  };
+  // List actions via hook
+  const listActions = useListActions({
+    lists,
+    setLists,
+    loadData,
+    myAccountId,
+    people,
+    windowWidth,
+    nonArchivedLists,
+    setSelectedColumnIndex,
+    setShowAddList,
+    setShowListSettings
+  });
 
-  // Отправка задачи на календарь
-  const sendToCalendar = async (todo: Todo): Promise<string | null> => {
-    try {
-      const list = lists.find(l => l.id === todo.listId);
-      const isTZ = todo.listId === TZ_LIST_ID;
-      
-      // Формат для локального API calendar-events
-      const eventData = {
-        title: todo.title,
-        description: [
-          todo.description ? todo.description.replace(/<[^>]*>/g, ' ') : '',
-          todo.assignedTo ? `Исполнитель: ${todo.assignedTo}` : '',
-          todo.assignedBy ? `Постановщик: ${todo.assignedBy}` : '',
-          list?.name ? `Список: ${list.name}` : '',
-          todo.linkUrl ? `Ссылка: ${todo.linkUrl}` : ''
-        ].filter(Boolean).join('\n'),
-        date: todo.dueDate || new Date().toISOString().split('T')[0],
-        priority: todo.priority || 'medium',
-        type: isTZ ? 'tz' : 'task',
-        listId: todo.calendarListId || (calendarLists.length > 0 ? calendarLists[0].id : undefined),
-        sourceId: todo.id,
-        assignedTo: todo.assignedTo,
-        assignedBy: todo.assignedBy,
-        listName: list?.name,
-        linkUrl: todo.linkUrl,
-        linkTitle: todo.linkTitle
-      };
+  const addList = useCallback(async () => {
+    await listActions.addList(
+      newListName,
+      newListColor,
+      newListAssigneeId,
+      setNewListName,
+      setNewListAssigneeId
+    );
+  }, [listActions, newListName, newListColor, newListAssigneeId]);
 
-      console.log('Sending to calendar:', eventData);
+  const { deleteList, updateList, toggleArchiveList, updateListsOrder } = listActions;
 
-      // Отправляем напрямую на локальный API calendar-events
-      const response = await fetch('/api/calendar-events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(eventData)
-      });
+  // Category actions via hook
+  const categoryActions = useCategoryActions({
+    categories,
+    setCategories,
+    loadData,
+    setEditingCategory,
+    setShowAddCategory
+  });
 
-      if (response.ok) {
-        const result = await response.json();
-        const calendarEventId = result.id;
-        // Сохраняем ID события в задаче
-        await fetch('/api/todos', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: todo.id, calendarEventId })
-        });
-        console.log('Event added to calendar:', result);
-        return calendarEventId;
-      } else {
-        const errorText = await response.text();
-        console.error('Calendar error:', response.status, errorText);
-        alert('Ошибка добавления в календарь: ' + errorText);
-        return null;
-      }
-    } catch (error) {
-      console.error('Error sending to calendar:', error);
-      alert('Не удалось связаться с сервером календаря');
-      return null;
-    }
-  };
+  const addCategory = useCallback(async () => {
+    await categoryActions.addCategory(
+      newCategoryName,
+      newCategoryColor,
+      newCategoryIcon,
+      setNewCategoryName,
+      setNewCategoryColor,
+      setNewCategoryIcon
+    );
+  }, [categoryActions, newCategoryName, newCategoryColor, newCategoryIcon]);
 
-  // Перемещение задачи в другой список
-  const moveTodo = useCallback(async (todoId: string, newListId: string) => {
-    const todo = todos.find(t => t.id === todoId);
-    if (!todo || todo.listId === newListId) return;
-    
-    try {
-      const res = await fetch('/api/todos', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: todoId,
-          listId: newListId
-        })
-      });
-      
-      if (res.ok) {
-        setTodos(prev => prev.map(t => 
-          t.id === todoId ? { ...t, listId: newListId } : t
-        ));
-      }
-    } catch (error) {
-      console.error('Error moving todo:', error);
-    }
-  }, [todos]);
+  const { updateCategory, deleteCategory } = categoryActions;
 
-  // Удаление задачи
-  const deleteTodo = useCallback(async (id: string) => {
-    try {
-      const res = await fetch(`/api/todos?id=${id}`, { method: 'DELETE' });
-      
-      if (res.ok) {
-        setTodos(prev => prev.filter(t => t.id !== id));
-      }
-    } catch (error) {
-      console.error('Error deleting todo:', error);
-    }
-  }, []);
+  // People actions via hook
+  const peopleActions = usePeopleActions({
+    people,
+    setPeople,
+    setEditingPerson
+  });
 
-  // Добавление списка
-  const addList = async () => {
-    console.log('[addList] === START ===');
-    console.log('[addList] Called with name:', newListName);
-    console.log('[addList] myAccountId:', myAccountId);
-    console.log('[addList] newListColor:', newListColor);
-    console.log('[addList] newListAssigneeId:', newListAssigneeId);
-    
-    if (!newListName.trim()) {
-      console.log('[addList] Name is empty, returning');
-      return;
-    }
-    
-    // Получаем данные выбранного исполнителя
-    const selectedAssignee = newListAssigneeId ? people.find(p => p.id === newListAssigneeId) : null;
-    
-    try {
-      const payload = {
-        type: 'list',
-        name: newListName,
-        color: newListColor,
-        icon: 'folder',
-        creatorId: myAccountId,
-        // Добавляем исполнителя по умолчанию если выбран
-        ...(selectedAssignee && { defaultAssigneeId: selectedAssignee.id, defaultAssignee: selectedAssignee.name })
-      };
-      console.log('[addList] Sending POST request with payload:', payload);
-      
-      const res = await fetch('/api/todos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      
-      console.log('[addList] Response status:', res.status);
-      console.log('[addList] Response ok:', res.ok);
-      
-      if (res.ok) {
-        const newList = await res.json();
-        console.log('[addList] Created list:', newList);
-        
-        // Перезагружаем данные с сервера для правильной фильтрации
-        await loadData();
-        
-        // Переключаемся на новый список на мобильных
-        if (windowWidth < 768) {
-          // Новый список будет последним в отфильтрованном списке
-          const newIndex = nonArchivedLists.length; // Так как новый список ещё не в lists, он будет добавлен после loadData
-          setSelectedColumnIndex(newIndex);
-        }
-        
-        setNewListName('');
-        setNewListAssigneeId(null);
-        setShowAddList(false);
-        // Сразу открываем настройки нового списка
-        setShowListSettings(newList.id);
-        console.log('[addList] === SUCCESS ===');
-      } else {
-        const errorText = await res.text();
-        console.error('[addList] Response not OK:', errorText);
-        console.error('[addList] === FAILED (not ok) ===');
-      }
-    } catch (error) {
-      console.error('[addList] Error:', error);
-      console.error('[addList] === FAILED (exception) ===');
-    }
-  };
+  const addPerson = useCallback(async () => {
+    await peopleActions.addPerson(
+      newPersonName,
+      newPersonTelegramId,
+      newPersonTelegramUsername,
+      newPersonRole,
+      setNewPersonName,
+      setNewPersonTelegramId,
+      setNewPersonTelegramUsername
+    );
+  }, [peopleActions, newPersonName, newPersonTelegramId, newPersonTelegramUsername, newPersonRole]);
 
-  // Удаление списка
-  const deleteList = async (id: string) => {
-    try {
-      const res = await fetch(`/api/todos?id=${id}&type=list`, { method: 'DELETE' });
-      
-      if (res.ok) {
-        setLists(prev => prev.filter(l => l.id !== id));
-        loadData();
-      }
-    } catch (error) {
-      console.error('Error deleting list:', error);
-    }
-  };
+  const { updatePerson, deletePerson } = peopleActions;
 
-  // Добавление категории
-  const addCategory = async () => {
-    if (!newCategoryName.trim()) return;
-    
-    try {
-      const res = await fetch('/api/todos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'category',
-          name: newCategoryName,
-          color: newCategoryColor,
-          icon: newCategoryIcon
-        })
-      });
-      
-      if (res.ok) {
-        const newCat = await res.json();
-        setCategories(prev => [...prev, newCat]);
-        setNewCategoryName('');
-        setNewCategoryColor('#6366f1');
-        setNewCategoryIcon('tag');
-        setShowAddCategory(false);
-      }
-    } catch (error) {
-      console.error('Error adding category:', error);
-    }
-  };
+  // Todo drag & drop via hook
+  const todoDragDrop = useTodoDragDrop({
+    todos,
+    setTodos,
+    draggedTodo,
+    setDraggedTodo,
+    setDragOverListId,
+    setDragOverTodoId,
+    moveTodo
+  });
 
-  // Обновление категории
-  const updateCategory = async (category: TodoCategory) => {
-    try {
-      const res = await fetch('/api/todos', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: category.id,
-          type: 'category',
-          name: category.name,
-          color: category.color,
-          icon: category.icon
-        })
-      });
-      
-      if (res.ok) {
-        const updated = await res.json();
-        setCategories(prev => prev.map(c => c.id === category.id ? updated : c));
-        setEditingCategory(null);
-      }
-    } catch (error) {
-      console.error('Error updating category:', error);
-    }
-  };
+  const {
+    handleDragStart,
+    handleDragEnd,
+    handleDragEnter,
+    handleDragLeave,
+    handleDragOver,
+    handleTodoDragOver,
+    handleTodoDrop,
+    handleDrop
+  } = todoDragDrop;
 
-  // Удаление категории
-  const deleteCategory = async (id: string) => {
-    try {
-      const res = await fetch(`/api/todos?id=${id}&type=category`, { method: 'DELETE' });
-      
-      if (res.ok) {
-        setCategories(prev => prev.filter(c => c.id !== id));
-        loadData();
-      }
-    } catch (error) {
-      console.error('Error deleting category:', error);
-    }
-  };
+  // List drag & drop via hook
+  const listDragDrop = useListDragDrop({
+    lists,
+    draggedList,
+    setDraggedList,
+    setDragOverListOrder,
+    updateListsOrder
+  });
 
-  // Добавление человека (исполнитель/заказчик)
-  const addPerson = async () => {
-    if (!newPersonName.trim()) return;
-    
-    try {
-      const res = await fetch('/api/todos/people', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newPersonName,
-          telegramId: newPersonTelegramId || undefined,
-          telegramUsername: newPersonTelegramUsername || undefined,
-          role: newPersonRole
-        })
-      });
-      
-      if (res.ok) {
-        const newPerson = await res.json();
-        setPeople(prev => [...prev, newPerson]);
-        setNewPersonName('');
-        setNewPersonTelegramId('');
-        setNewPersonTelegramUsername('');
-      }
-    } catch (error) {
-      console.error('Error adding person:', error);
-    }
-  };
-
-  // Обновление человека
-  const updatePerson = async (person: Person) => {
-    try {
-      const res = await fetch('/api/todos/people', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(person)
-      });
-      
-      if (res.ok) {
-        const updated = await res.json();
-        setPeople(prev => prev.map(p => p.id === person.id ? updated : p));
-        setEditingPerson(null);
-      }
-    } catch (error) {
-      console.error('Error updating person:', error);
-    }
-  };
-
-  // Удаление человека
-  const deletePerson = async (id: string) => {
-    try {
-      const res = await fetch(`/api/todos/people?id=${id}`, { method: 'DELETE' });
-      
-      if (res.ok) {
-        setPeople(prev => prev.filter(p => p.id !== id));
-      }
-    } catch (error) {
-      console.error('Error deleting person:', error);
-    }
-  };
-
-  // Обновление списка (переименование)
-  const updateList = async (list: TodoList) => {
-    try {
-      const res = await fetch('/api/todos', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: list.id,
-          type: 'list',
-          name: list.name,
-          color: list.color,
-          order: list.order,
-          archived: list.archived,
-          defaultExecutorId: list.defaultExecutorId,
-          defaultCustomerId: list.defaultCustomerId,
-          defaultAddToCalendar: list.defaultAddToCalendar,
-          allowedDepartments: list.allowedDepartments,
-          allowedUsers: list.allowedUsers
-        })
-      });
-      
-      if (res.ok) {
-        const updated = await res.json();
-        setLists(prev => prev.map(l => l.id === list.id ? updated : l));
-      }
-    } catch (error) {
-      console.error('Error updating list:', error);
-    }
-  };
-
-  // Архивирование/разархивирование списка
-  const toggleArchiveList = async (listId: string, archive: boolean) => {
-    try {
-      const res = await fetch('/api/todos', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: listId,
-          type: 'list',
-          archived: archive
-        })
-      });
-      
-      if (res.ok) {
-        const updated = await res.json();
-        setLists(prev => prev.map(l => l.id === listId ? updated : l));
-      }
-    } catch (error) {
-      console.error('Error archiving list:', error);
-    }
-  };
-
-  // Архивирование/разархивирование задачи
-  const toggleArchiveTodo = useCallback(async (todoId: string, archive: boolean) => {
-    try {
-      const res = await fetch('/api/todos', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: todoId,
-          archived: archive
-        })
-      });
-      
-      if (res.ok) {
-        const updated = await res.json();
-        setTodos(prev => prev.map(t => t.id === todoId ? updated : t));
-      }
-    } catch (error) {
-      console.error('Error archiving todo:', error);
-    }
-  }, []);
-
-  // Обновление порядка списков
-  const updateListsOrder = useCallback(async (reorderedLists: TodoList[]) => {
-    try {
-      // Обновляем локально сразу
-      setLists(reorderedLists);
-      
-      // Отправляем обновления на сервер
-      await Promise.all(reorderedLists.map((list, index) => 
-        fetch('/api/todos', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: list.id,
-            type: 'list',
-            order: index
-          })
-        })
-      ));
-    } catch (error) {
-      console.error('Error updating lists order:', error);
-      loadData(); // Перезагружаем при ошибке
-    }
-  }, [loadData]);
+  const {
+    handleListDragStart,
+    handleListDragEnd,
+    handleListDragOver,
+    handleListDrop
+  } = listDragDrop;
 
   // Обновление настроек Telegram
   const updateTelegramSettings = async () => {
@@ -2244,367 +965,19 @@ export default function TodosPage() {
     }
   };
 
-  // Drag and Drop handlers for todos
-  const handleDragStart = useCallback((e: React.DragEvent, todo: Todo) => {
-    setDraggedTodo(todo);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', todo.id);
-    e.dataTransfer.setData('type', 'todo');
-    // Добавляем задержку для красивой анимации
-    setTimeout(() => {
-      (e.target as HTMLElement).style.opacity = '0.5';
-    }, 0);
-  }, []);
+  // Board scroll via hook
+  const boardScroll = useBoardScroll({
+    windowWidth,
+    draggedTodo,
+    draggedList,
+    isDraggingBoard,
+    setIsDraggingBoard,
+    setStartX,
+    setScrollLeft,
+    boardRef
+  });
 
-  const handleDragEnd = useCallback((e: React.DragEvent) => {
-    (e.target as HTMLElement).style.opacity = '1';
-    setDraggedTodo(null);
-    setDragOverListId(null);
-    setDragOverTodoId(null);
-    setDraggedList(null);
-    setDragOverListOrder(null);
-    dragCounter.current = 0;
-    // Сбрасываем состояние скролла доски
-    setIsDraggingBoard(false);
-    if (boardRef.current) {
-      boardRef.current.style.cursor = 'grab';
-      boardRef.current.style.userSelect = 'auto';
-    }
-  }, []);
-
-  const handleDragEnter = useCallback((e: React.DragEvent, listId: string) => {
-    e.preventDefault();
-    if (draggedTodo) {
-      dragCounter.current++;
-      setDragOverListId(listId);
-    }
-  }, [draggedTodo]);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    if (draggedTodo) {
-      dragCounter.current--;
-      if (dragCounter.current === 0) {
-        setDragOverListId(null);
-      }
-    }
-  }, [draggedTodo]);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  }, []);
-
-  // Обработчик перетаскивания над задачей (для вертикального изменения порядка)
-  const handleTodoDragOver = useCallback((e: React.DragEvent, todoId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (draggedTodo && draggedTodo.id !== todoId) {
-      setDragOverTodoId(todoId);
-    }
-  }, [draggedTodo]);
-
-  // Обработчик drop на задачу (для вертикального изменения порядка)
-  const handleTodoDrop = useCallback(async (e: React.DragEvent, targetTodo: Todo) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!draggedTodo || draggedTodo.id === targetTodo.id) return;
-    
-    // Получаем все задачи этого списка
-    const listTodos = todos
-      .filter(t => t.listId === targetTodo.listId && !t.archived)
-      .sort((a, b) => a.order - b.order);
-    
-    const draggedIndex = listTodos.findIndex(t => t.id === draggedTodo.id);
-    const targetIndex = listTodos.findIndex(t => t.id === targetTodo.id);
-    
-    if (draggedIndex === -1) {
-      // Задача из другого списка - перемещаем в новый список на позицию targetIndex
-      const newOrder = targetTodo.order;
-      const updatedTodo = { ...draggedTodo, listId: targetTodo.listId, order: newOrder };
-      
-      // Получаем задачи, которые нужно сдвинуть
-      const todosToShift = todos.filter(
-        t => t.listId === targetTodo.listId && t.order >= newOrder && t.id !== draggedTodo.id && !t.archived
-      ).map(t => ({ ...t, order: t.order + 1 }));
-      
-      // Обновляем порядок остальных задач
-      const updatedTodos = todos.map(t => {
-        if (t.id === draggedTodo.id) {
-          return updatedTodo;
-        }
-        const shiftedTodo = todosToShift.find(st => st.id === t.id);
-        if (shiftedTodo) {
-          return shiftedTodo;
-        }
-        return t;
-      });
-      
-      setTodos(updatedTodos);
-      
-      // Сохраняем на сервер все изменённые задачи
-      try {
-        await Promise.all([
-          fetch('/api/todos', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatedTodo)
-          }),
-          ...todosToShift.map(todo =>
-            fetch('/api/todos', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(todo)
-            })
-          )
-        ]);
-      } catch (error) {
-        console.error('Error moving todo:', error);
-      }
-    } else {
-      // Задача из того же списка - меняем порядок
-      const newListTodos = [...listTodos];
-      const [removed] = newListTodos.splice(draggedIndex, 1);
-      newListTodos.splice(targetIndex, 0, removed);
-      
-      // Обновляем order для всех задач в списке
-      const updatedListTodos = newListTodos.map((t, index) => ({ ...t, order: index }));
-      
-      const updatedTodos = todos.map(t => {
-        const updatedTodo = updatedListTodos.find(lt => lt.id === t.id);
-        if (updatedTodo) {
-          return updatedTodo;
-        }
-        return t;
-      });
-      
-      setTodos(updatedTodos);
-      
-      // Сохраняем на сервер все задачи списка с новым order
-      try {
-        await Promise.all(
-          updatedListTodos.map(todo =>
-            fetch('/api/todos', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(todo)
-            })
-          )
-        );
-      } catch (error) {
-        console.error('Error reordering todos:', error);
-      }
-    }
-    
-    setDraggedTodo(null);
-    setDragOverTodoId(null);
-    setDragOverListId(null);
-  }, [draggedTodo, todos]);
-
-  const handleDrop = useCallback((e: React.DragEvent, listId: string) => {
-    e.preventDefault();
-    dragCounter.current = 0;
-    setDragOverListId(null);
-    setDragOverTodoId(null);
-    
-    if (draggedTodo) {
-      moveTodo(draggedTodo.id, listId);
-    }
-    setDraggedTodo(null);
-  }, [draggedTodo, moveTodo]);
-
-  // Drag and Drop handlers for lists
-  const handleListDragStart = useCallback((e: React.DragEvent, list: TodoList) => {
-    e.stopPropagation();
-    setDraggedList(list);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', list.id);
-    e.dataTransfer.setData('type', 'list');
-    setTimeout(() => {
-      (e.target as HTMLElement).style.opacity = '0.5';
-    }, 0);
-  }, []);
-
-  const handleListDragEnd = useCallback((e: React.DragEvent) => {
-    (e.target as HTMLElement).style.opacity = '1';
-    setDraggedList(null);
-    setDragOverListOrder(null);
-  }, []);
-
-  const handleListDragOver = useCallback((e: React.DragEvent, targetList: TodoList) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (draggedList && draggedList.id !== targetList.id) {
-      setDragOverListOrder(targetList.order);
-    }
-  }, [draggedList]);
-
-  const handleListDrop = useCallback((e: React.DragEvent, targetList: TodoList) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (draggedList && draggedList.id !== targetList.id) {
-      const currentNonArchivedLists = lists.filter(l => !l.archived).sort((a, b) => a.order - b.order);
-      const draggedIndex = currentNonArchivedLists.findIndex(l => l.id === draggedList.id);
-      const targetIndex = currentNonArchivedLists.findIndex(l => l.id === targetList.id);
-      
-      if (draggedIndex !== -1 && targetIndex !== -1) {
-        const reordered = [...currentNonArchivedLists];
-        const [removed] = reordered.splice(draggedIndex, 1);
-        reordered.splice(targetIndex, 0, removed);
-        
-        // Обновляем order для каждого списка
-        const updated = reordered.map((list, index) => ({ ...list, order: index }));
-        updateListsOrder(updated);
-      }
-    }
-    
-    setDraggedList(null);
-    setDragOverListOrder(null);
-  }, [draggedList, lists, updateListsOrder]);
-
-  // Drag to scroll handlers
-  const handleMouseDown = (e: React.MouseEvent) => {
-    // Только для desktop
-    if (windowWidth < 768) return;
-    // Не начинаем scroll если идёт перетаскивание задачи или списка
-    if (!boardRef.current || draggedTodo || draggedList) return;
-    // Не начинаем scroll если клик был на интерактивном элементе
-    const target = e.target as HTMLElement;
-    if (target.closest('button, input, [draggable="true"], a')) return;
-    setIsDraggingBoard(true);
-    setStartX(e.pageX - boardRef.current.offsetLeft);
-    setScrollLeft(boardRef.current.scrollLeft);
-    boardRef.current.style.cursor = 'grabbing';
-    boardRef.current.style.userSelect = 'none';
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    // Не двигаем если идёт перетаскивание задачи или списка
-    if (!isDraggingBoard || !boardRef.current || draggedTodo || draggedList) return;
-    e.preventDefault();
-    const x = e.pageX - boardRef.current.offsetLeft;
-    const walk = (x - startX) * 2;
-    boardRef.current.scrollLeft = scrollLeft - walk;
-  };
-
-  const handleMouseUp = () => {
-    setIsDraggingBoard(false);
-    if (boardRef.current) {
-      boardRef.current.style.cursor = 'grab';
-      boardRef.current.style.userSelect = 'auto';
-    }
-  };
-
-  const handleMouseLeave = () => {
-    if (isDraggingBoard) {
-      setIsDraggingBoard(false);
-      if (boardRef.current) {
-        boardRef.current.style.cursor = 'grab';
-        boardRef.current.style.userSelect = 'auto';
-      }
-    }
-  };
-
-  // 🚀 PERFORMANCE OPTIMIZATION: Мемоизация фильтрованных и отсортированных задач
-  const filteredAndSortedTodos = useMemo(() => {
-    return lists.map(list => {
-      if (list.archived && !showArchive) return { listId: list.id, todos: [] };
-      
-      const listTodos = todos.filter(t => {
-        if (t.listId !== list.id) return false;
-        if (t.archived && !showArchive) return false;
-        if (!showCompleted && t.completed) return false;
-        
-        // Поиск
-        if (searchQuery) {
-          const query = searchQuery.toLowerCase();
-          const matchesSearch = t.title.toLowerCase().includes(query) || 
-                               t.description?.toLowerCase().includes(query);
-          if (!matchesSearch) return false;
-        }
-        
-        // Фильтр по статусу
-        if (filterStatus !== 'all' && t.status !== filterStatus) return false;
-        
-        // Фильтр по исполнителю
-        if (filterExecutor !== null) {
-          const matchesFilter = t.assignedToId === filterExecutor || 
-                               t.assignedToIds?.includes(filterExecutor);
-          if (!matchesFilter) return false;
-        }
-        
-        return true;
-      }).sort((a, b) => {
-        // Сначала незавершённые
-        if (a.completed !== b.completed) return a.completed ? 1 : -1;
-        // Потом по приоритету
-        const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
-        return (priorityOrder[a.priority] || 2) - (priorityOrder[b.priority] || 2);
-      });
-      
-      return { listId: list.id, todos: listTodos };
-    });
-  }, [todos, lists, searchQuery, filterStatus, filterExecutor, showCompleted, showArchive]);
-
-  // Фильтрация задач по поиску, статусу, исполнителю и правам доступа
-  const filterTodos = (todoList: Todo[], listId?: string) => {
-    return todoList.filter(todo => {
-      if (!showCompleted && todo.completed) return false;
-      
-      // Фильтр по статусу
-      if (filterStatus !== 'all') {
-        if (todo.status !== filterStatus) return false;
-      }
-      
-      // Фильтр по исполнителю (включая множественных)
-      if (filterExecutor !== null) {
-        const matchesFilter = todo.assignedToId === filterExecutor || todo.assignedToIds?.includes(filterExecutor);
-        if (!matchesFilter) return false;
-      }
-      
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        return todo.title.toLowerCase().includes(query) || 
-               todo.description?.toLowerCase().includes(query);
-      }
-      return true;
-    });
-  };
-
-  // Получение задач для списка (исключая архивные) - ИСПОЛЬЗУЕТ МЕМОИЗИРОВАННЫЕ ДАННЫЕ
-  const getTodosForList = useCallback((listId: string, includeArchived: boolean = false) => {
-    const cached = filteredAndSortedTodos.find(f => f.listId === listId);
-    if (cached) return cached.todos;
-    
-    // Fallback (не должно использоваться при нормальной работе)
-    const listTodos = todos.filter(t => t.listId === listId && (includeArchived || !t.archived));
-    return filterTodos(listTodos, listId);
-  }, [filteredAndSortedTodos, todos]);
-
-  // Получение архивных задач
-  const getArchivedTodos = () => {
-    return todos.filter(t => t.archived);
-  };
-
-  // 🚀 CRITICAL FIX: Мемоизируем неархивные списки (вызывалось 8+ раз без кэша!)
-  const nonArchivedLists = useMemo(
-    () => lists.filter(l => !l.archived).sort((a, b) => a.order - b.order),
-    [lists]
-  );
-
-  // 🚀 CRITICAL FIX: Мемоизируем счетчики задач по спискам (было 2000+ операций!)
-  const listCounts = useMemo(() => {
-    return lists.reduce((acc, list) => {
-      const listTodos = getTodosForList(list.id, showArchive);
-      acc[list.id] = {
-        completedCount: listTodos.filter(t => t.completed).length,
-        totalCount: listTodos.length
-      };
-      return acc;
-    }, {} as Record<string, { completedCount: number; totalCount: number }>);
-  }, [lists, getTodosForList, showArchive]);
+  const { handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave } = boardScroll;
 
   if (isLoading) {
     return (
@@ -2617,142 +990,29 @@ export default function TodosPage() {
   return (
     <div className="h-screen flex flex-col text-gray-900 dark:text-white overflow-hidden relative" style={{ background: 'transparent' }}>
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-10 w-full px-3 py-2 flex-shrink-0">
-        {/* Mobile header - all in one line */}
-        <div className="flex items-center gap-2 w-full md:hidden">
-          {/* Левая стрелка */}
-          <button
-            onClick={() => {
-              if (selectedColumnIndex > 0) {
-                setSelectedColumnIndex(selectedColumnIndex - 1);
-              }
-            }}
-            disabled={selectedColumnIndex === 0}
-            className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-              selectedColumnIndex === 0
-                ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed bg-gray-200/10 dark:bg-white/5 border border-white/10'
-                : 'text-[var(--text-primary)] bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] active:scale-95 backdrop-blur-xl'
-            }`}
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-
-          {/* Search */}
-          <div className="relative flex-1">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-primary)] flex items-center justify-center z-10 pointer-events-none">
-              <Search className="w-4 h-4" strokeWidth={2.5} />
-            </div>
-            <input
-              type="text"
-              placeholder="Поиск..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-9 pl-9 pr-3 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 rounded-[20px] text-xs focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-white/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
-            />
-          </div>
-
-          {/* More menu dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setMobileHeaderMenuOpen(!mobileHeaderMenuOpen)}
-              className="flex-shrink-0 w-9 h-9 flex items-center justify-center bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all duration-200 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
-            >
-              <MoreVertical className="w-4 h-4" />
-            </button>
-            <Mobileheadermenu
-              isOpen={mobileHeaderMenuOpen}
-              onClose={() => setMobileHeaderMenuOpen(false)}
-              setShowMobileFiltersModal={setShowMobileFiltersModal}
-              setShowMobileArchiveModal={setShowMobileArchiveModal}
-              setShowAddList={setShowAddList}
-            />
-          </div>
-
-          {/* Правая стрелка */}
-          <button
-            onClick={() => {
-              if (selectedColumnIndex < nonArchivedLists.length - 1) {
-                setSelectedColumnIndex(selectedColumnIndex + 1);
-              }
-            }}
-            disabled={selectedColumnIndex >= nonArchivedLists.length - 1}
-            className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-              selectedColumnIndex >= nonArchivedLists.length - 1
-                ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed bg-gray-200/10 dark:bg-white/5 border border-white/10'
-                : 'text-[var(--text-primary)] bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] active:scale-95 backdrop-blur-xl'
-            }`}
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Desktop header */}
-        <div className="hidden md:flex items-center justify-center gap-2 whitespace-nowrap">
-          {/* Search */}
-          <div className="relative flex-none">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-primary)] flex items-center justify-center z-10 pointer-events-none">
-              <Search className="w-5 h-5" strokeWidth={2.5} />
-            </div>
-            <input
-              type="text"
-              placeholder="Поиск..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-[200px] h-10 pl-10 pr-3 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 rounded-[20px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-white/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
-            />
-          </div>
-
-          {/* Status Filter */}
-          <div className="relative hidden md:block">
-            <button
-              onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
-              className="flex items-center gap-1.5 px-3 h-10 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all duration-200 text-sm border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] backdrop-blur-xl"
-            >
-              <Filter className="w-4 h-4 flex-shrink-0" />
-              <span className="truncate max-w-[120px]">{filterStatus === 'all' ? 'Все' : filterStatus === 'todo' ? 'К выполнению' : filterStatus === 'pending' ? 'В ожидании' : filterStatus === 'in-progress' ? 'В работе' : filterStatus === 'review' ? 'Готово к проверке' : 'Застряла'}</span>
-              <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
-            </button>
-            <Statusdropdown
-              isOpen={statusDropdownOpen}
-              onClose={() => setStatusDropdownOpen(false)}
-              filterStatus={filterStatus}
-              setFilterStatus={setFilterStatus}
-            />
-          </div>
-
-          {/* Executor Filter */}
-          <div className="relative hidden md:block">
-            <button
-              onClick={() => setExecutorDropdownOpen(!executorDropdownOpen)}
-              className="flex items-center gap-1.5 px-3 h-10 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all duration-200 text-sm border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] backdrop-blur-xl"
-            >
-              <User className="w-4 h-4 flex-shrink-0" />
-              <span className="truncate max-w-[100px]">{filterExecutor ? people.find(p => p.id === filterExecutor)?.name || 'Все' : 'Все'}</span>
-              <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
-            </button>
-            <Executordropdown
-              isOpen={executorDropdownOpen}
-              onClose={() => setExecutorDropdownOpen(false)}
-              people={people}
-              filterExecutor={filterExecutor}
-              setFilterExecutor={setFilterExecutor}
-            />
-          </div>
-
-          {/* Archive Toggle */}
-          <button
-            onClick={() => setShowArchive(!showArchive)}
-            className={`hidden md:flex w-10 h-10 items-center justify-center rounded-[20px] transition-all duration-200 border flex-shrink-0 backdrop-blur-xl ${
-              showArchive
-                ? 'bg-blue-500/20 text-blue-400 border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)]'
-                : 'bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)]'
-            }`}
-            title={showArchive ? 'Скрыть архив' : 'Показать архив'}
-          >
-            <Archive className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+      <TodoHeader
+        selectedColumnIndex={selectedColumnIndex}
+        nonArchivedListsLength={nonArchivedLists.length}
+        setSelectedColumnIndex={setSelectedColumnIndex}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        mobileHeaderMenuOpen={mobileHeaderMenuOpen}
+        setMobileHeaderMenuOpen={setMobileHeaderMenuOpen}
+        setShowMobileFiltersModal={setShowMobileFiltersModal}
+        setShowMobileArchiveModal={setShowMobileArchiveModal}
+        setShowAddList={setShowAddList}
+        filterStatus={filterStatus}
+        setFilterStatus={setFilterStatus}
+        statusDropdownOpen={statusDropdownOpen}
+        setStatusDropdownOpen={setStatusDropdownOpen}
+        filterExecutor={filterExecutor}
+        setFilterExecutor={setFilterExecutor}
+        executorDropdownOpen={executorDropdownOpen}
+        setExecutorDropdownOpen={setExecutorDropdownOpen}
+        people={people}
+        showArchive={showArchive}
+        setShowArchive={setShowArchive}
+      />
 
       {/* Kanban Board */}
       <div className="flex-1 min-h-0 pb-20 md:pb-16 pt-[60px] overflow-y-auto md:overflow-y-auto">
@@ -2765,418 +1025,101 @@ export default function TodosPage() {
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseLeave}
         >
-          {nonArchivedLists
-            // При поиске показываем только списки с результатами
-            // Показываем столбцы: свои, с полным доступом (allowedUsers/allowedDepartments), или где есть назначенные задачи
-            .filter(list => {
-              if (!canSeeAllTasks && myAccountId) {
-                // Проверяем полный доступ к столбцу
-                const hasFullAccess = list.creatorId === myAccountId || 
-                  (list.allowedUsers && list.allowedUsers.includes(myAccountId)) ||
-                  (myDepartment && list.allowedDepartments && list.allowedDepartments.includes(myDepartment));
-                // Если есть полный доступ - показываем столбец всегда
-                if (hasFullAccess) {
-                  if (!searchQuery) return true;
-                  const listTodos = getTodosForList(list.id, showArchive);
-                  return listTodos.length > 0;
-                }
-                // Если нет полного доступа - показываем только если есть назначенные задачи
-                const listTodos = getTodosForList(list.id, showArchive);
-                if (listTodos.length === 0) return false;
-              }
-              if (!searchQuery) return true; // Без поиска показываем все списки
-              const listTodos = getTodosForList(list.id, showArchive);
-              return listTodos.length > 0; // С поиском - только списки с результатами
-            })
-            .map((list, index) => {
-            const listTodos = getTodosForList(list.id, showArchive);
-            const { completedCount, totalCount } = listCounts[list.id] || { completedCount: 0, totalCount: 0 };
-            const isDropTarget = dragOverListId === list.id && draggedTodo?.listId !== list.id;
-            const isListDropTarget = dragOverListOrder === list.order && draggedList?.id !== list.id;
-            
-            // На мобильных показываем только выбранную колонку (используем CSS для правильного SSR)
-            const isNotSelectedOnMobile = index !== selectedColumnIndex;
-            
-            return (
-              <div
-                key={list.id}
-                onDragOver={(e) => {
-                  handleDragOver(e);
-                  if (!draggedTodo) handleListDragOver(e, list);
-                }}
-                onDrop={(e) => {
-                  if (draggedTodo) {
-                    handleDrop(e, list.id);
-                  } else if (draggedList) {
-                    handleListDrop(e, list);
-                  }
-                }}
-                className={`flex-shrink-0 w-full md:w-80 flex flex-col rounded-xl transition-[opacity,transform] ${
-                  isNotSelectedOnMobile ? 'hidden md:flex' : 'flex'
-                } ${
-                  isDropTarget ? 'ring-2 ring-white/30 ring-opacity-50' : ''
-                } ${isListDropTarget ? 'ring-2 ring-blue-500/50' : ''} ${draggedList?.id === list.id ? 'opacity-50 scale-95' : ''} mt-[10px] md:mt-0`}
-                onDragEnter={(e) => handleDragEnter(e, list.id)}
-                onDragLeave={handleDragLeave}
-              >
-                {/* List Header */}
-                <div 
-                  draggable={windowWidth >= 768}
-                  onDragStart={(e) => handleListDragStart(e, list)}
-                  onDragEnd={handleListDragEnd}
-                  className="bg-[var(--bg-secondary)] border-x border-t border-[var(--border-color)] rounded-t-xl p-2 sm:p-2.5 flex-shrink-0 md:cursor-grab md:active:cursor-grabbing"
-                >
-                  <div className="flex items-center justify-between pointer-events-none">
-                    <div className="flex items-center gap-1.5 sm:gap-1.5">
-                      {/* Drag handle - только на десктопе */}
-                      <div
-                        className="hidden md:block p-0.5 -ml-1 rounded transition-colors opacity-0 group-hover:opacity-40"
-                        title="Перетащите для изменения порядка"
-                      >
-                        <GripVertical className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
-                      </div>
-                      <div 
-                        className="w-2.5 h-2.5 sm:w-2.5 sm:h-2.5 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: list.color }}
-                      />
-                      {editingListId === list.id ? (
-                        <input
-                          type="text"
-                          value={editingListName}
-                          onChange={(e) => setEditingListName(e.target.value)}
-                          onBlur={() => {
-                            if (editingListName.trim() && editingListName !== list.name) {
-                              updateList({ ...list, name: editingListName.trim() });
-                            }
-                            setEditingListId(null);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              if (editingListName.trim() && editingListName !== list.name) {
-                                updateList({ ...list, name: editingListName.trim() });
-                              }
-                              setEditingListId(null);
-                            }
-                            if (e.key === 'Escape') {
-                              setEditingListId(null);
-                            }
-                          }}
-                          className="bg-[var(--bg-secondary)] border border-[var(--border-light)] rounded px-2 py-0.5 text-sm font-medium focus:outline-none focus:border-blue-500/50 w-28 pointer-events-auto"
-                          autoFocus
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      ) : (
-                        <h3 
-                          className="font-medium text-sm sm:text-sm truncate cursor-pointer text-gray-900 dark:text-white hover:text-blue-500 dark:hover:text-blue-400 transition-colors pointer-events-auto"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingListId(list.id);
-                            setEditingListName(list.name);
-                          }}
-                          title="Кликните для переименования"
-                        >
-                          {list.name}
-                        </h3>
-                      )}
-                      <span className="text-[10px] text-gray-500 dark:text-white/50 bg-gray-200 dark:bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded-full">
-                        {completedCount}/{totalCount}
-                      </span>
-                      {/* Индикаторы привязки */}
-                      {(list.defaultExecutorId || list.defaultCustomerId) && (
-                        <div className="flex items-center gap-0.5 ml-1" title={`${list.defaultExecutorId ? 'Исполнитель: ' + people.find(p => p.id === list.defaultExecutorId)?.name : ''}${list.defaultExecutorId && list.defaultCustomerId ? ', ' : ''}${list.defaultCustomerId ? 'Заказчик: ' + people.find(p => p.id === list.defaultCustomerId)?.name : ''}`}>
-                          {list.defaultExecutorId && (
-                            <UserCheck className="w-3 h-3 text-green-400/70" />
-                          )}
-                          {list.defaultCustomerId && (
-                            <User className="w-3 h-3 text-blue-400/70" />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-0.5 pointer-events-auto">
-                      <button
-                        onClick={() => {
-                          setAddingToList(list.id);
-                          // Устанавливаем предустановленного исполнителя из настроек столбца
-                          if (list.defaultExecutorId) {
-                            setNewTodoAssigneeId(list.defaultExecutorId);
-                          }
-                        }}
-                        className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-all bg-gradient-to-br from-white/10 to-white/5 hover:from-green-500/20 hover:to-green-500/10 border border-white/20 hover:border-green-500/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-md text-green-400"
-                        title="Добавить задачу"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                      {/* Меню ... */}
-                      <div className="relative">
-                        <button
-                          onClick={() => setShowListMenu(showListMenu === list.id ? null : list.id)}
-                          className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-gradient-to-br from-white/10 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-md text-[var(--text-primary)]"
-                          title="Действия со списком"
-                        >
-                          <MoreVertical className="w-3.5 h-3.5" />
-                        </button>
-                        {showListMenu === list.id && (
-                          <div className="absolute right-0 top-full mt-1 w-44 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl z-50 py-1 pointer-events-auto">
-                            <button
-                              onClick={() => { setShowListMenu(null); setShowListSettings(list.id); }}
-                              className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-blue-400 hover:bg-blue-500/10 transition-colors"
-                            >
-                              <Settings className="w-4 h-4" />
-                              Настройки
-                            </button>
-                            <button
-                              onClick={() => { toggleArchiveList(list.id, true); setShowListMenu(null); }}
-                              className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-orange-400 hover:bg-orange-500/10 transition-colors"
-                            >
-                              <Archive className="w-4 h-4" />
-                              Архивировать
-                            </button>
-                            <div className="border-t border-[var(--border-color)] my-1" />
-                            <button
-                              onClick={() => { deleteList(list.id); setShowListMenu(null); }}
-                              className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-red-400 hover:bg-red-500/10 transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                              Удалить
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Tasks Container */}
-                <div 
-                  className={`bg-[var(--bg-secondary)] border-x border-b border-[var(--border-color)] rounded-b-xl p-2 flex flex-col gap-2 min-h-[100px] transition-colors ${
-                    isDropTarget ? 'bg-[#eaeaea] dark:bg-[var(--bg-glass)]' : ''
-                  }`}
-                >
-                  {/* Add Task Form */}
-                  {addingToList === list.id && (
-                    <AddTodoForm
-                      listId={list.id}
-                      newTodoTitle={newTodoTitle}
-                      newTodoDescription={newTodoDescription}
-                      newTodoAssigneeId={newTodoAssigneeId}
-                      showNewTodoAssigneeDropdown={showNewTodoAssigneeDropdown}
-                      people={people}
-                      myAccountId={myAccountId || ''}
-                      setNewTodoTitle={setNewTodoTitle}
-                      setNewTodoDescription={setNewTodoDescription}
-                      setNewTodoAssigneeId={setNewTodoAssigneeId}
-                      setShowNewTodoAssigneeDropdown={setShowNewTodoAssigneeDropdown}
-                      onAdd={addTodo}
-                      onCancel={() => { setAddingToList(null); setNewTodoTitle(''); setNewTodoDescription(''); setNewTodoAssigneeId(null); }}
-                    />
-                  )}
-
-                  {/* Tasks */}
-                  {listTodos.map(todo => (
-                    <TodoItem
-                      key={todo.id}
-                      todo={todo}
-                      isDraggable={windowWidth >= 768}
-                      isDragging={draggedTodo?.id === todo.id}
-                      isDragOver={dragOverTodoId === todo.id && draggedTodo?.id !== todo.id}
-                      categories={categories}
-                      people={people}
-                      onDragStart={(e) => handleDragStart(e, todo)}
-                      onDragEnd={handleDragEnd}
-                      onDragOver={(e) => handleTodoDragOver(e, todo.id)}
-                      onDrop={(e) => handleTodoDrop(e, todo)}
-                      onMouseEnter={(e) => handleTodoMouseEnter(e, todo)}
-                      onMouseLeave={handleTodoMouseLeave}
-                      onToggle={() => toggleTodo(todo)}
-                      onEdit={() => openTodoModal(todo)}
-                      onArchive={() => toggleArchiveTodo(todo.id, true)}
-                      onDelete={() => deleteTodo(todo.id)}
-                    />
-                  ))}
-
-                  {/* Empty state */}
-                  {listTodos.length === 0 && addingToList !== list.id && (
-                    <div className="flex flex-col items-center justify-center py-8 text-gray-500 dark:text-white/60 pointer-events-none">
-                      <Inbox className="w-8 h-8 mb-2 text-gray-400 dark:text-white/50" />
-                      <p className="text-sm">Нет задач</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Add List Button - скрыта на мобильных, где есть кнопка + в табах */}
-          {!showAddList && (
-            <div className="hidden md:block flex-shrink-0 w-80">
-              <button
-                onClick={() => setShowAddList(true)}
-                className="w-full h-20 border-2 border-dashed border-gray-300 dark:border-[var(--border-color)] rounded-xl flex items-center justify-center gap-2 text-gray-400 dark:text-[var(--text-muted)] hover:border-gray-400 dark:hover:border-[var(--border-light)] hover:text-gray-500 dark:hover:text-[var(--text-secondary)] hover:bg-gray-50 dark:hover:bg-[var(--bg-glass)] transition-all pointer-events-auto"
-              >
-                <Plus className="w-5 h-5" />
-                <span>Добавить список</span>
-              </button>
-            </div>
-          )}
-
-          {/* Add List Form - оптимизировано для мобильных */}
-          <AddList
-            isOpen={showAddList}
-            onClose={() => setShowAddList(false)}
-            newListName={newListName}
-            setNewListName={setNewListName}
-            newListDescription={newListDescription}
-            setNewListDescription={setNewListDescription}
-            newListColor={newListColor}
-            setNewListColor={setNewListColor}
-            newListAssigneeId={newListAssigneeId}
-            setNewListAssigneeId={setNewListAssigneeId}
-            showNewListAssigneeDropdown={showNewListAssigneeDropdown}
-            setShowNewListAssigneeDropdown={setShowNewListAssigneeDropdown}
+          {/* TODO: Restore TodoKanbanBoard component */}
+          <div className="text-center text-gray-500 p-8">
+            <p>Компонент TodoKanbanBoard временно отключен</p>
+          </div>
+          {/* <TodoKanbanBoard
+            lists={nonArchivedLists}
+            showArchive={showArchive}
+            searchQuery={searchQuery}
+            myAccountId={myAccountId}
+            myDepartment={myDepartment}
+            canSeeAllTasks={canSeeAllTasks}
+            todos={todos}
+            draggedTodo={draggedTodo}
+            dragOverListId={dragOverListId}
+            dragOverTodoId={dragOverTodoId}
+            draggedList={draggedList}
+            dragOverListOrder={dragOverListOrder}
             people={people}
-            myAccountId={myAccountId || ''}
-            addList={addList}
+            categories={categories}
+            windowWidth={windowWidth}
+            selectedColumnIndex={selectedColumnIndex}
+            listCounts={listCounts}
+            addingToList={addingToList}
+            newTodoTitle={newTodoTitle}
+            newTodoDescription={newTodoDescription}
+            newTodoAssigneeId={newTodoAssigneeId}
+            showNewTodoAssigneeDropdown={showNewTodoAssigneeDropdown}
+            showAddList={showAddList}
+            newListName={newListName}
+            newListDescription={newListDescription}
+            newListColor={newListColor}
+            newListAssigneeId={newListAssigneeId}
+            showNewListAssigneeDropdown={showNewListAssigneeDropdown}
+            showListMenu={showListMenu}
+            editingListId={editingListId}
+            editingListName={editingListName}
+            showListSettings={showListSettings}
             LIST_COLORS={LIST_COLORS}
-          />
+            getTodosForList={getTodosForList}
+            handleDragStart={handleDragStart}
+            handleDragEnd={handleDragEnd}
+            handleDragOver={handleDragOver}
+            handleDrop={handleDrop}
+            handleDragEnter={handleDragEnter}
+            handleDragLeave={handleDragLeave}
+            handleTodoDragOver={handleTodoDragOver}
+            handleTodoDrop={handleTodoDrop}
+            handleListDragStart={handleListDragStart}
+            handleListDragEnd={handleListDragEnd}
+            handleListDragOver={handleListDragOver}
+            handleListDrop={handleListDrop}
+            handleTodoMouseEnter={handleTodoMouseEnter}
+            handleTodoMouseLeave={handleTodoMouseLeave}
+            toggleTodo={toggleTodo}
+            openTodoModal={openTodoModal}
+            toggleArchiveTodo={toggleArchiveTodo}
+            deleteTodo={deleteTodo}
+            setNewTodoTitle={setNewTodoTitle}
+            setNewTodoDescription={setNewTodoDescription}
+            setNewTodoAssigneeId={setNewTodoAssigneeId}
+            setShowNewTodoAssigneeDropdown={setShowNewTodoAssigneeDropdown}
+            addTodo={addTodo}
+            setAddingToList={setAddingToList}
+            setShowListMenu={setShowListMenu}
+            setEditingListId={setEditingListId}
+            setEditingListName={setEditingListName}
+            updateList={updateList}
+            toggleArchiveList={toggleArchiveList}
+            deleteList={deleteList}
+            setShowListSettings={setShowListSettings}
+            setShowAddList={setShowAddList}
+            setNewListName={setNewListName}
+            setNewListDescription={setNewListDescription}
+            setNewListColor={setNewListColor}
+            setNewListAssigneeId={setNewListAssigneeId}
+            setShowNewListAssigneeDropdown={setShowNewListAssigneeDropdown}
+            addList={addList}
+          /> */}
         </div>
 
-        {/* Archived Lists */}
-        {showArchive && (lists.filter(l => l.archived).length > 0 || getArchivedTodos().length > 0) && (
-          <div className="mt-6 px-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Archive className="w-5 h-5 text-orange-400" />
-              <h2 className="text-lg font-semibold text-orange-400">Архив</h2>
-            </div>
-            
-            {/* Архивные задачи */}
-            {getArchivedTodos().length > 0 && (
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">Архивные задачи</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {getArchivedTodos().map(todo => {
-                    const list = lists.find(l => l.id === todo.listId);
-                    return (
-                      <div
-                        key={todo.id}
-                        onMouseEnter={(e) => handleTodoMouseEnter(e, todo)}
-                        onMouseLeave={handleTodoMouseLeave}
-                        className={`bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg p-3 opacity-60 border-l-3 ${PRIORITY_COLORS[todo.priority]}`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm ${todo.completed ? 'line-through text-[var(--text-muted)]' : ''}`}>
-                              {todo.title}
-                            </p>
-                            {list && (
-                              <p className="text-xs text-[var(--text-muted)] mt-1 flex items-center gap-1">
-                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: list.color }} />
-                                {list.name}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => toggleArchiveTodo(todo.id, false)}
-                              className="p-1.5 hover:bg-green-500/20 rounded text-green-400"
-                              title="Восстановить"
-                            >
-                              <RotateCcw className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => deleteTodo(todo.id)}
-                              className="p-1.5 hover:bg-red-500/20 rounded text-red-400"
-                              title="Удалить"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            
-            {/* Архивные списки */}
-            {lists.filter(l => l.archived).length > 0 && (
-              <>
-                <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">Архивные списки</h3>
-                <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-4">
-                  {lists.filter(l => l.archived).map(list => {
-                    const listTodos = getTodosForList(list.id, true);
-                    const { completedCount, totalCount } = listCounts[list.id] || { completedCount: 0, totalCount: 0 };
-                    
-                    return (
-                      <div
-                        key={list.id}
-                        className="flex-shrink-0 w-80 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl opacity-75"
-                      >
-                        {/* List Header */}
-                        <div className="p-2.5 border-b border-[var(--border-color)]">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1.5">
-                              <div 
-                                className="w-2 h-2 rounded-full"
-                                style={{ backgroundColor: list.color }}
-                              />
-                              <h3 className="font-medium text-sm truncate text-[var(--text-secondary)]">
-                                {list.name}
-                              </h3>
-                              <span className="text-[10px] text-[var(--text-muted)] bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded-full">
-                                {completedCount}/{totalCount}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-0.5">
-                              <button
-                                onClick={() => toggleArchiveList(list.id, false)}
-                                className="p-1.5 hover:bg-green-500/20 rounded transition-all duration-200 text-green-400"
-                                title="Восстановить из архива"
-                              >
-                                <RotateCcw className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => deleteList(list.id)}
-                                className="p-1.5 hover:bg-red-500/20 rounded transition-all duration-200 text-red-400"
-                                title="Удалить навсегда"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Tasks preview */}
-                        <div className="p-2 max-h-40 overflow-y-auto">
-                          {listTodos.slice(0, 3).map(todo => (
-                            <div 
-                              key={todo.id}
-                              className="text-xs text-[var(--text-muted)] py-1 border-b border-[var(--border-secondary)] last:border-0 truncate flex items-center gap-1.5"
-                            >
-                              {todo.completed ? <Check className="w-3 h-3 text-green-500" /> : <span className="w-3 h-3 border border-gray-300 dark:border-white/30 rounded-full" />}
-                              {todo.title}
-                            </div>
-                          ))}
-                          {listTodos.length > 3 && (
-                            <div className="text-xs text-[var(--text-muted)] py-1 text-center">
-                              +{listTodos.length - 3} задач
-                            </div>
-                          )}
-                          {listTodos.length === 0 && (
-                            <div className="text-xs text-[var(--text-muted)] py-2 text-center">
-                              Нет задач
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        {/* Archived Section */}
+        <ArchivedSection
+          showArchive={showArchive}
+          lists={lists}
+          getArchivedTodos={getArchivedTodos}
+          getTodosForList={getTodosForList}
+          listCounts={listCounts}
+          toggleArchiveTodo={toggleArchiveTodo}
+          deleteTodo={deleteTodo}
+          toggleArchiveList={toggleArchiveList}
+          deleteList={deleteList}
+          handleTodoMouseEnter={handleTodoMouseEnter}
+          handleTodoMouseLeave={handleTodoMouseLeave}
+          PRIORITY_COLORS={PRIORITY_COLORS}
+        />
 
         {/* Empty Archive */}
         {showArchive && lists.filter(l => l.archived).length === 0 && getArchivedTodos().length === 0 && (
@@ -3190,84 +1133,23 @@ export default function TodosPage() {
         )}
       </div>
 
-      {/* Hover Preview Tooltip - only on desktop */}
-      {hoveredTodo && (hoveredTodo.description || hoveredTodo.reviewComment) && (
-        <div 
-          className="hidden md:block fixed z-[100] bg-white dark:bg-[#1f1f1f] border border-gray-200 dark:border-[var(--border-light)] rounded-xl shadow-2xl p-4 max-w-sm animate-in fade-in duration-200 text-gray-900 dark:text-white"
-          style={{ 
-            left: Math.min(hoverPosition.x, windowWidth - 350),
-            top: Math.min(hoverPosition.y, window.innerHeight - 200),
-          }}
-          onMouseEnter={() => {}} // Keep visible when hovering the tooltip
-          onMouseLeave={handleTodoMouseLeave}
-        >
-          <div className="flex items-start gap-2 mb-2">
-            <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
-              hoveredTodo.priority === 'high' ? 'bg-red-500' : 
-              hoveredTodo.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
-            }`} />
-            <h4 className="font-medium text-sm">{hoveredTodo.title}</h4>
-          </div>
-          
-          {hoveredTodo.description && (
-            <div className="mb-3">
-              <p className="text-xs text-gray-500 dark:text-[var(--text-muted)] mb-1">Описание:</p>
-              <div 
-                className="text-sm text-gray-700 dark:text-[var(--text-secondary)] prose dark:prose-invert prose-sm max-w-none"
-                dangerouslySetInnerHTML={{ __html: hoveredTodo.description }}
-              />
-            </div>
-          )}
-          
-          {hoveredTodo.reviewComment && (
-            <div className="pt-2 border-t border-gray-200 dark:border-[var(--border-color)]">
-              <p className="text-xs text-purple-500 dark:text-purple-400/60 mb-1">Комментарий руководителя:</p>
-              <p className="text-sm text-purple-600 dark:text-purple-300/80 whitespace-pre-wrap">{hoveredTodo.reviewComment}</p>
-            </div>
-          )}
-          
-          {hoveredTodo.linkId && hoveredTodo.linkUrl && (
-            <div className="pt-2 border-t border-gray-200 dark:border-[var(--border-color)]">
-              <p className="text-xs text-blue-500 dark:text-blue-400/60 mb-1">Прикреплённая ссылка:</p>
-              <a
-                href={hoveredTodo.linkUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-sm text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300"
-              >
-                <Link2 className="w-3.5 h-3.5" />
-                <span className="truncate">{hoveredTodo.linkTitle || hoveredTodo.linkUrl}</span>
-                <ExternalLink className="w-3 h-3 flex-shrink-0" />
-              </a>
-            </div>
-          )}
-          
-          {(hoveredTodo.assignedToId || hoveredTodo.dueDate) && (
-            <div className="flex items-center gap-3 mt-3 pt-2 border-t border-gray-200 dark:border-[var(--border-color)] text-xs text-gray-500 dark:text-white/50">
-              {hoveredTodo.assignedToId && (
-                <span className="flex items-center gap-1">
-                  <UserCheck className="w-3 h-3" />
-                  {getPersonNameById(people, hoveredTodo.assignedToId, hoveredTodo.assignedTo)}
-                </span>
-              )}
-              {hoveredTodo.dueDate && (
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {new Date(hoveredTodo.dueDate).toLocaleDateString('ru-RU')}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      {/* Hover Preview Tooltip */}
+      <TodoHoverPreview
+        todo={hoveredTodo}
+        position={hoverPosition}
+        windowWidth={windowWidth}
+        people={people}
+        onMouseLeave={handleTodoMouseLeave}
+        getPersonNameById={getPersonNameById}
+      />
 
-      {/* Edit Todo Modal */}
-      <Editingtodo
-        todo={editingTodo}
-        isOpen={editingTodo !== null}
-        onClose={() => setEditingTodo(null)}
-        onUpdate={updateTodo}
-        onToggle={toggleTodo}
+      {/* All Modals */}
+      {/* TODO: Restore TodoModals component */}
+      {/* <TodoModals
+        editingTodo={editingTodo}
+        setEditingTodo={setEditingTodo}
+        updateTodo={updateTodo}
+        toggleTodo={toggleTodo}
         people={people}
         lists={lists}
         nonArchivedLists={nonArchivedLists}
@@ -3283,14 +1165,9 @@ export default function TodosPage() {
         resizeStartWidthsRef={resizeStartWidthsRef}
         statusOptions={statusOptions}
         TZ_LIST_ID={TZ_LIST_ID}
-        myAccountId={myAccountId || ''}
-      />
-
-      {/* Category Manager Modal */}
-      <CategoryManager
-        isOpen={showCategoryManager}
-        onClose={() => setShowCategoryManager(false)}
-        categories={categories}
+        myAccountId={myAccountId}
+        showCategoryManager={showCategoryManager}
+        setShowCategoryManager={setShowCategoryManager}
         editingCategory={editingCategory}
         setEditingCategory={setEditingCategory}
         updateCategory={updateCategory}
@@ -3306,295 +1183,46 @@ export default function TodosPage() {
         addCategory={addCategory}
         LIST_COLORS={LIST_COLORS}
         CATEGORY_ICONS={CATEGORY_ICONS}
-      />
-
-      {/* People Manager Modal */}
-      <PeopleManager
-        isOpen={showPeopleManager}
-        onClose={() => setShowPeopleManager(false)}
-        people={people}
-      />
-
-      {/* Edit Person Modal */}
-      {showEditPersonModal && editingPerson && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-2xl max-w-md w-full shadow-2xl">
-            <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-[var(--text-primary)] flex items-center gap-2">
-                {editingPerson.role === 'executor' ? <UserCheck className="w-5 h-5 text-green-400" /> : 
-                 editingPerson.role === 'customer' ? <User className="w-5 h-5 text-blue-400" /> :
-                 <Users className="w-5 h-5 text-purple-400" />}
-                Редактирование профиля
-              </h2>
-              <button
-                onClick={() => { setShowEditPersonModal(false); setEditingPerson(null); }}
-                className="p-2 rounded-lg hover:bg-[var(--bg-glass-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-6 space-y-5">
-              {/* Основные данные */}
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs text-white/50 mb-2">Имя</label>
-                  <input
-                    type="text"
-                    value={editingPerson.name}
-                    onChange={(e) => setEditingPerson({ ...editingPerson, name: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] text-sm focus:outline-none focus:border-cyan-500/50"
-                    placeholder="Имя пользователя"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-white/50 mb-2">Telegram ID</label>
-                  <input
-                    type="text"
-                    value={editingPerson.telegramId || ''}
-                    onChange={(e) => setEditingPerson({ ...editingPerson, telegramId: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] text-sm focus:outline-none focus:border-cyan-500/50"
-                    placeholder="123456789"
-                  />
-                  <p className="text-[10px] text-[var(--text-muted)] mt-1">ID пользователя в Telegram (можно получить у @userinfobot)</p>
-                </div>
-                <div>
-                  <label className="block text-xs text-white/50 mb-2">Роль</label>
-                  <select
-                    value={editingPerson.role}
-                    onChange={(e) => setEditingPerson({ ...editingPerson, role: e.target.value as 'executor' | 'customer' | 'universal' })}
-                    className="w-full px-4 py-2.5 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] text-sm focus:outline-none focus:border-cyan-500/50"
-                  >
-                    <option value="executor" className="bg-[var(--bg-tertiary)]">Исполнитель</option>
-                    <option value="customer" className="bg-[var(--bg-tertiary)]">Заказчик</option>
-                    <option value="universal" className="bg-[var(--bg-tertiary)]">Универсальный</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Настройки уведомлений */}
-              <div className="border-t border-[var(--border-color)] pt-4">
-                <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3 flex items-center gap-2">
-                  <Bell className="w-4 h-4 text-cyan-400" />
-                  Уведомления в Telegram
-                </h3>
-                {!editingPerson.telegramId && (
-                  <p className="text-xs text-orange-400/70 mb-3 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" />
-                    Укажите Telegram ID для получения уведомлений
-                  </p>
-                )}
-                <div className="space-y-2">
-                  <label className="flex items-center gap-3 cursor-pointer group p-2 rounded-lg hover:bg-[var(--bg-glass)]">
-                    <input
-                      type="checkbox"
-                      checked={editingPerson.notifyOnNewTask ?? true}
-                      onChange={(e) => setEditingPerson({ ...editingPerson, notifyOnNewTask: e.target.checked })}
-                      className="w-4 h-4 rounded border-[var(--border-light)] bg-[var(--bg-glass)] text-cyan-500 focus:ring-cyan-500/20"
-                    />
-                    <div>
-                      <span className="text-sm text-[var(--text-secondary)] group-hover:text-white/90 transition-colors block">Новая задача</span>
-                      <span className="text-[10px] text-[var(--text-muted)]">Когда вам назначают новую задачу</span>
-                    </div>
-                  </label>
-                  <label className="flex items-center gap-3 cursor-pointer group p-2 rounded-lg hover:bg-[var(--bg-glass)]">
-                    <input
-                      type="checkbox"
-                      checked={editingPerson.notifyOnStatusChange ?? true}
-                      onChange={(e) => setEditingPerson({ ...editingPerson, notifyOnStatusChange: e.target.checked })}
-                      className="w-4 h-4 rounded border-[var(--border-light)] bg-[var(--bg-glass)] text-cyan-500 focus:ring-cyan-500/20"
-                    />
-                    <div>
-                      <span className="text-sm text-[var(--text-secondary)] group-hover:text-white/90 transition-colors block">Изменение статуса</span>
-                      <span className="text-[10px] text-[var(--text-muted)]">Когда меняется статус вашей задачи</span>
-                    </div>
-                  </label>
-                  <label className="flex items-center gap-3 cursor-pointer group p-2 rounded-lg hover:bg-[var(--bg-glass)]">
-                    <input
-                      type="checkbox"
-                      checked={editingPerson.notifyOnComment ?? true}
-                      onChange={(e) => setEditingPerson({ ...editingPerson, notifyOnComment: e.target.checked })}
-                      className="w-4 h-4 rounded border-[var(--border-light)] bg-[var(--bg-glass)] text-cyan-500 focus:ring-cyan-500/20"
-                    />
-                    <div>
-                      <span className="text-sm text-[var(--text-secondary)] group-hover:text-white/90 transition-colors block">Комментарии</span>
-                      <span className="text-[10px] text-[var(--text-muted)]">Когда кто-то комментирует вашу задачу</span>
-                    </div>
-                  </label>
-                  <label className="flex items-center gap-3 cursor-pointer group p-2 rounded-lg hover:bg-[var(--bg-glass)]">
-                    <input
-                      type="checkbox"
-                      checked={editingPerson.notifyOnMention ?? true}
-                      onChange={(e) => setEditingPerson({ ...editingPerson, notifyOnMention: e.target.checked })}
-                      className="w-4 h-4 rounded border-[var(--border-light)] bg-[var(--bg-glass)] text-cyan-500 focus:ring-cyan-500/20"
-                    />
-                    <div>
-                      <span className="text-sm text-[var(--text-secondary)] group-hover:text-white/90 transition-colors block">Упоминания</span>
-                      <span className="text-[10px] text-[var(--text-muted)]">Когда вас упоминают в комментарии</span>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => {
-                    updatePerson(editingPerson);
-                    setShowEditPersonModal(false);
-                    setEditingPerson(null);
-                  }}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-cyan-600 text-[var(--text-primary)] rounded-xl font-medium hover:from-cyan-600 hover:to-cyan-700 transition-all"
-                >
-                  <Check className="w-4 h-4" />
-                  Сохранить
-                </button>
-                <button
-                  onClick={() => { setShowEditPersonModal(false); setEditingPerson(null); }}
-                  className="px-4 py-2.5 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl text-[var(--text-secondary)] hover:bg-[var(--bg-glass-hover)] transition-all"
-                >
-                  Отмена
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Mobile Filters Modal */}
-      <MobileFilters
-        isOpen={showMobileFiltersModal}
-        onClose={() => setShowMobileFiltersModal(false)}
-        people={people}
+        showPeopleManager={showPeopleManager}
+        setShowPeopleManager={setShowPeopleManager}
+        showEditPersonModal={showEditPersonModal}
+        setShowEditPersonModal={setShowEditPersonModal}
+        editingPerson={editingPerson}
+        setEditingPerson={setEditingPerson}
+        updatePerson={updatePerson}
+        showMobileFiltersModal={showMobileFiltersModal}
+        setShowMobileFiltersModal={setShowMobileFiltersModal}
         filterStatus={filterStatus}
         setFilterStatus={setFilterStatus}
         filterExecutor={filterExecutor}
         setFilterExecutor={setFilterExecutor}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
-      />
-
-      {/* Mobile Archive Modal */}
-      <MobileArchiveModal
-        isOpen={showMobileArchiveModal}
-        onClose={() => setShowMobileArchiveModal(false)}
+        showMobileArchiveModal={showMobileArchiveModal}
+        setShowMobileArchiveModal={setShowMobileArchiveModal}
         showArchive={showArchive}
         setShowArchive={setShowArchive}
-      />
-
-      {/* Telegram Settings Modal */}
-      <TelegramSettings
-        isOpen={showTelegramSettings}
-        onClose={() => setShowTelegramSettings(false)}
+        showTelegramSettings={showTelegramSettings}
+        setShowTelegramSettings={setShowTelegramSettings}
         telegramToken={telegramToken}
         setTelegramToken={setTelegramToken}
         telegramEnabled={telegramEnabled}
         setTelegramEnabled={setTelegramEnabled}
         updateTelegramSettings={updateTelegramSettings}
-      />
-
-      {/* List Settings Modal */}
-      <ListSettings
-        list={lists.find(l => l.id === showListSettings) || null}
-        isOpen={showListSettings !== null}
-        onClose={() => {
-          setShowListSettings(null);
-          setListSettingsDropdown(null);
-        }}
-        people={people}
-        updateList={(updatedList) => {
-          updateList(updatedList);
-          setLists(prev => prev.map(l => l.id === updatedList.id ? updatedList : l));
-        }}
+        showListSettings={showListSettings}
+        setShowListSettings={setShowListSettings}
         setLists={setLists}
+        updateList={updateList}
         listSettingsDropdown={listSettingsDropdown}
         setListSettingsDropdown={setListSettingsDropdown}
-        LIST_COLORS={LIST_COLORS}
-      />
-
-      {/* Toast Notifications - Боковые уведомления справа */}
-      <div className="fixed top-20 right-6 z-[100] flex flex-col gap-2 pointer-events-none max-h-[calc(100vh-120px)] overflow-hidden">
-        {toasts.slice(0, 5).map((toast) => (
-          <div
-            key={toast.id}
-            className="pointer-events-auto animate-slide-in-right"
-          >
-            <div className={`
-              flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl backdrop-blur-xl min-w-[280px] max-w-[360px]
-              bg-gradient-to-r ${
-                toast.type === 'success' ? 'from-green-500/20 to-green-500/5 border-green-500/30' :
-                toast.type === 'warning' ? 'from-orange-500/20 to-orange-500/5 border-orange-500/30' :
-                toast.type === 'error' ? 'from-red-500/20 to-red-500/5 border-red-500/30' :
-                'from-blue-500/20 to-blue-500/5 border-blue-500/30'
-              } border
-            `}>
-              {/* Иконка */}
-              <div className={`relative flex-shrink-0 ${
-                toast.type === 'success' ? 'text-green-400' :
-                toast.type === 'warning' ? 'text-orange-400' :
-                toast.type === 'error' ? 'text-red-400' :
-                'text-blue-400'
-              }`}>
-                {toast.type === 'success' ? <Check className="w-4 h-4 relative" /> :
-                 toast.type === 'warning' ? <Bell className="w-4 h-4 relative" /> :
-                 toast.type === 'error' ? <X className="w-4 h-4 relative" /> :
-                 <MessageCircle className="w-4 h-4 relative" />}
-              </div>
-              
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-[var(--text-primary)] truncate">{toast.title}</span>
-                  {toast.count && toast.count > 1 && (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                      toast.type === 'success' ? 'bg-green-500/30 text-green-300' :
-                      toast.type === 'warning' ? 'bg-orange-500/30 text-orange-300' :
-                      toast.type === 'error' ? 'bg-red-500/30 text-red-300' :
-                      'bg-blue-500/30 text-blue-300'
-                    }`}>
-                      +{toast.count}
-                    </span>
-                  )}
-                </div>
-                <div className="text-[10px] text-[var(--text-secondary)] truncate">{toast.message}</div>
-              </div>
-
-              {toast.todoId && (
-                <button
-                  onClick={() => {
-                    openTodoModalWithFreshData(toast.todoId!);
-                    removeToast(toast.id);
-                  }}
-                  className={`p-1.5 rounded-lg transition-all flex-shrink-0 ${
-                    toast.type === 'success' ? 'hover:bg-green-500/20 text-green-400' :
-                    toast.type === 'warning' ? 'hover:bg-orange-500/20 text-orange-400' :
-                    toast.type === 'error' ? 'hover:bg-red-500/20 text-red-400' :
-                    'hover:bg-blue-500/20 text-blue-400'
-                  }`}
-                  title="Открыть задачу"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </button>
-              )}
-              
-              <button
-                onClick={() => removeToast(toast.id)}
-                className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] p-1 rounded transition-all flex-shrink-0"
-                title="Закрыть"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        ))}
-        
-        {/* Кнопка очистки всех */}
-        {toasts.length > 1 && (
-          <button
-            onClick={() => setToasts([])}
-            className="pointer-events-auto text-[10px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors self-end px-2 py-1"
-          >
-            Очистить все ({toasts.length})
-          </button>
-        )}
-      </div>
+        toasts={toasts}
+        setToasts={setToasts}
+        removeToast={removeToast}
+        openTodoModalWithFreshData={openTodoModalWithFreshData}
+      /> */}
+      
+      {/* Placeholder for modals */}
+      <div className="hidden">Компонент TodoModals временно отключен</div>
     </div>
   );
 }

@@ -6,9 +6,31 @@ import { useRouter } from 'next/navigation';
 import { MessageCircle, Send, ArrowLeft, Users, Search, Plus, MoreVertical, Check, Edit3, Trash2, Reply, Pin, PinOff, X, Paperclip, FileText, Link as LinkIcon, Calendar, CalendarPlus, Image, File, Info, Grid, List, Play, Music, Download, CheckSquare, Mail, Phone, Upload, Smile, Star, Bell, ChevronLeft, ChevronRight, ChevronDown, Building, Globe, Moon, Sun } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
-import Avatar from '@/components/Avatar';
-import EmojiPicker from '@/components/EmojiPicker';
-import ChatListSkeleton from '@/components/ChatListSkeleton';
+import Avatar from '@/components/common/data-display/Avatar';
+import EmojiPicker from '@/components/common/overlays/EmojiPicker';
+import ChatListSkeleton from '@/components/layout/ChatListSkeleton';
+import LinkPreview from '@/components/features/messages/LinkPreview';
+import ChatItem from '@/components/features/messages/ChatItem';
+import NewChatModal from '@/components/features/messages/NewChatModal';
+import RenameChatModal from '@/components/features/messages/RenameChatModal';
+import ReadByModal from '@/components/features/messages/ReadByModal';
+import AddParticipantModal from '@/components/features/messages/AddParticipantModal';
+import ImageModal from '@/components/features/messages/ImageModal';
+import ForwardModal from '@/components/features/messages/ForwardModal';
+import MessageItem from '@/components/features/messages/MessageItem';
+import MessageInput from '@/components/features/messages/MessageInput';
+import ChatInfoPanel from '@/components/features/messages/ChatInfoPanel';
+import ChatSidebar from '@/components/features/messages/ChatSidebar';
+import AttachmentModals from '@/components/features/messages/AttachmentModals';
+import ChatHeader from '@/components/features/messages/ChatHeader';
+import MessagesArea from '@/components/features/messages/MessagesArea';
+import MessageSearchBar from '@/components/features/messages/MessageSearchBar';
+import TextFormattingMenu from '@/components/features/messages/TextFormattingMenu';
+import MessageContextMenu from '@/components/features/messages/MessageContextMenu';
+import ChatContextMenu from '@/components/features/messages/ChatContextMenu';
+import EventCalendarSelector from '@/components/features/messages/EventCalendarSelector';
+import type { User, Message, Chat, Task } from '@/components/features/messages/types';
+import { formatMessageDate, shouldShowDateSeparator, formatMessageText, getChatTitle, getChatAvatarData } from '@/components/features/messages/utils';
 
 const DEPARTMENT_COLORS = [
   '#0F4C81', // Classic Blue
@@ -28,459 +50,10 @@ const DEPARTMENT_COLORS = [
   '#9B2335', // Chili Pepper
 ];
 
-interface User {
-  id: string;
-  name?: string;
-  username?: string;
-  email?: string;
-  role: 'admin' | 'user';
-  lastSeen?: string;
-  isOnline?: boolean;
-  shortId?: string;
-  avatar?: string;
-}
-
-interface Message {
-  id: string;
-  chatId: string;
-  authorId: string;
-  authorName: string;
-  content: string;
-  mentions: string[];
-  replyToId?: string;
-  createdAt: string;
-  updatedAt?: string;
-  isEdited: boolean;
-  isDeleted?: boolean;
-  attachments?: any[];
-  isSystemMessage?: boolean;
-  linkedChatId?: string;
-  linkedMessageId?: string;
-  linkedTaskId?: string;
-  linkedPostId?: string;
-  notificationType?: string;
-  metadata?: {
-    taskTitle?: string;
-    postTitle?: string;
-    fromUserName?: string;
-  };
-}
-
-interface Chat {
-  id: string;
-  title?: string;
-  isGroup: boolean;
-  isNotificationsChat?: boolean;
-  isSystemChat?: boolean;
-  isFavoritesChat?: boolean;
-  participantIds: string[];
-  creatorId?: string;
-  createdAt: string;
-  readMessagesByUser?: Record<string, string>;
-  pinnedByUser?: Record<string, boolean>;
-  lastMessage?: Message;
-  unreadCount?: number;
-}
-
-interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  status: string;
-  priority?: string;
-  dueDate?: string;
-  assignedTo?: string | string[];
-  authorId?: string;
-  createdAt: string;
-  assignedById?: string;
-  assignedToId?: string;
-  assignedToIds?: string[];
-}
-
-// Компонент предпросмотра ссылки
-function LinkPreview({ url, isMyMessage }: { url: string; isMyMessage: boolean }) {
-  const [preview, setPreview] = useState<{
-    title: string;
-    description: string;
-    image: string;
-    siteName: string;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchPreview = async () => {
-      try {
-        const res = await fetch(`/api/preview?url=${encodeURIComponent(url)}`);
-        if (res.ok) {
-          const data = await res.json();
-          setPreview(data);
-        }
-      } catch (error) {
-        console.error('Error fetching preview:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPreview();
-  }, [url]);
-
-  if (loading) {
-    return (
-      <div className={`mt-2 mb-5 block p-3 rounded-lg border ${isMyMessage ? 'bg-blue-600/20 border-blue-500/30' : 'bg-[var(--bg-secondary)] border-[var(--border-color)]'} animate-pulse`}>
-        <div className="h-4 bg-white/10 rounded w-3/4 mb-2"></div>
-        <div className="h-3 bg-white/10 rounded w-1/2"></div>
-      </div>
-    );
-  }
-
-  if (!preview) {
-    return (
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={`mt-2 mb-5 block p-3 rounded-lg border ${isMyMessage ? 'bg-blue-600/20 border-blue-500/30' : 'bg-[var(--bg-secondary)] border-[var(--border-color)]'} hover:opacity-80 transition-opacity`}
-      >
-        <div className="flex items-start gap-2">
-          <LinkIcon className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-[var(--text-primary)] truncate">{url}</p>
-        </div>
-      </a>
-    );
-  }
-
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={`mt-2 mb-5 block rounded-lg border overflow-hidden ${isMyMessage ? 'bg-blue-600/20 border-blue-500/30' : 'bg-[var(--bg-secondary)] border-[var(--border-color)]'} hover:opacity-90 transition-opacity`}
-    >
-      {preview.image && (
-        <div className="w-full h-32 bg-black/20 overflow-hidden">
-          <img 
-            src={preview.image} 
-            alt={preview.title}
-            className="w-full h-full object-cover"
-            crossOrigin="anonymous"
-            onError={(e) => {
-              console.log('Image load error:', preview.image);
-              const target = e.target as HTMLImageElement;
-              target.parentElement!.style.display = 'none';
-            }}
-          />
-        </div>
-      )}
-      <div className="p-3">
-        <div className="flex items-start gap-2 mb-1">
-          <LinkIcon className="w-3.5 h-3.5 text-purple-400 flex-shrink-0 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-[var(--text-primary)] line-clamp-2 mb-1">
-              {preview.title}
-            </p>
-            {preview.description && (
-              <p className="text-[10px] text-[var(--text-muted)] line-clamp-2 mb-1">
-                {preview.description}
-              </p>
-            )}
-            <p className="text-[9px] text-purple-400/70 truncate">
-              {preview.siteName}
-            </p>
-          </div>
-        </div>
-      </div>
-    </a>
-  );
-}
-
-// Мемоизированный компонент элемента чата - предотвращает перерендеринг при выборе другого чата
-interface ChatItemProps {
-  chat: Chat;
-  isSelected: boolean;
-  isHovered?: boolean;
-  onSelect: (chat: Chat) => void;
-  onHover?: (chatId: string | null) => void;
-  onContextMenu: (e: React.MouseEvent, chat: Chat) => void;
-  getChatTitle: (chat: Chat) => string;
-  getChatAvatarData: (chat: Chat) => { type: "user" | "group" | "favorites" | "notifications"; name: string; avatar?: string };
-  currentUser: User | null;
-  users: User[];
-  chatDrafts: Record<string, string>;
-  variant: 'collapsed-icon' | 'mobile' | 'desktop';
-  isPinned?: boolean;
-}
-
-const ChatItem = React.memo<ChatItemProps>(({
-  chat,
-  isSelected,
-  isHovered,
-  onSelect,
-  onHover,
-  onContextMenu,
-  getChatTitle,
-  getChatAvatarData,
-  currentUser,
-  users,
-  chatDrafts,
-  variant,
-  isPinned
-}) => {
-  const avatarData = getChatAvatarData(chat);
-  const otherParticipantId = !chat.isGroup ? chat.participantIds?.find(id => id !== currentUser?.id) : undefined;
-  const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : undefined;
-  const hasUnread = !chat.isFavoritesChat && (chat.unreadCount || 0) > 0;
-
-  // Collapsed icon view (только desktop)
-  if (variant === 'collapsed-icon') {
-    return (
-      <div
-        key={chat.id}
-        className="relative"
-        onMouseEnter={() => onHover?.(chat.id)}
-        onMouseLeave={() => onHover?.(null)}
-      >
-        <button
-          onClick={() => onSelect(chat)}
-          className={`w-full flex justify-center py-1 relative ${isSelected ? 'bg-[var(--bg-tertiary)]' : 'hover:bg-[var(--bg-tertiary)]/50'}`}
-        >
-          <div className="relative">
-            <Avatar
-              src={avatarData.avatar || ''}
-              name={avatarData.name}
-              type={avatarData.type}
-              size="lg"
-              isOnline={otherUser?.isOnline}
-            />
-            {hasUnread && (
-              <div className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 px-1.5 rounded-full bg-gradient-to-br from-[#007aff]/80 to-[#007aff]/60 backdrop-blur-sm border-2 border-[var(--bg-secondary)] text-white text-[10px] font-bold flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,122,255,0.3)]">
-                {chat.unreadCount! > 9 ? '9+' : chat.unreadCount}
-              </div>
-            )}
-            {isSelected && (
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 w-1 h-8 bg-cyan-500 rounded-r-full" />
-            )}
-          </div>
-        </button>
-        {isHovered && (
-          <div 
-            className="absolute left-[72px] top-0 z-50 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg shadow-xl p-3 min-w-[200px] max-w-[280px]"
-            style={{ pointerEvents: 'none' }}
-          >
-            <div className="flex items-center gap-2 mb-2">
-              {chat.pinnedByUser?.[currentUser?.id || ''] && <Pin className="w-3 h-3 text-cyan-400 flex-shrink-0" />}
-              {chat.isGroup && <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />}
-              <span className="font-medium text-sm text-[var(--text-primary)] truncate select-none">{getChatTitle(chat)}</span>
-            </div>
-            {chat.lastMessage && (
-              <p className="text-xs text-[var(--text-muted)] line-clamp-2 mb-1">
-                <span className="text-[var(--text-secondary)]">{chat.lastMessage.authorName}:</span> {chat.lastMessage.content}
-              </p>
-            )}
-            {hasUnread && (
-              <div className="flex items-center gap-1.5 mt-2">
-                <div className="min-w-[16px] h-4 px-1 rounded-full bg-gradient-to-br from-[#007aff]/80 to-[#007aff]/60 backdrop-blur-sm border border-white/20 text-white text-[9px] font-bold flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,122,255,0.3)]">
-                  {chat.unreadCount! > 9 ? '9+' : chat.unreadCount}
-                </div>
-                <span className="text-[10px] text-cyan-400">непрочитанных</span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Mobile view (простой список)
-  if (variant === 'mobile') {
-    return (
-      <div
-        key={chat.id}
-        className={`relative group ${isSelected ? 'bg-[var(--bg-tertiary)]' : ''}`}
-        onContextMenu={(e) => onContextMenu(e, chat)}
-      >
-        <button
-          onClick={() => onSelect(chat)}
-          className="w-full px-3 py-1 hover:bg-[var(--bg-tertiary)] transition-all text-left"
-        >
-          <div className="flex gap-2 items-center">
-            <Avatar
-              src={avatarData.avatar || ''}
-              name={avatarData.name}
-              type={avatarData.type}
-              size="md"
-              isOnline={otherUser?.isOnline}
-            />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5 mb-0.5">
-                {isPinned && !chat.isFavoritesChat && !chat.isSystemChat && !chat.isNotificationsChat && (
-                  <Pin className="w-3 h-3 text-cyan-400 flex-shrink-0" />
-                )}
-                {chat.isGroup && (
-                  <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />
-                )}
-                <h3 className="font-medium text-sm truncate select-none">{getChatTitle(chat)}</h3>
-              </div>
-              {chatDrafts[chat.id] ? (
-                <div className="flex items-center gap-2">
-                  <p className="text-xs text-red-400 truncate flex-1">
-                    <span className="font-medium">Черновик:</span> {chatDrafts[chat.id]}
-                  </p>
-                </div>
-              ) : chat.lastMessage ? (
-                <div className="flex items-center gap-2">
-                  <p className="text-xs text-[var(--text-secondary)] truncate flex-1">
-                    {chat.lastMessage.authorName}: {chat.lastMessage.content}
-                  </p>
-                  {hasUnread && (
-                    <div className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-gradient-to-br from-[#007aff]/80 to-[#007aff]/60 backdrop-blur-sm border border-white/20 text-white text-[10px] font-bold flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,122,255,0.3)]">
-                      {chat.unreadCount}
-                    </div>
-                  )}
-                </div>
-              ) : null}
-            </div>
-            {chat.lastMessage && (
-              <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap self-center">
-                {new Date(chat.lastMessage.createdAt).toLocaleTimeString('ru-RU', { 
-                  hour: '2-digit', 
-                  minute: '2-digit' 
-                })}
-              </span>
-            )}
-          </div>
-        </button>
-      </div>
-    );
-  }
-
-  // Desktop view (с градиентами)
-  return (
-    <div
-      key={chat.id}
-      className={`relative group mx-2 rounded-[50px] overflow-hidden backdrop-blur-xl transition-all duration-300 ${
-        isSelected 
-          ? 'bg-gradient-to-br from-[#007aff]/30 to-[#007aff]/10 border border-[#007aff]/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_3px_8px_rgba(59,130,246,0.2)]' 
-          : 'bg-gradient-to-br from-white/10 to-white/5 hover:from-white/15 hover:to-white/8 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_2px_8px_rgba(0,0,0,0.2)]'
-      }`}
-      onContextMenu={(e) => onContextMenu(e, chat)}
-    >
-      <button
-        onClick={() => onSelect(chat)}
-        className="w-full px-2 transition-all text-left"
-      >
-        <div className="flex gap-2 items-center">
-          <Avatar
-            src={avatarData.avatar || ''}
-            name={avatarData.name}
-            type={avatarData.type}
-            size="md"
-            isOnline={otherUser?.isOnline}
-          />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              {isPinned && !chat.isFavoritesChat && !chat.isSystemChat && !chat.isNotificationsChat && (
-                <Pin className="w-3 h-3 text-cyan-400 flex-shrink-0" />
-              )}
-              {chat.isGroup && (
-                <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />
-              )}
-              <h3 className="font-medium text-sm truncate">{getChatTitle(chat)}</h3>
-            </div>
-            {chatDrafts[chat.id] ? (
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-red-400 truncate flex-1">
-                  <span className="font-medium">Черновик:</span> {chatDrafts[chat.id]}
-                </p>
-              </div>
-            ) : chat.lastMessage ? (
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-[var(--text-secondary)] truncate flex-1">
-                  {chat.lastMessage.authorName}: {chat.lastMessage.content}
-                </p>
-                {hasUnread && (
-                  <div className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-gradient-to-br from-[#007aff]/80 to-[#007aff]/60 backdrop-blur-sm border border-white/20 text-white text-[10px] font-bold flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,122,255,0.3)]">
-                    {chat.unreadCount}
-                  </div>
-                )}
-              </div>
-            ) : null}
-          </div>
-          {chat.lastMessage && (
-            <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap self-center">
-              {new Date(chat.lastMessage.createdAt).toLocaleTimeString('ru-RU', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              })}
-            </span>
-          )}
-        </div>
-      </button>
-    </div>
-  );
-}, (prevProps, nextProps) => {
-  // Оптимизация: перерендериваем только если изменились важные пропсы
-  return (
-    prevProps.chat.id === nextProps.chat.id &&
-    prevProps.chat.unreadCount === nextProps.chat.unreadCount &&
-    prevProps.chat.lastMessage?.id === nextProps.chat.lastMessage?.id &&
-    prevProps.chat.lastMessage?.content === nextProps.chat.lastMessage?.content &&
-    prevProps.isSelected === nextProps.isSelected &&
-    prevProps.isHovered === nextProps.isHovered &&
-    prevProps.chatDrafts[prevProps.chat.id] === nextProps.chatDrafts[nextProps.chat.id] &&
-    prevProps.variant === nextProps.variant &&
-    prevProps.isPinned === nextProps.isPinned
-  );
-});
-
-ChatItem.displayName = 'ChatItem';
-
 export default function MessagesPage() {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
 
-  // Форматирование даты для разделителей
-  const formatMessageDate = (date: Date): string => {
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    const messageDate = new Date(date);
-    messageDate.setHours(0, 0, 0, 0);
-    today.setHours(0, 0, 0, 0);
-    yesterday.setHours(0, 0, 0, 0);
-    
-    if (messageDate.getTime() === today.getTime()) {
-      return 'Сегодня';
-    } else if (messageDate.getTime() === yesterday.getTime()) {
-      return 'Вчера';
-    } else {
-      const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
-      const day = messageDate.getDate();
-      const month = months[messageDate.getMonth()];
-      const year = messageDate.getFullYear();
-      const currentYear = new Date().getFullYear();
-      
-      if (year === currentYear) {
-        return `${day} ${month}`;
-      } else {
-        return `${day} ${month} ${year}`;
-      }
-    }
-  };
-
-  // Проверка, нужен ли разделитель даты
-  const shouldShowDateSeparator = (currentMessage: Message, previousMessage: Message | undefined): boolean => {
-    if (!previousMessage) return true;
-    
-    const currentDate = new Date(currentMessage.createdAt);
-    const previousDate = new Date(previousMessage.createdAt);
-    
-    currentDate.setHours(0, 0, 0, 0);
-    previousDate.setHours(0, 0, 0, 0);
-    
-    return currentDate.getTime() !== previousDate.getTime();
-  };
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
@@ -590,16 +163,20 @@ export default function MessagesPage() {
   const myBubbleTextMutedClass = useDarkTextOnBubble ? 'text-gray-700' : 'text-white/70';
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesListRef = useRef<HTMLDivElement>(null); // Ref для списка сообщений (скролл-контейнер)
+  const messagesListRef = useRef<HTMLDivElement>(null);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
-  const isUserActiveRef = useRef(false); // Флаг активности пользователя
+  const isUserActiveRef = useRef(false);
   const lastActivityTimeRef = useRef(Date.now());
-  const mentionDebounceRef = useRef<NodeJS.Timeout | null>(null); // Debounce для обработки упоминаний
-  const messageDebounceRef = useRef<NodeJS.Timeout | null>(null); // Debounce для newMessage
-  const resizeDebounceRef = useRef<NodeJS.Timeout | null>(null); // Debounce для auto-resize
-  const selectionDebounceRef = useRef<NodeJS.Timeout | null>(null); // Debounce для handleTextSelection
+  const mentionDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const messageDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const resizeDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const selectionDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Обёртки для функций с правильной сигнатурой
+  const getChatTitleWrapper = useCallback((chat: Chat) => getChatTitle(chat, currentUser, users), [currentUser, users]);
+  const getChatAvatarDataWrapper = useCallback((chat: Chat) => getChatAvatarData(chat, currentUser, users), [currentUser, users]);
 
   // Функция скролла к конкретному сообщению
   const scrollToMessage = (messageId: string) => {
@@ -1130,24 +707,6 @@ export default function MessagesPage() {
     }, 200); // Увеличен debounce до 200ms для лучшего INP
   }, []);
 
-  const formatMessageText = (text: string): string => {
-    let formatted = text;
-    
-    // Жирный текст: **text**
-    formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    
-    // Курсив: *text*
-    formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    
-    // Подчеркнутый: __text__
-    formatted = formatted.replace(/__(.+?)__/g, '<u>$1</u>');
-    
-    // Ссылки: [text](url)
-    formatted = formatted.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">$1</a>');
-    
-    return formatted;
-  };
-
   const applyFormatting = (formatType: 'bold' | 'italic' | 'underline' | 'link') => {
     if (!messageInputRef.current) return;
     
@@ -1306,7 +865,7 @@ export default function MessagesPage() {
           const updatedChat = data.find((c: any) => c.id === selectedChat.id);
           if (updatedChat && JSON.stringify(updatedChat.readMessagesByUser) !== JSON.stringify(selectedChat.readMessagesByUser)) {
             // Только обновляем если изменились данные о прочтении
-            setSelectedChat(prev => prev ? { ...prev, readMessagesByUser: updatedChat.readMessagesByUser } : prev);
+            setSelectedChat((prev: Chat | null) => prev ? { ...prev, readMessagesByUser: updatedChat.readMessagesByUser } : prev);
           }
         }
       }
@@ -1396,7 +955,7 @@ export default function MessagesPage() {
             const allChats = await chatRes.json();
             const updatedChat = allChats.find((c: Chat) => c.id === chatId);
             if (updatedChat) {
-              setSelectedChat(prev => prev ? { ...prev, readMessagesByUser: updatedChat.readMessagesByUser } : null);
+              setSelectedChat((prev: Chat | null) => prev ? { ...prev, readMessagesByUser: updatedChat.readMessagesByUser } : null);
               // Обновляем список чатов для badge - сохраняем локальные pinnedByUser
               setChats(prevChats => {
                 return allChats.map((newChat: Chat) => {
@@ -1839,7 +1398,7 @@ export default function MessagesPage() {
       if (res.ok) {
         loadChats();
         // Обновляем selectedChat локально
-        setSelectedChat(prev => prev ? {
+        setSelectedChat((prev: Chat | null) => prev ? {
           ...prev,
           participantIds: [...prev.participantIds, userId]
         } : null);
@@ -1916,9 +1475,9 @@ export default function MessagesPage() {
       if (res.ok) {
         loadChats();
         // Обновляем selectedChat локально
-        setSelectedChat(prev => prev ? {
+        setSelectedChat((prev: Chat | null) => prev ? {
           ...prev,
-          participantIds: prev.participantIds.filter(id => id !== userId)
+          participantIds: prev.participantIds.filter((id: string) => id !== userId)
         } : null);
       }
     } catch (error) {
@@ -1941,7 +1500,7 @@ export default function MessagesPage() {
       if (res.ok) {
         loadChats();
         // Обновляем selectedChat локально
-        setSelectedChat(prev => prev ? {
+        setSelectedChat((prev: Chat | null) => prev ? {
           ...prev,
           title: newTitle.trim()
         } : null);
@@ -1952,20 +1511,6 @@ export default function MessagesPage() {
       console.error('Error renaming chat:', error);
     }
   };
-
-  const getChatTitle = useCallback((chat: Chat): string => {
-    if (chat.isFavoritesChat) return 'Избранное';
-    if (chat.title) return chat.title;
-    
-    if (!currentUser) return 'Чат';
-    
-    const otherParticipants = users.filter(u => 
-      chat.participantIds?.includes(u.id) && u.id !== currentUser.id
-    );
-    
-    if (otherParticipants.length === 0) return 'Избранное';
-    return otherParticipants.map(u => u.name || u.username || 'Пользователь').join(', ');
-  }, [currentUser, users]);
 
   const getChatAvatar = useCallback((chat: Chat): string => {
     if (chat.isFavoritesChat) return 'F';
@@ -1980,37 +1525,6 @@ export default function MessagesPage() {
     
     if (otherParticipants.length === 0) return 'F';
     return otherParticipants[0].name?.[0] || otherParticipants[0].username?.[0] || 'U';
-  }, [currentUser, users]);
-
-  // Получить данные для аватарки чата
-  const getChatAvatarData = useCallback((chat: Chat): { type: 'favorites' | 'notifications' | 'group' | 'user'; name: string; avatar?: string } => {
-    if (chat.isFavoritesChat) return { type: 'favorites', name: 'Избранное' };
-    if (chat.isSystemChat || chat.isNotificationsChat) return { type: 'notifications', name: 'Уведомления' };
-    if (chat.isGroup) return { type: 'group', name: chat.title || 'Группа' };
-    
-    // Проверка на системные чаты по названию (для обратной совместимости)
-    if (chat.title === 'Уведомления') return { type: 'notifications', name: 'Уведомления' };
-    if (chat.title === 'Избранное') return { type: 'favorites', name: 'Избранное' };
-    
-    if (!currentUser) return { type: 'user', name: 'Чат' };
-    
-    const otherParticipants = users.filter(u => 
-      chat.participantIds?.includes(u.id) && u.id !== currentUser.id
-    );
-    
-    // Если нет других участников, проверяем тип чата
-    if (otherParticipants.length === 0) {
-      if (chat.isFavoritesChat) return { type: 'favorites', name: 'Избранное' };
-      if (chat.isSystemChat || chat.isNotificationsChat) return { type: 'notifications', name: 'Уведомления' };
-      return { type: 'user', name: 'Чат' };
-    }
-    
-    const participant = otherParticipants[0];
-    return { 
-      type: 'user', 
-      name: participant.name || participant.username || 'Пользователь',
-      avatar: participant.avatar
-    };
   }, [currentUser, users]);
 
   const filteredUsers = users.filter(u => {
@@ -2152,2095 +1666,168 @@ export default function MessagesPage() {
       style={{ height: '100dvh', maxHeight: '100dvh' }}
     >
       {/* Левая панель - список чатов (единый блок с разными состояниями) */}
-      <div className={`
-        ${selectedChat ? 'hidden md:flex' : 'flex'} 
-        w-full ${isChatListCollapsed ? 'md:w-[72px]' : 'md:w-80'} 
-        border-r border-[var(--border-color)] flex-col h-full min-h-0 transition-all duration-200 bg-[var(--bg-secondary)]
-      `}>
-        {/* Search / New Chat Button */}
-        {isChatListCollapsed ? (
-          <>
-            {/* Мобильный поиск - glass стилизация */}
-            <div className="px-2 py-1.5 flex-shrink-0 md:hidden">
-              <div className="relative flex-1">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-primary)] flex items-center justify-center z-10 pointer-events-none">
-                  <Search className="w-4 h-4" strokeWidth={2.5} />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Поиск..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-9 pl-9 pr-3 bg-gradient-to-br from-white/15 to-white/5 border border-white/20 rounded-[20px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-white/40 shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)] backdrop-blur-sm"
-                />
-              </div>
-            </div>
-            {/* Десктоп свёрнутые кнопки: поиск и новый чат */}
-            <div className="py-2 hidden md:flex flex-col items-center gap-2 border-b border-[var(--border-color)]">
-              <button
-                onClick={() => setIsChatListCollapsed(false)}
-                className="w-10 h-10 rounded-full bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center transition-all border border-[var(--border-glass)]"
-                title="Поиск"
-              >
-                <Search className="w-5 h-5 text-[var(--text-muted)]" />
-              </button>
-              <button
-                onClick={() => setShowNewChatModal(true)}
-                className="w-10 h-10 rounded-full bg-blue-500 hover:bg-blue-600 flex items-center justify-center transition-all"
-                title="Новый чат"
-              >
-                <Plus className="w-5 h-5 text-white" />
-              </button>
-              <button
-                onClick={toggleTheme}
-                className="w-10 h-10 rounded-full bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center transition-all border border-[var(--border-glass)]"
-                title={theme === 'dark' ? 'Светлая тема' : 'Темная тема'}
-              >
-                {theme === 'dark' ? <Sun className="w-5 h-5 text-[var(--text-muted)]" /> : <Moon className="w-5 h-5 text-[var(--text-muted)]" />}
-              </button>
-            </div>
-          </>
-        ) : (
-          <div className="px-2 py-1.5 md:p-3 flex-shrink-0 flex items-center gap-2">
-            <div className="relative flex-1 md:flex-none">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-primary)] flex items-center justify-center z-10 pointer-events-none">
-                <Search className="w-5 h-5" strokeWidth={2.5} />
-              </div>
-              <input
-                type="text"
-                placeholder="Поиск..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full md:w-[200px] h-10 pl-10 pr-3 bg-gradient-to-br from-white/15 to-white/5 border border-white/20 rounded-[20px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-white/40 shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)] backdrop-blur-sm"
-              />
-            </div>
-            <button
-              onClick={() => setShowNewChatModal(true)}
-              className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 flex items-center justify-center transition-all border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-sm"
-              title="Новый чат"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-            <button
-              onClick={toggleTheme}
-              className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 flex items-center justify-center transition-all border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-sm"
-              title={theme === 'dark' ? 'Светлая тема' : 'Темная тема'}
-            >
-              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
-          </div>
-        )}
-
-        {/* Chats list */}
-        <div className="flex-1 min-h-0 overflow-y-auto pb-20 md:pb-20">
-          {isLoadingChats ? (
-            /* 🚀 PERFORMANCE: Skeleton loader для LCP оптимизации */
-            <ChatListSkeleton />
-          ) : chats.length === 0 ? (
-            <div className={`flex flex-col items-center justify-center h-full text-[var(--text-muted)] ${isChatListCollapsed ? 'md:px-1 px-4' : 'px-4'} py-8`}>
-              <MessageCircle className={`${isChatListCollapsed ? 'md:w-8 md:h-8 w-12 h-12' : 'w-12 h-12'} mb-3 opacity-50`} />
-              {isChatListCollapsed ? (
-                <div className="md:hidden">
-                  <p className="text-sm text-center">Нет чатов</p>
-                  <p className="text-xs mt-1 text-center">Создайте новый чат чтобы начать общение</p>
-                </div>
-              ) : (
-                <>
-                  <p className="text-sm text-center">Нет чатов</p>
-                  <p className="text-xs mt-1 text-center">Создайте новый чат чтобы начать общение</p>
-                </>
-              )}
-            </div>
-          ) : isChatListCollapsed ? (
-            <>
-              {/* Свернутый список - только аватарки (только desktop) */}
-              <div className="hidden md:block py-2 space-y-1">
-                {[...pinnedChats, ...unpinnedChats].map(chat => (
-                  <ChatItem
-                    key={chat.id}
-                    chat={chat}
-                    isSelected={selectedChat?.id === chat.id}
-                    isHovered={hoveredChatId === chat.id}
-                    onSelect={selectChat}
-                    onHover={setHoveredChatId}
-                    onContextMenu={(e, chat) => {
-                      e.preventDefault();
-                      setContextMenuChat(chat);
-                      setChatContextMenuPosition({ top: e.clientY, left: e.clientX });
-                      setShowChatContextMenu(true);
-                    }}
-                    getChatTitle={getChatTitle}
-                    getChatAvatarData={getChatAvatarData}
-                    currentUser={currentUser}
-                    users={users}
-                    chatDrafts={chatDrafts}
-                    variant="collapsed-icon"
-                    isPinned={chat.pinnedByUser?.[currentUser?.id || '']}
-                  />
-                ))}
-              </div>
-           
-              {/* Полный список для mobile когда collapsed */}
-              <div className="md:hidden">
-                {/* Закрепленные чаты */}
-                {pinnedChats.length > 0 && (
-                  <div>
-                    <div className="px-3 py-2 text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider select-none">
-                      Закрепленные
-                    </div>
-                    <div className="divide-y divide-[var(--border-color)]">
-                      {pinnedChats.map(chat => (
-                        <ChatItem
-                          key={chat.id}
-                          chat={chat}
-                          isSelected={selectedChat?.id === chat.id}
-                          onSelect={selectChat}
-                          onContextMenu={(e, chat) => {
-                            e.preventDefault();
-                            setContextMenuChat(chat);
-                            setChatContextMenuPosition({ top: e.clientY, left: e.clientX });
-                            setShowChatContextMenu(true);
-                          }}
-                          getChatTitle={getChatTitle}
-                          getChatAvatarData={getChatAvatarData}
-                          currentUser={currentUser}
-                          users={users}
-                          chatDrafts={chatDrafts}
-                          variant="mobile"
-                          isPinned={true}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {/* Обычные чаты (mobile collapsed) */}
-                <div>
-                  {pinnedChats.length > 0 && unpinnedChats.length > 0 && (
-                    <div className="px-3 py-2 text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">
-                      Все чаты
-                    </div>
-                  )}
-                  <div className="divide-y divide-[var(--border-color)]">
-                    {unpinnedChats.map(chat => (
-                      <ChatItem
-                        key={chat.id}
-                        chat={chat}
-                        isSelected={selectedChat?.id === chat.id}
-                        onSelect={selectChat}
-                        onContextMenu={(e, chat) => {
-                          e.preventDefault();
-                          setContextMenuChat(chat);
-                          setChatContextMenuPosition({ top: e.clientY, left: e.clientX });
-                          setShowChatContextMenu(true);
-                        }}
-                        getChatTitle={getChatTitle}
-                        getChatAvatarData={getChatAvatarData}
-                        currentUser={currentUser}
-                        users={users}
-                        chatDrafts={chatDrafts}
-                        variant="mobile"
-                        isPinned={false}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Закрепленные чаты */}
-              {pinnedChats.length > 0 && (
-                <div>
-                  <div className="px-3 py-2 text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider select-none">
-                    Закрепленные
-                  </div>
-                  <div className="space-y-1">
-                    {pinnedChats.map(chat => (
-                      <ChatItem
-                        key={chat.id}
-                        chat={chat}
-                        isSelected={selectedChat?.id === chat.id}
-                        onSelect={selectChat}
-                        onContextMenu={(e, chat) => {
-                          e.preventDefault();
-                          setContextMenuChat(chat);
-                          setChatContextMenuPosition({ top: e.clientY, left: e.clientX });
-                          setShowChatContextMenu(true);
-                        }}
-                        getChatTitle={getChatTitle}
-                        getChatAvatarData={getChatAvatarData}
-                        currentUser={currentUser}
-                        users={users}
-                        chatDrafts={chatDrafts}
-                        variant="desktop"
-                        isPinned={true}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Обычные чаты */}
-              {unpinnedChats.length > 0 && (
-                <div>
-                  {pinnedChats.length > 0 && (
-                    <div className="px-3 py-2 text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">
-                      Все чаты
-                    </div>
-                  )}
-                  <div className="space-y-1">
-                    {unpinnedChats.map(chat => (
-                      <ChatItem
-                        key={chat.id}
-                        chat={chat}
-                        isSelected={selectedChat?.id === chat.id}
-                        onSelect={selectChat}
-                        onContextMenu={(e, chat) => {
-                          e.preventDefault();
-                          setContextMenuChat(chat);
-                          setChatContextMenuPosition({ top: e.clientY, left: e.clientX });
-                          setShowChatContextMenu(true);
-                        }}
-                        getChatTitle={getChatTitle}
-                        getChatAvatarData={getChatAvatarData}
-                        currentUser={currentUser}
-                        users={users}
-                        chatDrafts={chatDrafts}
-                        variant="desktop"
-                        isPinned={false}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+      <ChatSidebar
+        selectedChat={selectedChat}
+        isChatListCollapsed={isChatListCollapsed}
+        setIsChatListCollapsed={setIsChatListCollapsed}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        setShowNewChatModal={setShowNewChatModal}
+        theme={theme}
+        toggleTheme={toggleTheme}
+        isLoadingChats={isLoadingChats}
+        chats={chats}
+        pinnedChats={pinnedChats}
+        unpinnedChats={unpinnedChats}
+        hoveredChatId={hoveredChatId}
+        selectChat={selectChat}
+        setHoveredChatId={setHoveredChatId}
+        setContextMenuChat={setContextMenuChat}
+        setChatContextMenuPosition={setChatContextMenuPosition}
+        setShowChatContextMenu={setShowChatContextMenu}
+        getChatTitle={getChatTitleWrapper}
+        getChatAvatarData={getChatAvatarDataWrapper}
+        currentUser={currentUser}
+        users={users}
+        chatDrafts={chatDrafts}
+        ChatListSkeleton={ChatListSkeleton}
+      />
 
       {/* Правая панель - чат */}
       {selectedChat ? (
         <div className={`flex-1 min-h-0 flex overflow-hidden bg-transparent ${selectedChat ? 'block' : 'hidden md:block'}`}>
           {/* Контейнер чата */}
           <div className="flex-1 min-h-0 flex flex-col relative bg-transparent">
-          {/* Chat header */}
-          <div 
-            className={`absolute top-2 left-2 right-2 z-20 h-[56px] md:h-12 bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border border-white/20 rounded-[50px] flex items-center px-3 md:px-4 py-[10px] gap-2 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] md:absolute md:top-2 md:left-2 md:right-2`}
-          >
-            {isSelectionMode ? (
-              <>
-                <button
-                  onClick={() => {
-                    setIsSelectionMode(false);
-                    setSelectedMessages(new Set());
-                  }}
-                  className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-all border border-[var(--border-glass)] backdrop-blur-sm"
-                >
-                  <X className="w-4 h-4" strokeWidth={2} />
-                </button>
-                <div className="flex-1 font-medium text-sm">
-                  Выбрано: {selectedMessages.size}
-                </div>
-                <div className="flex gap-1.5">
-                  {/* Кнопка Ответить убрана - используйте правый клик на сообщении */}
-                  {/* Переслать */}
-                  <button
-                    onClick={() => {
-                      // Открываем модал пересылки, НЕ сбрасывая режим выбора
-                      setShowForwardModal(true);
-                    }}
-                    className="w-8 h-8 rounded-full backdrop-blur-xl bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 flex items-center justify-center transition-all group/btn"
-                    title={`Переслать (${selectedMessages.size})`}
-                  >
-                    <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12h18m0 0l-6-6m6 6l-6 6" />
-                    </svg>
-                  </button>
-                  {/* Редактировать - только если выбрано 1 сообщение */}
-                  {selectedMessages.size === 1 && (() => {
-                    const selectedMessage = messages.find(m => selectedMessages.has(m.id));
-                    return selectedMessage?.authorId === currentUser?.id && (
-                      <button
-                        onClick={() => {
-                          if (selectedMessage) {
-                            setSavedMessageText(newMessage);
-                            setEditingMessageId(selectedMessage.id);
-                            setEditingMessageText(selectedMessage.content);
-                            setNewMessage(selectedMessage.content);
-                            // Устанавливаем текст напрямую в инпут через ref
-                            if (messageInputRef.current) {
-                              messageInputRef.current.value = selectedMessage.content;
-                            }
-                            setIsSelectionMode(false);
-                            setSelectedMessages(new Set());
-                            messageInputRef.current?.focus();
-                          }
-                        }}
-                        className="w-8 h-8 rounded-full backdrop-blur-xl bg-purple-500/20 border border-purple-500/30 hover:bg-purple-500/30 flex items-center justify-center transition-all group/btn"
-                        title="Редактировать"
-                      >
-                        <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </button>
-                    );
-                  })()}
-                  {/* Удалить - для любого количества выбранных сообщений */}
-                  {(() => {
-                    const selectedMessagesArray = messages.filter(m => m && selectedMessages.has(m.id));
-                    const allAreOwn = selectedMessagesArray.every(m => m?.authorId === currentUser?.id);
-                    return allAreOwn && selectedMessagesArray.length > 0 && (
-                      <button
-                        onClick={async () => {
-                          if (confirm(`Удалить ${selectedMessages.size === 1 ? 'это сообщение' : `эти ${selectedMessages.size} сообщений`}?`)) {
-                            for (const messageId of Array.from(selectedMessages)) {
-                              await deleteMessage(messageId);
-                            }
-                            setIsSelectionMode(false);
-                            setSelectedMessages(new Set());
-                          }
-                        }}
-                        className="w-8 h-8 rounded-full backdrop-blur-xl bg-red-500/20 border border-red-500/30 hover:bg-red-500/30 flex items-center justify-center transition-all group/btn"
-                        title="Удалить"
-                      >
-                        <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    );
-                  })()}
-                </div>
-              </>
-            ) : (
-              <>
-            <button
-              onClick={() => selectChat(null)}
-              className="no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-all md:hidden border border-[var(--border-glass)] backdrop-blur-sm -ml-1"
-            >
-              <ArrowLeft className="w-4 h-4" strokeWidth={2} />
-            </button>
-            {/* Кликабельный аватар и имя собеседника */}
-            <button
-              onClick={() => {
-                setShowChatInfo(true);
-                setChatInfoTab('profile');
-              }}
-              className="no-mobile-scale flex items-center gap-3 flex-1 min-w-0 hover:bg-[var(--bg-tertiary)] -ml-2 px-2 py-1.5 rounded-lg transition-all h-12"
-            >
-              {(() => {
-                const avatarData = getChatAvatarData(selectedChat);
-                return (
-                  <Avatar
-                    src={avatarData.avatar}
-                    name={avatarData.name}
-                    type={avatarData.type}
-                    size="sm"
-                  />
-                );
-              })()}
-              <div className="flex-1 min-w-0 text-left">
-                <h2 className="font-medium text-sm truncate">{getChatTitle(selectedChat)}</h2>
-                {typingUsers[selectedChat.id]?.filter(id => id !== currentUser?.id).length > 0 ? (
-                  <p className="text-[10px] text-cyan-400 flex items-center gap-1">
-                    <span className="inline-flex gap-0.5">
-                      <span className="w-1 h-1 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-1 h-1 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-1 h-1 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </span>
-                    <span className="ml-0.5">печатает...</span>
-                  </p>
-                ) : (
-                <p className="text-[10px] text-[var(--text-muted)]">
-                  {selectedChat.isFavoritesChat ? '' : selectedChat.isSystemChat || selectedChat.isNotificationsChat ? '' : selectedChat.isGroup ? `${selectedChat.participantIds?.length || 0} участник${selectedChat.participantIds?.length === 1 ? '' : (selectedChat.participantIds?.length || 0) < 5 ? 'а' : 'ов'}` : (() => {
-                    // Получаем собеседника
-                    const otherParticipantId = selectedChat.participantIds?.find(id => id !== currentUser?.id);
-                    const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : null;
-                    if (!otherUser) return '';
-                    if (otherUser.isOnline) return 'в сети';
-                    if (otherUser.lastSeen) {
-                      const lastSeenDate = new Date(otherUser.lastSeen);
-                      const now = new Date();
-                      const diffMs = now.getTime() - lastSeenDate.getTime();
-                      const diffMins = Math.floor(diffMs / 60000);
-                      const diffHours = Math.floor(diffMs / 3600000);
-                      const diffDays = Math.floor(diffMs / 86400000);
-                      if (diffMins < 1) return 'был(a) только что';
-                      if (diffMins < 60) return `был(a) ${diffMins} мин. назад`;
-                      if (diffHours < 24) return `был(a) ${diffHours} ч. назад`;
-                      if (diffDays < 7) return `был(a) ${diffDays} дн. назад`;
-                      return `был(a) ${lastSeenDate.toLocaleDateString('ru-RU')}`;
-                    }
-                    return 'не в сети';
-                  })()}
-                </p>
-                )}
-              </div>
-            </button>
-            
-            {/* Кнопка прокрутки к непрочитанным - СКРЫТА, мешала UI */}
-            
-            {/* Кнопка меню чата */}
-            <div className="relative -mr-1">
-              <button
-                onClick={() => setShowChatMenu(!showChatMenu)}
-                className="no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] transition-all border border-[var(--border-color)]"
-                title="Действия с чатом"
-              >
-                <MoreVertical className="w-4 h-4 text-[var(--text-primary)]" />
-              </button>
-              {showChatMenu && (
-                <div className="absolute right-0 top-full mt-1 w-48 rounded-lg shadow-2xl z-50 py-1 overflow-hidden" style={{ backgroundColor: '#1a1d24', border: '1px solid rgba(255,255,255,0.1)' }}>
-                  <button
-                    onClick={() => {
-                      setShowMessageSearch(true);
-                      setShowChatMenu(false);
-                    }}
-                    className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-white hover:bg-white/10 transition-colors"
-                  >
-                    <Search className="w-4 h-4" />
-                    Поиск по чату
-                  </button>
-                  <button
-                    onClick={() => {
-                      togglePinChat(selectedChat.id);
-                      setShowChatMenu(false);
-                    }}
-                    className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-white hover:bg-white/10 transition-colors"
-                  >
-                    {selectedChat.pinnedByUser?.[currentUser?.id || ''] ? (
-                      <>
-                        <PinOff className="w-4 h-4 text-cyan-400" />
-                        Открепить чат
-                      </>
-                    ) : (
-                      <>
-                        <Pin className="w-4 h-4 text-white" />
-                        Закрепить чат
-                      </>
-                    )}
-                  </button>
-                  
-                  {/* Настройки уведомлений */}
-                  <div className="border-t border-white/10 my-1" />
-                  <button
-                    onClick={() => {
-                      const currentState = localStorage.getItem(`chat_notifications_${selectedChat.id}`) !== 'false';
-                      localStorage.setItem(`chat_notifications_${selectedChat.id}`, String(!currentState));
-                      setShowChatMenu(false);
-                      alert(currentState ? 'Уведомления выключены' : 'Уведомления включены');
-                    }}
-                    className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-white hover:bg-white/10 transition-colors"
-                  >
-                    <Bell className="w-4 h-4" />
-                    {localStorage.getItem(`chat_notifications_${selectedChat.id}`) === 'false' ? 'Включить уведомления' : 'Выключить уведомления'}
-                  </button>
-                  
-                  {!selectedChat.isSystemChat && !selectedChat.isNotificationsChat && !selectedChat.isFavoritesChat && (
-                    <>
-                      <div className="border-t border-white/10 my-1" />
-                      <button
-                        onClick={() => {
-                          deleteChat(selectedChat.id);
-                          setShowChatMenu(false);
-                        }}
-                        className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-red-400 hover:bg-red-500/20 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Удалить чат
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-            </>
-            )}
-          </div>
-
-          {/* Кнопка копирования под хедером - только в режиме выбора и если выбрано 1 сообщение */}
-          {isSelectionMode && selectedMessages.size === 1 && (() => {
-            const selectedMessage = messages.find(m => selectedMessages.has(m.id));
-            return selectedMessage?.content && (
-              <div className="mx-2 mt-14 md:mt-2 flex justify-center z-30">
-                <button
-                  onClick={() => {
-                    if (selectedMessage) {
-                      navigator.clipboard.writeText(selectedMessage.content);
-                      setIsSelectionMode(false);
-                      setSelectedMessages(new Set());
-                    }
-                  }}
-                  className="px-4 py-2 rounded-full border border-green-500/30 hover:bg-green-500/10 flex items-center justify-center gap-2 transition-all shadow-lg"
-                  title="Копировать текст"
-                  style={{ borderRadius: '50px' }}
-                >
-                  <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                  <span className="text-sm font-medium text-green-400">Копировать текст</span>
-                </button>
-              </div>
-            );
-          })()}
+          <ChatHeader
+            selectedChat={selectedChat}
+            isSelectionMode={isSelectionMode}
+            selectedMessages={selectedMessages}
+            messages={messages}
+            currentUser={currentUser}
+            users={users}
+            typingUsers={typingUsers}
+            showChatMenu={showChatMenu}
+            editingMessageId={editingMessageId}
+            newMessage={newMessage}
+            savedMessageText={savedMessageText}
+            messageInputRef={messageInputRef as React.RefObject<HTMLTextAreaElement>}
+            setIsSelectionMode={setIsSelectionMode}
+            setSelectedMessages={setSelectedMessages}
+            setShowForwardModal={setShowForwardModal}
+            setSavedMessageText={setSavedMessageText}
+            setEditingMessageId={setEditingMessageId}
+            setEditingMessageText={setEditingMessageText}
+            setNewMessage={setNewMessage}
+            deleteMessage={deleteMessage}
+            selectChat={selectChat}
+            setShowChatInfo={setShowChatInfo}
+            setChatInfoTab={(tab) => setChatInfoTab(tab as 'profile' | 'media' | 'files' | 'links' | 'participants' | 'tasks')}
+            getChatTitle={getChatTitleWrapper}
+            getChatAvatarData={getChatAvatarDataWrapper}
+            setShowChatMenu={setShowChatMenu}
+            setShowMessageSearch={setShowMessageSearch}
+            togglePinChat={togglePinChat}
+            deleteChat={deleteChat}
+          />
           
-          {/* Message Search Bar */}
-          {showMessageSearch && (
-            <div className="absolute top-[72px] md:top-16 left-2 right-2 z-20 px-2 md:px-4 lg:px-8 py-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white" />
-                <input
-                  type="text"
-                  placeholder="Поиск по чату..."
-                  value={messageSearchQuery}
-                  onChange={(e) => setMessageSearchQuery(e.target.value)}
-                  autoFocus
-                  className="w-full pl-10 pr-10 py-2.5 bg-gradient-to-br from-white/15 to-white/5 border border-white/20 rounded-[50px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-white/40 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
-                />
-                <button
-                  onClick={() => { setShowMessageSearch(false); setMessageSearchQuery(''); }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full hover:bg-white/10 flex items-center justify-center transition-all"
-                >
-                  <X className="w-4 h-4 text-white" />
-                </button>
-              </div>
-            </div>
-          )}
+          <MessageSearchBar
+            showMessageSearch={showMessageSearch}
+            messageSearchQuery={messageSearchQuery}
+            setMessageSearchQuery={setMessageSearchQuery}
+            setShowMessageSearch={setShowMessageSearch}
+          />
 
-          {/* Messages */}
-          <div ref={messagesListRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 pt-20 md:pt-16 pb-0 md:pb-64 bg-transparent scrollbar-hide-mobile">
-            <div className="px-2 md:px-4 lg:px-8 h-full">
-              {messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)] select-none">
-                  <MessageCircle className="w-16 h-16 mb-4 opacity-30" />
-                  <p className="text-base font-medium">Нет сообщений</p>
-                  <p className="text-sm mt-1 opacity-70">Начните общение</p>
-                </div>
-              ) : (
-                <div className="space-y-1.5 md:space-y-[3px]">
-                {messages.filter(message => {
-                  if (!message) return false; // Пропускаем null/undefined сообщения
-                  if (!messageSearchQuery.trim()) return true;
-                  return message.content.toLowerCase().includes(messageSearchQuery.toLowerCase());
-                }).map((message, index, filteredMessages) => {
-                  // Защита от null authorId (для системных сообщений)
-                  const authorId = message?.authorId || 'system';
-                  const isMyMessage = authorId === currentUser?.id;
-                  const isEditing = editingMessageId === message.id;
-                  const replyTo = message.replyToId 
-                    ? messages.find(m => m.id === message.replyToId)
-                    : null;
-                  
-                  // Получаем автора сообщения для аватара
-                  const messageAuthor = users.find(u => u.id === authorId);
-                  
-                  // Проверяем является ли это последнее сообщение в группе от одного автора
-                  const nextMessage = filteredMessages[index + 1];
-                  const nextAuthorId = nextMessage?.authorId || 'system';
-                  const isLastInGroup = !nextMessage || nextAuthorId !== authorId;
-                  
-                  // Проверяем нужен ли разделитель даты
-                  const previousMessage = index > 0 ? filteredMessages[index - 1] : undefined;
-                  const showDateSeparator = shouldShowDateSeparator(message, previousMessage);
-
-                    return (
-                    <React.Fragment key={message.id}>
-                      {/* Разделитель даты */}
-                      {showDateSeparator && (
-                        <div className="flex justify-center my-6 select-none">
-                          <div className="px-2 py-0.5 bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border border-white/20 rounded-full shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] flex items-center justify-center">
-                            <span className="text-[10px] font-medium text-[var(--text-muted)] leading-none">
-                              {formatMessageDate(new Date(message.createdAt))}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    <div
-                      key={message.id}
-                      ref={(el) => { messageRefs.current[message.id] = el; }}
-                      className={`flex ${isMyMessage ? 'justify-end md:justify-start' : 'justify-start'} group transition-all duration-200 -mx-[20px] md:px-2 md:-mx-2 ${
-                        selectedMessages.has(message.id) ? 'bg-[var(--accent-primary)]/20' : ''
-                      } ${isMyMessage ? 'message-animation-right md:message-animation-left' : 'message-animation-left'}`}
-                      onClick={(e) => {
-                        if (isSelectionMode && !message.isDeleted) {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          setSelectedMessages(prev => {
-                            const newSet = new Set(prev);
-                            if (newSet.has(message.id)) {
-                              newSet.delete(message.id);
-                              if (newSet.size === 0) setIsSelectionMode(false);
-                            } else {
-                              newSet.add(message.id);
-                            }
-                            return newSet;
-                          });
-                        }
-                      }}
-                    onDoubleClick={(e) => {
-                      if (!message.isDeleted && !message.isSystemMessage) {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        setIsSelectionMode(true);
-                        setSelectedMessages(new Set([message.id]));
-                      }
-                    }}
-                    onContextMenu={(e) => {
-                      if (!message.isDeleted && !message.isSystemMessage) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setContextMenuMessage(message);
-                        setContextMenuPosition({ top: e.clientY, left: e.clientX });
-                        setShowMessageContextMenu(true);
-                      }
-                    }}
-                  >
-                    {/* Checkbox для выделения */}
-                    {(isSelectionMode || selectedMessages.has(message.id)) && !message.isDeleted && (
-                      <div className="absolute -right-8 top-1/2 -translate-y-1/2 z-10">
-                        <div 
-                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all ${
-                            selectedMessages.has(message.id) 
-                              ? 'bg-cyan-500 border-cyan-500' 
-                              : 'border-[var(--text-muted)] hover:border-cyan-400'
-                          }`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedMessages(prev => {
-                              const newSet = new Set(prev);
-                              if (newSet.has(message.id)) {
-                                newSet.delete(message.id);
-                                if (newSet.size === 0) setIsSelectionMode(false);
-                              } else {
-                                newSet.add(message.id);
-                              }
-                              return newSet;
-                            });
-                          }}
-                        >
-                          {selectedMessages.has(message.id) && (
-                            <Check className="w-3 h-3 text-white" />
-                          )}
-                        </div>
-                    </div>
-                    )}
-                    {/* Avatar - только на десктопе */}
-                    <div className="hidden md:flex flex-shrink-0 mr-2 self-start">
-                      <Avatar
-                        src={messageAuthor?.avatar}
-                        name={message.authorName || 'User'}
-                        size="sm"
-                        type={message.isSystemMessage ? 'notifications' : 'user'}
-                      />
-                    </div>
-
-                    {/* Attachments вынесены на уровень аватарки - только когда нет текста */}
-                    {message.attachments && message.attachments.length > 0 && message.attachments.filter(att => att.type !== 'image').length > 0 && !message.content.trim() && (
-                      <div className={`flex flex-col gap-2 ${isMyMessage ? '-mr-[75px] md:mr-2' : 'mr-2'} max-w-[80%] md:max-w-[400px]`}>
-                        {message.attachments.filter(att => att.type !== 'image').map((att, idx) => (
-                          <div key={idx}>
-                            {att.type === 'task' && (
-                              <button 
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  const taskId = att.taskId || att.id;
-                                  if (taskId) {
-                                    requestAnimationFrame(() => {
-                                      router.push(`/todos?task=${taskId}`);
-                                    });
-                                  }
-                                }}
-                                className="flex items-center gap-2 px-2 py-1.5 md:px-3 md:py-2 bg-cyan-500/10 dark:bg-cyan-500/10 rounded-lg md:rounded-xl border border-cyan-500/50 dark:border-cyan-500/30 hover:bg-cyan-500/20 dark:hover:bg-cyan-500/20 transition-colors w-full relative"
-                              >
-                                <div className="w-6 h-6 md:w-8 md:h-8 rounded bg-cyan-500/20 dark:bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
-                                  <FileText className="w-3 h-3 md:w-4 md:h-4 text-cyan-600 dark:text-cyan-400" />
-                                </div>
-                                <div className="flex flex-col items-start min-w-0 flex-1">
-                                  <span className="text-[9px] md:text-[10px] text-cyan-600 dark:text-cyan-400/70 uppercase">Задача</span>
-                                  <span className="text-xs md:text-sm font-medium text-cyan-700 dark:text-cyan-300 truncate max-w-[120px] md:max-w-[200px]">{att.name}</span>
-                                </div>
-                                <span className="text-[9px] md:text-[10px] text-[var(--text-muted)] flex-shrink-0 self-end ml-2">
-                                  {new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                                  {isMyMessage && <Check className="w-2.5 h-2.5 md:w-3 md:h-3 inline ml-0.5" />}
-                                </span>
-                              </button>
-                            )}
-                            {att.type === 'event' && (
-                              <button 
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  if (att.id) {
-                                    requestAnimationFrame(() => {
-                                      router.push(`/account?tab=calendar&event=${att.id}`);
-                                    });
-                                  }
-                                }}
-                                className="flex items-center gap-2 px-2 py-1.5 md:px-3 md:py-2 bg-green-500/10 dark:bg-green-500/10 rounded-lg md:rounded-xl border border-green-500/50 dark:border-green-500/30 hover:bg-green-500/20 dark:hover:bg-green-500/20 transition-colors w-full"
-                              >
-                                <div className="w-6 h-6 md:w-8 md:h-8 rounded bg-green-500/20 dark:bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                                  <Calendar className="w-3 h-3 md:w-4 md:h-4 text-green-600 dark:text-green-400" />
-                                </div>
-                                <div className="flex flex-col items-start min-w-0">
-                                  <span className="text-[9px] md:text-[10px] text-green-600 dark:text-green-400/70 uppercase">Событие</span>
-                                  <span className="text-xs md:text-sm font-medium text-green-700 dark:text-green-300 truncate max-w-[120px] md:max-w-[200px]">{att.name}</span>
-                                </div>
-                              </button>
-                            )}
-                            {att.type === 'link' && (
-                              <button 
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  if (att.url) {
-                                    requestAnimationFrame(() => {
-                                      window.open(att.url, '_blank');
-                                    });
-                                  }
-                                }}
-                                className="flex flex-col items-start gap-1 px-3 py-2 bg-purple-500/10 dark:bg-purple-500/10 rounded-xl border-2 border-purple-500/50 dark:border-purple-500/30 hover:bg-purple-500/20 dark:hover:bg-purple-500/20 transition-colors w-full"
-                              >
-                                <span className="text-[10px] text-purple-600 dark:text-purple-400/70">Ссылка</span>
-                                <div className="flex items-center gap-2">
-                                  <div className="w-8 h-8 rounded-lg bg-purple-500/20 dark:bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                                    <LinkIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                                  </div>
-                                  <span className="text-sm font-medium text-purple-700 dark:text-purple-300 truncate max-w-[160px] md:max-w-[240px]">{att.name}</span>
-                                </div>
-                              </button>
-                            )}
-                            {att.type === 'file' && (
-                              <div className="inline-flex flex-col items-start gap-1 px-2 py-1.5 bg-orange-500/10 dark:bg-orange-500/10 rounded-xl border-2 border-orange-500/50 dark:border-orange-500/30 max-w-[200px] md:max-w-[280px]">
-                                <span className="text-[9px] text-orange-600 dark:text-orange-400/70">Файл</span>
-                                <div className="flex items-center gap-1.5 w-full min-w-0">
-                                  <div className="w-6 h-6 rounded-lg bg-orange-500/20 dark:bg-orange-500/20 flex items-center justify-center flex-shrink-0">
-                                    <File className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
-                                  </div>
-                                  <span className="text-xs font-medium text-[var(--text-primary)] truncate flex-1 min-w-0">{att.name}</span>
-                                  <button className="text-[10px] font-medium text-orange-600 dark:text-orange-400 hover:text-orange-500 dark:hover:text-orange-300 flex-shrink-0">
-                                    Скачать
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div 
-                      className={`max-w-[80%] md:max-w-[75%] lg:max-w-[65%] relative flex flex-col overflow-hidden ${message.linkedChatId && !isSelectionMode ? 'cursor-pointer' : ''}`}
-                      onClick={(e) => {
-                        if (!isSelectionMode) {
-                          // Клик на системное сообщение с ссылкой на чат - переход к чату
-                          if (message.linkedChatId) {
-                            const linkedChat = chats.find(c => c.id === message.linkedChatId);
-                            if (linkedChat) {
-                              selectChat(linkedChat);
-                            }
-                          }
-                        }
-                      }}
-                    >
-                      {/* Reply indicator - кликабельный */}
-                      {replyTo && (
-                        <div className="mb-1">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              scrollToMessage(replyTo.id);
-                            }}
-                            className="text-[10px] text-[var(--text-muted)] px-3 hover:text-blue-400 transition-colors inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap"
-                            style={{ maxWidth: isMyMessage ? '200px' : '280px' }}
-                          >
-                            <Reply className="w-3 h-3 inline mr-1" />
-                            Ответ на: {replyTo.content.substring(0, 50)}...
-                          </button>
-                        </div>
-                      )}
-                      
-                      {/* Определяем переменные вне IIFE для использования в разметке */}
-                      {(() => {
-                        const content = message.content.trim();
-                        const hasBasicChars = /[0-9a-zA-Zа-яА-ЯёЁ#*\-_+=<>!?@$%^&()\[\]{}|\\/:;"'.,`~]/.test(content);
-                        const realEmojis = content.match(/(?:\p{Emoji_Presentation}|\p{Extended_Pictographic})(?:\u{FE0F})?(?:\u{200D}(?:\p{Emoji_Presentation}|\p{Extended_Pictographic})(?:\u{FE0F})?)*/gu) || [];
-                        return null;
-                      })()}
-                      
-                      {(() => {
-                        // Определяем тип контента: только эмоджи или текст
-                        // Исключаем цифры (0-9), символы # * и другие базовые символы, которые технически являются emoji
-                        const content = message.content.trim();
-                        // Если содержит цифры, буквы или базовые символы - это не чистый эмодзи
-                        const hasBasicChars = /[0-9a-zA-Zа-яА-ЯёЁ#*\-_+=<>!?@$%^&()\[\]{}|\\/:;"'.,`~]/.test(content);
-                        // Ищем только настоящие эмодзи (не цифры, символы)
-                        const realEmojis = content.match(/(?:\p{Emoji_Presentation}|\p{Extended_Pictographic})(?:\u{FE0F})?(?:\u{200D}(?:\p{Emoji_Presentation}|\p{Extended_Pictographic})(?:\u{FE0F})?)*/gu) || [];
-                        const isOnlyEmojis = !hasBasicChars && realEmojis.length > 0 && realEmojis.join('') === content.replace(/\s/g, '');
-                        const emojiCount = isOnlyEmojis ? realEmojis.length : 0;
-                        
-                        // Проверяем, является ли сообщение только картинкой (без текста)
-                        const hasOnlyImages = !message.content.trim() && message.attachments?.every(att => att.type === 'image');
-                        const hasImages = message.attachments?.some(att => att.type === 'image');
-                        const hasOnlyAttachments = !message.content.trim() && message.attachments && message.attachments.length > 0 && !hasOnlyImages;
-                        const hasAttachments = !message.content.trim() && message.attachments && message.attachments.filter(att => att.type !== 'image').length > 0;
-                        (window as any)._currentMessageState = { hasOnlyImages, isOnlyEmojis, hasAttachments };
-                        
-                        const isLargeEmoji = emojiCount === 1;
-                        const isMediumEmoji = emojiCount >= 2 && emojiCount <= 5;
-                        // Не показываем бабл для эмодзи, для сообщений только с картинками И для сообщений только с attachments без текста
-                        const hasBackground = !isOnlyEmojis && !hasOnlyImages && !hasOnlyAttachments;
-                        
-                        // Настройки стилей - компактные на мобильных как в Telegram
-                        const bubbleRadius = chatSettings.bubbleStyle === 'minimal' ? 'rounded-lg' : chatSettings.bubbleStyle === 'classic' ? 'rounded-2xl' : 'rounded-[18px]';
-                        // Используем отдельные настройки для мобильных и десктопа
-                        const mobileFontSize = chatSettings.fontSizeMobile || 15;
-                        const desktopFontSize = chatSettings.fontSize || 13;
-                        const fontSizeStyle = { fontSize: `${isDesktopView ? desktopFontSize : mobileFontSize}px`, lineHeight: isDesktopView ? '1.5' : '1.3' };
-                        
-                        return (
-                          <>
-                          <div
-                            className={`${
-                              hasBackground
-                                ? `${bubbleRadius} px-2.5 py-1.5 md:px-3 md:py-2 relative min-w-[60px] md:min-w-[80px] w-fit max-w-full ${
-                                    isMyMessage
-                                      ? `text-white ${isLastInGroup ? 'rounded-br-sm md:rounded-br-[18px] md:rounded-bl-sm' : ''}`
-                                      : message.isSystemMessage
-                                        ? `bg-gradient-to-r from-orange-100 to-amber-100 dark:from-blue-500/10 dark:to-purple-500/10 border border-orange-200 dark:border-blue-500/20 hover:border-orange-300 dark:hover:border-blue-500/40 transition-colors ${isLastInGroup ? 'rounded-bl-sm' : ''}`
-                                        : `bg-[var(--bg-tertiary)] ${isLastInGroup ? 'rounded-bl-sm' : ''}`
-                                  } ${message.isDeleted ? 'opacity-60' : ''}`
-                                : ''
-                            }`}
-                            style={isMyMessage && hasBackground ? { backgroundColor: theme === 'dark' ? chatSettings.bubbleColor : chatSettings.bubbleColorLight } : undefined}
-                          >
-                            {!isMyMessage && hasBackground && (
-                              <p className={`text-[10px] font-medium mb-0.5 select-none ${message.isSystemMessage ? 'text-orange-600 dark:text-purple-400' : 'text-[var(--accent-primary)] dark:text-gray-300'} flex items-center gap-1.5`}>
-                                <span>{message.authorName}</span>
-                                {selectedChat?.isGroup && authorId === selectedChat.creatorId && (
-                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-500 text-[9px]">
-                                    <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
-                                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                    </svg>
-                                    Создатель
-                                  </span>
-                                )}
-                              </p>
-                            )}
-
-                            {message.isDeleted ? (
-                              <p className="text-xs text-[var(--text-secondary)] italic">
-                                Сообщение удалено
-                              </p>
-                            ) : (
-                              <>
-                                {isLargeEmoji ? (
-                                  <div className="relative">
-                                    <p 
-                                      className="text-5xl md:text-7xl my-1 emoji-content emoji-native message-content"
-                                      dangerouslySetInnerHTML={{ __html: message.content }}
-                                    />
-                                    {/* Время под эмодзи */}
-                                    <span className={`block text-right text-[9px] md:text-[11px] mt-1 ${isMyMessage ? 'text-[var(--text-muted)]' : 'text-[var(--text-muted)]'}`}>
-                                      {new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                                      {message.isEdited && <span className="ml-1">(изм.)</span>}
-                                    </span>
-                                  </div>
-                                ) : isMediumEmoji ? (
-                                  <div className="relative">
-                                    <p 
-                                      className="text-3xl md:text-4xl my-1 emoji-content emoji-native message-content"
-                                      dangerouslySetInnerHTML={{ __html: message.content }}
-                                    />
-                                    {/* Время под эмодзи */}
-                                    <span className={`block text-right text-[9px] md:text-[11px] mt-1 ${isMyMessage ? 'text-[var(--text-muted)]' : 'text-[var(--text-muted)]'}`}>
-                                      {new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                                      {message.isEdited && <span className="ml-1">(изм.)</span>}
-                                    </span>
-                                  </div>
-                                ) : (
-                              <>
-                                <span className="inline">
-                                  <span
-                                    className={`message-content ${isMyMessage ? myBubbleTextClass : 'text-[var(--text-primary)]'} whitespace-pre-wrap [overflow-wrap:anywhere] ${isEditing ? 'bg-blue-500/10 -mx-2 -my-1 px-2 py-1 rounded border border-blue-400/30' : ''}`}
-                                    style={fontSizeStyle}
-                                    dangerouslySetInnerHTML={{
-                                      __html: formatMessageText(message.content)
-                                        .replace(
-                                          /(https?:\/\/[^\s<>"']+)/gi,
-                                          `<a href="$1" target="_blank" rel="noopener noreferrer" class="${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-700 hover:text-gray-900' : 'text-white/80 hover:text-white') : 'text-blue-400 hover:text-blue-300'} underline">$1</a>`
-                                        )
-                                        .replace(
-                                          /@([a-zA-Zа-яА-ЯёЁ0-9_]+(?:\s+[a-zA-Zа-яА-ЯёЁ0-9_]+)?)/g,
-                                          `<span class="${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-900 font-medium' : 'text-white font-medium') : 'text-blue-400 font-medium'}">@$1</span>`
-                                        )
-                                    }}
-                                  />
-                                  {/* Невидимый спейсер для времени */}
-                                  <span className="inline-block w-[80px] md:w-[90px]">&nbsp;</span>
-                                </span>
-
-                                {/* Кнопка перехода к задаче/публикации в уведомлениях */}
-                                {message.isSystemMessage && (message.linkedTaskId || message.linkedPostId) && (
-                                  <div className="mt-3 mb-1">
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (message.linkedTaskId) {
-                                          window.location.href = `/todos?task=${message.linkedTaskId}`;
-                                        } else if (message.linkedPostId) {
-                                          window.location.href = `/content-plan?post=${message.linkedPostId}`;
-                                        }
-                                      }}
-                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-600 dark:text-blue-400 text-xs font-medium transition-colors"
-                                    >
-                                      <CheckSquare className="w-3.5 h-3.5" />
-                                      {message.linkedTaskId ? 'Открыть задачу' : 'Открыть публикацию'}
-                                    </button>
-                                  </div>
-                                )}
-
-                                {/* Предпросмотр изображений и ссылок из текста */}
-                                {(() => {
-                                  const urls = message.content.match(/(https?:\/\/[^\s<>"']+)/gi) || [];
-                              // Улучшенная проверка - расширение может быть в любом месте URL
-                              const imageExtPattern = /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|tiff?)(\?|$|#)/i;
-                              const imageUrls = urls.filter(url => imageExtPattern.test(url));
-                              const otherUrls = urls.filter(url => !imageExtPattern.test(url));
-                              
-                              return (
-                                <>
-                                  {/* Предпросмотр изображений */}
-                                  {imageUrls.length > 0 && (
-                                    <div className="mt-2 grid grid-cols-2 gap-2">
-                                      {imageUrls.map((url, idx) => (
-                                        <div 
-                                          key={idx} 
-                                          className="relative group rounded-lg overflow-hidden bg-black/20 cursor-pointer"
-                                          onClick={() => {
-                                            setCurrentImageUrl(url);
-                                            setShowImageModal(true);
-                                          }}
-                                        >
-                                          <img 
-                                            src={url} 
-                                            alt="Изображение"
-                                            className="w-full h-auto max-h-64 object-cover hover:opacity-90 transition-opacity"
-                                            onError={(e) => {
-                                              const target = e.target as HTMLImageElement;
-                                              target.parentElement!.style.display = 'none';
-                                            }}
-                                          />
-                                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                                            <Download className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                  
-                                  {/* Предпросмотр ссылок (только первая) */}
-                                  {otherUrls.length > 0 && <LinkPreview url={otherUrls[0]} isMyMessage={isMyMessage} />}
-                                </>
-                              );
-                            })()}
-
-                            {/* Attachments внутри bubble - когда есть текст */}
-                            {message.attachments && message.attachments.length > 0 && message.attachments.filter(att => att.type !== 'image').length > 0 && message.content.trim() && (
-                              <div className="flex flex-col gap-2 mt-2 mb-5 w-full">
-                                {message.attachments.filter(att => att.type !== 'image').map((att, idx) => (
-                                  <div key={idx} className="w-full">
-                                    {att.type === 'task' && (
-                                      <button 
-                                        onClick={() => {
-                                          const taskId = att.taskId || att.id;
-                                          if (taskId) window.location.href = `/todos?task=${taskId}`;
-                                        }}
-                                        className="w-full flex items-center gap-2 px-2 py-1.5 md:px-3 md:py-2 bg-cyan-500/10 dark:bg-cyan-500/10 rounded-lg md:rounded-xl border border-cyan-500/50 dark:border-cyan-500/30 hover:bg-cyan-500/20 dark:hover:bg-cyan-500/20 transition-colors"
-                                      >
-                                        <div className="w-6 h-6 md:w-8 md:h-8 rounded bg-cyan-500/20 dark:bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
-                                          <FileText className="w-3 h-3 md:w-4 md:h-4 text-cyan-600 dark:text-cyan-400" />
-                                        </div>
-                                        <div className="flex flex-col items-start min-w-0 flex-1">
-                                          <span className="text-[9px] md:text-[10px] text-cyan-600 dark:text-cyan-400/70 uppercase">Задача</span>
-                                          <span className="text-xs md:text-sm font-medium text-cyan-700 dark:text-cyan-300 truncate w-full">{att.name}</span>
-                                        </div>
-                                      </button>
-                                    )}
-                                    {att.type === 'event' && (
-                                      <button 
-                                        onClick={() => { if (att.id) window.location.href = `/account?tab=calendar&event=${att.id}`; }}
-                                        className="w-full flex items-center gap-2 px-2 py-1.5 md:px-3 md:py-2 bg-green-500/10 dark:bg-green-500/10 rounded-lg md:rounded-xl border border-green-500/50 dark:border-green-500/30 hover:bg-green-500/20 dark:hover:bg-green-500/20 transition-colors"
-                                      >
-                                        <div className="w-6 h-6 md:w-8 md:h-8 rounded bg-green-500/20 dark:bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                                          <Calendar className="w-3 h-3 md:w-4 md:h-4 text-green-600 dark:text-green-400" />
-                                        </div>
-                                        <div className="flex flex-col items-start min-w-0 flex-1">
-                                          <span className="text-[9px] md:text-[10px] text-green-600 dark:text-green-400/70 uppercase">Событие</span>
-                                          <span className="text-xs md:text-sm font-medium text-green-700 dark:text-green-300 truncate w-full">{att.name}</span>
-                                        </div>
-                                      </button>
-                                    )}
-                                    {att.type === 'link' && (
-                                      <button 
-                                        onClick={() => { if (att.url) window.open(att.url, '_blank'); }}
-                                        className="w-full flex flex-col items-start gap-1 px-3 py-2 bg-purple-500/10 dark:bg-purple-500/10 rounded-xl border-2 border-purple-500/50 dark:border-purple-500/30 hover:bg-purple-500/20 dark:hover:bg-purple-500/20 transition-colors"
-                                      >
-                                        <span className="text-[10px] text-purple-600 dark:text-purple-400/70">Ссылка</span>
-                                        <div className="flex items-center gap-2">
-                                          <div className="w-8 h-8 rounded-lg bg-purple-500/20 dark:bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                                            <LinkIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                                          </div>
-                                          <span className="text-sm font-medium text-purple-700 dark:text-purple-300 truncate flex-1">{att.name}</span>
-                                        </div>
-                                      </button>
-                                    )}
-                                    {att.type === 'file' && (
-                                      <div className="w-full flex flex-col items-start gap-1 px-2 py-1.5 bg-orange-500/10 dark:bg-orange-500/10 rounded-xl border-2 border-orange-500/50 dark:border-orange-500/30 max-w-[200px] md:max-w-[280px]">
-                                        <span className="text-[9px] text-orange-600 dark:text-orange-400/70">Файл</span>
-                                        <div className="flex items-center gap-1.5 w-full min-w-0">
-                                          <div className="w-6 h-6 rounded-lg bg-orange-500/20 dark:bg-orange-500/20 flex items-center justify-center flex-shrink-0">
-                                            <File className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
-                                          </div>
-                                          <span className="text-xs font-medium text-[var(--text-primary)] truncate flex-1 min-w-0">{att.name}</span>
-                                          <button className="text-[10px] font-medium text-orange-600 dark:text-orange-400 hover:text-orange-500 dark:hover:text-orange-300 flex-shrink-0">
-                                            Скачать
-                                          </button>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Изображения из attachments - внутри bubble */}
-                            {message.attachments && message.attachments.filter(att => att.type === 'image').length > 0 && (
-                              <div className="mt-2 mb-1">
-                                <div className={`grid gap-1 ${message.attachments.filter(att => att.type === 'image').length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                                  {message.attachments.filter(att => att.type === 'image').map((att, idx) => (
-                                    <div 
-                                      key={idx}
-                                      className="relative group rounded-lg overflow-hidden bg-black/20 cursor-pointer"
-                                      onClick={() => {
-                                        setCurrentImageUrl(att.url);
-                                        setShowImageModal(true);
-                                      }}
-                                    >
-                                      <img 
-                                        src={att.url} 
-                                        alt={att.name || 'Изображение'}
-                                        className="w-full h-auto max-h-64 object-cover hover:opacity-90 transition-opacity rounded-lg"
-                                        style={{ maxWidth: message.attachments!.filter(a => a.type === 'image').length === 1 ? '300px' : '200px' }}
-                                        onError={(e) => {
-                                          const target = e.target as HTMLImageElement;
-                                          target.style.display = 'none';
-                                        }}
-                                      />
-                                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center rounded-lg">
-                                        <Download className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            
-                            {/* Время и галочки - только для сообщений БЕЗ вложений */}
-                            {!hasOnlyImages && !isOnlyEmojis && !hasAttachments && (
-                                <span className="absolute bottom-0.5 right-2 flex items-center gap-0.5 select-none pointer-events-auto">
-                                  <span className={`text-[9px] md:text-[11px] select-none ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80') : 'text-[var(--text-muted)]'}`}>
-                                    {new Date(message.createdAt).toLocaleTimeString('ru-RU', {
-                                      hour: '2-digit',
-                                      minute: '2-digit'
-                                    })}
-                                    {message.isEdited && <span className="ml-1">(изм.)</span>}
-                                  </span>
-                                  {isMyMessage && !message.isDeleted && (
-                                    <Check className={`w-2.5 h-2.5 md:w-3.5 md:h-3.5 ${useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80'}`} />
-                                  )}
-                                </span>
-                            )}
-                          </>
-                        )}
-                      </>
-                      )}
-                      </div>
-                    </>
-                    );
-                  })()}
-
-                    </div>
-                  </div>
-                    </React.Fragment>
-                );
-              })}
-                </div>
-            )}
-              <div ref={messagesEndRef} className="h-16 md:h-auto transition-all duration-150" style={{ height: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${Math.max(141, 97 + textareaHeight)}px` : undefined }} />
-            </div>
-          </div>
+          <MessagesArea
+            messagesListRef={messagesListRef}
+            messages={messages}
+            messageSearchQuery={messageSearchQuery}
+            users={users}
+            currentUser={currentUser}
+            selectedChat={selectedChat}
+            selectedMessages={selectedMessages}
+            editingMessageId={editingMessageId}
+            isSelectionMode={isSelectionMode}
+            messageRefs={messageRefs}
+            theme={theme}
+            chatSettings={chatSettings}
+            isDesktopView={isDesktopView}
+            myBubbleTextClass={myBubbleTextClass}
+            useDarkTextOnBubble={useDarkTextOnBubble}
+            messagesEndRef={messagesEndRef}
+            textareaHeight={textareaHeight}
+            router={router}
+            setSelectedMessages={setSelectedMessages}
+            setIsSelectionMode={setIsSelectionMode}
+            setContextMenuMessage={setContextMenuMessage}
+            setContextMenuPosition={setContextMenuPosition}
+            setShowMessageContextMenu={setShowMessageContextMenu}
+            scrollToMessage={scrollToMessage}
+            setCurrentImageUrl={setCurrentImageUrl}
+            setShowImageModal={setShowImageModal}
+          />
 
           {/* Message input */}
-          <div
-            className={`absolute bottom-0 md:bottom-[50px] left-0 right-0 z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(env(safe-area-inset-bottom,8px),8px)] ${
-              isDragging ? 'scale-[1.02]' : ''
-            }`}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setIsDragging(true);
-            }}
-            onDragLeave={(e) => {
-              e.preventDefault();
-              setIsDragging(false);
-            }}
-            onDrop={async (e) => {
-              e.preventDefault();
-              setIsDragging(false);
-              
-              const files = Array.from(e.dataTransfer.files);
-              for (const file of files) {
-                // Загружаем файл на сервер
-                const formData = new FormData();
-                formData.append('file', file);
-                
-                try {
-                  const uploadRes = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: formData
-                  });
-                  
-                  if (uploadRes.ok) {
-                    const uploadData = await uploadRes.json();
-                    setAttachments(prev => [...prev, {
-                      type: file.type.startsWith('image/') ? 'image' : 'file',
-                      name: file.name,
-                      url: uploadData.url
-                    }]);
-                  } else {
-                    console.error('Upload failed');
-                  }
-                } catch (error) {
-                  console.error('Error uploading file:', error);
-                }
-              }
-            }}
-          >
-            {/* Drag overlay */}
-            {isDragging && (
-              <div className="absolute inset-x-3 inset-y-0 bg-gradient-to-br from-blue-500/30 via-cyan-500/25 to-purple-500/30 border-4 border-blue-400/80 border-dashed rounded-[24px] flex items-center justify-center pointer-events-none z-50 backdrop-blur-md shadow-2xl">
-                <div className="text-center animate-bounce">
-                  <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-500/40 to-cyan-500/40 border-4 border-blue-400/70 flex items-center justify-center shadow-lg">
-                    <Upload className="w-10 h-10 text-blue-300 animate-pulse" />
-                  </div>
-                  <p className="text-lg text-blue-300 font-bold mb-2">Отпустите файлы для загрузки</p>
-                  <p className="text-sm text-blue-300/90 mt-1">Изображения и документы</p>
-                </div>
-              </div>
-            )}
-            
-            {/* Attachments preview */}
-            {!selectedChat?.isNotificationsChat && attachments.length > 0 && (
-              <div className="mb-2 flex flex-wrap gap-2 px-2 md:px-4 lg:px-8">
-                {attachments.map((att, idx) => (
-                  <div key={idx} className="backdrop-blur-xl bg-[var(--bg-secondary)]/80 border border-[var(--border-color)]/30 rounded-lg px-3 py-1.5 text-xs text-[var(--text-secondary)] flex items-center gap-2 shadow-lg">
-                    {att.type === 'task' && <FileText className="w-3 h-3" />}
-                    {att.type === 'link' && <LinkIcon className="w-3 h-3" />}
-                    {att.type === 'event' && <Calendar className="w-3 h-3" />}
-                    {att.type === 'image' && <Image className="w-3 h-3" />}
-                    {att.type === 'file' && <File className="w-3 h-3" />}
-                    <span>{att.name}</span>
-                    <button
-                      onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
-                      className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            {selectedChat?.isNotificationsChat ? (
-              /* Кнопка "Убрать звук" для чата уведомлений */
-              <div className="flex justify-center items-center w-full px-2 md:px-4 lg:px-8">
-                <button
-                  onClick={() => {
-                    // TODO: Реализовать отключение звука уведомлений
-                    alert('Функция отключения звука будет реализована');
-                  }}
-                  className="h-11 px-6 rounded-full backdrop-blur-xl bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 flex items-center justify-center gap-2 text-amber-400 font-medium transition-all shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4)]"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
-                  </svg>
-                  Убрать звук
-                </button>
-              </div>
-            ) : (
-            <div className="flex gap-1 md:gap-2 items-center relative bg-transparent">
-              {/* Emoji button - только на десктопе */}
-              {!selectedChat?.isNotificationsChat && (
-              <div className="relative hidden md:block">
-                <button
-                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  className="hidden md:flex w-11 h-11 rounded-full bg-gradient-to-br from-white/15 to-white/5 items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] border border-white/20 backdrop-blur-sm flex-shrink-0 text-gray-400/90"
-                >
-                  <Smile className="w-5 h-5" />
-                </button>
-                
-                {/* Emoji Picker Dropdown */}
-                {showEmojiPicker && (
-                  <EmojiPicker
-                    onEmojiSelect={(emoji) => {
-                      // Вставляем эмодзи напрямую в инпут через ref
-                      if (messageInputRef.current) {
-                        const start = messageInputRef.current.selectionStart || 0;
-                        const end = messageInputRef.current.selectionEnd || 0;
-                        const text = messageInputRef.current.value;
-                        const newText = text.substring(0, start) + emoji + text.substring(end);
-                        messageInputRef.current.value = newText;
-                        // Устанавливаем курсор после эмодзи
-                        const newCursorPos = start + emoji.length;
-                        messageInputRef.current.setSelectionRange(newCursorPos, newCursorPos);
-                        messageInputRef.current.focus();
-                        // Обновляем состояние для синхронизации
-                        setNewMessage(newText);
-                      }
-                    }}
-                    onClose={() => setShowEmojiPicker(false)}
-                  />
-                )}
-              </div>
-              )}
-              
-              {/* Attachment button */}
-              {!selectedChat?.isNotificationsChat && (
-              <button
-                onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-                className="w-10 h-10 md:w-11 md:h-11 rounded-full bg-gradient-to-br from-white/15 to-white/5 flex items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] border border-white/20 backdrop-blur-sm flex-shrink-0 text-[var(--text-secondary)]"
-              >
-                <Paperclip className="w-4 h-4" />
-              </button>
-              )}
-              
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*"
-                className="hidden"
-                onChange={async (e) => {
-                  const files = Array.from(e.target.files || []);
-                  if (files.length === 0) return;
-                  
-                  for (const file of files) {
-                    // Загружаем файл на сервер
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    
-                    try {
-                      const uploadRes = await fetch('/api/upload', {
-                        method: 'POST',
-                        body: formData
-                      });
-                      
-                      if (uploadRes.ok) {
-                        const uploadData = await uploadRes.json();
-                        setAttachments(prev => [...prev, {
-                          type: file.type.startsWith('image/') ? 'image' : 'file',
-                          name: file.name,
-                          url: uploadData.url
-                        }]);
-                      } else {
-                        alert('Ошибка загрузки файла');
-                      }
-                    } catch (error) {
-                      console.error('Error uploading file:', error);
-                      alert('Ошибка загрузки файла');
-                    }
-                  }
-                  // Сбрасываем input чтобы можно было загрузить те же файлы снова
-                  e.target.value = '';
-                }}
-              />
-              
-              {/* Input container with reply/edit indicator */}
-              <div className="flex-1 min-w-0 flex flex-col bg-transparent">
-                {/* Edit indicator над инпутом */}
-                {editingMessageId && (
-                  <div className="mb-1 px-3 py-1.5 backdrop-blur-xl bg-blue-500/20 border border-blue-400/30 rounded-t-[18px] rounded-b-[18px] flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Edit3 className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
-                      <span className="text-[11px] text-blue-400 font-medium">Редактирование сообщения</span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setEditingMessageId(null);
-                        setNewMessage(savedMessageText);  // Восстанавливаем сохранённый текст
-                        setSavedMessageText('');
-                      }}
-                      className="w-5 h-5 rounded-full hover:bg-white/10 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                )}
-                
-                {/* Reply indicator над инпутом */}
-                {replyToMessage && !editingMessageId && (
-                  <div className="mx-1 mb-1 px-3 py-2 backdrop-blur-xl bg-[var(--bg-secondary)]/80 border border-white/10 rounded-[35px] flex items-center justify-between gap-2" style={{ maxHeight: '70%', overflowY: 'auto' }}>
-                    <button
-                      onClick={() => scrollToMessage(replyToMessage.id)}
-                      className="flex items-center gap-2 text-left hover:opacity-80 transition-opacity min-w-0 flex-1"
-                    >
-                      <Reply className="w-4 h-4 text-blue-400 flex-shrink-0" />
-                      <div className="overflow-hidden min-w-0">
-                        <p className="text-[10px] text-blue-400 font-medium truncate">{replyToMessage.authorName}</p>
-                        <p className="text-[11px] text-[var(--text-secondary)] truncate max-w-[200px]">
-                          {replyToMessage.content.length > 40 ? replyToMessage.content.substring(0, 40) + '...' : replyToMessage.content}
-                        </p>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => setReplyToMessage(null)}
-                      className="w-6 h-6 rounded-full hover:bg-white/10 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-                
-                <textarea
-                  ref={messageInputRef}
-                  onSelect={handleTextSelection}
-                  onFocus={() => {
-                    isUserActiveRef.current = true;
-                    lastActivityTimeRef.current = Date.now();
-                  }}
-                  onBlur={() => {
-                    setTimeout(() => {
-                      isUserActiveRef.current = false;
-                    }, 500);
-                  }}
-                  onChange={handleMessageChange}
-                  onKeyDown={handleMessageKeyDown}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.currentTarget.style.borderColor = 'rgb(59, 130, 246)';
-                    e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
-                  }}
-                  onPaste={async (e) => {
-                    // Универсальная обработка вставки: файлы и изображения из буфера
-                    const items = e.clipboardData?.items;
-                    if (!items) return;
+          <MessageInput
+            selectedChat={selectedChat}
+            isDragging={isDragging}
+            attachments={attachments}
+            editingMessageId={editingMessageId}
+            replyToMessage={replyToMessage}
+            showEmojiPicker={showEmojiPicker}
+            showAttachmentMenu={showAttachmentMenu}
+            showMentionSuggestions={showMentionSuggestions}
+            mentionQuery={mentionQuery}
+            users={users}
+            currentUser={currentUser}
+            messageInputRef={messageInputRef as React.RefObject<HTMLTextAreaElement>}
+            fileInputRef={fileInputRef as React.RefObject<HTMLInputElement>}
+            isUserActiveRef={isUserActiveRef}
+            lastActivityTimeRef={lastActivityTimeRef}
+            savedMessageText={savedMessageText}
+            setIsDragging={setIsDragging}
+            setAttachments={setAttachments}
+            setEditingMessageId={setEditingMessageId}
+            setNewMessage={setNewMessage}
+            setSavedMessageText={setSavedMessageText}
+            setReplyToMessage={setReplyToMessage}
+            setShowEmojiPicker={setShowEmojiPicker}
+            setShowAttachmentMenu={setShowAttachmentMenu}
+            setShowMentionSuggestions={setShowMentionSuggestions}
+            handleTextSelection={handleTextSelection}
+            handleMessageChange={handleMessageChange}
+            handleMessageKeyDown={handleMessageKeyDown}
+            scrollToMessage={scrollToMessage}
+            updateMessage={updateMessage}
+            sendMessage={sendMessage}
+          />
 
-                    const files: File[] = [];
-                    for (let i = 0; i < items.length; i++) {
-                      const item = items[i];
-                      // Поддерживаем как item.kind === 'file', так и image-type
-                      if (item.kind === 'file') {
-                        const file = item.getAsFile();
-                        if (file) files.push(file);
-                      } else if (item.type && item.type.indexOf('image') !== -1) {
-                        const file = item.getAsFile();
-                        if (file) files.push(file);
-                      }
-                    }
-
-                    if (files.length === 0) return;
-                    e.preventDefault();
-
-                    // Загружаем каждый файл на сервер и добавляем в attachments
-                    for (const file of files) {
-                      const formData = new FormData();
-                      formData.append('file', file, file.name || 'pasted-image');
-                      try {
-                        const uploadRes = await fetch('/api/upload', {
-                          method: 'POST',
-                          body: formData
-                        });
-
-                        if (uploadRes.ok) {
-                          const uploadData = await uploadRes.json();
-                          setAttachments(prev => [...prev, {
-                            type: file.type.startsWith('image/') ? 'image' : 'file',
-                            name: file.name || (file.type.startsWith('image/') ? 'pasted-image' : 'file'),
-                            url: uploadData.url
-                          }]);
-                        } else {
-                          console.error('Upload failed for pasted file');
-                        }
-                      } catch (error) {
-                        console.error('Error uploading pasted file:', error);
-                      }
-                    }
-                  }}
-                  onDragLeave={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.currentTarget.style.borderColor = '';
-                    e.currentTarget.style.backgroundColor = '';
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.currentTarget.style.borderColor = '';
-                    e.currentTarget.style.backgroundColor = '';
-                    
-                    const files = e.dataTransfer.files;
-                    if (files && files.length > 0) {
-                      const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
-                      if (imageFiles.length > 0) {
-                        // Добавляем изображения в список для отправки
-                        const newAttachments = imageFiles.map(file => ({
-                          file,
-                          preview: URL.createObjectURL(file),
-                          type: 'image' as const
-                        }));
-                        setAttachments(prev => [...prev, ...newAttachments]);
-                      }
-                    }
-                  }}
-                  
-                  placeholder={selectedChat?.isNotificationsChat ? "Чат только для чтения" : editingMessageId ? "Редактируйте сообщение..." : "Сообщение..."}
-                  disabled={selectedChat?.isNotificationsChat}
-                  className={`w-full px-4 py-2.5 bg-gradient-to-br from-white/15 to-white/5 border border-white/20 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-white/30 resize-none overflow-hidden shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl disabled:opacity-50 disabled:cursor-not-allowed ${(replyToMessage && !editingMessageId) || editingMessageId ? 'rounded-b-[22px] rounded-t-none border-t-0' : 'rounded-[22px]'}`}
-                  style={{ minHeight: '44px', maxHeight: '120px', lineHeight: '20px', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                  rows={1}
-                />
-
-                {/* Mention suggestions dropdown */}
-                {showMentionSuggestions && selectedChat?.isGroup && (
-                  <div className="absolute bottom-full left-0 right-0 mb-1 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg shadow-xl max-h-48 overflow-y-auto z-50">
-                    {(() => {
-                      const participants = users.filter(u => 
-                        selectedChat.participantIds?.includes(u.id) && 
-                        u.id !== currentUser?.id &&
-                        (u.name?.toLowerCase().includes(mentionQuery) || 
-                         u.username?.toLowerCase().includes(mentionQuery) ||
-                         u.shortId?.toLowerCase().includes(mentionQuery))
-                      );
-
-                      if (participants.length === 0) {
-                        return (
-                          <div className="p-3 text-xs text-[var(--text-muted)] text-center">
-                            Участники не найдены
-                          </div>
-                        );
-                      }
-
-                      return participants.map(user => (
-                        <button
-                          key={user.id}
-                          onClick={() => {
-                            const textarea = messageInputRef.current;
-                            if (!textarea) return;
-                            const cursorPos = textarea.selectionStart || 0;
-                            const currentText = textarea.value;
-                            const textBeforeCursor = currentText.substring(0, cursorPos);
-                            const textAfterCursor = currentText.substring(cursorPos);
-                            const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
-                            
-                            const mentionText = user.shortId || user.username || user.name || 'user';
-                            const newText = 
-                              textBeforeCursor.substring(0, lastAtSymbol) + 
-                              '@' + mentionText + ' ' + 
-                              textAfterCursor;
-                            
-                            textarea.value = newText;
-                            setShowMentionSuggestions(false);
-                            messageInputRef.current?.focus();
-                          }}
-                          className="w-full p-2 flex items-center gap-2 hover:bg-[var(--bg-tertiary)] transition-colors text-left"
-                        >
-                          <Avatar
-                            src={user.avatar}
-                            name={user.name || user.username || 'Пользователь'}
-                            size="xs"
-                            type="user"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-[var(--text-primary)] truncate">
-                              {user.name || user.username || 'Пользователь'}
-                            </p>
-                            {user.shortId && (
-                              <p className="text-[10px] text-[var(--text-muted)]">@{user.shortId}</p>
-                            )}
-                          </div>
-                        </button>
-                      ));
-                    })()}
-                  </div>
-                )}
-              </div>
-              
-              {/* Send or Save button */}
-              {editingMessageId ? (
-                <button
-                  onClick={() => {
-                    const messageText = messageInputRef.current?.value || '';
-                    updateMessage(editingMessageId, messageText);
-                    if (messageInputRef.current) {
-                      messageInputRef.current.value = savedMessageText;
-                    }
-                    setSavedMessageText('');
-                  }}
-                  disabled={false}
-                  className="w-11 h-11 rounded-full backdrop-blur-2xl bg-gradient-to-br from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 border border-white/30 flex items-center justify-center text-white transition-all flex-shrink-0 shadow-[0_8px_32px_-8px_rgba(34,197,94,0.6),inset_0_1px_2px_rgba(255,255,255,0.2)] hover:shadow-[0_8px_40px_-8px_rgba(34,197,94,0.8),inset_0_1px_2px_rgba(255,255,255,0.25)]"
-                >
-                  <Check className="w-5 h-5" />
-                </button>
-              ) : (
-                <button
-                  onMouseDown={(e) => {
-                    // Предотвращаем потерю фокуса с textarea при клике на кнопку
-                    e.preventDefault();
-                  }}
-                  onClick={sendMessage}
-                  disabled={selectedChat?.isNotificationsChat}
-                  className="w-10 h-10 md:w-11 md:h-11 rounded-full backdrop-blur-2xl bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 border border-white/30 disabled:from-white/5 disabled:to-white/5 disabled:border-white/10 flex items-center justify-center text-white disabled:text-[var(--text-muted)] transition-all flex-shrink-0 shadow-[0_8px_32px_-8px_rgba(59,130,246,0.6),inset_0_1px_2px_rgba(255,255,255,0.2)] hover:shadow-[0_8px_40px_-8px_rgba(59,130,246,0.8),inset_0_1px_2px_rgba(255,255,255,0.25)] disabled:shadow-none disabled:cursor-not-allowed"
-                >
-                  <Send className="w-4 h-4 md:w-5 md:h-5" />
-                </button>
-              )}
-            </div>
-            )}
-          </div>
-
-          {/* Text Formatting Menu */}
-          {showTextFormatMenu && (
-            <>
-              <div 
-                className="fixed inset-0 z-40" 
-                onClick={() => setShowTextFormatMenu(false)}
-              />
-              <div 
-                className="fixed z-50 flex items-center gap-1 bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl p-1"
-                style={{
-                  top: `${formatMenuPosition.top}px`,
-                  left: `${formatMenuPosition.left}px`,
-                  transform: 'translateX(-50%)',
-                  borderRadius: '35px'
-                }}
-              >
-                <button
-                  onClick={() => applyFormatting('bold')}
-                  className="w-8 h-8 flex items-center justify-center hover:bg-[var(--bg-tertiary)] transition-colors"
-                  style={{ borderRadius: '20px' }}
-                  title="Жирный (** **)"
-                >
-                  <span className="font-bold text-sm">B</span>
-                </button>
-                <button
-                  onClick={() => applyFormatting('italic')}
-                  className="w-8 h-8 flex items-center justify-center hover:bg-[var(--bg-tertiary)] transition-colors"
-                  style={{ borderRadius: '20px' }}
-                  title="Курсив (* *)"
-                >
-                  <span className="italic text-sm">I</span>
-                </button>
-                <button
-                  onClick={() => applyFormatting('underline')}
-                  className="w-8 h-8 flex items-center justify-center hover:bg-[var(--bg-tertiary)] transition-colors"
-                  style={{ borderRadius: '20px' }}
-                  title="Подчеркнутый (__ __)"
-                >
-                  <span className="underline text-sm">U</span>
-                </button>
-                <button
-                  onClick={() => applyFormatting('link')}
-                  className="w-8 h-8 flex items-center justify-center hover:bg-[var(--bg-tertiary)] transition-colors"
-                  style={{ borderRadius: '20px' }}
-                  title="Гиперссылка"
-                >
-                  <LinkIcon className="w-4 h-4" />
-                </button>
-              </div>
-            </>
-          )}
+          <TextFormattingMenu
+            showTextFormatMenu={showTextFormatMenu}
+            formatMenuPosition={formatMenuPosition}
+            setShowTextFormatMenu={setShowTextFormatMenu}
+            applyFormatting={applyFormatting}
+          />
           </div>
 
           {/* Chat Info Panel - Профиль собеседника */}
-          {showChatInfo && (
-            <div className="fixed inset-0 z-50 lg:relative lg:inset-auto lg:z-auto w-full lg:w-80 lg:min-w-[320px] border-l-0 lg:border-l border-[var(--border-color)] flex flex-col bg-[var(--bg-secondary)] flex-shrink-0 overflow-hidden">
-              {(() => {
-                // Определяем собеседника (не текущий пользователь)
-                const otherParticipantId = selectedChat?.participantIds?.find(id => id !== currentUser?.id);
-                const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : null;
-                
-                // Статистика вложений
-                const mediaCount = messages.filter(m => m.attachments?.some(a => a.type === 'image')).length;
-                const fileCount = messages.filter(m => m.attachments?.some(a => a.type === 'file' || a.type === 'task')).length;
-                const linkCount = messages.reduce((count, m) => {
-                  const attachmentLinks = (m.attachments || []).filter(a => a.type === 'link').length;
-                  const textLinks = (m.content.match(/(https?:\/\/[^\s<>"']+)/gi) || []).length;
-                  return count + attachmentLinks + textLinks;
-                }, 0);
-                
-                // Общие задачи (где ОБА участника задействованы - один заказчик, другой исполнитель или наоборот)
-                const sharedTasks = tasks.filter(task => {
-                  if (!otherUser || !currentUser) return false;
-                  
-                  // Получаем исполнителя (может быть assignedToId или assignedTo)
-                  const executorId = (task as any).assignedToId || task.assignedTo;
-                  // Получаем заказчика (может быть assignedById или authorId)
-                  const customerId = (task as any).assignedById || task.authorId;
-                  
-                  // Проверяем что ОБА участника задействованы в задаче
-                  const currentUserInvolved = executorId === currentUser.id || customerId === currentUser.id;
-                  const otherUserInvolved = executorId === otherUser.id || customerId === otherUser.id;
-                  
-                  return currentUserInvolved && otherUserInvolved;
-                });
-
-                return (
-                  <>
-                    {/* Header */}
-                    <div className="h-12 border-b border-[var(--border-color)] flex items-center px-4 gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => setShowChatInfo(false)}
-                        className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--bg-tertiary)] transition-all lg:hidden"
-                      >
-                        <ArrowLeft className="w-4 h-4 text-[var(--text-primary)]" />
-                      </button>
-                      <span className="font-medium text-sm">{selectedChat?.isGroup ? 'Чат' : 'Профиль'}</span>
-                      <button
-                        onClick={() => setShowChatInfo(false)}
-                        className="ml-auto w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--bg-tertiary)] transition-all hidden lg:flex"
-                      >
-                        <X className="w-4 h-4 text-[var(--text-primary)]" />
-                      </button>
-                    </div>
-
-                    {/* Profile section */}
-                    <div className="p-4 border-b border-[var(--border-color)]">
-                      <div className="flex flex-col items-center">
-                        {(() => {
-                          const avatarData = getChatAvatarData(selectedChat!);
-                          return (
-                            <div className="mb-3">
-                              <Avatar
-                                src={avatarData.avatar}
-                                name={avatarData.name}
-                                type={avatarData.type}
-                                size="xl"
-                              />
-                            </div>
-                          );
-                        })()}
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-lg text-center">{getChatTitle(selectedChat!)}</h3>
-                          {/* Кнопка переименования - только для создателя группы */}
-                          {selectedChat?.isGroup && selectedChat.creatorId === currentUser?.id && (
-                            <button
-                              onClick={() => {
-                                setNewChatName(selectedChat.title || '');
-                                setShowRenameChatModal(true);
-                              }}
-                              className="w-6 h-6 rounded-full hover:bg-[var(--bg-tertiary)] flex items-center justify-center transition-colors"
-                              title="Переименовать чат"
-                            >
-                              <Edit3 className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-                            </button>
-                          )}
-                        </div>
-                        {selectedChat?.isGroup ? (
-                          <p className="text-xs text-[var(--text-muted)] mt-1">
-                            {selectedChat.participantIds?.length || 0} участник{(selectedChat.participantIds?.length || 0) === 1 ? '' : (selectedChat.participantIds?.length || 0) < 5 ? 'а' : 'ов'}
-                          </p>
-                        ) : otherUser && otherUser.email && (
-                          <div className="flex items-center gap-1.5 mt-2 text-xs text-[var(--text-secondary)]">
-                            <Mail className="w-3 h-3" />
-                            <span>{otherUser.email}</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Статистика вложений */}
-                      <div className="grid grid-cols-3 gap-2 mt-4">
-                        <button
-                          onClick={() => setChatInfoTab('media')}
-                          className={`p-2 rounded-lg text-center transition-all ${chatInfoTab === 'media' ? 'bg-cyan-500/20' : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)]'}`}
-                        >
-                          <p className="text-lg font-bold text-[var(--text-primary)]">{mediaCount}</p>
-                          <p className="text-[10px] text-[var(--text-muted)]">Медиа</p>
-                        </button>
-                        <button
-                          onClick={() => setChatInfoTab('files')}
-                          className={`p-2 rounded-lg text-center transition-all ${chatInfoTab === 'files' ? 'bg-cyan-500/20' : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)]'}`}
-                        >
-                          <p className="text-lg font-bold text-[var(--text-primary)]">{fileCount}</p>
-                          <p className="text-[10px] text-[var(--text-muted)]">Файлы</p>
-                        </button>
-                        <button
-                          onClick={() => setChatInfoTab('links')}
-                          className={`p-2 rounded-lg text-center transition-all ${chatInfoTab === 'links' ? 'bg-cyan-500/20' : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)]'}`}
-                        >
-                          <p className="text-lg font-bold text-[var(--text-primary)]">{linkCount}</p>
-                          <p className="text-[10px] text-[var(--text-muted)]">Ссылки</p>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Tab buttons */}
-                    <div className="overflow-x-auto border-b border-[var(--border-color)]" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
-                      <style jsx>{`
-                        div::-webkit-scrollbar {
-                          display: none;
-                        }
-                      `}</style>
-                      <div className="flex min-w-max">
-                        <button
-                          onClick={() => setChatInfoTab('profile')}
-                          className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap ${
-                            chatInfoTab === 'profile' 
-                              ? 'text-cyan-400 border-b-2 border-cyan-400' 
-                              : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                          }`}
-                        >
-                          Задачи
-                        </button>
-                        {/* Вкладка Участники для групповых чатов */}
-                        {selectedChat?.isGroup && (
-                          <button
-                            onClick={() => setChatInfoTab('participants')}
-                            className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap ${
-                              chatInfoTab === 'participants' 
-                                ? 'text-cyan-400 border-b-2 border-cyan-400' 
-                                : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                            }`}
-                          >
-                            Участники
-                          </button>
-                        )}
-                        <button
-                          onClick={() => setChatInfoTab('media')}
-                          className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap ${
-                            chatInfoTab === 'media' 
-                              ? 'text-cyan-400 border-b-2 border-cyan-400' 
-                              : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                          }`}
-                        >
-                          Медиа
-                        </button>
-                        <button
-                          onClick={() => setChatInfoTab('files')}
-                          className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap ${
-                            chatInfoTab === 'files' 
-                              ? 'text-cyan-400 border-b-2 border-cyan-400' 
-                              : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                          }`}
-                        >
-                          Файлы
-                        </button>
-                        <button
-                          onClick={() => setChatInfoTab('links')}
-                          className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap ${
-                            chatInfoTab === 'links' 
-                              ? 'text-cyan-400 border-b-2 border-cyan-400' 
-                              : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                          }`}
-                        >
-                          Ссылки
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 overflow-y-auto p-3">
-                      {chatInfoTab === 'profile' && (
-                        <div>
-                          {sharedTasks.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-12 text-[var(--text-muted)]">
-                              <CheckSquare className="w-12 h-12 mb-3 opacity-50" />
-                              <p className="text-sm">Нет общих задач</p>
-                              <p className="text-xs mt-1 text-center">Задачи, где вы оба участвуете, появятся здесь</p>
-                            </div>
-                          ) : (
-                            <div className="space-y-2">
-                              {sharedTasks.slice(0, 10).map(task => (
-                                <button
-                                  key={task.id}
-                                  onClick={() => window.location.href = `/todos?task=${task.id}`}
-                                  className="w-full p-3 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] transition-colors text-left"
-                                >
-                                  <div className="flex items-start gap-3">
-                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                                      task.status === 'done' ? 'bg-green-500/20' : 
-                                      task.status === 'in_progress' ? 'bg-blue-500/20' : 'bg-gray-500/20'
-                                    }`}>
-                                      <CheckSquare className={`w-4 h-4 ${
-                                        task.status === 'done' ? 'text-green-400' : 
-                                        task.status === 'in_progress' ? 'text-blue-400' : 'text-gray-400'
-                                      }`} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-xs font-medium text-[var(--text-primary)] truncate">{task.title}</p>
-                                      <p className="text-[10px] text-[var(--text-muted)] mt-0.5">
-                                        {task.status === 'done' ? 'Выполнено' : 
-                                         task.status === 'in_progress' ? 'В работе' : 'Ожидает'}
-                                        {task.dueDate && ` • До ${new Date(task.dueDate).toLocaleDateString('ru-RU')}`}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </button>
-                              ))}
-                              {sharedTasks.length > 10 && (
-                                <p className="text-center text-xs text-[var(--text-muted)] py-2">
-                                  И ещё {sharedTasks.length - 10} задач...
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Вкладка Участники */}
-                      {chatInfoTab === 'participants' && selectedChat?.isGroup && (
-                        <div className="pb-20">
-                          {/* Кнопка добавить участника - только для создателя */}
-                          {selectedChat.creatorId === currentUser?.id && (
-                            <button
-                              onClick={() => setShowAddParticipantModal(true)}
-                              className="w-full p-3 mb-3 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] transition-colors flex items-center gap-3"
-                            >
-                              <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center">
-                                <Plus className="w-4 h-4 text-cyan-400" />
-                              </div>
-                              <span className="text-sm text-[var(--text-primary)]">Добавить участника</span>
-                            </button>
-                          )}
-                          
-                          {/* Список участников */}
-                          <div className="space-y-2">
-                            {selectedChat.participantIds.map(participantId => {
-                              const participant = users.find(u => u.id === participantId);
-                              const isCreator = participantId === selectedChat.creatorId;
-                              const isCurrentUser = participantId === currentUser?.id;
-                              const canRemove = selectedChat.creatorId === currentUser?.id && !isCurrentUser;
-                              
-                              // Отладочное логирование
-                              if (isCurrentUser) {
-                                console.log('DEBUG - Информация о создателе чата:', {
-                                  chatCreatorId: selectedChat.creatorId,
-                                  currentUserId: currentUser?.id,
-                                  participantId: participantId,
-                                  isCreator: isCreator,
-                                  canRemove: canRemove,
-                                  chatTitle: selectedChat.title
-                                });
-                              }
-                              
-                              return (
-                                <div key={participantId} className="flex items-center gap-3 p-2 rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors">
-                                  <Avatar
-                                    src={participant?.avatar}
-                                    name={participant?.name || participant?.username || 'Пользователь'}
-                                    size="sm"
-                                    type="user"
-                                  />
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm text-[var(--text-primary)] truncate">
-                                      {participant?.name || participant?.username || 'Пользователь'}
-                                      {isCurrentUser && ' (вы)'}
-                                    </p>
-                                    {isCreator && (
-                                      <p className="text-[10px] text-cyan-400">Создатель группы</p>
-                                    )}
-                                  </div>
-                                  {canRemove && (
-                                    <button
-                                      onClick={() => removeParticipant(participantId)}
-                                      className="w-7 h-7 rounded-full hover:bg-red-500/20 flex items-center justify-center text-red-400"
-                                      title="Удалить из группы"
-                                    >
-                                      <X className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {chatInfoTab === 'media' && (
-                        <div className="pb-20">
-                          {(() => {
-                            const mediaItems = messages
-                              .filter(m => m.attachments?.some(a => a.type === 'image'))
-                              .flatMap(m => (m.attachments || []).filter(a => a.type === 'image').map(a => ({ ...a, messageId: m.id, date: m.createdAt })));
-                            
-                            if (mediaItems.length === 0) {
-                              return (
-                                <div className="flex flex-col items-center justify-center py-12 text-[var(--text-muted)]">
-                                  <Image className="w-12 h-12 mb-3 opacity-50" />
-                                  <p className="text-sm">Нет медиафайлов</p>
-                                  <p className="text-xs mt-1 text-center">Фото и видео из этого чата будут отображаться здесь</p>
-                                </div>
-                              );
-                            }
-                            
-                            return (
-                              <div className="grid grid-cols-3 gap-1">
-                                {mediaItems.map((item, idx) => (
-                                  <button
-                                    key={idx}
-                                    onClick={() => item.messageId && scrollToMessage(item.messageId)}
-                                    className="aspect-square rounded-lg bg-[var(--bg-tertiary)] overflow-hidden hover:opacity-80 transition-opacity relative group"
-                                  >
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                      <Image className="w-6 h-6 text-[var(--text-muted)]" />
-                                    </div>
-                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <p className="text-[8px] text-white truncate">{item.name}</p>
-                                    </div>
-                                  </button>
-                                ))}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
-
-                      {chatInfoTab === 'files' && (
-                        <div className="pb-20">
-                          {(() => {
-                            const fileItems = messages
-                              .filter(m => m.attachments?.some(a => a.type === 'file' || a.type === 'task'))
-                              .flatMap(m => (m.attachments || []).filter(a => a.type === 'file' || a.type === 'task').map(a => ({ ...a, messageId: m.id, date: m.createdAt, authorName: m.authorName })));
-                            
-                            if (fileItems.length === 0) {
-                              return (
-                                <div className="flex flex-col items-center justify-center py-12 text-[var(--text-muted)]">
-                                  <File className="w-12 h-12 mb-3 opacity-50" />
-                                  <p className="text-sm">Нет файлов</p>
-                                  <p className="text-xs mt-1 text-center">Документы из этого чата появятся здесь</p>
-                                </div>
-                              );
-                            }
-                            
-                            return (
-                              <div className="space-y-2">
-                                {fileItems.map((item, idx) => (
-                                  <button
-                                    key={idx}
-                                    onClick={() => {
-                                      if (item.type === 'task' && (item.taskId || item.id)) {
-                                        window.location.href = `/todos?task=${item.taskId || item.id}`;
-                                      } else if (item.messageId) {
-                                        scrollToMessage(item.messageId);
-                                      }
-                                    }}
-                                    className="w-full p-3 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] transition-colors text-left group"
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                                        item.type === 'task' ? 'bg-cyan-500/20' : 'bg-orange-500/20'
-                                      }`}>
-                                        {item.type === 'task' ? (
-                                          <FileText className="w-5 h-5 text-cyan-400" />
-                                        ) : (
-                                          <File className="w-5 h-5 text-orange-400" />
-                                        )}
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-medium text-[var(--text-primary)] truncate">{item.name}</p>
-                                        <p className="text-[10px] text-[var(--text-muted)]">
-                                          {new Date(item.date).toLocaleDateString('ru-RU')}
-                                        </p>
-                                      </div>
-                                    </div>
-                                  </button>
-                                ))}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
-
-                      {chatInfoTab === 'links' && (
-                        <div className="pb-20">
-                          {(() => {
-                            const linkItems: { url: string; name: string; messageId: string; date: string }[] = [];
-                            
-                            messages.forEach(m => {
-                              if (m.attachments) {
-                                m.attachments.filter(a => a.type === 'link').forEach(a => {
-                                  linkItems.push({
-                                    url: a.url || '',
-                                    name: a.name || a.url || 'Ссылка',
-                                    messageId: m.id,
-                                    date: m.createdAt
-                                  });
-                                });
-                              }
-                              
-                              const urlRegex = /(https?:\/\/[^\s<>"']+)/gi;
-                              const matches = m.content.match(urlRegex);
-                              if (matches) {
-                                matches.forEach(url => {
-                                  if (!linkItems.some(l => l.url === url)) {
-                                    try {
-                                      const urlObj = new URL(url);
-                                      linkItems.push({ url, name: urlObj.hostname, messageId: m.id, date: m.createdAt });
-                                    } catch {
-                                      linkItems.push({ url, name: url.substring(0, 30), messageId: m.id, date: m.createdAt });
-                                    }
-                                  }
-                                });
-                              }
-                            });
-                            
-                            if (linkItems.length === 0) {
-                              return (
-                                <div className="flex flex-col items-center justify-center py-12 text-[var(--text-muted)]">
-                                  <LinkIcon className="w-12 h-12 mb-3 opacity-50" />
-                                  <p className="text-sm">Нет ссылок</p>
-                                  <p className="text-xs mt-1 text-center">Ссылки из этого чата появятся здесь</p>
-                                </div>
-                              );
-                            }
-                            
-                            return (
-                              <div className="space-y-2">
-                                {linkItems.map((item, idx) => (
-                                  <div key={idx} className="p-3 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] transition-colors">
-                                    <div className="flex items-center gap-3">
-                                      <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                                        <LinkIcon className="w-5 h-5 text-purple-400" />
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-medium text-[var(--text-primary)] truncate">{item.name}</p>
-                                        <p className="text-[10px] text-blue-400 truncate">{item.url}</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex gap-2 mt-2">
-                                      <button
-                                        onClick={() => window.open(item.url, '_blank')}
-                                        className="flex-1 py-1.5 text-[10px] font-medium text-purple-400 bg-purple-500/10 hover:bg-purple-500/20 rounded-md transition-colors"
-                                      >
-                                        Открыть
-                                      </button>
-                                      <button
-                                        onClick={() => scrollToMessage(item.messageId)}
-                                        className="py-1.5 px-3 text-[10px] font-medium text-[var(--text-secondary)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-primary)] rounded-md transition-colors"
-                                      >
-                                        К сообщению
-                                      </button>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-          )}
+          <ChatInfoPanel
+            showChatInfo={showChatInfo}
+            setShowChatInfo={setShowChatInfo}
+            selectedChat={selectedChat}
+            currentUser={currentUser}
+            users={users}
+            messages={messages}
+            tasks={tasks}
+            chatInfoTab={chatInfoTab}
+            setChatInfoTab={(tab) => setChatInfoTab(tab as 'profile' | 'media' | 'files' | 'links' | 'participants' | 'tasks')}
+            setNewChatName={setNewChatName}
+            setShowRenameChatModal={setShowRenameChatModal}
+            setShowAddParticipantModal={setShowAddParticipantModal}
+            removeParticipant={removeParticipant}
+            scrollToMessage={scrollToMessage}
+            getChatAvatarData={getChatAvatarDataWrapper}
+            getChatTitle={getChatTitleWrapper}
+          />
         </div>
       ) : (
         <div className="hidden md:flex flex-1 items-center justify-center text-[var(--text-muted)]">
@@ -4253,1256 +1840,159 @@ export default function MessagesPage() {
       )}
 
       {/* New Chat Modal */}
-      {showNewChatModal && (
-        <div className="fixed !inset-0 !p-0 !m-0 bg-black/50 backdrop-blur-sm z-[100] !overflow-hidden md:flex md:items-center md:justify-center md:p-4">
-          <div className="!w-full !h-full md:relative md:inset-auto bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl md:border md:border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_4px_24px_rgba(0,0,0,0.4)] rounded-none md:rounded-[24px] md:w-full md:max-w-md md:h-auto md:max-h-[80vh] md:min-h-0 flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-white/10 shrink-0">
-              <h3 className="font-semibold text-white">Новый чат</h3>
-              <button
-                onClick={() => {
-                  setShowNewChatModal(false);
-                  setSelectedUsers([]);
-                  setIsGroupChat(false);
-                  setGroupTitle('');
-                }}
-                className="p-1.5 hover:bg-white/10 rounded-full transition-all"
-              >
-                <X className="w-5 h-5 text-white" />
-              </button>
-            </div>
-
-            <div className="p-4 overflow-y-auto flex-1">
-              {/* Group chat toggle */}
-              <label className="flex items-center gap-2 mb-4 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isGroupChat}
-                  onChange={(e) => setIsGroupChat(e.target.checked)}
-                  className="w-4 h-4 rounded border-[var(--border-color)] bg-[var(--bg-tertiary)]"
-                />
-                <span className="text-sm">Групповой чат</span>
-              </label>
-
-              {/* Group title */}
-              {isGroupChat && (
-                <input
-                  type="text"
-                  value={groupTitle}
-                  onChange={(e) => setGroupTitle(e.target.value)}
-                  placeholder="Название группы"
-                  className="w-full px-4 py-2.5 mb-4 bg-white/5 border border-white/20 rounded-[20px] text-sm text-white placeholder:text-white/50 focus:outline-none focus:border-white/40 backdrop-blur-sm shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)]"
-                />
-              )}
-
-              {/* Search users */}
-              <div className="relative mb-3">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-white/60" />
-                <input
-                  type="text"
-                  placeholder="Поиск пользователей..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 bg-white/5 border border-white/20 rounded-[25px] text-sm text-white placeholder:text-white/50 focus:outline-none focus:border-white/40 backdrop-blur-sm shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)]"
-                />
-              </div>
-
-              {/* Users list */}
-              <div className="space-y-2">
-                {filteredUsers.map(user => (
-                  <label
-                    key={user.id}
-                    className="flex items-center gap-3 p-3 bg-white/5 rounded-[20px] border border-white/10 hover:bg-white/10 cursor-pointer transition-all backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]"
-                  >
-                    <input
-                      type={isGroupChat ? 'checkbox' : 'radio'}
-                      name="selectedUser"
-                      checked={selectedUsers.includes(user.id)}
-                      onChange={(e) => {
-                        if (isGroupChat) {
-                          setSelectedUsers(prev =>
-                            e.target.checked
-                              ? [...prev, user.id]
-                              : prev.filter(id => id !== user.id)
-                          );
-                        } else {
-                          setSelectedUsers([user.id]);
-                        }
-                      }}
-                      className="w-4 h-4"
-                    />
-                    <Avatar
-                      src={user.avatar}
-                      name={user.name || user.username || 'Пользователь'}
-                      size="sm"
-                      type="user"
-                    />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-white">{user.name || user.username || 'Без имени'}</p>
-                      {user.email && (
-                        <p className="text-xs text-white/60">{user.email}</p>
-                      )}
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex gap-2 p-4 border-t border-white/10">
-              <button
-                onClick={() => {
-                  setShowNewChatModal(false);
-                  setSelectedUsers([]);
-                  setIsGroupChat(false);
-                  setGroupTitle('');
-                }}
-                className="flex-1 py-2.5 bg-white/5 rounded-[20px] text-sm text-white hover:bg-white/10 transition-all border border-white/10"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={createChat}
-                disabled={selectedUsers.length === 0 || (isGroupChat && !groupTitle.trim())}
-                className="flex-1 py-2.5 bg-[#007aff]/20 text-white rounded-[20px] text-sm font-medium border border-[#007aff]/30 hover:bg-[#007aff]/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-              >
-                Создать чат
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <NewChatModal
+        isOpen={showNewChatModal}
+        onClose={() => setShowNewChatModal(false)}
+        onCreateChat={createChat}
+        isGroupChat={isGroupChat}
+        setIsGroupChat={setIsGroupChat}
+        groupTitle={groupTitle}
+        setGroupTitle={setGroupTitle}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        selectedUsers={selectedUsers}
+        setSelectedUsers={setSelectedUsers}
+        filteredUsers={filteredUsers}
+      />
 
       {/* Rename Chat Modal */}
-      {showRenameChatModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl w-full max-w-sm">
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
-              <h3 className="font-semibold flex items-center gap-2 text-[var(--text-primary)]">
-                <Edit3 className="w-5 h-5 text-cyan-400" />
-                Переименовать чат
-              </h3>
-              <button
-                onClick={() => {
-                  setShowRenameChatModal(false);
-                  setNewChatName('');
-                }}
-                className="p-1 hover:bg-[var(--bg-tertiary)] rounded"
-              >
-                <X className="w-5 h-5 text-[var(--text-muted)]" />
-              </button>
-            </div>
-            <div className="p-4">
-              <input
-                type="text"
-                placeholder="Название группы..."
-                value={newChatName}
-                onChange={(e) => setNewChatName(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-100 dark:bg-[var(--bg-tertiary)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl text-sm text-gray-900 dark:text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-cyan-400"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && newChatName.trim()) {
-                    renameChat(newChatName);
-                  }
-                }}
-              />
-            </div>
-            <div className="flex gap-2 p-4 border-t border-[var(--border-color)]">
-              <button
-                onClick={() => {
-                  setShowRenameChatModal(false);
-                  setNewChatName('');
-                }}
-                className="flex-1 py-2.5 bg-gray-200 dark:bg-[var(--bg-tertiary)] text-gray-700 dark:text-[var(--text-secondary)] rounded-xl text-sm font-medium hover:bg-gray-300 dark:hover:bg-[var(--bg-primary)] transition-colors"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={() => renameChat(newChatName)}
-                disabled={!newChatName.trim()}
-                className="flex-1 py-2.5 bg-cyan-500 text-white rounded-xl text-sm font-medium hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Сохранить
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <RenameChatModal
+        isOpen={showRenameChatModal}
+        onClose={() => setShowRenameChatModal(false)}
+        onRename={renameChat}
+        newChatName={newChatName}
+        setNewChatName={setNewChatName}
+      />
 
       {/* Add Participant Modal */}
-      {showAddParticipantModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl w-full max-w-md flex flex-col max-h-[80vh]">
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)] flex-shrink-0">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Users className="w-5 h-5 text-purple-400" />
-                Добавить участника
-              </h3>
-              <button
-                onClick={() => {
-                  setShowAddParticipantModal(false);
-                  setParticipantSearchQuery('');
-                }}
-                className="p-1 hover:bg-[var(--bg-tertiary)] rounded"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <AddParticipantModal
+        isOpen={showAddParticipantModal}
+        onClose={() => setShowAddParticipantModal(false)}
+        onAddParticipant={addParticipant}
+        searchQuery={participantSearchQuery}
+        setSearchQuery={setParticipantSearchQuery}
+        users={users}
+        currentUser={currentUser}
+        selectedChat={selectedChat}
+      />
 
-            <div className="p-4 overflow-y-auto flex-1">
-              {/* Search users */}
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
-                <input
-                  type="text"
-                  placeholder="Поиск пользователей..."
-                  value={participantSearchQuery}
-                  onChange={(e) => setParticipantSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-[25px] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-light)]"
-                />
-              </div>
-
-              {/* Users list */}
-              <div className="space-y-2">
-                {(() => {
-                  const availableUsers = users.filter(u => {
-                    // Исключаем уже добавленных в группу
-                    if (selectedChat?.participantIds?.includes(u.id)) return false;
-                    // Исключаем самого себя
-                    if (u.id === currentUser?.id) return false;
-                    // Фильтруем по поиску
-                    if (!participantSearchQuery) return true;
-                    const query = participantSearchQuery.toLowerCase();
-                    return (
-                      u.name?.toLowerCase().includes(query) ||
-                      u.username?.toLowerCase().includes(query) ||
-                      u.email?.toLowerCase().includes(query)
-                    );
-                  });
-
-                  if (availableUsers.length === 0) {
-                    return (
-                      <div className="flex flex-col items-center justify-center py-8 text-[var(--text-muted)]">
-                        <Users className="w-12 h-12 mb-3 opacity-50" />
-                        <p className="text-sm">Нет доступных пользователей</p>
-                      </div>
-                    );
-                  }
-
-                  return availableUsers.map(user => (
-                    <button
-                      key={user.id}
-                      onClick={() => addParticipant(user.id)}
-                      className="w-full flex items-center gap-3 p-3 bg-[var(--bg-primary)] rounded-lg border border-[var(--border-color)] hover:bg-[var(--bg-tertiary)] transition-colors text-left"
-                    >
-                      <Avatar
-                        src={user.avatar}
-                        name={user.name || user.username || 'Пользователь'}
-                        size="sm"
-                        type="user"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[var(--text-primary)]">{user.name || user.username || 'Без имени'}</p>
-                        {user.email && (
-                          <p className="text-xs text-[var(--text-secondary)]">{user.email}</p>
-                        )}
-                      </div>
-                      <Plus className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                    </button>
-                  ));
-                })()}
-              </div>
-            </div>
-
-            <div className="flex gap-2 p-4 border-t border-[var(--border-color)] flex-shrink-0">
-              <button
-                onClick={() => {
-                  setShowAddParticipantModal(false);
-                  setParticipantSearchQuery('');
-                }}
-                className="flex-1 py-2 bg-[var(--bg-tertiary)] rounded-lg text-sm hover:bg-[var(--bg-primary)]"
-              >
-                Закрыть
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Task Picker Modal */}
-      {showTaskPicker && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
-              <h3 className="font-semibold flex items-center gap-2">
-                <FileText className="w-5 h-5 text-cyan-400" />
-                Выбрать задачу
-              </h3>
-              <button
-                onClick={() => setShowTaskPicker(false)}
-                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-4 max-h-96 overflow-y-auto">
-              {(() => {
-                // Фильтруем задачи - только те, где текущий пользователь участвует
-                const allTasks = Array.isArray(tasks) ? tasks : [];
-                const myTasks = allTasks.filter(task => {
-                  if (!currentUser?.id) return false;
-                  const userId = currentUser.id;
-                  if (task.assignedById === userId) return true;
-                  if (task.assignedToId === userId) return true;
-                  if (task.assignedToIds?.includes(userId)) return true;
-                  if (task.authorId === userId) return true;
-                  return false;
-                });
-                
-                console.log('DEBUG - Информация о задачах:', {
-                  totalCount: allTasks.length,
-                  filteredCount: myTasks.length,
-                  currentUserId: currentUser?.id
-                });
-                
-                return myTasks.length === 0 ? (
-                  <p className="text-sm text-[var(--text-secondary)] text-center py-8">Нет доступных задач</p>
-                ) : (
-                  <div className="space-y-2">
-                    {myTasks.map(task => (
-                    <button
-                      key={task.id}
-                      onClick={() => {
-                        setAttachments(prev => [...prev, {
-                          type: 'task',
-                          name: task.title,
-                          taskId: task.id
-                        }]);
-                        setShowTaskPicker(false);
-                      }}
-                      className="w-full text-left p-3 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg border border-gray-200 dark:border-white/10 transition-colors"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">{task.title}</h4>
-                          {task.description && (
-                            <p className="text-xs text-[var(--text-secondary)] mt-1 line-clamp-2">{task.description}</p>
-                          )}
-                          <div className="flex items-center gap-2 mt-2">
-                            {task.status && (
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">
-                                {task.status}
-                              </span>
-                            )}
-                            {task.priority && (
-                              <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                                task.priority === 'high' ? 'bg-red-500/20 text-red-400' :
-                                task.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
-                                'bg-green-500/20 text-green-400'
-                              }`}>
-                                {task.priority === 'high' ? 'Высокий' : task.priority === 'medium' ? 'Средний' : 'Низкий'}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <FileText className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                      </div>
-                    </button>
-                  ))}
-                  </div>
-                );
-              })()}
-            </div>
-            <div className="flex gap-2 p-4 border-t border-[var(--border-color)]">
-              <button
-                onClick={() => setShowTaskPicker(false)}
-                className="flex-1 py-2 bg-[var(--bg-tertiary)] rounded-lg text-sm hover:bg-[var(--bg-primary)]"
-              >
-                Отмена
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Event Picker Modal */}
-      {showEventPicker && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-cyan-400" />
-                Выбрать событие
-              </h3>
-              <button
-                onClick={() => setShowEventPicker(false)}
-                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-4 max-h-96 overflow-y-auto">
-              {(() => {
-                // Фильтруем события - только те где я участник или организатор
-                const myEvents = Array.isArray(events) ? events.filter(event => {
-                  if (!currentUser) return false;
-                  // Я организатор
-                  if (event.organizerId === currentUser.id) return true;
-                  // Я в списке участников
-                  if (Array.isArray(event.participants) && event.participants.some((p: any) => p.id === currentUser.id || p === currentUser.id)) return true;
-                  return false;
-                }) : [];
-
-                // Сортируем по дате начала (ближайшие первыми)
-                const sortedEvents = myEvents.sort((a, b) => {
-                  const dateA = new Date(a.start || a.date);
-                  const dateB = new Date(b.start || b.date);
-                  return dateA.getTime() - dateB.getTime();
-                });
-
-                return sortedEvents.length === 0 ? (
-                  <p className="text-sm text-[var(--text-secondary)] text-center py-8">Нет доступных мероприятий</p>
-                ) : (
-                  <div className="space-y-2">
-                    {sortedEvents.map(event => (
-                      <button
-                        key={event.id}
-                        onClick={() => {
-                          setAttachments(prev => [...prev, {
-                            type: 'event',
-                            name: event.title,
-                            eventId: event.id
-                          }]);
-                          setShowEventPicker(false);
-                        }}
-                        className="w-full text-left p-3 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition-colors"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-medium text-white truncate">{event.title}</h4>
-                            {event.description && (
-                              <p className="text-xs text-[var(--text-secondary)] mt-1 line-clamp-2">{event.description}</p>
-                            )}
-                            <div className="flex items-center gap-2 mt-2 flex-wrap">
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                {new Date(event.start || event.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                              </span>
-                              {event.type && (
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400">
-                                  {event.type}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <Calendar className="w-4 h-4 text-purple-400 flex-shrink-0" />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                );
-              })()}
-            </div>
-            <div className="flex gap-2 p-4 border-t border-[var(--border-color)]">
-              <button
-                onClick={() => setShowEventPicker(false)}
-                className="flex-1 py-2 bg-[var(--bg-tertiary)] rounded-lg text-sm hover:bg-[var(--bg-primary)]"
-              >
-                Отмена
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Attachment Modal - Модалка выбора вложений */}
-      {showAttachmentMenu && (
-        <div 
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-          onClick={() => setShowAttachmentMenu(false)}
-        >
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-          
-          {/* Modal */}
-          <div 
-            className="relative w-full sm:w-auto sm:min-w-[360px] max-w-md bg-gradient-to-br from-[#1e293b]/95 to-[#0f172a]/95 backdrop-blur-xl border border-white/10 rounded-t-[25px] sm:rounded-[25px] shadow-2xl overflow-hidden pb-safe min-h-[50vh] sm:min-h-0"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Handle для мобильных */}
-            <div className="flex justify-center pt-3 pb-2 sm:hidden">
-              <div className="w-10 h-1 rounded-full bg-white/20" />
-            </div>
-            
-            {/* Header */}
-            <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-              <h3 className="font-semibold text-sm flex items-center gap-2 text-white/90">
-                <Paperclip className="w-4 h-4 text-cyan-400" />
-                Добавить вложение
-              </h3>
-              <button
-                onClick={() => setShowAttachmentMenu(false)}
-                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"
-              >
-                <X className="w-4 h-4 text-white/60" />
-              </button>
-            </div>
-            
-            {/* Drop Zone - только на десктопе */}
-            <div 
-              className="hidden md:block mx-4 mt-4 p-6 border-2 border-dashed border-white/10 rounded-[20px] hover:border-cyan-400/50 hover:bg-cyan-500/5 transition-all cursor-pointer"
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.currentTarget.classList.add('border-cyan-400', 'bg-cyan-500/10');
-              }}
-              onDragLeave={(e) => {
-                e.currentTarget.classList.remove('border-cyan-400', 'bg-cyan-500/10');
-              }}
-              onDrop={async (e) => {
-                e.preventDefault();
-                e.currentTarget.classList.remove('border-cyan-400', 'bg-cyan-500/10');
-                const files = Array.from(e.dataTransfer.files);
-                if (files.length > 0) {
-                  // Загружаем файлы на сервер
-                  for (const file of files) {
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    
-                    try {
-                      const uploadRes = await fetch('/api/upload', {
-                        method: 'POST',
-                        body: formData
-                      });
-                      
-                      if (uploadRes.ok) {
-                        const uploadData = await uploadRes.json();
-                        setAttachments(prev => [...prev, {
-                          type: file.type.startsWith('image/') ? 'image' : 'file',
-                          name: file.name,
-                          url: uploadData.url
-                        }]);
-                      }
-                    } catch (error) {
-                      console.error('Error uploading file:', error);
-                    }
-                  }
-                  setShowAttachmentMenu(false);
-                }
-              }}
-            >
-              <div className="flex flex-col items-center gap-3 text-center">
-                <div className="w-14 h-14 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center">
-                  <Upload className="w-7 h-7 text-[var(--text-muted)]" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-[var(--text-secondary)]">Перетащите файл сюда</p>
-                  <p className="text-xs text-[var(--text-muted)] mt-1">или нажмите для выбора</p>
-                </div>
-              </div>
-            </div>
-            
-            {/* Options grid */}
-            <div className="p-4 grid grid-cols-3 gap-3">
-              <button
-                onClick={() => {
-                  setShowTaskPicker(true);
-                  setShowAttachmentMenu(false);
-                }}
-                className="flex flex-col items-center gap-2 p-4 rounded-[20px] bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] transition-colors group"
-              >
-                <div className="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <FileText className="w-6 h-6 text-cyan-400" />
-                </div>
-                <span className="text-xs text-[var(--text-secondary)]">Задача</span>
-              </button>
-              
-
-              
-              <button
-                onClick={() => {
-                  setShowEventPicker(true);
-                  setShowAttachmentMenu(false);
-                }}
-                className="flex flex-col items-center gap-2 p-4 rounded-[20px] bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] transition-colors group"
-              >
-                <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Calendar className="w-6 h-6 text-green-400" />
-                </div>
-                <span className="text-xs text-[var(--text-secondary)]">Событие</span>
-              </button>
-              
-              <button
-                onClick={() => {
-                  fileInputRef.current?.click();
-                  setShowAttachmentMenu(false);
-                }}
-                className="flex flex-col items-center gap-2 p-4 rounded-[20px] bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] transition-colors group"
-              >
-                <div className="w-12 h-12 rounded-full bg-pink-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Image className="w-6 h-6 text-pink-400" />
-                </div>
-                <span className="text-xs text-[var(--text-secondary)]">Фото</span>
-              </button>
-              
-              <button
-                onClick={() => {
-                  fileInputRef.current?.click();
-                  setShowAttachmentMenu(false);
-                }}
-                className="flex flex-col items-center gap-2 p-4 rounded-[20px] bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] transition-colors group"
-              >
-                <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <File className="w-6 h-6 text-orange-400" />
-                </div>
-                <span className="text-xs text-[var(--text-secondary)]">Файл</span>
-              </button>
-              
-              <button
-                onClick={() => setShowAttachmentMenu(false)}
-                className="flex flex-col items-center gap-2 p-4 rounded-[20px] bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] transition-colors group"
-              >
-                <div className="w-12 h-12 rounded-full bg-gray-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <X className="w-6 h-6 text-gray-400" />
-                </div>
-                <span className="text-xs text-[var(--text-secondary)]">Отмена</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Attachment Modals - Task Picker, Event Picker, Attachment Menu */}
+      <AttachmentModals
+        showTaskPicker={showTaskPicker}
+        setShowTaskPicker={setShowTaskPicker}
+        showEventPicker={showEventPicker}
+        setShowEventPicker={setShowEventPicker}
+        showAttachmentMenu={showAttachmentMenu}
+        setShowAttachmentMenu={setShowAttachmentMenu}
+        tasks={tasks}
+        events={events}
+        currentUser={currentUser}
+        setAttachments={setAttachments}
+        fileInputRef={fileInputRef as React.RefObject<HTMLInputElement>}
+      />
 
       {/* Forward Message Modal */}
-      {showForwardModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
-              <h3 className="font-semibold flex items-center gap-2">
-                <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-                Переслать {isSelectionMode && selectedMessages.size > 0 ? `${selectedMessages.size} сообщени${selectedMessages.size === 1 ? 'е' : selectedMessages.size < 5 ? 'я' : 'й'}` : 'сообщение'}
-              </h3>
-              <button
-                onClick={() => {
-                  setShowForwardModal(false);
-                  setForwardingMessage(null);
-                  setSelectedChatsForForward([]);
-                }}
-                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-4">
-              {/* Превью первого сообщения (если есть) */}
-              {(() => {
-                const firstMessage = isSelectionMode && selectedMessages.size > 0
-                  ? messages.find(m => selectedMessages.has(m.id))
-                  : forwardingMessage;
-                
-                return firstMessage && (
-                  <div className="mb-4 p-3 bg-[var(--bg-tertiary)] rounded-lg">
-                    <p className="text-xs text-[var(--text-muted)] mb-1">
-                      {isSelectionMode && selectedMessages.size > 1 
-                        ? `Первое из ${selectedMessages.size} сообщений:`
-                        : 'Сообщение:'}
-                    </p>
-                    <p className="text-sm text-[var(--text-primary)] line-clamp-3">{firstMessage.content}</p>
-                  </div>
-                );
-              })()}
-              
-              <p className="text-sm text-[var(--text-secondary)] mb-3">Выберите чаты:</p>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {chats
-                  .filter(chat => {
-                    // Фильтруем уведомления и текущий чат
-                    if (chat.isNotificationsChat) return false;
-                    // Если пересылаем одно сообщение, исключаем текущий чат (используем selectedChat)
-                    if (forwardingMessage && selectedChat) return chat.id !== selectedChat.id;
-                    // Если множественный выбор, исключаем текущий чат (если открыт)
-                    if (isSelectionMode && selectedChat) return chat.id !== selectedChat.id;
-                    return true;
-                  })
-                  .sort((a, b) => {
-                    // Избранное всегда первым
-                    if (a.isFavoritesChat) return -1;
-                    if (b.isFavoritesChat) return 1;
-                    return 0;
-                  })
-                  .map(chat => (
-                    <button
-                      key={chat.id}
-                      onClick={() => {
-                        setSelectedChatsForForward(prev => 
-                          prev.includes(chat.id) 
-                            ? prev.filter(id => id !== chat.id)
-                            : [...prev, chat.id]
-                        );
-                      }}
-                      className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                        selectedChatsForForward.includes(chat.id)
-                          ? 'bg-cyan-500/20 border border-cyan-500/30'
-                          : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)]'
-                      }`}
-                    >
-                      {(() => {
-                        const avatarData = getChatAvatarData(chat);
-                        return (
-                          <Avatar
-                            src={avatarData.avatar}
-                            name={avatarData.name}
-                            type={avatarData.type}
-                            size="lg"
-                          />
-                        );
-                      })()}
-                      <div className="flex-1 text-left min-w-0">
-                        <p className="text-sm font-medium text-[var(--text-primary)] truncate">
-                          {getChatTitle(chat)}
-                        </p>
-                      </div>
-                      {selectedChatsForForward.includes(chat.id) && (
-                        <Check className="w-5 h-5 text-cyan-400 flex-shrink-0" />
-                      )}
-                    </button>
-                  ))}
-              </div>
-            </div>
-            
-            <div className="flex gap-2 p-4 border-t border-[var(--border-color)]">
-              <button
-                onClick={() => {
-                  setShowForwardModal(false);
-                  setForwardingMessage(null);
-                  setSelectedChatsForForward([]);
-                }}
-                className="flex-1 py-2 bg-[var(--bg-tertiary)] rounded-lg text-sm hover:bg-[var(--bg-primary)]"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={forwardMessage}
-                disabled={selectedChatsForForward.length === 0}
-                className="flex-1 py-2 bg-cyan-500 hover:bg-cyan-600 disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-muted)] rounded-lg text-sm text-white disabled:cursor-not-allowed"
-              >
-                Переслать
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ForwardModal
+        isOpen={showForwardModal}
+        onClose={() => {
+          setShowForwardModal(false);
+          setForwardingMessage(null);
+        }}
+        onForward={forwardMessage}
+        message={forwardingMessage}
+        selectedMessages={selectedMessages}
+        isSelectionMode={isSelectionMode}
+        messages={messages}
+        chats={chats}
+        selectedChat={selectedChat}
+        selectedChatsForForward={selectedChatsForForward}
+        setSelectedChatsForForward={setSelectedChatsForForward}
+      />
 
       {/* Read By Modal */}
-      {showReadByModal && readByMessage && selectedChat && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
-              <h3 className="font-semibold">Информация о прочтении</h3>
-              <button
-                onClick={() => {
-                  setShowReadByModal(false);
-                  setReadByMessage(null);
-                }}
-                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-4">
-              <div className="space-y-3 max-h-80 overflow-y-auto">
-                {selectedChat.participantIds
-                  .filter(id => id !== (readByMessage.authorId || 'system'))
-                  .filter(participantId => {
-                    const lastReadTime = selectedChat.readMessagesByUser?.[participantId];
-                    return lastReadTime && new Date(lastReadTime) >= new Date(readByMessage.createdAt);
-                  })
-                  .map(participantId => {
-                    const participant = users.find(u => u.id === participantId);
-                    const lastReadTime = selectedChat.readMessagesByUser?.[participantId];
-                    const hasRead = lastReadTime && new Date(lastReadTime) >= new Date(readByMessage.createdAt);
-                    
-                    return (
-                      <div key={participantId} className="flex items-center gap-3 p-2 rounded-lg bg-[var(--bg-tertiary)]">
-                        <Avatar
-                          src={participant?.avatar}
-                          name={participant?.name || participant?.username || 'Пользователь'}
-                          size="lg"
-                          type="user"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-[var(--text-primary)] truncate">
-                            {participant?.name || participant?.username || 'Пользователь'}
-                          </p>
-                          {hasRead ? (
-                            <p className="text-xs text-cyan-400">
-                              Прочитано {new Date(lastReadTime!).toLocaleString('ru-RU', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </p>
-                          ) : (
-                            <p className="text-xs text-[var(--text-muted)]">Не прочитано</p>
-                          )}
-                        </div>
-                        {hasRead ? (
-                          <Check className="w-5 h-5 text-cyan-400" />
-                        ) : (
-                          <Check className="w-5 h-5 text-[var(--text-muted)]" />
-                        )}
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-            
-            <div className="flex gap-2 p-4 border-t border-[var(--border-color)]">
-              <button
-                onClick={() => {
-                  setShowReadByModal(false);
-                  setReadByMessage(null);
-                }}
-                className="flex-1 py-2 bg-[var(--bg-tertiary)] rounded-lg text-sm hover:bg-[var(--bg-primary)]"
-              >
-                Закрыть
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ReadByModal
+        isOpen={showReadByModal}
+        onClose={() => {
+          setShowReadByModal(false);
+          setReadByMessage(null);
+        }}
+        message={readByMessage}
+        chat={selectedChat}
+        users={users}
+      />
 
       {/* Message Context Menu */}
-      {showMessageContextMenu && contextMenuMessage && (
-        <>
-          <div 
-            className="fixed inset-0 z-40" 
-            onClick={() => setShowMessageContextMenu(false)}
-          />
-          <div 
-            className="fixed z-50 bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl rounded-xl py-1 min-w-[200px]"
-            style={{
-              top: `${contextMenuPosition.top}px`,
-              left: `${contextMenuPosition.left}px`,
-            }}
-          >
-            {/* Ответить */}
-            <button
-              onClick={() => {
-                setReplyToMessage(contextMenuMessage);
-                setShowMessageContextMenu(false);
-                messageInputRef.current?.focus();
-              }}
-              className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
-            >
-              <Reply className="w-4 h-4 text-blue-400" />
-              Ответить
-            </button>
-
-            {/* Переслать */}
-            <button
-              onClick={() => {
-                setForwardingMessage(contextMenuMessage);
-                setShowForwardModal(true);
-                setShowMessageContextMenu(false);
-              }}
-              className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
-            >
-              <svg className="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12h18m0 0l-6-6m6 6l-6 6" />
-              </svg>
-              Переслать
-            </button>
-
-            {/* Копировать текст */}
-            <button
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(contextMenuMessage.content);
-                  setShowMessageContextMenu(false);
-                  alert('Текст скопирован в буфер обмена');
-                } catch (error) {
-                  console.error('Ошибка копирования:', error);
-                  alert('Не удалось скопировать текст');
-                }
-              }}
-              className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
-            >
-              <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-              Копировать текст
-            </button>
-
-            {/* Редактировать - только для своих сообщений */}
-            {contextMenuMessage.authorId === currentUser?.id && (
-              <button
-                onClick={() => {
-                  setEditingMessageId(contextMenuMessage.id);
-                  setSavedMessageText(messageInputRef.current?.value || '');
-                  if (messageInputRef.current) {
-                    messageInputRef.current.value = contextMenuMessage.content;
-                  }
-                  setNewMessage(contextMenuMessage.content);
-                  setShowMessageContextMenu(false);
-                  messageInputRef.current?.focus();
-                }}
-                className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
-              >
-                <Edit3 className="w-4 h-4 text-purple-400" />
-                Редактировать
-              </button>
-            )}
-
-            {/* Превратить в задачу */}
-            <button
-              onClick={async () => {
-                try {
-                  const taskTitle = contextMenuMessage.content.length > 100 
-                    ? contextMenuMessage.content.substring(0, 100) + '...' 
-                    : contextMenuMessage.content;
-                  
-                  const response = await fetch('/api/todos', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      title: taskTitle,
-                      description: contextMenuMessage.content,
-                      status: 'todo',
-                      priority: 'medium',
-                      assignedToId: currentUser?.id,
-                      assignedById: currentUser?.id,
-                    })
-                  });
-
-                  if (response.ok) {
-                    const newTask = await response.json();
-                    setShowMessageContextMenu(false);
-                    // Перенаправляем на страницу задач
-                    router.push(`/todos?task=${newTask.id}`);
-                  } else {
-                    throw new Error('Ошибка создания задачи');
-                  }
-                } catch (error) {
-                  console.error('Ошибка создания задачи:', error);
-                  alert('Не удалось создать задачу');
-                }
-              }}
-              className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
-            >
-              <CheckSquare className="w-4 h-4 text-orange-400" />
-              Превратить в задачу
-            </button>
-
-            {/* Создать событие */}
-            <button
-              onClick={async () => {
-                setCreatingEventFromMessage(contextMenuMessage);
-                setShowMessageContextMenu(false);
-                // Загружаем календари пользователя
-                try {
-                  const username = localStorage.getItem('username');
-                  const res = await fetch(`/api/calendar-lists?userId=${encodeURIComponent(username || '')}`);
-                  if (res.ok) {
-                    const data = await res.json();
-                    setCalendarLists(Array.isArray(data) ? data : data.lists || []);
-                  }
-                } catch (error) {
-                  console.error('Error loading calendars:', error);
-                }
-                setShowEventCalendarSelector(true);
-              }}
-              className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
-            >
-              <CalendarPlus className="w-4 h-4 text-purple-400" />
-              Сделать событием
-            </button>
-          </div>
-        </>
-      )}
+      <MessageContextMenu
+        message={contextMenuMessage}
+        position={contextMenuPosition}
+        currentUser={currentUser}
+        messageInputRef={messageInputRef as React.RefObject<HTMLTextAreaElement>}
+        onClose={() => setShowMessageContextMenu(false)}
+        onReply={(msg) => {
+          setReplyToMessage(msg);
+          messageInputRef.current?.focus();
+        }}
+        onForward={(msg) => {
+          setForwardingMessage(msg);
+          setShowForwardModal(true);
+        }}
+        onEdit={(msgId, content) => {
+          setEditingMessageId(msgId);
+          setSavedMessageText(messageInputRef.current?.value || '');
+          if (messageInputRef.current) {
+            messageInputRef.current.value = content;
+          }
+          setNewMessage(content);
+          messageInputRef.current?.focus();
+        }}
+        onShowEventSelector={(msg) => {
+          setCreatingEventFromMessage(msg);
+          setShowEventCalendarSelector(true);
+        }}
+        onLoadCalendars={async () => {
+          try {
+            const username = localStorage.getItem('username');
+            const res = await fetch(`/api/calendar-lists?userId=${encodeURIComponent(username || '')}`);
+            if (res.ok) {
+              const data = await res.json();
+              setCalendarLists(Array.isArray(data) ? data : data.lists || []);
+            }
+          } catch (error) {
+            console.error('Error loading calendars:', error);
+          }
+        }}
+      />
 
       {/* Image Modal - Telegram-style image viewer with zoom */}
-      {showImageModal && currentImageUrl && (
-        <div 
-          className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center backdrop-blur-sm"
-          onClick={() => {
-            setShowImageModal(false);
-            setImageZoom(1);
-          }}
-        >
-          {/* Header с кнопками - десктоп версия */}
-          <div className="hidden md:flex absolute top-4 left-4 right-4 items-center justify-between z-10">
-            {/* Zoom controls - слева */}
-            <div className="flex gap-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setImageZoom(prev => Math.max(0.5, prev - 0.25));
-                }}
-                className="w-10 h-10 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all"
-                title="Уменьшить"
-              >
-                <span className="text-cyan-400 text-xl font-bold">−</span>
-              </button>
-              <div className="px-3 h-10 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-sm font-medium min-w-[60px]">
-                {Math.round(imageZoom * 100)}%
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setImageZoom(prev => Math.min(3, prev + 0.25));
-                }}
-                className="w-10 h-10 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all"
-                title="Увеличить"
-              >
-                <span className="text-cyan-400 text-xl font-bold">+</span>
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setImageZoom(1);
-                }}
-                className="px-3 h-10 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all text-cyan-400 text-sm"
-                title="Сбросить"
-              >
-                100%
-              </button>
-            </div>
-            
-            {/* Кнопки справа */}
-            <div className="flex gap-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const link = document.createElement('a');
-                  link.href = currentImageUrl;
-                  link.download = 'image.jpg';
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                }}
-                className="w-10 h-10 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all"
-                title="Скачать"
-              >
-                <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-              </button>
-              <button
-                onClick={() => {
-                  setShowImageModal(false);
-                  setImageZoom(1);
-                }}
-                className="w-10 h-10 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all"
-              >
-                <X className="w-6 h-6 text-cyan-400" />
-              </button>
-            </div>
-          </div>
-
-          {/* Мобильная версия - кнопки НАД хедером (z-10 выше) */}
-          <div className="md:hidden flex flex-col gap-2 absolute top-2 right-2 z-10">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                const link = document.createElement('a');
-                link.href = currentImageUrl;
-                link.download = 'image.jpg';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-              }}
-              className="w-12 h-12 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all backdrop-blur-sm"
-              title="Скачать"
-            >
-              <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-            </button>
-            <button
-              onClick={() => {
-                setShowImageModal(false);
-                setImageZoom(1);
-              }}
-              className="w-12 h-12 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all backdrop-blur-sm"
-            >
-              <X className="w-6 h-6 text-cyan-400" />
-            </button>
-          </div>
-
-          {/* Мобильная версия - zoom controls внизу */}
-          <div className="md:hidden absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setImageZoom(prev => Math.max(0.5, prev - 0.25));
-              }}
-              className="w-12 h-12 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all backdrop-blur-sm"
-              title="Уменьшить"
-            >
-              <span className="text-cyan-400 text-xl font-bold">−</span>
-            </button>
-            <div className="px-3 h-12 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-sm font-medium min-w-[60px] backdrop-blur-sm">
-              {Math.round(imageZoom * 100)}%
-            </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setImageZoom(prev => Math.min(3, prev + 0.25));
-              }}
-              className="w-12 h-12 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all backdrop-blur-sm"
-              title="Увеличить"
-            >
-              <span className="text-cyan-400 text-xl font-bold">+</span>
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setImageZoom(1);
-              }}
-              className="px-3 h-12 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all text-cyan-400 text-sm backdrop-blur-sm"
-              title="Сбросить"
-            >
-              100%
-            </button>
-          </div>
-          
-          <div className="overflow-auto max-w-[95vw] max-h-[95vh]" onClick={(e) => e.stopPropagation()}>
-            <img 
-              src={currentImageUrl}
-              alt="Full size"
-              className="object-contain transition-transform duration-200"
-              style={{ 
-                transform: `scale(${imageZoom})`,
-                cursor: imageZoom > 1 ? 'move' : 'default',
-                maxWidth: '90vw',
-                maxHeight: '90vh'
-              }}
-              onWheel={(e) => {
-                e.stopPropagation();
-                if (e.deltaY < 0) {
-                  setImageZoom(prev => Math.min(3, prev + 0.1));
-                } else {
-                  setImageZoom(prev => Math.max(0.5, prev - 0.1));
-                }
-              }}
-            />
-          </div>
-        </div>
-      )}
+      <ImageModal
+        isOpen={showImageModal}
+        imageUrl={currentImageUrl}
+        onClose={() => setShowImageModal(false)}
+        zoom={imageZoom}
+        setZoom={setImageZoom}
+      />
 
       {/* Modal выбора календаря для создания события */}
-      {showEventCalendarSelector && creatingEventFromMessage && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100]">
-          <div className="bg-white dark:bg-gradient-to-b dark:from-[#1a1a1a] dark:to-[#151515] border-0 sm:border border-gray-200 dark:border-white/10 rounded-t-2xl sm:rounded-xl w-full sm:w-96 max-h-[95vh] shadow-2xl flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-white/10">
-              <h3 className="font-medium text-gray-900 dark:text-white">Выберите календарь</h3>
-              <button
-                onClick={() => {
-                  setShowEventCalendarSelector(false);
-                  setCreatingEventFromMessage(null);
-                }}
-                className="w-8 h-8 rounded-full bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 flex items-center justify-center transition-colors"
-              >
-                <X className="w-4 h-4 text-gray-500 dark:text-white/60" />
-              </button>
-            </div>
-            <div className="p-4 flex flex-col gap-2 overflow-y-auto">
-              {/* Календари пользователя */}
-              {calendarLists.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 dark:text-white/50">
-                  <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p className="text-sm">Нет доступных календарей</p>
-                  <p className="text-xs mt-1">Создайте календарь в настройках</p>
-                </div>
-              ) : (
-                calendarLists.map(list => (
-                <button
-                  key={list.id}
-                  onClick={async () => {
-                    try {
-                      const eventTitle = creatingEventFromMessage.content.length > 100
-                        ? creatingEventFromMessage.content.substring(0, 100) + '...'
-                        : creatingEventFromMessage.content;
-                      
-                      const res = await fetch('/api/events', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          title: eventTitle,
-                          description: creatingEventFromMessage.content,
-                          type: 'other',
-                          dateType: 'single',
-                          startDate: new Date().toISOString().split('T')[0],
-                          color: list.color,
-                          createdBy: localStorage.getItem('username') || 'guest'
-                        })
-                      });
-                      
-                      if (res.ok) {
-                        setShowEventCalendarSelector(false);
-                        setCreatingEventFromMessage(null);
-                        router.push('/events');
-                      } else {
-                        throw new Error('Ошибка создания события');
-                      }
-                    } catch (error) {
-                      console.error('Error creating event:', error);
-                      alert('Не удалось создать событие');
-                    }
-                  }}
-                  className="w-full px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl flex items-center gap-3 transition-colors"
-                  style={{ borderLeft: `3px solid ${list.color || '#3B82F6'}` }}
-                >
-                  <Calendar className="w-5 h-5 text-gray-400 dark:text-white/60" />
-                  <span className="text-gray-900 dark:text-white font-medium">{list.name}</span>
-                </button>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <EventCalendarSelector
+        show={showEventCalendarSelector}
+        message={creatingEventFromMessage}
+        calendarLists={calendarLists}
+        onClose={() => {
+          setShowEventCalendarSelector(false);
+          setCreatingEventFromMessage(null);
+        }}
+      />
 
       {/* Chat Context Menu */}
-      {showChatContextMenu && contextMenuChat && (
-        <>
-          <div 
-            className="fixed inset-0 z-40" 
-            onClick={() => setShowChatContextMenu(false)}
-          />
-          <div 
-            className="fixed z-50 bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl rounded-xl py-1 min-w-[200px]"
-            style={{
-              top: `${chatContextMenuPosition.top}px`,
-              left: `${chatContextMenuPosition.left}px`,
-            }}
-          >
-            {/* Закрепить/Открепить */}
-            <button
-              onClick={() => {
-                togglePinChat(contextMenuChat.id);
-                setShowChatContextMenu(false);
-              }}
-              className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
-            >
-              {contextMenuChat.pinnedByUser?.[currentUser?.id || ''] ? (
-                <>
-                  <PinOff className="w-4 h-4 text-cyan-400" />
-                  Открепить
-                </>
-              ) : (
-                <>
-                  <Pin className="w-4 h-4 text-cyan-400" />
-                  Закрепить
-                </>
-              )}
-            </button>
-          </div>
-        </>
-      )}
+      <ChatContextMenu
+        chat={contextMenuChat}
+        position={chatContextMenuPosition}
+        currentUser={currentUser}
+        onClose={() => setShowChatContextMenu(false)}
+        onTogglePin={(chatId) => {
+          togglePinChat(chatId);
+        }}
+      />
     </div>
   );
 }

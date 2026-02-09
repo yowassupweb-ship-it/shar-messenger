@@ -1,19 +1,22 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Редирект на страницу аккаунта
-    router.replace('/account');
+    // Redirect to messages by default
+    router.replace('/messages');
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
-      <div className="text-[var(--text-muted)]">Перенаправление...</div>
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <h1 className="text-2xl font-semibold mb-2">Загрузка...</h1>
+        <p className="text-gray-600">Перенаправление...</p>
+      </div>
     </div>
   );
 }
