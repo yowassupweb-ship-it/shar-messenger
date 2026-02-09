@@ -4,9 +4,34 @@
 // Корректируем selectedColumnIndex если список изменился
 // (перенесено ниже, после объявления хуков)
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useDebounce } from '@/hooks/useDebounce';
+import TaskLeftPanel from '@/components/TaskModal/TaskLeftPanel';
+import TaskCenterPanel from '@/components/TaskModal/TaskCenterPanel';
+import StatusButtonGroup, { StatusOption } from '@/components/ui/StatusButtonGroup';
+import PersonSelector from '@/components/ui/PersonSelector';
+import MultiPersonSelector from '@/components/ui/MultiPersonSelector';
+import DateTimePicker from '@/components/ui/DateTimePicker';
+import TextArea from '@/components/ui/TextArea';
+import FormField from '@/components/ui/FormField';
+import {
+  PeopleManager,
+  CategoryManager,
+  TelegramSettings,
+  MobileFilters,
+  AddList,
+  ListSettings,
+  Editingtodo,
+  Statusdropdown,
+  Executordropdown,
+  NewTodoAssigneeDropdown,
+  Mobileheadermenu,
+  MobileArchiveModal
+} from '@/components/todos-auto';
+import TodoItem from '@/components/todos/TodoItem';
+import AddTodoForm from '@/components/todos/AddTodoForm';
 import { 
   Plus, 
   Check, 
@@ -174,6 +199,7 @@ interface Todo {
   addToCalendar?: boolean;
   calendarEventId?: string;
   calendarListId?: string;
+  chatId?: string;  // ID чата для обсуждения задачи
   createdAt: string;
   updatedAt: string;
   order: number;
@@ -289,15 +315,6 @@ const formatLastSeen = (lastSeen?: string): { text: string; isOnline: boolean; c
   }
 };
 
-// Хелпер для проверки непрочитанных комментариев
-const hasUnreadComments = (todo: Todo, myAccountId: string | null): boolean => {
-  if (!myAccountId || !todo.comments || todo.comments.length === 0) return false;
-  const lastReadId = todo.readCommentsByUser?.[myAccountId];
-  if (!lastReadId) return todo.comments.length > 0;
-  const lastReadIndex = todo.comments.findIndex(c => c.id === lastReadId);
-  return lastReadIndex < todo.comments.length - 1;
-};
-
 // Хелпер для получения имени человека по ID
 const getPersonNameById = (people: Person[], personId: string | undefined, fallbackName?: string): string => {
   if (!personId) return fallbackName || '';
@@ -369,8 +386,6 @@ export default function TodosPage() {
   const [newPersonRole, setNewPersonRole] = useState<'executor' | 'customer' | 'universal'>('executor');
   const [telegramToken, setTelegramToken] = useState('');
   const [telegramEnabled, setTelegramEnabled] = useState(false);
-  const [availableLinks, setAvailableLinks] = useState<LinkItem[]>([]);
-  const [linksSearchQuery, setLinksSearchQuery] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [showCompleted, setShowCompleted] = useState(true);
@@ -383,6 +398,21 @@ export default function TodosPage() {
   const [canSeeAllTasks, setCanSeeAllTasks] = useState<boolean>(false);  // По умолчанию false - видны только свои задачи
   const [isDepartmentHead, setIsDepartmentHead] = useState<boolean>(false);  // Руководитель отдела
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+  
+  // 🚀 PERFORMANCE: Статусы для переиспользуемого компонента
+  const statusOptions: StatusOption[] = [
+    { value: 'pending', label: 'В ожидании', color: 'orange' },
+    { value: 'in-progress', label: 'В работе', color: 'blue' },
+    { value: 'review', label: 'Готово к проверке', color: 'green' },
+    { value: 'cancelled', label: 'Отменена', color: 'red' },
+    { value: 'stuck', label: 'Застряла', color: 'yellow' },
+  ];
+  
+  // 🚀 PERFORMANCE: Мемоизированный обработчик обновления - изолирует ре-рендеры компонентов
+  const handleUpdate = useCallback((updates: Partial<Todo>) => {
+    setEditingTodo(prev => prev ? { ...prev, ...updates } : prev);
+  }, []);
+  
   const [addingToList, setAddingToList] = useState<string | null>(null);
   const [newTodoTitle, setNewTodoTitle] = useState('');
   const [newTodoDescription, setNewTodoDescription] = useState('');
@@ -404,7 +434,31 @@ export default function TodosPage() {
   const [showListSettings, setShowListSettings] = useState<string | null>(null);
   const [showListMenu, setShowListMenu] = useState<string | null>(null);  // Для выпадающего меню "..."
   const [listSettingsDropdown, setListSettingsDropdown] = useState<'executor' | 'customer' | null>(null);
-  const [mobileView, setMobileView] = useState<'board' | 'single'>(typeof window !== 'undefined' && window.innerWidth < 768 ? 'single' : 'board');
+  
+  // 🚀 PERFORMANCE: Кэшируем ширину окна вместо множественных проверок window.innerWidth
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const [mobileView, setMobileView] = useState<'board' | 'single'>(windowWidth < 768 ? 'single' : 'board');
+  
+  // 🚀 PERFORMANCE: Passive resize listener для плавной адаптации
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    let resizeTimeout: NodeJS.Timeout;
+    const handleResize = () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        const newWidth = window.innerWidth;
+        setWindowWidth(newWidth);
+        setMobileView(newWidth < 768 ? 'single' : 'board');
+      }, 200);
+    };
+    
+    window.addEventListener('resize', handleResize, { passive: true });
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(resizeTimeout);
+    };
+  }, []);
   const [selectedColumnIndex, setSelectedColumnIndex] = useState(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('todos_selected_column');
@@ -419,21 +473,12 @@ export default function TodosPage() {
     }
   }, [selectedColumnIndex]);
   
-  // Modal tabs and comments state
-  const [modalTab, setModalTab] = useState<'details' | 'comments'>('details');
-  const [newComment, setNewComment] = useState('');
-  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
-  const [mentionFilter, setMentionFilter] = useState('');
-  const [mentionCursorPos, setMentionCursorPos] = useState(0);
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editingCommentText, setEditingCommentText] = useState('');
-  const [replyingToComment, setReplyingToComment] = useState<Comment | null>(null);
-  const commentInputRef = useRef<HTMLTextAreaElement>(null);
-  const commentsEndRef = useRef<HTMLDivElement>(null);
-  const commentsContainerRef = useRef<HTMLDivElement>(null);
+  // 🚀 PERFORMANCE: title и description живут в refs, НЕ вызывают re-render при вводе
+  // Автосохранение раз в 15 секунд + при закрытии модалки
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const descriptionEditorRef = useRef<HTMLDivElement>(null);
-  const [lastReadCommentId, setLastReadCommentId] = useState<string | null>(null);
-  const [unreadCommentsCount, setUnreadCommentsCount] = useState(0);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSavedTodoRef = useRef<string | null>(null);
   
   // Notifications (Inbox) state
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -497,7 +542,7 @@ export default function TodosPage() {
     const handleMouseMove = (e: MouseEvent) => {
       e.preventDefault();
       const deltaX = e.clientX - resizeStartXRef.current;
-      const containerWidth = typeof window !== 'undefined' ? window.innerWidth : 1000;
+      const containerWidth = windowWidth;
       const deltaPercent = (deltaX / containerWidth) * 100;
       
       const [left, center, right] = resizeStartWidthsRef.current;
@@ -530,7 +575,7 @@ export default function TodosPage() {
       document.body.style.userSelect = '';
       document.body.style.cursor = '';
     };
-  }, [isResizing, columnWidths]);
+  }, [isResizing, windowWidth]); // Убрали columnWidths из зависимостей - используется только ref
   
   // Drag and Drop state for todos
   const [draggedTodo, setDraggedTodo] = useState<Todo | null>(null);
@@ -548,10 +593,7 @@ export default function TodosPage() {
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
   const settingsRef = useRef<HTMLDivElement>(null);
-  
-  // Autosave timer for editingTodo
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const lastSavedTodoRef = useRef<string | null>(null);
+
 
   // Загрузка данных
   const loadData = useCallback(async () => {
@@ -560,18 +602,16 @@ export default function TodosPage() {
       const username = localStorage.getItem('username') || '';
       console.log('[loadData] Loading with userId:', userId);
       
-      const [todosRes, peopleRes, telegramRes, linksRes, calendarListsRes] = await Promise.all([
+      const [todosRes, peopleRes, telegramRes, calendarListsRes] = await Promise.all([
         fetch(`/api/todos${userId ? `?userId=${userId}` : ''}`),
         fetch('/api/todos/people'),
         fetch('/api/todos/telegram'),
-        fetch('/api/links'),
         fetch(`/api/calendar-lists?userId=${encodeURIComponent(username)}`)
       ]);
       
       const todosData = await todosRes.json();
       const peopleData = await peopleRes.json();
       const telegramData = await telegramRes.json();
-      const linksData = await linksRes.json();
       const calendarListsData = await calendarListsRes.json();
       
       console.log('[loadData] Received lists:', todosData.lists?.length || 0);
@@ -582,7 +622,6 @@ export default function TodosPage() {
       setCategories(todosData.categories || []);
       setPeople(peopleData.people || []);
       setTelegramEnabled(telegramData.enabled || false);
-      setAvailableLinks(linksData.links || []);
       setCalendarLists(Array.isArray(calendarListsData) ? calendarListsData : calendarListsData.lists || []);
     } catch (error) {
       console.error('Error loading todos:', error);
@@ -765,11 +804,9 @@ export default function TodosPage() {
             assignedBy: assignedByPerson?.name || authorName || '',
             tags: [],
             createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            comments: []
+            updatedAt: new Date().toISOString()
           };
           setEditingTodo(newTodo);
-          setModalTab('details');
         }
       }, 200);
     }
@@ -889,16 +926,16 @@ export default function TodosPage() {
                 if (shouldUpdateComments) {
                   // Автоскролл к новым комментариям или разделителю
                   if (newCommentsLength > prevCommentsLength) {
-                    setTimeout(() => {
+                    // setTimeout(() => {
                       // Сначала пробуем прокрутить к разделителю непрочитанных
-                      const unreadDivider = document.getElementById('unread-divider');
-                      if (unreadDivider) {
-                        unreadDivider.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      } else {
-                        // Если разделителя нет, прокручиваем к концу
-                        commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-                      }
-                    }, 100);
+                      // const unreadDivider = document.getElementById('unread-divider');
+                      // if (unreadDivider) {
+                      //   unreadDivider.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      // } else {
+                      //   // Если разделителя нет, прокручиваем к концу
+                      //   // commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                      // }
+                    // }, 100);
                   }
                   
                   // Обновляем только комментарии и readCommentsByUser
@@ -933,197 +970,135 @@ export default function TodosPage() {
       }
     };
 
-    // Polling каждые 10 секунд (уменьшено с 3s для производительности)
-    const interval = setInterval(pollTodos, 10000);
+    // 🚀 PERFORMANCE: Polling каждые 30 секунд (вместо 10s для производительности)
+    const interval = setInterval(pollTodos, 30000);
     
     return () => clearInterval(interval);
   }, [myAccountId, soundEnabled, editingTodo?.id]);
 
   // Отслеживание непрочитанных комментариев при открытии модалки
-  useEffect(() => {
-    if (editingTodo?.comments && editingTodo.comments.length > 0) {
-      // При открытии модалки запоминаем последний комментарий как прочитанный
-      const lastComment = editingTodo.comments[editingTodo.comments.length - 1];
-      if (!lastReadCommentId) {
-        setLastReadCommentId(lastComment.id);
-        setUnreadCommentsCount(0);
-      }
-    } else {
-      setLastReadCommentId(null);
-      setUnreadCommentsCount(0);
-    }
-  }, [editingTodo?.id]);
+  // useEffect(() => {
+  //   if (editingTodo?.comments && editingTodo.comments.length > 0) {
+  //     const lastComment = editingTodo.comments[editingTodo.comments.length - 1];
+  //     if (!lastReadCommentId) {
+  //       setLastReadCommentId(lastComment.id);
+  //       setUnreadCommentsCount(0);
+  //     }
+  //   } else {
+  //     setLastReadCommentId(null);
+  //     setUnreadCommentsCount(0);
+  //   }
+  // }, [editingTodo?.id]);
 
   // Обновляем количество непрочитанных при изменении комментариев
-  useEffect(() => {
-    if (editingTodo?.comments && lastReadCommentId) {
-      const lastReadIndex = editingTodo.comments.findIndex(c => c.id === lastReadCommentId);
-      if (lastReadIndex !== -1) {
-        const unreadCount = editingTodo.comments.length - lastReadIndex - 1;
-        // Только комментарии от других пользователей
-        const unreadFromOthers = editingTodo.comments
-          .slice(lastReadIndex + 1)
-          .filter(c => c.authorId !== myAccountId).length;
-        setUnreadCommentsCount(unreadFromOthers);
-      }
-    }
-  }, [editingTodo?.comments, lastReadCommentId, myAccountId]);
+  // useEffect(() => {
+  //   if (editingTodo?.comments && lastReadCommentId) {
+  //     const lastReadIndex = editingTodo.comments.findIndex(c => c.id === lastReadCommentId);
+  //     if (lastReadIndex !== -1) {
+  //       const unreadCount = editingTodo.comments.length - lastReadIndex - 1;
+  //       const unreadFromOthers = editingTodo.comments
+  //         .slice(lastReadIndex + 1)
+  //         .filter(c => c.authorId !== myAccountId).length;
+  //       setUnreadCommentsCount(unreadFromOthers);
+  //     }
+  //   }
+  // }, [editingTodo?.comments, lastReadCommentId, myAccountId]);
 
   // Помечаем комментарии как прочитанные при клике на инпут
   const markLocalCommentsAsRead = useCallback(async () => {
-    if (editingTodo?.comments && editingTodo.comments.length > 0) {
-      const lastComment = editingTodo.comments[editingTodo.comments.length - 1];
-      setLastReadCommentId(lastComment.id);
-      setUnreadCommentsCount(0);
-      
-      // Помечаем уведомления по этой задаче как прочитанные на сервере
-      if (myAccountId && editingTodo.id) {
-        try {
-          // 1. Помечаем уведомления как прочитанные
-          await fetch('/api/notifications', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              markByTodo: true, 
-              todoId: editingTodo.id, 
-              userId: myAccountId 
-            })
-          });
-          
-          // 2. Сохраняем readCommentsByUser на сервере
-          const currentLastRead = editingTodo.readCommentsByUser?.[myAccountId];
-          if (currentLastRead !== lastComment.id) {
-            const updatedReadBy = {
-              ...editingTodo.readCommentsByUser,
-              [myAccountId]: lastComment.id
-            };
-            
-            await fetch('/api/todos', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                id: editingTodo.id,
-                readCommentsByUser: updatedReadBy
-              })
-            });
-            
-            // Обновляем локальный state задач
-            setTodos(prev => prev.map(t => 
-              t.id === editingTodo.id ? { ...t, readCommentsByUser: updatedReadBy } : t
-            ));
-          }
-          
-          // 3. Обновляем локальный state уведомлений
-          setNotifications(prev => prev.map(n => 
-            n.todoId === editingTodo.id ? { ...n, read: true } : n
-          ));
-          
-          // 4. Убираем toast'ы связанные с этой задачей
-          setToasts(prev => prev.filter(t => t.todoId !== editingTodo.id));
-          
-        } catch (error) {
-          console.error('Error marking as read:', error);
-        }
-      }
-    }
-  }, [editingTodo?.comments, editingTodo?.id, editingTodo?.readCommentsByUser, myAccountId]);
+    // Закомментировано - функциональность комментариев удалена
+  }, []);
 
   // Инициализация редактора описания при открытии модалки
   useEffect(() => {
-    if (editingTodo && descriptionEditorRef.current) {
+    if (!editingTodo) return;
+    
+    // 🚀 PERFORMANCE: Синхронизация title ref
+    if (titleInputRef.current) {
+      titleInputRef.current.value = editingTodo.title || '';
+    }
+    
+    // 🚀 PERFORMANCE: Синхронизация description ref
+    if (descriptionEditorRef.current) {
       // Устанавливаем начальный контент только если он отличается
-      if (descriptionEditorRef.current.innerHTML !== (editingTodo.description || '')) {
-        descriptionEditorRef.current.innerHTML = editingTodo.description || '';
+      const newDesc = editingTodo.description || '';
+      if (descriptionEditorRef.current.innerHTML !== newDesc) {
+        descriptionEditorRef.current.innerHTML = newDesc;
       }
     }
-  }, [editingTodo?.id]); // Только при смене задачи, не при каждом изменении
+  }, [editingTodo?.id]); // Только при смене задачи
 
-  // Автосохранение задачи при редактировании
-  useEffect(() => {
-    if (!editingTodo || editingTodo.id.startsWith('temp-')) {
-      // Не сохраняем новые задачи, они сохраняются при создании
-      return;
-    }
+  // 🚀 Функция сохранения задачи (вызывается вручную по кнопке)
+  const saveTodo = async () => {
+    if (!editingTodo || editingTodo.id.startsWith('temp-')) return;
 
-    // Логирование изменения assignedToIds специально
-    if (editingTodo.assignedToIds && editingTodo.assignedToIds.length > 0) {
-      console.log('[AUTOSAVE] 👥 Multiple executors detected:', editingTodo.assignedToIds);
-      console.log('[AUTOSAVE] Executor names:', editingTodo.assignedToNames);
-    }
-
-    // Очищаем предыдущий таймер
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-
-    // Сохраняем ссылку на текущее состояние для сравнения
     const todoToSave = { ...editingTodo };
     
-    // Устанавливаем новый таймер - сохраняем через 1.5 секунды после последнего изменения
-    autoSaveTimerRef.current = setTimeout(async () => {
-      // Проверяем, изменилась ли задача с момента последнего запроса
-      const todoString = JSON.stringify(todoToSave);
-      if (lastSavedTodoRef.current === todoString) {
-        console.log('[AUTOSAVE] ⏭️  Skipping - identical to last save');
-        return; // Ничего не изменилось
+    // Обновляем title и description из refs
+    if (titleInputRef.current) {
+      todoToSave.title = titleInputRef.current.value || '';
+    }
+    if (descriptionEditorRef.current) {
+      todoToSave.description = descriptionEditorRef.current.innerHTML || '';
+    }
+
+    try {
+      const res = await fetch('/api/todos', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(todoToSave)
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        setTodos(prev => prev.map(t => t.id === updated.id ? updated : t));
+        setEditingTodo(prev => prev && prev.id === updated.id ? updated : prev);
+        
+        // Показываем success toast
+        const toast: Toast = {
+          id: `toast-${Date.now()}`,
+          type: 'success',
+          title: 'Успех',
+          message: 'Задача сохранена',
+          todoId: updated.id,
+          createdAt: Date.now()
+        };
+        setToasts(prev => [toast, ...prev]);
+      } else {
+        // Показываем error toast
+        const toast: Toast = {
+          id: `toast-${Date.now()}`,
+          type: 'error',
+          title: 'Ошибка',
+          message: 'Ошибка сохранения задачи',
+          createdAt: Date.now()
+        };
+        setToasts(prev => [toast, ...prev]);
       }
-
-      try {
-        // Обновляем описание из редактора если он открыт
-        if (descriptionEditorRef.current && editingTodo.id) {
-          todoToSave.description = descriptionEditorRef.current.innerHTML || '';
-        }
-
-        console.log('[AUTOSAVE] 🔄 Sending PUT request for task:', todoToSave.id);
-        console.log('[AUTOSAVE] assignedToIds in request:', todoToSave.assignedToIds);
-        console.log('[AUTOSAVE] assignedToNames in request:', todoToSave.assignedToNames);
-
-        const res = await fetch('/api/todos', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(todoToSave)
-        });
-
-        console.log('[AUTOSAVE] Response status:', res.status);
-
-        if (res.ok) {
-          const updated = await res.json();
-          lastSavedTodoRef.current = JSON.stringify(todoToSave);
-          
-          // Обновляем todos в списке с новыми данными с сервера
-          setTodos(prev => prev.map(t => t.id === updated.id ? updated : t));
-          
-          // Обновляем editingTodo если он еще открыт
-          setEditingTodo(prev => prev && prev.id === updated.id ? updated : prev);
-          
-          console.log('[AUTOSAVE] ✅ Task saved successfully:', todoToSave.id);
-        } else {
-          const errorText = await res.text();
-          console.error('[AUTOSAVE] ❌ Failed to save (HTTP ' + res.status + '):', errorText);
-        }
-      } catch (error) {
-        console.error('[AUTOSAVE] ❌ Error saving task:', error);
-      }
-    }, 1500); // 1.5 секунды задержки перед сохранением
-
-    // Cleanup функция для отмены таймера при unmount или при следующем срабатывании
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-        autoSaveTimerRef.current = null;
-      }
-    };
-  }, [editingTodo]); // Запускаем при любом изменении editingTodo
+    } catch (error) {
+      console.error('Error saving task:', error);
+      
+      // Показываем error toast
+      const toast: Toast = {
+        id: `toast-${Date.now()}`,
+        type: 'error',
+        title: 'Ошибка',
+        message: 'Ошибка сохранения задачи',
+        createdAt: Date.now()
+      };
+      setToasts(prev => [toast, ...prev]);
+    }
+  }
 
   // Загрузка и polling уведомлений
   useEffect(() => {
     if (myAccountId) {
       loadNotifications(false); // Первая загрузка без звука
       
-      // Polling каждые 10 секунд для проверки новых уведомлений
+      // 🚀 CRITICAL FIX: Polling каждые 30s instead of 10s
       const interval = setInterval(() => {
         loadNotifications(true); // Последующие загрузки со звуком
-      }, 10000);
+      }, 30000);
       
       return () => clearInterval(interval);
     }
@@ -1289,275 +1264,22 @@ export default function TodosPage() {
 
   // Добавление комментария
   const addComment = useCallback(async (todoId: string, content: string) => {
-    if (!myAccountId || !content.trim()) return;
-    
-    const author = people.find(p => p.id === myAccountId);
-    if (!author) return;
-
-    // Парсим @упоминания (поддержка кириллицы и имени с фамилией)
-    const mentionRegex = /@([a-zA-Zа-яА-ЯёЁ0-9_]+(?:\s+[a-zA-Zа-яА-ЯёЁ0-9_]+)?)/g;
-    const mentions: string[] = [];
-    let match: RegExpExecArray | null;
-    while ((match = mentionRegex.exec(content)) !== null) {
-      const mentionText = match[1].trim();
-      const mentionedPerson = people.find(p => 
-        p.name.toLowerCase() === mentionText.toLowerCase() ||
-        p.name.toLowerCase().startsWith(mentionText.toLowerCase())
-      );
-      if (mentionedPerson) {
-        mentions.push(mentionedPerson.id);
-      }
-    }
-
-    const newCommentObj: Comment = {
-      id: `comment-${Date.now()}`,
-      todoId,
-      authorId: myAccountId,
-      authorName: author.name,
-      content: content.trim(),
-      mentions,
-      createdAt: new Date().toISOString()
-    };
-
-    // Получаем текущую задачу
-    const currentTodo = todos.find(t => t.id === todoId);
-    if (!currentTodo) return;
-
-    // Обновляем комментарии
-    const updatedComments = [...(currentTodo.comments || []), newCommentObj];
-
-    // Сохраняем в базу данных через API
-    try {
-      const res = await fetch('/api/todos', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: todoId,
-          comments: updatedComments
-        })
-      });
-
-      if (res.ok) {
-        // Обновляем локальное состояние
-        setTodos(prev => prev.map(t => {
-          if (t.id === todoId) {
-            return { ...t, comments: updatedComments };
-          }
-          return t;
-        }));
-
-        // Обновляем editingTodo если открыт
-        if (editingTodo?.id === todoId) {
-          setEditingTodo(prev => prev ? { ...prev, comments: updatedComments } : null);
-        }
-
-        setNewComment('');
-        
-        // Скроллим к последнему комментарию
-        setTimeout(() => {
-          commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
-
-        // ========== СОЗДАЕМ ЧАТ И ДУБЛИРУЕМ КОММЕНТАРИЙ ==========
-        try {
-          // Собираем уникальных участников: автор задачи и исполнитель(и)
-          const participantIdsSet = new Set<string>();
-          
-          if (currentTodo.assignedById) participantIdsSet.add(currentTodo.assignedById);
-          if (currentTodo.assignedToId) participantIdsSet.add(currentTodo.assignedToId);
-          
-          // Добавляем всех исполнителей из assignedToIds
-          if (currentTodo.assignedToIds) {
-            currentTodo.assignedToIds.filter(id => id != null).forEach(id => participantIdsSet.add(id));
-          }
-          
-          const participantIds = Array.from(participantIdsSet);
-          
-          // Создаем чат только если есть минимум 2 разных участника
-          if (participantIds.length >= 2) {
-            const chatRes = await fetch('/api/chats', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                participantIds,
-                title: `Задача: ${currentTodo.title}`,
-                isGroup: participantIds.length > 2, // групповой только если 3+ участников
-                creatorId: myAccountId,
-                todoId: todoId
-              })
-            });
-            
-            if (chatRes.ok) {
-              const chat = await chatRes.json();
-              
-              // Отправляем комментарий как сообщение в чат
-              const msgRes = await fetch(`/api/chats/${chat.id}/messages`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  authorId: myAccountId,
-                  content: `💬 Комментарий к задаче:\n${content.trim()}`,
-                  mentions: mentions
-                })
-              });
-              
-              if (!msgRes.ok) {
-                console.error('Failed to send message to chat:', await msgRes.text());
-              }
-            } else {
-              console.error('Failed to create chat for task:', await chatRes.text());
-            }
-          }
-        } catch (chatError) {
-          console.error('Error creating chat/message:', chatError);
-          // Не прерываем выполнение - комментарий уже сохранен
-        }
-        // =========================================================
-
-        // Создаём уведомления для упомянутых и исполнителя
-        const notifyUserIds = new Set<string>();
-        
-        // Добавляем исполнителя (если это не автор комментария)
-        if (currentTodo.assignedToId && currentTodo.assignedToId !== myAccountId) {
-          notifyUserIds.add(currentTodo.assignedToId);
-        }
-        
-        // Добавляем заказчика (если это не автор комментария)
-        if (currentTodo.assignedById && currentTodo.assignedById !== myAccountId) {
-          notifyUserIds.add(currentTodo.assignedById);
-        }
-        
-        // Добавляем упомянутых (если это не автор)
-        mentions.forEach(id => {
-          if (id !== myAccountId) notifyUserIds.add(id);
-        });
-
-        notifyUserIds.forEach(userId => {
-          const notification: Notification = {
-            id: `notif-${Date.now()}-${userId}`,
-            type: mentions.includes(userId) ? 'mention' : 'comment',
-            todoId,
-            todoTitle: currentTodo.title,
-            fromUserId: myAccountId,
-            fromUserName: author.name,
-            toUserId: userId,
-            message: mentions.includes(userId) 
-              ? `${author.name} упомянул вас в комментарии`
-              : `${author.name} оставил комментарий`,
-            read: false,
-            createdAt: new Date().toISOString()
-          };
-          // Сохраняем в API и локальный state
-          saveNotification(notification);
-          setNotifications(prev => [notification, ...prev]);
-          playNotificationSound();
-        });
-
-        // Отправляем уведомления в чат уведомлений
-        const manager = new TaskNotificationManager(myAccountId, author.name);
-        const relatedUsers = getTaskRelatedUsers({
-          authorId: currentTodo.assignedById,
-          assignedById: currentTodo.assignedById,
-          assignedToId: currentTodo.assignedToId
-        });
-        await manager.notifyNewComment(
-          relatedUsers,
-          todoId,
-          currentTodo.title,
-          mentions
-        );
-      }
-    } catch (error) {
-      console.error('Error adding comment:', error);
-    }
-  }, [myAccountId, people, todos, editingTodo, playNotificationSound, saveNotification]);
+    // Закомментировано - функциональность комментариев удалена
+  }, []);
 
   // Редактирование комментария
   const updateComment = useCallback(async (todoId: string, commentId: string, newContent: string) => {
-    if (!newContent.trim()) return;
-    
-    // Получаем текущую задачу
-    const currentTodo = todos.find(t => t.id === todoId);
-    if (!currentTodo || !currentTodo.comments) return;
-
-    // Обновляем комментарии
-    const updatedComments = currentTodo.comments.map(c => 
-      c.id === commentId ? { ...c, content: newContent.trim() } : c
-    );
-
-    // Сохраняем в базу данных через API
-    try {
-      const res = await fetch('/api/todos', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: todoId,
-          comments: updatedComments
-        })
-      });
-
-      if (res.ok) {
-        setTodos(prev => prev.map(t => {
-          if (t.id === todoId) {
-            return { ...t, comments: updatedComments };
-          }
-          return t;
-        }));
-
-        if (editingTodo?.id === todoId) {
-          setEditingTodo(prev => prev ? { ...prev, comments: updatedComments } : null);
-        }
-
-        setEditingCommentId(null);
-        setEditingCommentText('');
-      }
-    } catch (error) {
-      console.error('Error updating comment:', error);
-    }
-  }, [todos, editingTodo]);
+    // Закомментировано - функциональность комментариев удалена
+  }, []);
 
   // Удаление комментария
   const deleteComment = useCallback(async (todoId: string, commentId: string) => {
-    // Получаем текущую задачу
-    const currentTodo = todos.find(t => t.id === todoId);
-    if (!currentTodo || !currentTodo.comments) return;
-
-    // Удаляем комментарий
-    const updatedComments = currentTodo.comments.filter(c => c.id !== commentId);
-
-    // Сохраняем в базу данных через API
-    try {
-      const res = await fetch('/api/todos', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: todoId,
-          comments: updatedComments
-        })
-      });
-
-      if (res.ok) {
-        setTodos(prev => prev.map(t => {
-          if (t.id === todoId) {
-            return { ...t, comments: updatedComments };
-          }
-          return t;
-        }));
-
-        if (editingTodo?.id === todoId) {
-          setEditingTodo(prev => prev ? { ...prev, comments: updatedComments } : null);
-        }
-      }
-    } catch (error) {
-      console.error('Error deleting comment:', error);
-    }
-  }, [todos, editingTodo]);
+    // Закомментировано - функциональность комментариев удалена
+  }, []);
 
   // Ответ на комментарий
   const startReply = useCallback((comment: Comment) => {
-    setReplyingToComment(comment);
-    setNewComment(`@${comment.authorName} `);
-    commentInputRef.current?.focus();
+    // Закомментировано - функциональность комментариев удалена
   }, []);
 
   // Создание менеджера уведомлений
@@ -1691,9 +1413,15 @@ export default function TodosPage() {
     }
   }, [myAccountId]);
 
-  // Получить уведомления для текущего пользователя
-  const myNotifications = notifications.filter(n => n.toUserId === myAccountId);
-  const unreadCount = myNotifications.filter(n => !n.read).length;
+  // 🚀 CRITICAL FIX: Мемоизируем уведомления (выполнялось при каждом render!)
+  const myNotifications = useMemo(
+    () => notifications.filter(n => n.toUserId === myAccountId), 
+    [notifications, myAccountId]
+  );
+  const unreadCount = useMemo(
+    () => myNotifications.filter(n => !n.read).length,
+    [myNotifications]
+  );
 
   // Открытие задачи по параметру URL ?task=ID
   useEffect(() => {
@@ -1759,7 +1487,7 @@ export default function TodosPage() {
   }, [myAccountId]);
 
   // Обновление URL при открытии/закрытии задачи
-  const openTodoModal = (todo: Todo) => {
+  const openTodoModal = useCallback((todo: Todo) => {
     // Автозаполнение "От кого" если не указано и myAccount - заказчик
     const myAccount = myAccountId ? people.find(p => p.id === myAccountId) : null;
     let updatedTodo = todo;
@@ -1779,7 +1507,7 @@ export default function TodosPage() {
     
     // Отмечаем комментарии как прочитанные
     markCommentsAsRead(todo);
-  };
+  }, [myAccountId, people, router, markCommentsAsRead]);
 
   // Открытие задачи с загрузкой актуальных данных (для уведомлений)
   const openTodoModalWithFreshData = async (todoId: string) => {
@@ -1827,7 +1555,27 @@ export default function TodosPage() {
     }
   };
 
-  const closeTodoModal = () => {
+  const closeTodoModal = async () => {
+    // 🚀 PERFORMANCE: Сохраняем title и description из refs перед закрытием
+    if (editingTodo) {
+      const title = titleInputRef.current?.value || editingTodo.title;
+      const description = descriptionEditorRef.current?.innerHTML || editingTodo.description;
+      
+      try {
+        await fetch('/api/todos', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...editingTodo,
+            title,
+            description
+          })
+        });
+      } catch (error) {
+        console.error('Error saving title/description on close:', error);
+      }
+    }
+    
     isClosingModalRef.current = true;
     setEditingTodo(null);
     router.push(returnUrl, { scroll: false });
@@ -1929,7 +1677,7 @@ export default function TodosPage() {
   };
 
   // Добавление задачи
-  const addTodo = async (listId: string) => {
+  const addTodo = useCallback(async (listId: string) => {
     if (!newTodoTitle.trim()) return;
     
     // Получаем данные myAccount для автозаполнения
@@ -1975,10 +1723,10 @@ export default function TodosPage() {
     } catch (error) {
       console.error('Error adding todo:', error);
     }
-  };
+  }, [newTodoTitle, newTodoDescription, newTodoAssigneeId, myAccountId, people, createTaskNotification]);
 
   // Переключение статуса задачи
-  const toggleTodo = async (todo: Todo) => {
+  const toggleTodo = useCallback(async (todo: Todo) => {
     try {
       const res = await fetch('/api/todos', {
         method: 'PUT',
@@ -1997,7 +1745,7 @@ export default function TodosPage() {
     } catch (error) {
       console.error('Error toggling todo:', error);
     }
-  };
+  }, []);
 
   // Обновление задачи
   const updateTodo = async (todo: Todo) => {
@@ -2131,7 +1879,7 @@ export default function TodosPage() {
   };
 
   // Перемещение задачи в другой список
-  const moveTodo = async (todoId: string, newListId: string) => {
+  const moveTodo = useCallback(async (todoId: string, newListId: string) => {
     const todo = todos.find(t => t.id === todoId);
     if (!todo || todo.listId === newListId) return;
     
@@ -2153,10 +1901,10 @@ export default function TodosPage() {
     } catch (error) {
       console.error('Error moving todo:', error);
     }
-  };
+  }, [todos]);
 
   // Удаление задачи
-  const deleteTodo = async (id: string) => {
+  const deleteTodo = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/todos?id=${id}`, { method: 'DELETE' });
       
@@ -2166,7 +1914,7 @@ export default function TodosPage() {
     } catch (error) {
       console.error('Error deleting todo:', error);
     }
-  };
+  }, []);
 
   // Добавление списка
   const addList = async () => {
@@ -2213,10 +1961,9 @@ export default function TodosPage() {
         await loadData();
         
         // Переключаемся на новый список на мобильных
-        if (typeof window !== 'undefined' && window.innerWidth < 768) {
+        if (windowWidth < 768) {
           // Новый список будет последним в отфильтрованном списке
-          const filteredLists = lists.filter(l => !l.archived).sort((a, b) => a.order - b.order);
-          const newIndex = filteredLists.length; // Так как новый список ещё не в lists, он будет добавлен после loadData
+          const newIndex = nonArchivedLists.length; // Так как новый список ещё не в lists, он будет добавлен после loadData
           setSelectedColumnIndex(newIndex);
         }
         
@@ -2432,7 +2179,7 @@ export default function TodosPage() {
   };
 
   // Архивирование/разархивирование задачи
-  const toggleArchiveTodo = async (todoId: string, archive: boolean) => {
+  const toggleArchiveTodo = useCallback(async (todoId: string, archive: boolean) => {
     try {
       const res = await fetch('/api/todos', {
         method: 'PUT',
@@ -2450,10 +2197,10 @@ export default function TodosPage() {
     } catch (error) {
       console.error('Error archiving todo:', error);
     }
-  };
+  }, []);
 
   // Обновление порядка списков
-  const updateListsOrder = async (reorderedLists: TodoList[]) => {
+  const updateListsOrder = useCallback(async (reorderedLists: TodoList[]) => {
     try {
       // Обновляем локально сразу
       setLists(reorderedLists);
@@ -2474,7 +2221,7 @@ export default function TodosPage() {
       console.error('Error updating lists order:', error);
       loadData(); // Перезагружаем при ошибке
     }
-  };
+  }, [loadData]);
 
   // Обновление настроек Telegram
   const updateTelegramSettings = async () => {
@@ -2498,7 +2245,7 @@ export default function TodosPage() {
   };
 
   // Drag and Drop handlers for todos
-  const handleDragStart = (e: React.DragEvent, todo: Todo) => {
+  const handleDragStart = useCallback((e: React.DragEvent, todo: Todo) => {
     setDraggedTodo(todo);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', todo.id);
@@ -2507,9 +2254,9 @@ export default function TodosPage() {
     setTimeout(() => {
       (e.target as HTMLElement).style.opacity = '0.5';
     }, 0);
-  };
+  }, []);
 
-  const handleDragEnd = (e: React.DragEvent) => {
+  const handleDragEnd = useCallback((e: React.DragEvent) => {
     (e.target as HTMLElement).style.opacity = '1';
     setDraggedTodo(null);
     setDragOverListId(null);
@@ -2523,17 +2270,17 @@ export default function TodosPage() {
       boardRef.current.style.cursor = 'grab';
       boardRef.current.style.userSelect = 'auto';
     }
-  };
+  }, []);
 
-  const handleDragEnter = (e: React.DragEvent, listId: string) => {
+  const handleDragEnter = useCallback((e: React.DragEvent, listId: string) => {
     e.preventDefault();
     if (draggedTodo) {
       dragCounter.current++;
       setDragOverListId(listId);
     }
-  };
+  }, [draggedTodo]);
 
-  const handleDragLeave = (e: React.DragEvent) => {
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     if (draggedTodo) {
       dragCounter.current--;
@@ -2541,24 +2288,24 @@ export default function TodosPage() {
         setDragOverListId(null);
       }
     }
-  };
+  }, [draggedTodo]);
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-  };
+  }, []);
 
   // Обработчик перетаскивания над задачей (для вертикального изменения порядка)
-  const handleTodoDragOver = (e: React.DragEvent, todoId: string) => {
+  const handleTodoDragOver = useCallback((e: React.DragEvent, todoId: string) => {
     e.preventDefault();
     e.stopPropagation();
     if (draggedTodo && draggedTodo.id !== todoId) {
       setDragOverTodoId(todoId);
     }
-  };
+  }, [draggedTodo]);
 
   // Обработчик drop на задачу (для вертикального изменения порядка)
-  const handleTodoDrop = async (e: React.DragEvent, targetTodo: Todo) => {
+  const handleTodoDrop = useCallback(async (e: React.DragEvent, targetTodo: Todo) => {
     e.preventDefault();
     e.stopPropagation();
     
@@ -2653,9 +2400,9 @@ export default function TodosPage() {
     setDraggedTodo(null);
     setDragOverTodoId(null);
     setDragOverListId(null);
-  };
+  }, [draggedTodo, todos]);
 
-  const handleDrop = (e: React.DragEvent, listId: string) => {
+  const handleDrop = useCallback((e: React.DragEvent, listId: string) => {
     e.preventDefault();
     dragCounter.current = 0;
     setDragOverListId(null);
@@ -2665,10 +2412,10 @@ export default function TodosPage() {
       moveTodo(draggedTodo.id, listId);
     }
     setDraggedTodo(null);
-  };
+  }, [draggedTodo, moveTodo]);
 
   // Drag and Drop handlers for lists
-  const handleListDragStart = (e: React.DragEvent, list: TodoList) => {
+  const handleListDragStart = useCallback((e: React.DragEvent, list: TodoList) => {
     e.stopPropagation();
     setDraggedList(list);
     e.dataTransfer.effectAllowed = 'move';
@@ -2677,33 +2424,33 @@ export default function TodosPage() {
     setTimeout(() => {
       (e.target as HTMLElement).style.opacity = '0.5';
     }, 0);
-  };
+  }, []);
 
-  const handleListDragEnd = (e: React.DragEvent) => {
+  const handleListDragEnd = useCallback((e: React.DragEvent) => {
     (e.target as HTMLElement).style.opacity = '1';
     setDraggedList(null);
     setDragOverListOrder(null);
-  };
+  }, []);
 
-  const handleListDragOver = (e: React.DragEvent, targetList: TodoList) => {
+  const handleListDragOver = useCallback((e: React.DragEvent, targetList: TodoList) => {
     e.preventDefault();
     e.stopPropagation();
     if (draggedList && draggedList.id !== targetList.id) {
       setDragOverListOrder(targetList.order);
     }
-  };
+  }, [draggedList]);
 
-  const handleListDrop = (e: React.DragEvent, targetList: TodoList) => {
+  const handleListDrop = useCallback((e: React.DragEvent, targetList: TodoList) => {
     e.preventDefault();
     e.stopPropagation();
     
     if (draggedList && draggedList.id !== targetList.id) {
-      const activeLists = lists.filter(l => !l.archived).sort((a, b) => a.order - b.order);
-      const draggedIndex = activeLists.findIndex(l => l.id === draggedList.id);
-      const targetIndex = activeLists.findIndex(l => l.id === targetList.id);
+      const currentNonArchivedLists = lists.filter(l => !l.archived).sort((a, b) => a.order - b.order);
+      const draggedIndex = currentNonArchivedLists.findIndex(l => l.id === draggedList.id);
+      const targetIndex = currentNonArchivedLists.findIndex(l => l.id === targetList.id);
       
       if (draggedIndex !== -1 && targetIndex !== -1) {
-        const reordered = [...activeLists];
+        const reordered = [...currentNonArchivedLists];
         const [removed] = reordered.splice(draggedIndex, 1);
         reordered.splice(targetIndex, 0, removed);
         
@@ -2715,12 +2462,12 @@ export default function TodosPage() {
     
     setDraggedList(null);
     setDragOverListOrder(null);
-  };
+  }, [draggedList, lists, updateListsOrder]);
 
   // Drag to scroll handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     // Только для desktop
-    if (typeof window !== 'undefined' && window.innerWidth < 768) return;
+    if (windowWidth < 768) return;
     // Не начинаем scroll если идёт перетаскивание задачи или списка
     if (!boardRef.current || draggedTodo || draggedList) return;
     // Не начинаем scroll если клик был на интерактивном элементе
@@ -2760,6 +2507,47 @@ export default function TodosPage() {
     }
   };
 
+  // 🚀 PERFORMANCE OPTIMIZATION: Мемоизация фильтрованных и отсортированных задач
+  const filteredAndSortedTodos = useMemo(() => {
+    return lists.map(list => {
+      if (list.archived && !showArchive) return { listId: list.id, todos: [] };
+      
+      const listTodos = todos.filter(t => {
+        if (t.listId !== list.id) return false;
+        if (t.archived && !showArchive) return false;
+        if (!showCompleted && t.completed) return false;
+        
+        // Поиск
+        if (searchQuery) {
+          const query = searchQuery.toLowerCase();
+          const matchesSearch = t.title.toLowerCase().includes(query) || 
+                               t.description?.toLowerCase().includes(query);
+          if (!matchesSearch) return false;
+        }
+        
+        // Фильтр по статусу
+        if (filterStatus !== 'all' && t.status !== filterStatus) return false;
+        
+        // Фильтр по исполнителю
+        if (filterExecutor !== null) {
+          const matchesFilter = t.assignedToId === filterExecutor || 
+                               t.assignedToIds?.includes(filterExecutor);
+          if (!matchesFilter) return false;
+        }
+        
+        return true;
+      }).sort((a, b) => {
+        // Сначала незавершённые
+        if (a.completed !== b.completed) return a.completed ? 1 : -1;
+        // Потом по приоритету
+        const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+        return (priorityOrder[a.priority] || 2) - (priorityOrder[b.priority] || 2);
+      });
+      
+      return { listId: list.id, todos: listTodos };
+    });
+  }, [todos, lists, searchQuery, filterStatus, filterExecutor, showCompleted, showArchive]);
+
   // Фильтрация задач по поиску, статусу, исполнителю и правам доступа
   const filterTodos = (todoList: Todo[], listId?: string) => {
     return todoList.filter(todo => {
@@ -2785,22 +2573,38 @@ export default function TodosPage() {
     });
   };
 
-  // Получение задач для списка (исключая архивные)
-  const getTodosForList = (listId: string, includeArchived: boolean = false) => {
+  // Получение задач для списка (исключая архивные) - ИСПОЛЬЗУЕТ МЕМОИЗИРОВАННЫЕ ДАННЫЕ
+  const getTodosForList = useCallback((listId: string, includeArchived: boolean = false) => {
+    const cached = filteredAndSortedTodos.find(f => f.listId === listId);
+    if (cached) return cached.todos;
+    
+    // Fallback (не должно использоваться при нормальной работе)
     const listTodos = todos.filter(t => t.listId === listId && (includeArchived || !t.archived));
-    return filterTodos(listTodos, listId).sort((a, b) => {
-      // Сначала незавершённые
-      if (a.completed !== b.completed) return a.completed ? 1 : -1;
-      // Потом по приоритету
-      const priorityOrder = { high: 0, medium: 1, low: 2 };
-      return priorityOrder[a.priority] - priorityOrder[b.priority];
-    });
-  };
+    return filterTodos(listTodos, listId);
+  }, [filteredAndSortedTodos, todos]);
 
   // Получение архивных задач
   const getArchivedTodos = () => {
     return todos.filter(t => t.archived);
   };
+
+  // 🚀 CRITICAL FIX: Мемоизируем неархивные списки (вызывалось 8+ раз без кэша!)
+  const nonArchivedLists = useMemo(
+    () => lists.filter(l => !l.archived).sort((a, b) => a.order - b.order),
+    [lists]
+  );
+
+  // 🚀 CRITICAL FIX: Мемоизируем счетчики задач по спискам (было 2000+ операций!)
+  const listCounts = useMemo(() => {
+    return lists.reduce((acc, list) => {
+      const listTodos = getTodosForList(list.id, showArchive);
+      acc[list.id] = {
+        completedCount: listTodos.filter(t => t.completed).length,
+        totalCount: listTodos.length
+      };
+      return acc;
+    }, {} as Record<string, { completedCount: number; totalCount: number }>);
+  }, [lists, getTodosForList, showArchive]);
 
   if (isLoading) {
     return (
@@ -2819,7 +2623,6 @@ export default function TodosPage() {
           {/* Левая стрелка */}
           <button
             onClick={() => {
-              const nonArchivedLists = lists.filter(l => !l.archived).sort((a, b) => a.order - b.order);
               if (selectedColumnIndex > 0) {
                 setSelectedColumnIndex(selectedColumnIndex - 1);
               }
@@ -2856,49 +2659,25 @@ export default function TodosPage() {
             >
               <MoreVertical className="w-4 h-4" />
             </button>
-            {mobileHeaderMenuOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setMobileHeaderMenuOpen(false)} />
-                <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden">
-                  <div className="py-1">
-                    <button
-                      onClick={() => { setShowMobileFiltersModal(true); setMobileHeaderMenuOpen(false); }}
-                      className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
-                    >
-                      <Filter className="w-4 h-4" />
-                      Фильтры
-                    </button>
-                    <button
-                      onClick={() => { setShowMobileArchiveModal(true); setMobileHeaderMenuOpen(false); }}
-                      className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
-                    >
-                      <Archive className="w-4 h-4" />
-                      Архив
-                    </button>
-                    <button
-                      onClick={() => { setShowAddList(true); setMobileHeaderMenuOpen(false); }}
-                      className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors text-green-400"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Добавить список
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
+            <Mobileheadermenu
+              isOpen={mobileHeaderMenuOpen}
+              onClose={() => setMobileHeaderMenuOpen(false)}
+              setShowMobileFiltersModal={setShowMobileFiltersModal}
+              setShowMobileArchiveModal={setShowMobileArchiveModal}
+              setShowAddList={setShowAddList}
+            />
           </div>
 
           {/* Правая стрелка */}
           <button
             onClick={() => {
-              const nonArchivedLists = lists.filter(l => !l.archived).sort((a, b) => a.order - b.order);
               if (selectedColumnIndex < nonArchivedLists.length - 1) {
                 setSelectedColumnIndex(selectedColumnIndex + 1);
               }
             }}
-            disabled={selectedColumnIndex >= lists.filter(l => !l.archived).length - 1}
+            disabled={selectedColumnIndex >= nonArchivedLists.length - 1}
             className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-              selectedColumnIndex >= lists.filter(l => !l.archived).length - 1
+              selectedColumnIndex >= nonArchivedLists.length - 1
                 ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed bg-gray-200/10 dark:bg-white/5 border border-white/10'
                 : 'text-[var(--text-primary)] bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] active:scale-95 backdrop-blur-xl'
             }`}
@@ -2933,26 +2712,12 @@ export default function TodosPage() {
               <span className="truncate max-w-[120px]">{filterStatus === 'all' ? 'Все' : filterStatus === 'todo' ? 'К выполнению' : filterStatus === 'pending' ? 'В ожидании' : filterStatus === 'in-progress' ? 'В работе' : filterStatus === 'review' ? 'Готово к проверке' : 'Застряла'}</span>
               <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
             </button>
-            {statusDropdownOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setStatusDropdownOpen(false)} />
-                <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden">
-                  <div className="py-1">
-                    {[{ value: 'all', label: 'Все статусы' }, { value: 'todo', label: 'К выполнению' }, { value: 'pending', label: 'В ожидании' }, { value: 'in-progress', label: 'В работе' }, { value: 'review', label: 'Готово к проверке' }, { value: 'stuck', label: 'Застряла' }].map(status => (
-                      <button
-                        key={status.value}
-                        onClick={() => { setFilterStatus(status.value as any); setStatusDropdownOpen(false); }}
-                        className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-white/5 transition-colors ${
-                          filterStatus === status.value ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : ''
-                        }`}
-                      >
-                        {status.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
+            <Statusdropdown
+              isOpen={statusDropdownOpen}
+              onClose={() => setStatusDropdownOpen(false)}
+              filterStatus={filterStatus}
+              setFilterStatus={setFilterStatus}
+            />
           </div>
 
           {/* Executor Filter */}
@@ -2965,39 +2730,13 @@ export default function TodosPage() {
               <span className="truncate max-w-[100px]">{filterExecutor ? people.find(p => p.id === filterExecutor)?.name || 'Все' : 'Все'}</span>
               <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
             </button>
-            {executorDropdownOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setExecutorDropdownOpen(false)} />
-                <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden max-h-64 overflow-y-auto">
-                  <div className="py-1">
-                    <button
-                      onClick={() => { setFilterExecutor(null); setExecutorDropdownOpen(false); }}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-white/5 transition-colors ${
-                        filterExecutor === null ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : ''
-                      }`}
-                    >
-                      Все исполнители
-                    </button>
-                    {people.length === 0 && (
-                      <div className="px-4 py-2 text-sm text-[var(--text-muted)] italic">
-                        Нет исполнителей
-                      </div>
-                    )}
-                    {people.map(person => (
-                      <button
-                        key={person.id}
-                        onClick={() => { setFilterExecutor(person.id); setExecutorDropdownOpen(false); }}
-                        className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-white/5 transition-colors ${
-                          filterExecutor === person.id ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : ''
-                        }`}
-                      >
-                        {person.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
+            <Executordropdown
+              isOpen={executorDropdownOpen}
+              onClose={() => setExecutorDropdownOpen(false)}
+              people={people}
+              filterExecutor={filterExecutor}
+              setFilterExecutor={setFilterExecutor}
+            />
           </div>
 
           {/* Archive Toggle */}
@@ -3020,13 +2759,13 @@ export default function TodosPage() {
         <div 
           ref={boardRef}
           className="px-0 sm:px-4 py-2 sm:py-4 flex flex-col md:flex-row gap-3 sm:gap-4 md:overflow-x-auto scrollbar-hide"
-          style={{ cursor: typeof window !== 'undefined' && window.innerWidth >= 768 ? 'grab' : 'default' }}
+          style={{ cursor: windowWidth >= 768 ? 'grab' : 'default' }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseLeave}
         >
-          {lists.filter(l => !l.archived).sort((a, b) => a.order - b.order)
+          {nonArchivedLists
             // При поиске показываем только списки с результатами
             // Показываем столбцы: свои, с полным доступом (allowedUsers/allowedDepartments), или где есть назначенные задачи
             .filter(list => {
@@ -3051,8 +2790,7 @@ export default function TodosPage() {
             })
             .map((list, index) => {
             const listTodos = getTodosForList(list.id, showArchive);
-            const completedCount = todos.filter(t => t.listId === list.id && t.completed).length;
-            const totalCount = todos.filter(t => t.listId === list.id).length;
+            const { completedCount, totalCount } = listCounts[list.id] || { completedCount: 0, totalCount: 0 };
             const isDropTarget = dragOverListId === list.id && draggedTodo?.listId !== list.id;
             const isListDropTarget = dragOverListOrder === list.order && draggedList?.id !== list.id;
             
@@ -3083,7 +2821,7 @@ export default function TodosPage() {
               >
                 {/* List Header */}
                 <div 
-                  draggable={typeof window !== 'undefined' && window.innerWidth >= 768}
+                  draggable={windowWidth >= 768}
                   onDragStart={(e) => handleListDragStart(e, list)}
                   onDragEnd={handleListDragEnd}
                   className="bg-[var(--bg-secondary)] border-x border-t border-[var(--border-color)] rounded-t-xl p-2 sm:p-2.5 flex-shrink-0 md:cursor-grab md:active:cursor-grabbing"
@@ -3217,261 +2955,44 @@ export default function TodosPage() {
                 >
                   {/* Add Task Form */}
                   {addingToList === list.id && (
-                    <div className="bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg p-3">
-                      <input
-                        type="text"
-                        placeholder="Название задачи..."
-                        value={newTodoTitle}
-                        onChange={(e) => setNewTodoTitle(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') addTodo(list.id);
-                          if (e.key === 'Escape') { setAddingToList(null); setNewTodoTitle(''); setNewTodoDescription(''); setNewTodoAssigneeId(null); }
-                        }}
-                        className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg mb-2 focus:outline-none focus:border-white/30"
-                        autoFocus
-                      />
-                      <textarea
-                        placeholder="Описание (необязательно)..."
-                        value={newTodoDescription}
-                        onChange={(e) => setNewTodoDescription(e.target.value)}
-                        rows={2}
-                        className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-[20px] mb-2 focus:outline-none focus:border-white/30 resize-none text-sm"
-                      />
-                      {/* Выбор исполнителя */}
-                      <div className="relative mb-2">
-                        <button
-                          onClick={() => setShowNewTodoAssigneeDropdown(!showNewTodoAssigneeDropdown)}
-                          className="w-full px-2 py-1.5 md:px-3 md:py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-left text-xs md:text-sm flex items-center justify-between hover:border-[var(--border-light)] transition-colors"
-                        >
-                          <span className="flex items-center gap-2">
-                            <UserCheck className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-                            {newTodoAssigneeId 
-                              ? people.find(p => p.id === newTodoAssigneeId)?.name || 'Исполнитель'
-                              : 'Выбрать исполнителя'}
-                          </span>
-                          <ChevronDown className={`w-3.5 h-3.5 text-[var(--text-muted)] transition-transform ${showNewTodoAssigneeDropdown ? 'rotate-180' : ''}`} />
-                        </button>
-                        {showNewTodoAssigneeDropdown && (
-                          <div className="absolute left-0 right-0 top-full mt-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl z-50 py-1 max-h-48 overflow-y-auto">
-                            <button
-                              onClick={() => { setNewTodoAssigneeId(null); setShowNewTodoAssigneeDropdown(false); }}
-                              className={`w-full px-2 py-1.5 md:px-3 md:py-2 text-left text-[10px] md:text-xs flex items-center gap-1.5 md:gap-2 hover:bg-[var(--bg-glass)] transition-colors ${
-                                !newTodoAssigneeId ? 'text-[var(--text-primary)] bg-[var(--bg-glass)]' : 'text-[var(--text-secondary)]'
-                              }`}
-                            >
-                              <Users className="w-3.5 h-3.5" />
-                              Без исполнителя
-                            </button>
-                            {people.filter(p => p.role === 'executor' || p.role === 'universal').map(person => (
-                              <button
-                                key={person.id}
-                                onClick={() => { setNewTodoAssigneeId(person.id); setShowNewTodoAssigneeDropdown(false); }}
-                                className={`w-full px-2 py-1.5 md:px-3 md:py-2 text-left text-[10px] md:text-xs flex items-center gap-1.5 md:gap-2 hover:bg-[var(--bg-glass)] transition-colors ${
-                                  newTodoAssigneeId === person.id ? 'text-purple-400 bg-purple-500/10' : 'text-[var(--text-secondary)]'
-                                }`}
-                              >
-                                <UserCheck className="w-3.5 h-3.5" />
-                                {person.name}
-                                {person.id === myAccountId && (
-                                  <span className="ml-auto text-[10px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded">Я</span>
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => addTodo(list.id)}
-                          className="flex-1 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-all"
-                        >
-                          Добавить
-                        </button>
-                        <button
-                          onClick={() => { setAddingToList(null); setNewTodoTitle(''); setNewTodoDescription(''); setNewTodoAssigneeId(null); }}
-                          className="px-3 py-1.5 bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] rounded-lg text-sm transition-all"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
+                    <AddTodoForm
+                      listId={list.id}
+                      newTodoTitle={newTodoTitle}
+                      newTodoDescription={newTodoDescription}
+                      newTodoAssigneeId={newTodoAssigneeId}
+                      showNewTodoAssigneeDropdown={showNewTodoAssigneeDropdown}
+                      people={people}
+                      myAccountId={myAccountId || ''}
+                      setNewTodoTitle={setNewTodoTitle}
+                      setNewTodoDescription={setNewTodoDescription}
+                      setNewTodoAssigneeId={setNewTodoAssigneeId}
+                      setShowNewTodoAssigneeDropdown={setShowNewTodoAssigneeDropdown}
+                      onAdd={addTodo}
+                      onCancel={() => { setAddingToList(null); setNewTodoTitle(''); setNewTodoDescription(''); setNewTodoAssigneeId(null); }}
+                    />
                   )}
 
                   {/* Tasks */}
                   {listTodos.map(todo => (
-                    <div
+                    <TodoItem
                       key={todo.id}
-                      draggable={typeof window !== 'undefined' && window.innerWidth >= 768}
+                      todo={todo}
+                      isDraggable={windowWidth >= 768}
+                      isDragging={draggedTodo?.id === todo.id}
+                      isDragOver={dragOverTodoId === todo.id && draggedTodo?.id !== todo.id}
+                      categories={categories}
+                      people={people}
                       onDragStart={(e) => handleDragStart(e, todo)}
                       onDragEnd={handleDragEnd}
                       onDragOver={(e) => handleTodoDragOver(e, todo.id)}
                       onDrop={(e) => handleTodoDrop(e, todo)}
                       onMouseEnter={(e) => handleTodoMouseEnter(e, todo)}
                       onMouseLeave={handleTodoMouseLeave}
-                      className={`
-                        group bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-xl p-3 md:cursor-grab md:active:cursor-grabbing
-                        transition-all duration-200 hover:shadow-lg hover:border-gray-400 dark:hover:border-[var(--border-light)] border-l-4 ${PRIORITY_COLORS[todo.priority]}
-                        ${todo.completed ? 'opacity-70' : ''}
-                        ${draggedTodo?.id === todo.id ? 'opacity-50 scale-95' : ''}
-                        ${dragOverTodoId === todo.id && draggedTodo?.id !== todo.id ? 'border-t-2 border-t-blue-500' : ''}
-                        shadow-md flex flex-col gap-2
-                      `}
-                    >
-                      {/* Header: Checkbox + Title */}
-                      <div className="flex items-start gap-2 pointer-events-none">
-                        {/* Checkbox */}
-                        <button
-                          onClick={() => toggleTodo(todo)}
-                          className={`
-                            w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all pointer-events-auto
-                            ${todo.completed 
-                              ? 'bg-green-500 border-green-500 text-white shadow-lg shadow-green-500/30' 
-                              : 'border-gray-300 dark:border-[var(--border-color)] hover:border-green-500 hover:shadow-lg hover:shadow-green-500/20'
-                            }
-                          `}
-                        >
-                          {todo.completed && <Check className="w-2.5 h-2.5" strokeWidth={2.5} />}
-                        </button>
-                        
-                        {/* Title */}
-                        <div className="flex-1 min-w-0 pointer-events-auto cursor-pointer" onClick={() => openTodoModal(todo)}>
-                          <p className={`font-medium text-xs ${todo.completed ? 'line-through text-gray-400 dark:text-white/50' : 'text-gray-900 dark:text-white'}`}>
-                            {todo.title}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      {/* Description */}
-                      {todo.description && (
-                        <p 
-                          className="text-[10px] text-gray-600 dark:text-white/60 line-clamp-3 pointer-events-auto cursor-pointer"
-                          dangerouslySetInnerHTML={{ __html: todo.description.replace(/<[^>]*>/g, ' ').slice(0, 150) }}
-                          onClick={() => openTodoModal(todo)}
-                        />
-                      )}
-                      
-                      {/* Bottom Buttons Row */}
-                      <div className="flex items-center gap-2 flex-wrap pt-1 pointer-events-auto">
-                        {/* Дополнительные метки */}
-                        {hasUnreadComments(todo, myAccountId) && (
-                          <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-red-500/20 text-red-400 text-xs font-medium" title="Есть непрочитанные комментарии">
-                            <MessageCircle className="w-3 h-3 fill-red-400/30" />
-                            <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
-                          </span>
-                        )}
-                        {todo.dueDate && (
-                          <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 dark:bg-[var(--bg-glass)] text-gray-700 dark:text-white/60 text-xs">
-                            <Clock className="w-3 h-3" />
-                            {new Date(todo.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                          </span>
-                        )}
-                        {todo.categoryId && (() => {
-                          const cat = categories.find(c => c.id === todo.categoryId);
-                          return cat ? (
-                            <span 
-                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium"
-                              style={{ backgroundColor: `${cat.color}20`, color: cat.color }}
-                            >
-                              {CATEGORY_ICONS[cat.icon] || <Tag className="w-3 h-3" />}
-                              {cat.name}
-                            </span>
-                          ) : null;
-                        })()}
-                        {todo.linkId && todo.linkUrl && (
-                          <a
-                            href={todo.linkUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-500/10 text-blue-400 hover:text-blue-300 text-xs"
-                            title={todo.linkTitle || todo.linkUrl}
-                          >
-                            <Link2 className="w-3 h-3" />
-                            <span className="max-w-[120px] truncate">{todo.linkTitle || 'Ссылка'}</span>
-                          </a>
-                        )}
-                        
-                      </div>
-                      
-                      {/* Заказчик и исполнители */}
-                      {(todo.assignedById || todo.delegatedById || todo.assignedToId || (todo.assignedToIds && todo.assignedToIds.length > 0)) && (
-                        <div className="text-[9px] text-gray-500 dark:text-white/40 mt-1">
-                          {todo.assignedById && (
-                            <span>Заказчик: {getPersonNameById(people, todo.assignedById, todo.assignedBy)}</span>
-                          )}
-                          {todo.delegatedById && (
-                            <span className={todo.assignedById ? "ml-2" : ""}>Делегировал: {getPersonNameById(people, todo.delegatedById, todo.delegatedBy)}</span>
-                          )}
-                          {(todo.assignedToId || (todo.assignedToIds && todo.assignedToIds.length > 0)) && (
-                            <span className={todo.assignedById || todo.delegatedById ? "ml-2" : ""}>
-                              Исполнители: {
-                                todo.assignedToIds && todo.assignedToIds.length > 0
-                                  ? todo.assignedToIds.filter(id => id != null).map((id, idx) => (
-                                      <span key={id}>
-                                        {idx > 0 && ', '}
-                                        {getPersonNameById(people, id)}
-                                      </span>
-                                    ))
-                                  : todo.assignedToId 
-                                    ? getPersonNameById(people, todo.assignedToId, todo.assignedTo)
-                                    : ''
-                              }
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      
-                      {/* Кнопки действий - редактирование, удаление и архивирование */}
-                      <div className="flex items-center justify-between gap-1 mt-1">
-                        {/* Кнопка Статус */}
-                        {!todo.completed && todo.status && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); openTodoModal(todo); }}
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] border backdrop-blur-sm ${
-                              todo.status === 'in-progress' 
-                                ? 'bg-gradient-to-br from-blue-500/20 to-blue-600/30 text-blue-600 dark:text-blue-400 border-blue-500/30' 
-                                : todo.status === 'pending'
-                                  ? 'bg-gradient-to-br from-orange-500/20 to-orange-600/30 text-orange-600 dark:text-orange-400 border-orange-500/30'
-                                  : todo.status === 'cancelled'
-                                    ? 'bg-gradient-to-br from-red-500/20 to-red-600/30 text-red-600 dark:text-red-400 border-red-500/30'
-                                    : todo.status === 'stuck'
-                                      ? 'bg-gradient-to-br from-yellow-500/20 to-yellow-600/30 text-yellow-600 dark:text-yellow-500 border-yellow-500/30'
-                                      : 'bg-gradient-to-br from-green-500/20 to-green-600/30 text-green-600 dark:text-green-400 border-green-500/30'
-                            }`}
-                          >
-                            {todo.status === 'in-progress' ? 'В работе' : 
-                             todo.status === 'pending' ? 'В ожидании' : 
-                             todo.status === 'cancelled' ? 'Отменена' :
-                             todo.status === 'stuck' ? 'Застряла' : 'Готово к проверке'}
-                          </button>
-                        )}
-                        <div className="flex items-center gap-1 ml-auto">
-                          <button
-                          onClick={(e) => { e.stopPropagation(); openTodoModal(todo); }}
-                          className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500/10 to-blue-600/20 hover:from-blue-500/20 hover:to-blue-600/30 flex items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] border border-blue-500/20 backdrop-blur-sm"
-                          title="Редактировать"
-                        >
-                          <Edit3 className="w-3 h-3 text-blue-500 dark:text-blue-400" strokeWidth={2} />
-                        </button>
-                        {todo.completed && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); toggleArchiveTodo(todo.id, true); }}
-                            className="w-6 h-6 rounded-full bg-gradient-to-br from-gray-500/10 to-gray-600/20 hover:from-gray-500/20 hover:to-gray-600/30 flex items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] border border-gray-500/20 backdrop-blur-sm"
-                            title="Архивировать"
-                          >
-                            <Archive className="w-3 h-3 text-gray-500 dark:text-gray-400" strokeWidth={2} />
-                          </button>
-                        )}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); deleteTodo(todo.id); }}
-                          className="w-6 h-6 rounded-full bg-gradient-to-br from-red-500/10 to-red-600/20 hover:from-red-500/20 hover:to-red-600/30 flex items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] border border-red-500/20 backdrop-blur-sm"
-                          title="Удалить"
-                        >
-                          <Trash2 className="w-3 h-3 text-red-500 dark:text-red-400" strokeWidth={2} />
-                        </button>
-                        </div>
-                      </div>
-                    </div>
+                      onToggle={() => toggleTodo(todo)}
+                      onEdit={() => openTodoModal(todo)}
+                      onArchive={() => toggleArchiveTodo(todo.id, true)}
+                      onDelete={() => deleteTodo(todo.id)}
+                    />
                   ))}
 
                   {/* Empty state */}
@@ -3500,108 +3021,24 @@ export default function TodosPage() {
           )}
 
           {/* Add List Form - оптимизировано для мобильных */}
-          {showAddList && (
-            <div className="fixed inset-0 bg-black/50 z-50 flex flex-col md:relative md:inset-auto md:bg-transparent md:z-auto p-0 md:p-0">
-              <div className="bg-white dark:bg-[var(--bg-tertiary)] border border-gray-200 dark:border-[var(--border-color)] rounded-t-3xl md:rounded-xl p-4 md:p-4 shadow-2xl md:shadow-none max-h-[90vh] md:max-h-none overflow-y-auto md:overflow-visible flex-1 md:flex-none w-80">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-900 dark:text-[var(--text-primary)]">Новый список</h3>
-                  <button 
-                    onClick={() => setShowAddList(false)}
-                    className="md:hidden w-8 h-8 rounded-full bg-gray-100 dark:bg-[var(--bg-glass)] flex items-center justify-center"
-                  >
-                    <X className="w-4 h-4 text-gray-500 dark:text-[var(--text-secondary)]" />
-                  </button>
-                </div>
-              <input
-                type="text"
-                placeholder="Название списка"
-                value={newListName}
-                onChange={(e) => setNewListName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addList()}
-                className="w-full px-3 py-2.5 bg-gray-50 dark:bg-[var(--bg-secondary)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl mb-3 focus:outline-none focus:border-blue-500 dark:focus:border-[var(--accent-primary)] text-gray-900 dark:text-[var(--text-primary)]"
-                autoFocus
-              />
-              <textarea
-                placeholder="Описание списка (необязательно)"
-                value={newListDescription}
-                onChange={(e) => setNewListDescription(e.target.value)}
-                rows={3}
-                className="w-full px-3 py-2.5 bg-gray-50 dark:bg-[var(--bg-secondary)] border border-gray-200 dark:border-[var(--border-color)] rounded-[20px] mb-3 focus:outline-none focus:border-blue-500 dark:focus:border-[var(--accent-primary)] text-gray-900 dark:text-[var(--text-primary)] resize-none"
-              />
-              <div className="mb-4">
-                <label className="block text-sm text-gray-500 dark:text-[var(--text-muted)] mb-2">Цвет</label>
-                <div className="flex gap-2 flex-wrap">
-                  {LIST_COLORS.map(color => (
-                    <button
-                      key={color}
-                      onClick={() => setNewListColor(color)}
-                      className={`w-6 h-6 rounded-full transition-all ${newListColor === color ? 'ring-2 ring-[var(--accent-primary)] ring-offset-2 ring-offset-[var(--bg-tertiary)] scale-110' : 'hover:scale-110'}`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
-              </div>
-              {/* Выбор исполнителя по умолчанию */}
-              <div className="mb-4 relative">
-                <label className="block text-sm text-[var(--text-muted)] mb-2">Исполнитель по умолчанию</label>
-                <button
-                  onClick={() => setShowNewListAssigneeDropdown(!showNewListAssigneeDropdown)}
-                  className="w-full px-3 py-2.5 bg-gray-50 dark:bg-[var(--bg-secondary)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl text-left text-sm flex items-center justify-between hover:border-gray-300 dark:hover:border-[var(--border-light)] transition-colors"
-                >
-                  <span className="flex items-center gap-2 text-gray-700 dark:text-[var(--text-secondary)]">
-                    <UserCheck className="w-3.5 h-3.5 text-gray-400 dark:text-[var(--text-muted)]" />
-                    {newListAssigneeId 
-                      ? people.find(p => p.id === newListAssigneeId)?.name || 'Исполнитель'
-                      : 'Не выбран'}
-                  </span>
-                  <ChevronDown className={`w-3.5 h-3.5 text-gray-400 dark:text-[var(--text-muted)] transition-transform ${showNewListAssigneeDropdown ? 'rotate-180' : ''}`} />
-                </button>
-                {showNewListAssigneeDropdown && (
-                  <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-[var(--bg-tertiary)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl shadow-xl z-50 py-1 max-h-48 overflow-y-auto">
-                    <button
-                      onClick={() => { setNewListAssigneeId(null); setShowNewListAssigneeDropdown(false); }}
-                      className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass)] transition-colors ${
-                        !newListAssigneeId ? 'text-gray-900 dark:text-[var(--text-primary)] bg-gray-100 dark:bg-[var(--bg-glass)]' : 'text-gray-600 dark:text-[var(--text-secondary)]'
-                      }`}
-                    >
-                      <Users className="w-3.5 h-3.5" />
-                      Не выбран
-                    </button>
-                    {people.filter(p => p.role === 'executor' || p.role === 'universal').map(person => (
-                      <button
-                        key={person.id}
-                        onClick={() => { setNewListAssigneeId(person.id); setShowNewListAssigneeDropdown(false); }}
-                        className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass)] transition-colors ${
-                          newListAssigneeId === person.id ? 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10' : 'text-gray-600 dark:text-[var(--text-secondary)]'
-                        }`}
-                      >
-                        <UserCheck className="w-3.5 h-3.5" />
-                        {person.name}
-                        {person.id === myAccountId && (
-                          <span className="ml-auto text-[10px] bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 px-1.5 py-0.5 rounded">Я</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={addList}
-                  className="flex-1 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-medium transition-all"
-                >
-                  Создать
-                </button>
-                <button
-                  onClick={() => { setShowAddList(false); setNewListName(''); setNewListDescription(''); setNewListAssigneeId(null); }}
-                  className="px-4 py-2.5 bg-gray-100 dark:bg-[var(--bg-secondary)] hover:bg-gray-200 dark:hover:bg-[var(--bg-tertiary)] border border-gray-200 dark:border-[var(--border-color)] text-gray-600 dark:text-[var(--text-secondary)] rounded-xl text-sm font-medium transition-all"
-                >
-                  Отмена
-                </button>
-              </div>
-              </div>
-            </div>
-          )}
+          <AddList
+            isOpen={showAddList}
+            onClose={() => setShowAddList(false)}
+            newListName={newListName}
+            setNewListName={setNewListName}
+            newListDescription={newListDescription}
+            setNewListDescription={setNewListDescription}
+            newListColor={newListColor}
+            setNewListColor={setNewListColor}
+            newListAssigneeId={newListAssigneeId}
+            setNewListAssigneeId={setNewListAssigneeId}
+            showNewListAssigneeDropdown={showNewListAssigneeDropdown}
+            setShowNewListAssigneeDropdown={setShowNewListAssigneeDropdown}
+            people={people}
+            myAccountId={myAccountId || ''}
+            addList={addList}
+            LIST_COLORS={LIST_COLORS}
+          />
         </div>
 
         {/* Archived Lists */}
@@ -3669,8 +3106,7 @@ export default function TodosPage() {
                 <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-4">
                   {lists.filter(l => l.archived).map(list => {
                     const listTodos = getTodosForList(list.id, true);
-                    const completedCount = todos.filter(t => t.listId === list.id && t.completed).length;
-                    const totalCount = todos.filter(t => t.listId === list.id).length;
+                    const { completedCount, totalCount } = listCounts[list.id] || { completedCount: 0, totalCount: 0 };
                     
                     return (
                       <div
@@ -3759,7 +3195,7 @@ export default function TodosPage() {
         <div 
           className="hidden md:block fixed z-[100] bg-white dark:bg-[#1f1f1f] border border-gray-200 dark:border-[var(--border-light)] rounded-xl shadow-2xl p-4 max-w-sm animate-in fade-in duration-200 text-gray-900 dark:text-white"
           style={{ 
-            left: Math.min(hoverPosition.x, window.innerWidth - 350),
+            left: Math.min(hoverPosition.x, windowWidth - 350),
             top: Math.min(hoverPosition.y, window.innerHeight - 200),
           }}
           onMouseEnter={() => {}} // Keep visible when hovering the tooltip
@@ -3826,2161 +3262,58 @@ export default function TodosPage() {
       )}
 
       {/* Edit Todo Modal */}
-      {editingTodo && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex z-[100] md:p-4">
-          <div className="bg-white dark:bg-gradient-to-b dark:from-[#1a1a1a] dark:to-[#151515] border-0 md:border md:border-gray-200 md:dark:border-[var(--border-color)] md:rounded-2xl w-full h-full md:shadow-2xl flex flex-col overflow-hidden select-none">
-            {/* Шапка */}
-            <div className="flex items-center justify-between px-0 sm:px-4 py-2.5 border-b border-gray-200 dark:border-[var(--border-color)] bg-gray-50 dark:bg-white/[0.02] flex-shrink-0 select-none">
-              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center border border-gray-200 dark:border-[var(--border-color)]">
-                  <Edit3 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-500 dark:text-blue-400" />
-                </div>
-                <h3 className="hidden sm:inline font-medium text-sm text-gray-900 dark:text-white select-none">Редактировать задачу</h3>
-                {/* Кнопка выполнения в шапке - хорошо видна */}
-                <button
-                  onClick={() => {
-                    const newCompleted = !editingTodo.completed;
-                    setEditingTodo({ ...editingTodo, completed: newCompleted });
-                    toggleTodo(editingTodo);
-                  }}
-                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-[background-color,color] select-none ${
-                    editingTodo.completed
-                      ? 'bg-green-500/30 text-green-300 ring-1 ring-green-500/50 hover:bg-green-500/40'
-                      : 'bg-[var(--bg-glass)] text-[var(--text-secondary)] hover:bg-green-500/20 hover:text-green-400 ring-1 ring-white/10'
-                  }`}
-                  title={editingTodo.completed ? 'Отметить как невыполненную' : 'Отметить как выполненную'}
-                >
-                  <Check className={`w-4 h-4 ${editingTodo.completed ? 'text-green-300' : ''}`} />
-                  {editingTodo.completed ? 'Выполнено' : 'Выполнить'}
-                </button>
-              </div>
-              <button
-                onClick={closeTodoModal}
-                className="w-8 h-8 bg-gray-100 dark:bg-[var(--bg-glass)] hover:bg-gray-200 dark:hover:bg-[var(--bg-glass-hover)] rounded-full transition-colors flex-shrink-0 flex items-center justify-center border border-gray-200 dark:border-[var(--border-glass)] backdrop-blur-sm"
-              >
-                <X className="w-4 h-4 text-gray-500 dark:text-[var(--text-secondary)]" />
-              </button>
-            </div>
-            
-            {/* Три колонки - адаптивно с регулируемой шириной */}
-            <div className="flex flex-1 flex-col lg:flex-row min-h-0 overflow-y-auto lg:overflow-hidden relative">
-              {/* Левый блок - основные поля */}
-              <div 
-                className="w-full border-b-0 lg:border-b-0 lg:border-r border-gray-200 dark:border-[var(--border-color)] flex-shrink-0 bg-gray-50 dark:bg-[var(--bg-secondary)] order-2 lg:order-1 lg:overflow-y-auto"
-                style={{ 
-                  width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? `${columnWidths[0]}%` : '100%'
-                }}
-              >
-                <div className="p-0 sm:p-3 space-y-2 sm:space-y-3">
-                {/* Статус */}
-                <div>
-                  <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide select-none">Статус</label>
-                  <div className="flex gap-1.5 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => setEditingTodo({ ...editingTodo, status: 'pending' })}
-                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-[background-color,color] select-none ${
-                        !editingTodo.status || editingTodo.status === 'pending' 
-                          ? 'bg-gradient-to-br from-orange-500/20 to-orange-600/30 text-orange-500 dark:text-orange-400 ring-1 ring-orange-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
-                          : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-orange-500/10 hover:to-orange-600/20 hover:text-orange-500 dark:hover:text-orange-400 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
-                      }`}
-                    >
-                      В ожидании
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditingTodo({ ...editingTodo, status: 'in-progress' })}
-                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-[background-color,color] select-none ${
-                        editingTodo.status === 'in-progress' 
-                          ? 'bg-gradient-to-br from-blue-500/20 to-blue-600/30 text-blue-500 dark:text-blue-400 ring-1 ring-blue-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
-                          : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-blue-500/10 hover:to-blue-600/20 hover:text-blue-500 dark:hover:text-blue-400 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
-                      }`}
-                    >
-                      В работе
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditingTodo({ ...editingTodo, status: 'review' })}
-                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-[background-color,color] select-none ${
-                        editingTodo.status === 'review' 
-                          ? 'bg-gradient-to-br from-green-500/20 to-green-600/30 text-green-500 dark:text-green-400 ring-1 ring-green-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
-                          : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-green-500/10 hover:to-green-600/20 hover:text-green-500 dark:hover:text-green-400 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
-                      }`}
-                    >
-                      Готово к проверке
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditingTodo({ ...editingTodo, status: 'cancelled' })}
-                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-[background-color,color] select-none ${
-                        editingTodo.status === 'cancelled' 
-                          ? 'bg-gradient-to-br from-red-500/20 to-red-600/30 text-red-500 dark:text-red-400 ring-1 ring-red-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
-                          : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-red-500/10 hover:to-red-600/20 hover:text-red-500 dark:hover:text-red-400 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
-                      }`}
-                    >
-                      Отменена
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditingTodo({ ...editingTodo, status: 'stuck' })}
-                      className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-[background-color,color] select-none ${
-                        editingTodo.status === 'stuck' 
-                          ? 'bg-gradient-to-br from-yellow-500/20 to-yellow-600/30 text-yellow-500 ring-1 ring-yellow-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
-                          : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-yellow-500/10 hover:to-yellow-600/20 hover:text-yellow-500 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
-                      }`}
-                    >
-                      Застряла
-                    </button>
-                  </div>
-                  {editingTodo.status === 'review' && (
-                    <div className="mt-2">
-                      <label className="block text-[10px] font-medium text-gray-500 dark:text-[var(--text-muted)] mb-1 select-none">Комментарий руководителя</label>
-                      <textarea
-                        value={editingTodo.reviewComment || ''}
-                        onChange={(e) => setEditingTodo({ ...editingTodo, reviewComment: e.target.value })}
-                        className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 rounded-[20px] text-sm focus:outline-none focus:border-blue-500/50 transition-all text-gray-700 dark:text-[var(--text-secondary)] placeholder-gray-400 dark:placeholder-white/30 resize-none whitespace-pre-wrap break-words shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
-                        placeholder="Комментарий или замечания..."
-                        rows={2}
-                      />
-                    </div>
-                  )}
-                </div>
-              
-                {/* Заказчик и Исполнитель */}
-                <div className="space-y-2">
-                  {/* От кого и Делегировано */}
-                  <div className="grid grid-cols-2 gap-2">
-                  <div className="relative">
-                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1 select-none">
-                      <User className="w-2.5 h-2.5" />
-                      От кого
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setOpenDropdown(openDropdown === 'assignedBy' ? null : 'assignedBy')}
-                      className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all text-gray-900 dark:text-[var(--text-primary)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm overflow-hidden"
-                      style={{ borderRadius: '35px' }}
-                    >
-                      <span className={`truncate whitespace-nowrap ${editingTodo.assignedById ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
-                        {editingTodo.assignedBy || 'Не выбран'}
-                      </span>
-                      <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform ${openDropdown === 'assignedBy' ? 'rotate-180' : ''}`} />
-                    </button>
-                    {openDropdown === 'assignedBy' && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-gradient-to-br from-white/10 to-white/5 border border-white/20 shadow-xl z-[9999] max-h-60 flex flex-col backdrop-blur-xl" style={{ borderRadius: '12px' }}>
-                        <div className="p-2 border-b border-white/10">
-                          <input
-                            type="text"
-                            value={searchAssignedBy}
-                            onChange={(e) => setSearchAssignedBy(e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                            placeholder="Поиск..."
-                            className="w-full px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-[var(--text-primary)] placeholder-white/40 focus:outline-none focus:border-blue-500/50"
-                            autoFocus
-                          />
-                        </div>
-                        <div className="overflow-y-auto max-h-40">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingTodo({ ...editingTodo, assignedById: undefined, assignedBy: '' });
-                            setOpenDropdown(null);
-                            setSearchAssignedBy('');
-                          }}
-                          className="w-full px-3 py-1.5 text-left text-gray-500 dark:text-white/50 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass)] transition-colors text-xs"
-                        >
-                          Не выбран
-                        </button>
-                        {people
-                          .filter(p => p.role === 'customer' || p.role === 'universal')
-                          .filter(p => !searchAssignedBy || p.name.toLowerCase().includes(searchAssignedBy.toLowerCase()))
-                          .map(person => (
-                          <button
-                            key={person.id}
-                            type="button"
-                            onClick={() => {
-                              setEditingTodo({ ...editingTodo, assignedById: person.id, assignedBy: person.name });
-                              setOpenDropdown(null);
-                              setSearchAssignedBy('');
-                            }}
-                            className={`w-full px-3 py-1.5 text-left hover:bg-[var(--bg-glass)] transition-colors text-xs flex items-center justify-between ${
-                              editingTodo.assignedById === person.id ? 'bg-[var(--bg-glass)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
-                            }`}
-                          >
-                            <span>{person.name}</span>
-                            {person.telegramId && <span className="text-[9px] text-blue-400 bg-blue-500/20 px-1 py-0.5 rounded">TG</span>}
-                          </button>
-                        ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1 select-none">
-                      <User className="w-2.5 h-2.5" />
-                      Делегировано
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setOpenDropdown(openDropdown === 'delegatedBy' ? null : 'delegatedBy')}
-                      className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all text-gray-900 dark:text-[var(--text-primary)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm overflow-hidden"
-                      style={{ borderRadius: '35px' }}
-                    >
-                      <span className={`truncate whitespace-nowrap ${editingTodo.delegatedById ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
-                        {editingTodo.delegatedBy || 'Не выбран'}
-                      </span>
-                      <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform ${openDropdown === 'delegatedBy' ? 'rotate-180' : ''}`} />
-                    </button>
-                    {openDropdown === 'delegatedBy' && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-gradient-to-br from-white/10 to-white/5 border border-white/20 shadow-xl z-[9999] max-h-60 flex flex-col backdrop-blur-xl" style={{ borderRadius: '12px' }}>
-                        <div className="p-2 border-b border-white/10">
-                          <input
-                            type="text"
-                            value={searchDelegatedBy}
-                            onChange={(e) => setSearchDelegatedBy(e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                            placeholder="Поиск..."
-                            className="w-full px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-[var(--text-primary)] placeholder-white/40 focus:outline-none focus:border-blue-500/50"
-                            autoFocus
-                          />
-                        </div>
-                        <div className="overflow-y-auto max-h-40">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingTodo({ ...editingTodo, delegatedById: undefined, delegatedBy: '' });
-                            setOpenDropdown(null);
-                            setSearchDelegatedBy('');
-                          }}
-                          className="w-full px-3 py-1.5 text-left text-gray-500 dark:text-white/50 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass)] transition-colors text-xs"
-                        >
-                          Не выбран
-                        </button>
-                        {people
-                          .filter(p => p.role === 'customer' || p.role === 'universal')
-                          .filter(p => !searchDelegatedBy || p.name.toLowerCase().includes(searchDelegatedBy.toLowerCase()))
-                          .map(person => (
-                          <button
-                            key={person.id}
-                            type="button"
-                            onClick={() => {
-                              setEditingTodo({ ...editingTodo, delegatedById: person.id, delegatedBy: person.name });
-                              setOpenDropdown(null);
-                              setSearchDelegatedBy('');
-                            }}
-                            className={`w-full px-3 py-1.5 text-left hover:bg-[var(--bg-glass)] transition-colors text-xs flex items-center justify-between ${
-                              editingTodo.delegatedById === person.id ? 'bg-[var(--bg-glass)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
-                            }`}
-                          >
-                            <span>{person.name}</span>
-                            {person.telegramId && <span className="text-[9px] text-blue-400 bg-blue-500/20 px-1 py-0.5 rounded">TG</span>}
-                          </button>
-                        ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  </div>
-                  
-                  {/* Исполнители - отдельная строка */}
-                  <div className="relative">
-                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1 select-none">
-                      <UserCheck className="w-2.5 h-2.5" />
-                      Исполнители
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setOpenDropdown(openDropdown === 'assignedTo' ? null : 'assignedTo')}
-                      className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all min-h-[42px] text-gray-900 dark:text-[var(--text-primary)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm overflow-hidden"
-                      style={{ borderRadius: '35px' }}
-                    >
-                      <div className="flex flex-wrap gap-1">
-                        {editingTodo.assignedToIds && editingTodo.assignedToIds.length > 0 ? (
-                          editingTodo.assignedToIds.filter(id => id != null).map(id => {
-                            const person = people.find(p => p.id === id);
-                            return person ? (
-                              <span key={id} className="text-xs bg-green-500/20 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded flex items-center gap-1">
-                                {person.name}
-                                <span
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const newIds = editingTodo.assignedToIds?.filter(i => i !== id && i != null) || [];
-                                    const newNames = editingTodo.assignedToNames?.filter((_, idx) => editingTodo.assignedToIds?.[idx] !== id) || [];
-                                    setEditingTodo({ 
-                                      ...editingTodo, 
-                                      assignedToIds: newIds.length > 0 ? newIds : undefined,
-                                      assignedToNames: newNames.length > 0 ? newNames : undefined,
-                                      // Для обратной совместимости
-                                      assignedToId: newIds[0] || undefined,
-                                      assignedTo: newNames[0] || ''
-                                    });
-                                  }}
-                                  className="hover:text-green-900 dark:hover:text-[var(--text-primary)] cursor-pointer"
-                                >
-                                  <X className="w-2.5 h-2.5" />
-                                </span>
-                              </span>
-                            ) : null;
-                          })
-                        ) : editingTodo.assignedToId ? (
-                          <span className="text-[var(--text-primary)]">{getPersonNameById(people, editingTodo.assignedToId, editingTodo.assignedTo)}</span>
-                        ) : (
-                          <span className="text-[var(--text-muted)]">Выберите исполнителей</span>
-                        )}
-                      </div>
-                      <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform flex-shrink-0 ${openDropdown === 'assignedTo' ? 'rotate-180' : ''}`} />
-                    </button>
-                    {openDropdown === 'assignedTo' && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-gradient-to-br from-white/10 to-white/5 border border-white/20 shadow-xl z-[9999] max-h-60 flex flex-col backdrop-blur-xl" style={{ borderRadius: '12px' }}>
-                        <div className="p-2 border-b border-white/10">
-                          <input
-                            type="text"
-                            value={searchAssignedTo}
-                            onChange={(e) => setSearchAssignedTo(e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                            placeholder="Поиск..."
-                            className="w-full px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-[var(--text-primary)] placeholder-white/40 focus:outline-none focus:border-blue-500/50"
-                            autoFocus
-                          />
-                        </div>
-                        <div className="overflow-y-auto max-h-40">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingTodo({ 
-                              ...editingTodo, 
-                              assignedToId: undefined, 
-                              assignedTo: '',
-                              assignedToIds: undefined,
-                              assignedToNames: undefined
-                            });
-                            setOpenDropdown(null);
-                            setSearchAssignedTo('');
-                          }}
-                          className="w-full px-3 py-1.5 text-left text-gray-500 dark:text-white/50 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass)] transition-colors text-xs border-b border-[var(--border-color)]"
-                        >
-                          Очистить выбор
-                        </button>
-                        {people
-                          .filter(p => p.role === 'executor' || p.role === 'universal')
-                          .filter(p => !searchAssignedTo || p.name.toLowerCase().includes(searchAssignedTo.toLowerCase()))
-                          .map(person => {
-                          const isSelected = editingTodo.assignedToIds?.includes(person.id) || editingTodo.assignedToId === person.id;
-                          const lastSeenStatus = formatLastSeen(person.lastSeen);
-                          return (
-                            <button
-                              key={person.id}
-                              type="button"
-                              onClick={() => {
-                                const currentIds = editingTodo.assignedToIds || (editingTodo.assignedToId ? [editingTodo.assignedToId] : []);
-                                const currentNames = editingTodo.assignedToNames || (editingTodo.assignedTo ? [editingTodo.assignedTo] : []);
-                                
-                                let newIds: string[];
-                                let newNames: string[];
-                                
-                                if (isSelected) {
-                                  newIds = currentIds.filter(id => id !== person.id && id != null);
-                                  newNames = currentNames.filter((_, idx) => currentIds[idx] !== person.id);
-                                } else {
-                                  newIds = [...currentIds.filter(id => id != null), person.id];
-                                  newNames = [...currentNames, person.name];
-                                }
-                                
-                                setEditingTodo({ 
-                                  ...editingTodo, 
-                                  assignedToIds: newIds.length > 0 ? newIds : undefined,
-                                  assignedToNames: newNames.length > 0 ? newNames : undefined,
-                                  // Для обратной совместимости - первый исполнитель
-                                  assignedToId: newIds[0] || undefined,
-                                  assignedTo: newNames[0] || ''
-                                });
-                              }}
-                              className={`w-full px-3 py-2 text-left hover:bg-[var(--bg-glass)] transition-colors text-xs flex items-center justify-between ${
-                                isSelected ? 'bg-green-500/10' : ''
-                              }`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <div className={`w-4 h-4 rounded border flex items-center justify-center ${
-                                  isSelected ? 'bg-green-500 border-green-500' : 'border-white/30'
-                                }`}>
-                                  {isSelected && <Check className="w-2.5 h-2.5 text-[var(--text-primary)]" />}
-                                </div>
-                                <div>
-                                  <span className={isSelected ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}>{person.name}</span>
-                                  <div className="flex items-center gap-1.5 mt-0.5">
-                                    <span className={`flex items-center gap-1 text-[9px] ${lastSeenStatus.color}`}>
-                                      {lastSeenStatus.isOnline && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
-                                      {lastSeenStatus.text}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                              {person.telegramId && <span className="text-[9px] text-blue-400 bg-blue-500/20 px-1 py-0.5 rounded">TG</span>}
-                            </button>
-                          );
-                        })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              
-                {/* Приоритет и Срок */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide select-none">Приоритет</label>
-                    <div className="flex gap-1.5">
-                      {(['low', 'medium', 'high'] as const).map((p) => (
-                        <button
-                          key={p}
-                          onClick={() => setEditingTodo({ ...editingTodo, priority: p })}
-                          className={`flex-shrink-0 w-6 h-6 rounded-full transition-all flex items-center justify-center ${
-                            editingTodo.priority === p
-                              ? p === 'high' 
-                                ? 'bg-red-500/20 ring-1 ring-red-500'
-                                : p === 'medium'
-                                  ? 'bg-yellow-500/20 ring-1 ring-yellow-500'
-                                  : 'bg-green-500/20 ring-1 ring-green-500'
-                              : 'hover:bg-[var(--bg-glass)]'
-                          }`}
-                          title={p === 'high' ? 'Высокий' : p === 'medium' ? 'Средний' : 'Низкий'}
-                        >
-                          <span className={`flex-shrink-0 w-3 h-3 rounded-full ${
-                            p === 'high' 
-                              ? 'bg-red-500' 
-                              : p === 'medium' 
-                                ? 'bg-yellow-500' 
-                                : 'bg-green-500'
-                          }`} />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1 select-none">
-                      <Clock className="w-2.5 h-2.5" />
-                      Срок
-                    </label>
-                    <input
-                      type="date"
-                      value={editingTodo.dueDate || ''}
-                      onChange={(e) => setEditingTodo({ ...editingTodo, dueDate: e.target.value })}
-                      className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
-                      style={{ borderRadius: '35px' }}
-                    />
-                  </div>
-                </div>
-              
-                {/* Список и Категория */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="relative">
-                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1 select-none">
-                      <Inbox className="w-2.5 h-2.5" />
-                      Список
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setOpenDropdown(openDropdown === 'list' ? null : 'list')}
-                      className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm overflow-hidden"
-                      style={{ borderRadius: '35px' }}
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                        {(() => {
-                          const list = lists.find(l => l.id === editingTodo.listId);
-                          return list ? (
-                            <>
-                              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: list.color }} />
-                              <span className="text-[var(--text-primary)] text-xs truncate whitespace-nowrap">{list.name}</span>
-                            </>
-                          ) : <span className="text-[var(--text-muted)] text-xs whitespace-nowrap">Выберите список</span>;
-                        })()}
-                      </div>
-                      <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform ${openDropdown === 'list' ? 'rotate-180' : ''}`} />
-                    </button>
-                    {openDropdown === 'list' && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-gradient-to-br from-white/10 to-white/5 border border-white/20 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto backdrop-blur-xl">
-                        {lists.filter(l => !l.archived).map(list => (
-                          <button
-                            key={list.id}
-                            type="button"
-                            onClick={() => {
-                              setEditingTodo({ ...editingTodo, listId: list.id });
-                              setOpenDropdown(null);
-                            }}
-                            className={`w-full px-3 py-1.5 text-left hover:bg-[var(--bg-glass)] transition-colors text-xs flex items-center gap-1.5 ${
-                              editingTodo.listId === list.id ? 'bg-[var(--bg-glass)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
-                            }`}
-                          >
-                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: list.color }} />
-                            <span>{list.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="relative">
-                    <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1 select-none">
-                      <Tag className="w-2.5 h-2.5" />
-                      Категория
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setOpenDropdown(openDropdown === 'category' ? null : 'category')}
-                      className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm overflow-hidden"
-                      style={{ borderRadius: '35px' }}
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                        {(() => {
-                          const cat = categories.find(c => c.id === editingTodo.categoryId);
-                          return cat ? (
-                            <>
-                              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
-                              <span className="text-[var(--text-primary)] text-xs truncate whitespace-nowrap">{cat.name}</span>
-                            </>
-                          ) : <span className="text-[var(--text-muted)] text-xs whitespace-nowrap">Без категории</span>;
-                        })()}
-                      </div>
-                      <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform ${openDropdown === 'category' ? 'rotate-180' : ''}`} />
-                    </button>
-                    {openDropdown === 'category' && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-gradient-to-br from-white/10 to-white/5 border border-white/20 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto backdrop-blur-xl">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingTodo({ ...editingTodo, categoryId: undefined });
-                            setOpenDropdown(null);
-                          }}
-                          className={`w-full px-3 py-1.5 text-left hover:bg-gray-100 dark:hover:bg-[var(--bg-glass)] transition-colors text-xs ${
-                            !editingTodo.categoryId ? 'bg-gray-100 dark:bg-[var(--bg-glass)] text-gray-900 dark:text-[var(--text-primary)]' : 'text-gray-500 dark:text-white/50'
-                          }`}
-                        >
-                          Без категории
-                        </button>
-                        {categories.map(cat => (
-                          <button
-                            key={cat.id}
-                            type="button"
-                            onClick={() => {
-                              setEditingTodo({ ...editingTodo, categoryId: cat.id });
-                              setOpenDropdown(null);
-                            }}
-                            className={`w-full px-3 py-1.5 text-left hover:bg-[var(--bg-glass)] transition-colors text-xs flex items-center gap-1.5 ${
-                              editingTodo.categoryId === cat.id ? 'bg-[var(--bg-glass)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
-                            }`}
-                          >
-                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
-                            <span>{cat.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Прикреплённая ссылка */}
-                <div className="relative">
-                  <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1 select-none">
-                    <Link2 className="w-2.5 h-2.5" />
-                    Прикреплённая ссылка
-                  </label>
-                  {editingTodo.linkId ? (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                      <Link2 className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
-                      <a 
-                        href={editingTodo.linkUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-400 hover:text-blue-300 truncate flex-1"
-                        title={editingTodo.linkUrl}
-                      >
-                        {editingTodo.linkTitle || editingTodo.linkUrl}
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() => setEditingTodo({ ...editingTodo, linkId: undefined, linkUrl: undefined, linkTitle: undefined })}
-                        className="p-1 hover:bg-[var(--bg-glass-hover)] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] flex-shrink-0"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                      <a 
-                        href={editingTodo.linkUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="p-1 hover:bg-[var(--bg-glass-hover)] rounded text-[var(--text-muted)] hover:text-blue-400 flex-shrink-0"
-                        title="Открыть ссылку"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setOpenDropdown(openDropdown === 'link' ? null : 'link')}
-                        className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm overflow-hidden"
-                        style={{ borderRadius: '35px' }}
-                      >
-                        <span className="text-[var(--text-muted)] text-xs">Выбрать ссылку из базы...</span>
-                        <ChevronDown className={`w-3 h-3 text-[var(--text-muted)] transition-transform ${openDropdown === 'link' ? 'rotate-180' : ''}`} />
-                      </button>
-                      {openDropdown === 'link' && (
-                        <div className="absolute top-full left-0 right-0 mt-2 bg-gradient-to-br from-[#1e293b]/95 to-[#0f172a]/95 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl z-50 max-h-[300px] overflow-hidden flex flex-col">
-                          {/* Search & Tabs */}
-                          <div className="p-3 border-b border-white/10 space-y-2 bg-white/5">
-                             <div className="flex items-center gap-2 px-3 py-2 bg-black/20 rounded-xl border border-white/5">
-                              <Search className="w-3.5 h-3.5 text-white/40" />
-                              <input
-                                type="text"
-                                value={linksSearchQuery}
-                                onChange={(e) => setLinksSearchQuery(e.target.value)}
-                                placeholder="Поиск ссылки..."
-                                className="bg-transparent text-xs text-white placeholder-white/30 outline-none flex-1"
-                                autoFocus
-                              />
-                            </div>
-                            
-                            {/* Mock Tabs for visual consistency with Messages Picker */}
-                             <div className="flex p-0.5 gap-0.5 bg-black/20 rounded-lg border border-white/5 mx-1">
-                                <button className="flex-1 py-1.5 text-[10px] font-medium text-white bg-white/10 rounded shadow-sm border border-white/10">Все</button>
-                                <button className="flex-1 py-1.5 text-[10px] font-medium text-white/40 hover:text-white/70">Люди</button>
-                                <button className="flex-1 py-1.5 text-[10px] font-medium text-white/40 hover:text-white/70">Отделы</button>
-                             </div>
-                          </div>
-                          
-                          <div className="overflow-y-auto flex-1 p-1 custom-scrollbar">
-                            {availableLinks.length === 0 ? (
-                              <div className="px-3 py-6 text-center text-white/30 text-xs flex flex-col items-center gap-2">
-                                <Link2 className="w-6 h-6 opacity-20" /> 
-                                Нет сохранённых ссылок
-                              </div>
-                            ) : (
-                              availableLinks
-                                .filter(link => 
-                                  !linksSearchQuery || 
-                                  link.title.toLowerCase().includes(linksSearchQuery.toLowerCase()) ||
-                                  link.url.toLowerCase().includes(linksSearchQuery.toLowerCase())
-                                )
-                                .slice(0, 50)
-                                .map(link => (
-                                  <button
-                                    key={link.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingTodo({ 
-                                        ...editingTodo, 
-                                        linkId: link.id, 
-                                        linkUrl: link.url, 
-                                        linkTitle: link.title 
-                                      });
-                                      setOpenDropdown(null);
-                                      setLinksSearchQuery('');
-                                    }}
-                                    className="w-full px-3 py-2.5 text-left hover:bg-white/10 transition-all flex items-start gap-3 rounded-lg group"
-                                  >
-                                    <div className="w-7 h-7 rounded-lg bg-indigo-500/20 flex items-center justify-center flex-shrink-0 border border-indigo-500/20 mt-0.5 group-hover:border-indigo-500/40">
-                                       <Link2 className="w-3.5 h-3.5 text-indigo-400" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="text-xs font-medium text-white/90 truncate group-hover:text-cyan-200 transition-colors">{link.title || link.url}</div>
-                                      <div className="text-[10px] text-white/40 truncate font-mono mt-0.5">{link.url}</div>
-                                    </div>
-                                  </button>
-                                ))
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {/* Поместить на календарь */}
-                <div className="mt-2">
-                  <label 
-                    className="flex items-center gap-2 cursor-pointer group select-none"
-                    onClick={() => setEditingTodo({ ...editingTodo, addToCalendar: !editingTodo.addToCalendar })}
-                  >
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-                      editingTodo.addToCalendar 
-                        ? 'bg-purple-500 border-purple-500' 
-                        : 'border-[var(--border-light)] group-hover:border-white/40'
-                    }`}>
-                      {editingTodo.addToCalendar && <Check className="w-3 h-3 text-[var(--text-primary)]" />}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <CalendarPlus className="w-3.5 h-3.5 text-purple-400" />
-                      <span className="text-xs text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
-                        Поместить на календарь
-                      </span>
-                      {editingTodo.listId === TZ_LIST_ID && (
-                        <span className="text-[9px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded">
-                          как ТЗ
-                        </span>
-                      )}
-                    </div>
-                  </label>
-                  {editingTodo.addToCalendar && (
-                    <div className="mt-2 ml-7">
-                      <label className="text-[10px] text-[var(--text-muted)] mb-1 block select-none">Календарь</label>
-                      {calendarLists.length === 0 ? (
-                        <p className="text-[10px] text-[var(--text-muted)] italic">Нет доступных календарей</p>
-                      ) : (
-                        <div className="flex flex-wrap gap-1.5">
-                          {calendarLists.map(list => (
-                            <button
-                              key={list.id}
-                              type="button"
-                              onClick={() => setEditingTodo({ ...editingTodo, calendarListId: list.id })}
-                              className={`px-2.5 py-1.5 rounded-full text-[11px] font-medium transition-[background-color,color] select-none whitespace-nowrap ${
-                                editingTodo.calendarListId === list.id || (!editingTodo.calendarListId && list.id === calendarLists[0]?.id)
-                                  ? 'bg-purple-500 text-white shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)]'
-                                  : 'bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-[var(--text-secondary)] hover:border-purple-500/30'
-                              }`}
-                              title={list.name}
-                            >
-                              {list.name}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {editingTodo.calendarEventId && (
-                    <div className="mt-1.5 flex items-center gap-1 text-[10px] text-green-400">
-                      <Check className="w-3 h-3" />
-                      <span>Уже добавлено на календарь</span>
-                      <a 
-                        href="http://117.117.117.235:3000/events" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-blue-400 hover:text-blue-300 ml-1"
-                      >
-                        Открыть →
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </div>
-              </div>
-
-              {/* Resize handle between left and center */}
-              <div 
-                className="hidden lg:block w-1 cursor-col-resize bg-transparent hover:bg-blue-500/30 active:bg-blue-500/50 transition-colors relative z-10 flex-shrink-0 group"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  resizeStartXRef.current = e.clientX;
-                  resizeStartWidthsRef.current = columnWidths;
-                  setIsResizing(0);
-                }}
-                title="Перетащите для изменения ширины"
-              >
-                <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-4 flex items-center justify-center">
-                  <div className="w-0.5 h-6 bg-gray-300 dark:bg-white/20 group-hover:bg-blue-500 transition-colors rounded-full"></div>
-                </div>
-              </div>
-
-              {/* Средний блок - Название и Описание */}
-              <div 
-                className="w-full flex flex-col bg-white dark:bg-[var(--bg-secondary)] border-b-0 lg:border-b-0 lg:border-r border-gray-200 dark:border-[var(--border-color)] order-1 lg:order-2"
-                style={{ 
-                  width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? `${columnWidths[1]}%` : '100%'
-                }}
-              >
-                {/* Название задачи */}
-                <div className="px-2 sm:px-3 pt-2 sm:pt-3 pb-1.5 sm:pb-2">
-                  <input
-                    type="text"
-                    value={editingTodo.title}
-                    onChange={(e) => setEditingTodo({ ...editingTodo, title: e.target.value })}
-                    className="no-mobile-scale w-full px-4 py-3 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 rounded-[20px] text-xl sm:text-2xl font-semibold focus:outline-none focus:border-blue-500/50 transition-all text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
-                    placeholder="Название задачи..."
-                  />
-                </div>
-                
-                {/* Заголовок с кнопками форматирования */}
-                <div className="px-2 sm:px-3 py-1 sm:py-1.5 border-b border-gray-200 dark:border-[var(--border-color)]">
-                  {/* Панель форматирования - компактная */}
-                  <div className="flex items-center gap-0.5 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const editor = document.getElementById('description-editor');
-                        if (editor) {
-                          document.execCommand('bold', false);
-                          editor.focus();
-                        }
-                      }}
-                      className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
-                      title="Жирный (Ctrl+B)"
-                    >
-                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42zM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3v-3zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const editor = document.getElementById('description-editor');
-                        if (editor) {
-                          document.execCommand('italic', false);
-                          editor.focus();
-                        }
-                      }}
-                      className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
-                      title="Курсив (Ctrl+I)"
-                    >
-                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z"/></svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const editor = document.getElementById('description-editor');
-                        if (editor) {
-                          document.execCommand('underline', false);
-                          editor.focus();
-                        }
-                      }}
-                      className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
-                      title="Подчёркнутый (Ctrl+U)"
-                    >
-                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17c3.31 0 6-2.69 6-6V3h-2.5v8c0 1.93-1.57 3.5-3.5 3.5S8.5 12.93 8.5 11V3H6v8c0 3.31 2.69 6 6 6zm-7 2v2h14v-2H5z"/></svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const editor = document.getElementById('description-editor');
-                        if (editor) {
-                          document.execCommand('strikeThrough', false);
-                          editor.focus();
-                        }
-                      }}
-                      className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
-                      title="Зачёркнутый"
-                    >
-                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M10 19h4v-3h-4v3zM5 4v3h5v3h4V7h5V4H5zM3 14h18v-2H3v2z"/></svg>
-                    </button>
-                    <div className="w-px h-3 bg-gray-200 dark:bg-[var(--bg-glass-hover)] mx-0.5" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const selection = window.getSelection();
-                        if (selection && selection.rangeCount > 0) {
-                          const range = selection.getRangeAt(0);
-                          const selectedText = range.toString();
-                          const editor = document.getElementById('description-editor');
-                          if (editor && selectedText) {
-                            const items = selectedText.split('\n').filter(s => s.trim());
-                            const ul = `<ul class="list-disc ml-6 my-2">${items.map(item => `<li class="text-gray-900 dark:text-white">${item.trim()}</li>`).join('')}</ul>`;
-                            range.deleteContents();
-                            const template = document.createElement('template');
-                            template.innerHTML = ul;
-                            range.insertNode(template.content.firstChild!);
-                            editor.focus();
-                            if (editingTodo && descriptionEditorRef.current) {
-                              setEditingTodo(prev => prev ? { ...prev, description: descriptionEditorRef.current!.innerHTML } : prev);
-                            }
-                          }
-                        }
-                      }}
-                      className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
-                      title="Маркированный список"
-                    >
-                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z"/></svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const selection = window.getSelection();
-                        if (selection && selection.rangeCount > 0) {
-                          const range = selection.getRangeAt(0);
-                          const selectedText = range.toString();
-                          const editor = document.getElementById('description-editor');
-                          if (editor && selectedText) {
-                            const items = selectedText.split('\n').filter(s => s.trim());
-                            const ol = `<ol class="list-decimal ml-6 my-2">${items.map(item => `<li class="text-gray-900 dark:text-white">${item.trim()}</li>`).join('')}</ol>`;
-                            range.deleteContents();
-                            const template = document.createElement('template');
-                            template.innerHTML = ol;
-                            range.insertNode(template.content.firstChild!);
-                            editor.focus();
-                            if (editingTodo && descriptionEditorRef.current) {
-                              setEditingTodo(prev => prev ? { ...prev, description: descriptionEditorRef.current!.innerHTML } : prev);
-                            }
-                          }
-                        }
-                      }}
-                      className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
-                      title="Нумерованный список"
-                    >
-                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 10.9V10H2v1zm5-6v2h14V5H7zm0 14h14v-2H7v2zm0-6h14v-2H7v2z"/></svg>
-                    </button>
-                    <div className="hidden sm:block w-px h-3 bg-gray-200 dark:bg-[var(--bg-glass-hover)] mx-0.5" />
-                    {/* Кастомный dropdown для размера текста */}
-                    <div className="relative hidden sm:block">
-                      <button
-                        type="button"
-                        onClick={() => setOpenDropdown(openDropdown === 'textSize' ? null : 'textSize')}
-                        className="flex items-center gap-1 px-1.5 py-1 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors text-xs"
-                      >
-                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M9 4v3h5v12h3V7h5V4H9zm-6 8h3v7h3v-7h3V9H3v3z"/></svg>
-                        <span className="hidden sm:inline text-[10px]">Размер</span>
-                        <ChevronDown className="w-2 h-2" />
-                      </button>
-                      {openDropdown === 'textSize' && (
-                        <div className="absolute top-full left-0 mt-1 bg-white dark:bg-[var(--bg-tertiary)] border border-gray-200 dark:border-[var(--border-color)] rounded-lg shadow-xl z-50 min-w-[120px] overflow-hidden">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const selection = window.getSelection();
-                              if (selection && selection.rangeCount > 0) {
-                                const range = selection.getRangeAt(0);
-                                const selectedText = range.toString();
-                                const editor = document.getElementById('description-editor');
-                                if (editor && selectedText) {
-                                  const h1 = `<h1 class="text-2xl font-bold my-2 text-gray-900 dark:text-white">${selectedText}</h1>`;
-                                  range.deleteContents();
-                                  const template = document.createElement('template');
-                                  template.innerHTML = h1;
-                                  range.insertNode(template.content.firstChild!);
-                                  editor.focus();
-                                  // Сохраняем изменения
-                                  if (editingTodo && descriptionEditorRef.current) {
-                                    setEditingTodo(prev => prev ? { ...prev, description: descriptionEditorRef.current!.innerHTML } : prev);
-                                  }
-                                }
-                              }
-                              setOpenDropdown(null);
-                            }}
-                            className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-[var(--bg-glass)] transition-colors flex items-center gap-2"
-                          >
-                            <span className="text-base font-bold text-gray-900 dark:text-[var(--text-primary)]">Заголовок 1</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const selection = window.getSelection();
-                              if (selection && selection.rangeCount > 0) {
-                                const range = selection.getRangeAt(0);
-                                const selectedText = range.toString();
-                                const editor = document.getElementById('description-editor');
-                                if (editor && selectedText) {
-                                  const h2 = `<h2 class="text-xl font-semibold my-2 text-gray-900 dark:text-white">${selectedText}</h2>`;
-                                  range.deleteContents();
-                                  const template = document.createElement('template');
-                                  template.innerHTML = h2;
-                                  range.insertNode(template.content.firstChild!);
-                                  editor.focus();
-                                  // Сохраняем изменения
-                                  if (editingTodo && descriptionEditorRef.current) {
-                                    setEditingTodo(prev => prev ? { ...prev, description: descriptionEditorRef.current!.innerHTML } : prev);
-                                  }
-                                }
-                              }
-                              setOpenDropdown(null);
-                            }}
-                            className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-[var(--bg-glass)] transition-colors flex items-center gap-2"
-                          >
-                            <span className="text-sm font-semibold text-gray-900 dark:text-[var(--text-primary)]">Заголовок 2</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const selection = window.getSelection();
-                              if (selection && selection.rangeCount > 0) {
-                                const range = selection.getRangeAt(0);
-                                const selectedText = range.toString();
-                                const editor = document.getElementById('description-editor');
-                                if (editor && selectedText) {
-                                  const h3 = `<h3 class="text-lg font-medium my-2 text-gray-900 dark:text-white">${selectedText}</h3>`;
-                                  range.deleteContents();
-                                  const template = document.createElement('template');
-                                  template.innerHTML = h3;
-                                  range.insertNode(template.content.firstChild!);
-                                  editor.focus();
-                                  // Сохраняем изменения
-                                  if (editingTodo && descriptionEditorRef.current) {
-                                    setEditingTodo(prev => prev ? { ...prev, description: descriptionEditorRef.current!.innerHTML } : prev);
-                                  }
-                                }
-                              }
-                              setOpenDropdown(null);
-                            }}
-                            className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-[var(--bg-glass)] transition-colors flex items-center gap-2"
-                          >
-                            <span className="text-xs font-medium text-gray-900 dark:text-[var(--text-primary)]">Заголовок 3</span>
-                          </button>
-                          <div className="h-px bg-gray-200 dark:bg-[var(--bg-glass-hover)] my-1" />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const selection = window.getSelection();
-                              if (selection && selection.rangeCount > 0) {
-                                const range = selection.getRangeAt(0);
-                                const selectedText = range.toString();
-                                const editor = document.getElementById('description-editor');
-                                if (editor && selectedText) {
-                                  const span = `<span class="text-sm text-gray-900 dark:text-white">${selectedText}</span>`;
-                                  range.deleteContents();
-                                  const template = document.createElement('template');
-                                  template.innerHTML = span;
-                                  range.insertNode(template.content.firstChild!);
-                                  editor.focus();
-                                  if (editingTodo && descriptionEditorRef.current) {
-                                    setEditingTodo(prev => prev ? { ...prev, description: descriptionEditorRef.current!.innerHTML } : prev);
-                                  }
-                                }
-                              }
-                              setOpenDropdown(null);
-                            }}
-                            className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-[var(--bg-glass)] transition-colors flex items-center gap-2"
-                          >
-                            <span className="text-xs text-gray-600 dark:text-[var(--text-secondary)]">Обычный текст</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="hidden sm:block w-px h-3 bg-gray-200 dark:bg-[var(--bg-glass-hover)] mx-0.5" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const selection = window.getSelection();
-                        const editor = document.getElementById('description-editor');
-                        if (!selection || !editor) return;
-                        
-                        const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
-                        const selectedText = selection.toString();
-                        
-                        const url = prompt('Введите URL ссылки:', 'https://');
-                        if (url && url.trim() && range) {
-                          const linkText = selectedText || url;
-                          const linkHTML = `<a href="${url}" target="_blank" rel="noopener noreferrer" contenteditable="false" class="text-blue-500 hover:text-blue-600 underline cursor-pointer">${linkText}</a>`;
-                          
-                          range.deleteContents();
-                          const template = document.createElement('template');
-                          template.innerHTML = linkHTML;
-                          range.insertNode(template.content.firstChild!);
-                          
-                          editor.focus();
-                          // Сохраняем изменения
-                          if (editingTodo && descriptionEditorRef.current) {
-                            setEditingTodo(prev => prev ? { ...prev, description: descriptionEditorRef.current!.innerHTML } : prev);
-                          }
-                        }
-                      }}
-                      className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
-                      title="Вставить ссылку"
-                    >
-                      <Link2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const editor = document.getElementById('description-editor');
-                        if (editor) {
-                          // Вставляем чек-лист
-                          const checkbox = '<div class="checklist-item flex items-center gap-2 my-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"><input type="checkbox" data-checklist="true" class="w-4 h-4 rounded border-2 border-gray-300 dark:border-white/30 cursor-pointer accent-blue-500" /><span contenteditable="true" class="flex-1 text-gray-900 dark:text-white outline-none">Пункт чек-листа</span></div>';
-                          document.execCommand('insertHTML', false, checkbox);
-                          editor.focus();
-                        }
-                      }}
-                      className="hidden sm:block p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
-                      title="Добавить чек-лист"
-                    >
-                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const selection = window.getSelection();
-                        if (selection && selection.rangeCount > 0) {
-                          const range = selection.getRangeAt(0);
-                          const selectedText = range.toString();
-                          const editor = document.getElementById('description-editor');
-                          if (editor && selectedText) {
-                            // Заменяем выделенное на простой текст без форматирования
-                            const plainText = document.createTextNode(selectedText);
-                            range.deleteContents();
-                            range.insertNode(plainText);
-                            editor.focus();
-                            // Сохраняем изменения
-                            if (editingTodo && descriptionEditorRef.current) {
-                              setEditingTodo(prev => prev ? { ...prev, description: descriptionEditorRef.current!.innerHTML } : prev);
-                            }
-                          }
-                        }
-                      }}
-                      className="p-1 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
-                      title="Очистить форматирование"
-                    >
-                      <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Редактор описания - увеличенный с drag & drop */}
-                <div className="flex-1 p-1.5 sm:p-2 overflow-y-auto flex flex-col relative min-h-[200px]">
-                  {/* Превью загруженных изображений - Telegram-style grid */}
-                  {editingTodo.attachments && editingTodo.attachments.filter(a => a.type === 'image').length > 0 && (
-                    <div className="mb-3 rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 w-full">
-                      {(() => {
-                        const images = editingTodo.attachments?.filter(a => a.type === 'image') || [];
-                        const count = Math.min(images.length, 6);
-                        
-                        if (count === 1) {
-                          return (
-                            <div className="relative group w-full">
-                              <img src={images[0].url} alt="" className="w-full max-h-[180px] object-cover block" />
-                              <button type="button" onClick={() => setEditingTodo(prev => prev ? { ...prev, attachments: prev.attachments?.filter(a => a.id !== images[0].id) } : null)} className="absolute top-2 right-2 w-7 h-7 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-4 h-4 text-white" /></button>
-                            </div>
-                          );
-                        }
-                        
-                        if (count === 2) {
-                          return (
-                            <div className="grid grid-cols-2 gap-0.5 w-full">
-                              {images.slice(0, 2).map((img, idx) => (
-                                <div key={img.id} className="relative group w-full">
-                                  <img src={img.url} alt="" className="w-full h-[100px] object-cover block" />
-                                  <button type="button" onClick={() => setEditingTodo(prev => prev ? { ...prev, attachments: prev.attachments?.filter(a => a.id !== img.id) } : null)} className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3 h-3 text-white" /></button>
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        }
-                        
-                        // 3+ images - grid layout
-                        return (
-                          <div className="grid grid-cols-3 gap-0.5 w-full">
-                            {images.slice(0, 6).map((img, idx) => (
-                              <div key={img.id} className="relative group w-full">
-                                <img src={img.url} alt="" className="w-full h-[70px] object-cover block" />
-                                <button type="button" onClick={() => setEditingTodo(prev => prev ? { ...prev, attachments: prev.attachments?.filter(a => a.id !== img.id) } : null)} className="absolute top-1 right-1 w-4 h-4 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-2.5 h-2.5 text-white" /></button>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                      {(editingTodo.attachments?.filter(a => a.type === 'image').length || 0) > 6 && (
-                        <div className="text-center text-xs text-gray-500 dark:text-white/40 py-1 bg-gray-100 dark:bg-white/5">
-                          +{(editingTodo.attachments?.filter(a => a.type === 'image').length || 0) - 6} ещё
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  <div
-                    ref={descriptionEditorRef}
-                    id="description-editor"
-                    contentEditable
-                    suppressContentEditableWarning
-                    onInput={(e) => {
-                      if (editingTodo && e.currentTarget) {
-                        const newContent = e.currentTarget.innerHTML;
-                        setEditingTodo(prev => prev ? { ...prev, description: newContent } : prev);
-                      }
-                    }}
-                    onClick={(e) => {
-                      const target = e.target as HTMLElement;
-                      
-                      // Ctrl + клик по ссылке = переход
-                      if (target.tagName === 'A' && (e.ctrlKey || e.metaKey)) {
-                        e.preventDefault();
-                        const link = target as HTMLAnchorElement;
-                        if (link.href) {
-                          window.open(link.href, '_blank', 'noopener,noreferrer');
-                        }
-                        return;
-                      }
-                      
-                      // Обработка кликов по чекбоксам чек-листа
-                      if (target.tagName === 'INPUT' && target.getAttribute('data-checklist') === 'true') {
-                        const checkbox = target as HTMLInputElement;
-                        const parent = checkbox.parentElement;
-                        if (parent) {
-                          if (checkbox.checked) {
-                            parent.style.opacity = '0.5';
-                            parent.style.textDecoration = 'line-through';
-                          } else {
-                            parent.style.opacity = '1';
-                            parent.style.textDecoration = 'none';
-                          }
-                          // Сохраняем изменения
-                          if (editingTodo && descriptionEditorRef.current) {
-                            setEditingTodo(prev => prev ? { ...prev, description: descriptionEditorRef.current!.innerHTML } : prev);
-                          }
-                        }
-                      }
-                    }}
-                    data-placeholder="Добавьте описание задачи..."
-                    className="w-full flex-1 min-h-[150px] px-2 sm:px-3 py-2 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl text-sm text-gray-900 dark:text-[var(--text-primary)] focus:outline-none focus:border-blue-500/30 transition-all whitespace-pre-wrap break-words overflow-y-auto empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400 empty:before:dark:text-white/30"
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      e.currentTarget.style.borderColor = 'rgb(59, 130, 246)';
-                      e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
-                    }}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      e.currentTarget.style.borderColor = '';
-                      e.currentTarget.style.backgroundColor = '';
-                    }}
-                    onDrop={async (e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      e.currentTarget.style.borderColor = '';
-                      e.currentTarget.style.backgroundColor = '';
-                      
-                      const files = e.dataTransfer.files;
-                      if (files && files.length > 0) {
-                        const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
-                        if (imageFiles.length > 0) {
-                          for (const file of imageFiles) {
-                            const formData = new FormData();
-                            formData.append('file', file);
-                            try {
-                              const response = await fetch('/api/upload', {
-                                method: 'POST',
-                                body: formData
-                              });
-                              if (response.ok) {
-                                const data = await response.json();
-                                const uploadedAttachment = {
-                                  id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-                                  name: data.filename || file.name,
-                                  url: data.url,
-                                  type: 'image' as const,
-                                  size: data.size || file.size,
-                                  uploadedAt: new Date().toISOString()
-                                };
-                                setEditingTodo(prev => prev ? {
-                                  ...prev,
-                                  attachments: [...(prev.attachments || []), uploadedAttachment]
-                                } : null);
-                              }
-                            } catch (error) {
-                              console.error('Error uploading image:', error);
-                            }
-                          }
-                        }
-                      }
-                    }}
-                    onPaste={async (e) => {
-                      const items = e.clipboardData.items;
-                      for (let i = 0; i < items.length; i++) {
-                        const item = items[i];
-                        if (item.type.indexOf('image') !== -1) {
-                          e.preventDefault();
-                          const blob = item.getAsFile();
-                          if (blob) {
-                            const formData = new FormData();
-                            formData.append('file', blob, 'pasted-image.png');
-                            try {
-                              const response = await fetch('/api/upload', {
-                                method: 'POST',
-                                body: formData
-                              });
-                              if (response.ok) {
-                                const data = await response.json();
-                                const uploadedAttachment = {
-                                  id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-                                  name: data.filename || 'pasted-image.png',
-                                  url: data.url,
-                                  type: 'image' as const,
-                                  size: data.size || blob.size,
-                                  uploadedAt: new Date().toISOString()
-                                };
-                                setEditingTodo(prev => prev ? {
-                                  ...prev,
-                                  attachments: [...(prev.attachments || []), uploadedAttachment]
-                                } : null);
-                              }
-                            } catch (error) {
-                              console.error('Error uploading pasted image:', error);
-                            }
-                          }
-                          break;
-                        }
-                      }
-                    }}
-                  >
-                  </div>
-                </div>
-
-                {/* Вложения - файлы (не картинки) */}
-                <div className="px-1.5 sm:px-2 py-1.5 sm:py-2 border-t border-gray-200 dark:border-[var(--border-color)]">
-                  <div className="flex items-center gap-2 mb-2">
-                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500 dark:text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                    </svg>
-                    <span className="text-xs text-gray-500 dark:text-white/50 select-none">Вложения</span>
-                    {editingTodo.attachments && editingTodo.attachments.length > 0 && (
-                      <span className="text-[10px] bg-[var(--bg-glass-hover)] text-white/50 px-1.5 py-0.5 rounded-full">
-                        {editingTodo.attachments.length}
-                      </span>
-                    )}
-                    <label className="ml-auto cursor-pointer px-2 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg text-xs transition-colors flex items-center gap-1">
-                      <input
-                        type="file"
-                        multiple
-                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-                        className="hidden"
-                        onChange={async (e) => {
-                          const files = e.target.files;
-                          if (files && files.length > 0) {
-                            // Показываем индикатор загрузки
-                            const loadingToast = document.createElement('div');
-                            loadingToast.className = 'fixed top-4 right-4 bg-blue-500/20 border border-blue-500/30 text-blue-400 px-4 py-2 rounded-lg text-sm z-50';
-                            loadingToast.textContent = `Загрузка ${files.length} файл${files.length === 1 ? 'а' : 'ов'}...`;
-                            document.body.appendChild(loadingToast);
-                            
-                            // Загружаем файлы на сервер
-                            const uploadPromises = Array.from(files).map(async (file) => {
-                              const formData = new FormData();
-                              formData.append('file', file);
-                              
-                              try {
-                                const response = await fetch('/api/upload', {
-                                  method: 'POST',
-                                  body: formData
-                                });
-                                
-                                if (response.ok) {
-                                  const data = await response.json();
-                                  return {
-                                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-                                    name: data.filename || file.name,
-                                    url: data.url,
-                                    type: file.type.startsWith('image/') ? 'image' : 'file',
-                                    size: data.size || file.size,
-                                    uploadedAt: new Date().toISOString()
-                                  };
-                                } else {
-                                  console.error('Failed to upload file:', file.name);
-                                  return null;
-                                }
-                              } catch (error) {
-                                console.error('Error uploading file:', error);
-                                return null;
-                              }
-                            });
-                            
-                            const uploadedAttachments = (await Promise.all(uploadPromises)).filter(Boolean) as Attachment[];
-                            
-                            // Обновляем индикатор загрузки
-                            if (loadingToast) {
-                              loadingToast.textContent = `✓ Загружено ${uploadedAttachments.length} файл${uploadedAttachments.length === 1 ? '' : uploadedAttachments.length < 5 ? 'а' : 'ов'}`;
-                              loadingToast.className = 'fixed top-4 right-4 bg-green-500/20 border border-green-500/30 text-green-400 px-4 py-2 rounded-lg text-sm z-50';
-                              setTimeout(() => loadingToast.remove(), 2000);
-                            }
-                            
-                            if (uploadedAttachments.length > 0) {
-                              setEditingTodo(prev => prev ? {
-                                ...prev,
-                                attachments: [...(prev.attachments || []), ...uploadedAttachments]
-                              } : null);
-                            }
-                          }
-                        }}
-                      />
-                      <span className="flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 transition-colors">
-                        <Plus className="w-3 h-3" />
-                        Добавить
-                      </span>
-                    </label>
-                  </div>
-                  {editingTodo.attachments && editingTodo.attachments.filter(a => a.type !== 'image').length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {editingTodo.attachments.filter(a => a.type !== 'image').map(att => (
-                        <div key={att.id} className="relative group">
-                          <a
-                            href={att.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-lg hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] transition-colors w-[120px]"
-                          >
-                            <svg className="w-4 h-4 text-gray-500 dark:text-white/70 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
-                            <span className="text-[10px] text-gray-700 dark:text-[var(--text-secondary)] truncate flex-1 min-w-0">{att.name}</span>
-                          </a>
-                          <button
-                            onClick={() => {
-                              setEditingTodo(prev => prev ? {
-                                ...prev,
-                                attachments: prev.attachments?.filter(a => a.id !== att.id)
-                              } : null);
-                            }}
-                            className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-[var(--text-primary)] rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X className="w-2.5 h-2.5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Resize handle between center and right */}
-              <div 
-                className="hidden lg:block w-1 cursor-col-resize bg-transparent hover:bg-blue-500/30 active:bg-blue-500/50 transition-colors relative z-10 flex-shrink-0 group"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  resizeStartXRef.current = e.clientX;
-                  resizeStartWidthsRef.current = columnWidths;
-                  setIsResizing(1);
-                }}
-                title="Перетащите для изменения ширины"
-              >
-                <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-4 flex items-center justify-center">
-                  <div className="w-0.5 h-6 bg-gray-300 dark:bg-white/20 group-hover:bg-blue-500 transition-colors rounded-full"></div>
-                </div>
-              </div>
-
-              {/* Правый блок - Комментарии */}
-              <div 
-                className="w-full flex flex-col bg-[var(--bg-secondary)] order-3 lg:order-3"
-                style={{ 
-                  width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? `${columnWidths[2]}%` : '100%'
-                }}
-              >
-                {/* Заголовок */}
-                <div className="px-3 py-2 border-b border-[var(--border-color)] flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <MessageCircle className="w-4 h-4 text-blue-400" />
-                    <span className="text-xs font-medium text-[var(--text-secondary)] select-none">Комментарии</span>
-                    {(editingTodo.comments?.length || 0) > 0 && (
-                      <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full">
-                        {editingTodo.comments?.length}
-                      </span>
-                    )}
-                    {unreadCommentsCount > 0 && (
-                      <button
-                        onClick={markLocalCommentsAsRead}
-                        className="text-[10px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full hover:bg-green-500/30 transition-colors flex items-center gap-1"
-                      >
-                        <Check className="w-2.5 h-2.5" />
-                        Прочитать {unreadCommentsCount}
-                      </button>
-                    )}
-                  </div>
-                  {!myAccountId && (
-                    <div className="flex items-center gap-1 text-[10px] text-orange-400" title="Выберите профиль для комментирования">
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-                    </div>
-                  )}
-                </div>
-
-                {/* Список комментариев */}
-                <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[150px] lg:min-h-[200px]" ref={commentsContainerRef}>
-                  {!editingTodo.comments || editingTodo.comments.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-[var(--text-muted)] py-8">
-                      <MessageCircle className="w-8 h-8 mb-2 opacity-50" />
-                      <p className="text-xs">Нет комментариев</p>
-                      <p className="text-[10px] mt-1">Начните обсуждение</p>
-                    </div>
-                  ) : (
-                    editingTodo.comments.map((comment, index) => {
-                      const isMyComment = comment.authorId === myAccountId;
-                      const isEditing = editingCommentId === comment.id;
-                      
-                      // Проверяем, нужно ли показать разделитель "Непрочитанные сообщения"
-                      const lastReadIndex = lastReadCommentId 
-                        ? editingTodo.comments!.findIndex(c => c.id === lastReadCommentId)
-                        : -1;
-                      const showUnreadDivider = lastReadCommentId && 
-                        index === lastReadIndex + 1 && 
-                        !isMyComment && 
-                        unreadCommentsCount > 0;
-                      
-                      return (
-                        <div key={comment.id}>
-                          {/* Разделитель непрочитанных сообщений */}
-                          {showUnreadDivider && (
-                            <div className="flex items-center gap-2 my-3 animate-pulse" id="unread-divider">
-                              <div className="flex-1 h-[1px] bg-blue-500/50"></div>
-                              <span className="text-[10px] text-blue-400 font-medium px-2 whitespace-nowrap">
-                                ↓ Непрочитанные сообщения ({unreadCommentsCount})
-                              </span>
-                              <div className="flex-1 h-[1px] bg-blue-500/50"></div>
-                            </div>
-                          )}
-                          <div
-                            className={`flex ${isMyComment ? 'justify-end' : 'justify-start'} group`}
-                          >
-                            <div className={`max-w-[90%] ${isMyComment ? 'order-2' : ''}`}>
-                                      <div className={`rounded-xl px-3 py-2 relative ${
-                                isMyComment 
-                                  ? 'bg-blue-50 dark:bg-blue-500/20 rounded-br-sm' 
-                                  : 'bg-gray-50 dark:bg-[var(--bg-glass)] rounded-bl-sm'
-                              }`}>
-                                {/* Автор комментария - всегда слева */}
-                                <p className={`text-[10px] font-medium mb-0.5 ${isMyComment ? 'text-blue-500 dark:text-blue-300' : 'text-blue-600 dark:text-blue-400'}`}>
-                                  {comment.authorName}
-                                </p>
-                              
-                                {isEditing ? (
-                                  <div className="space-y-2">
-                                    <textarea
-                                      value={editingCommentText}
-                                      onChange={(e) => setEditingCommentText(e.target.value)}
-                                      className="w-full px-2 py-1 bg-[var(--bg-glass-hover)] border border-[var(--border-light)] rounded-[20px] text-xs text-[var(--text-primary)] resize-none focus:outline-none whitespace-pre-wrap break-words"
-                                      rows={2}
-                                      autoFocus
-                                    />
-                                    <div className="flex gap-1 justify-end">
-                                      <button
-                                        onClick={() => {
-                                          setEditingCommentId(null);
-                                          setEditingCommentText('');
-                                        }}
-                                        className="px-2 py-0.5 text-[10px] text-white/50 hover:text-[var(--text-primary)]"
-                                      >
-                                        Отмена
-                                      </button>
-                                      <button
-                                        onClick={() => updateComment(editingTodo.id, comment.id, editingCommentText)}
-                                        className="px-2 py-0.5 text-[10px] bg-blue-500/30 text-blue-400 rounded hover:bg-blue-500/40"
-                                      >
-                                        Сохранить
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <p className="text-xs text-gray-800 dark:text-white/90 whitespace-pre-wrap break-words overflow-wrap-anywhere"
-                                       style={{ overflowWrap: 'anywhere' }}
-                                       dangerouslySetInnerHTML={{ 
-                                         __html: comment.content
-                                           .replace(
-                                             /(https?:\/\/[^\s<>"']+)/gi,
-                                             '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 underline">$1</a>'
-                                           )
-                                           .replace(
-                                             /@([a-zA-Zа-яА-ЯёЁ0-9_]+(?:\s+[a-zA-Zа-яА-ЯёЁ0-9_]+)?)/g, 
-                                             '<span class="text-blue-600 dark:text-blue-400 font-medium">@$1</span>'
-                                           ) 
-                                       }}
-                                    />
-                                    <div className="flex items-center justify-between mt-1">
-                                      <div className="flex items-center gap-1">
-                                        <p className="text-[9px] text-gray-500 dark:text-[var(--text-muted)]">
-                                          {new Date(comment.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                                        </p>
-                                        {/* Галочки прочитано/непрочитано */}
-                                        {isMyComment && (
-                                          lastReadCommentId && (editingTodo.comments!.findIndex(c => c.id === lastReadCommentId) >= index || lastReadCommentId === comment.id) ? (
-                                            <svg className="w-3 h-3 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                              <path d="M1 12l5 5L17 6" />
-                                              <path d="M7 12l5 5L23 6" />
-                                            </svg>
-                                          ) : (
-                                            <svg className="w-3 h-3 text-[var(--text-muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                              <path d="M5 12l5 5L20 7" />
-                                            </svg>
-                                          )
-                                        )}
-                                      </div>
-                                    
-                                      {/* Действия с комментарием */}
-                                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        {/* Ответить */}
-                                        <button
-                                          onClick={() => startReply(comment)}
-                                          className="p-0.5 text-[var(--text-muted)] hover:text-blue-400 transition-colors"
-                                          title="Ответить"
-                                        >
-                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                                          </svg>
-                                        </button>
-                                      
-                                        {/* Редактировать (только свои) */}
-                                        {isMyComment && (
-                                          <button
-                                            onClick={() => {
-                                              setEditingCommentId(comment.id);
-                                              setEditingCommentText(comment.content);
-                                            }}
-                                            className="p-0.5 text-[var(--text-muted)] hover:text-yellow-400 transition-colors"
-                                            title="Редактировать"
-                                          >
-                                            <Edit3 className="w-3 h-3" />
-                                          </button>
-                                        )}
-                                      
-                                        {/* Удалить (только свои) */}
-                                        {isMyComment && (
-                                          <button
-                                            onClick={() => {
-                                              if (confirm('Удалить комментарий?')) {
-                                                deleteComment(editingTodo.id, comment.id);
-                                              }
-                                            }}
-                                            className="p-0.5 text-[var(--text-muted)] hover:text-red-400 transition-colors"
-                                            title="Удалить"
-                                          >
-                                            <Trash2 className="w-3 h-3" />
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                  <div ref={commentsEndRef} />
-                </div>
-
-                {/* Ответ на комментарий */}
-                {replyingToComment && (
-                  <div className="px-2 py-1 border-t border-[var(--border-color)] bg-blue-500/5 flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-[10px] text-blue-400">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                      </svg>
-                      <span>Ответ для {replyingToComment.authorName}</span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setReplyingToComment(null);
-                        setNewComment('');
-                      }}
-                      className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                )}
-
-                {/* Ввод комментария */}
-                {myAccountId ? (
-                  <div className="p-2 border-t border-[var(--border-color)]">
-                    <div className="relative">
-                      <textarea
-                        ref={commentInputRef}
-                        value={newComment}
-                        onFocus={() => {
-                          // При клике на инпут помечаем все сообщения как прочитанные
-                          markLocalCommentsAsRead();
-                        }}
-                        onChange={(e) => {
-                          setNewComment(e.target.value);
-                          // Проверяем @ - ищем последний @ после пробела или в начале
-                          const text = e.target.value;
-                          const cursorPos = e.target.selectionStart || text.length;
-                          
-                          // Находим последний @ перед курсором
-                          let lastAtIndex = -1;
-                          for (let i = cursorPos - 1; i >= 0; i--) {
-                            if (text[i] === '@') {
-                              // Проверяем, что @ в начале или после пробела/новой строки
-                              if (i === 0 || /[\s\n]/.test(text[i - 1])) {
-                                lastAtIndex = i;
-                                break;
-                              }
-                            }
-                            // Если встретили пробел - прекращаем поиск
-                            if (/\s/.test(text[i])) break;
-                          }
-                          
-                          if (lastAtIndex !== -1) {
-                            const afterAt = text.slice(lastAtIndex + 1, cursorPos);
-                            // Проверяем, что нет пробела после @
-                            if (!afterAt.includes(' ') && !afterAt.includes('\n')) {
-                              setShowMentionDropdown(true);
-                              setMentionFilter(afterAt);
-                            } else {
-                              setShowMentionDropdown(false);
-                            }
-                          } else {
-                            setShowMentionDropdown(false);
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          // Ctrl+Enter - перенос строки
-                          if (e.key === 'Enter' && e.ctrlKey) {
-                            e.preventDefault();
-                            const textarea = e.currentTarget;
-                            const start = textarea.selectionStart || 0;
-                            const end = textarea.selectionEnd || 0;
-                            const value = textarea.value;
-                            const newValue = value.substring(0, start) + '\n' + value.substring(end);
-                            setNewComment(newValue);
-                            // Устанавливаем курсор после переноса
-                            requestAnimationFrame(() => {
-                              textarea.selectionStart = start + 1;
-                              textarea.selectionEnd = start + 1;
-                              textarea.focus();
-                            });
-                            return;
-                          }
-                          // Enter без Ctrl - отправка
-                          if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
-                            e.preventDefault();
-                            if (newComment.trim()) {
-                              addComment(editingTodo.id, newComment);
-                              setReplyingToComment(null);
-                            }
-                          }
-                          if (e.key === 'Escape' && replyingToComment) {
-                            setReplyingToComment(null);
-                            setNewComment('');
-                          }
-                        }}
-                        placeholder="Написать... (@упомянуть)"
-                        className="w-full px-3 py-2 pr-12 bg-gray-50 dark:bg-[var(--bg-glass)] border border-gray-200 dark:border-[var(--border-color)] rounded-[20px] text-xs text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 resize-none focus:outline-none focus:border-blue-500/30 transition-all whitespace-pre-wrap break-words"
-                        rows={1}
-                        style={{
-                          minHeight: '40px',
-                          maxHeight: '200px', // примерно 10 строк
-                          overflowY: newComment.split('\n').length > 10 ? 'auto' : 'hidden',
-                          height: 'auto'
-                        }}
-                        onInput={(e) => {
-                          const target = e.target as HTMLTextAreaElement;
-                          target.style.height = 'auto';
-                          const lines = target.value.split('\n').length;
-                          const maxLines = 10;
-                          if (lines <= maxLines) {
-                            target.style.height = `${target.scrollHeight}px`;
-                          } else {
-                            target.style.height = '200px'; // макс высота
-                          }
-                        }}
-                      />
-                      <button
-                        onClick={() => {
-                          if (newComment.trim()) {
-                            addComment(editingTodo.id, newComment);
-                            setReplyingToComment(null);
-                          }
-                        }}
-                        disabled={!newComment.trim()}
-                        className="absolute right-2 bottom-2 w-8 h-8 flex items-center justify-center bg-blue-500 hover:bg-blue-600 disabled:bg-[var(--bg-glass-hover)] disabled:text-[var(--text-muted)] text-[var(--text-primary)] rounded-full transition-all shadow-lg"
-                      >
-                        <Send className="w-3.5 h-3.5" />
-                      </button>
-
-                      {/* Dropdown упоминаний */}
-                      {showMentionDropdown && (
-                        <div className="absolute bottom-full left-0 right-0 mb-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl max-h-32 overflow-y-auto">
-                          {people
-                            .filter(p => !mentionFilter || p.name.toLowerCase().includes(mentionFilter.toLowerCase()))
-                            .map(person => (
-                              <button
-                                key={person.id}
-                                type="button"
-                                onClick={() => {
-                                  // Находим позицию @ для замены
-                                  const text = newComment;
-                                  let lastAtIndex = -1;
-                                  for (let i = text.length - 1; i >= 0; i--) {
-                                    if (text[i] === '@') {
-                                      if (i === 0 || /[\s\n]/.test(text[i - 1])) {
-                                        lastAtIndex = i;
-                                        break;
-                                      }
-                                    }
-                                    if (/\s/.test(text[i])) break;
-                                  }
-                                  if (lastAtIndex !== -1) {
-                                    const newText = text.slice(0, lastAtIndex) + '@' + person.name + ' ';
-                                    setNewComment(newText);
-                                  } else {
-                                    setNewComment(newComment + '@' + person.name + ' ');
-                                  }
-                                  setShowMentionDropdown(false);
-                                  commentInputRef.current?.focus();
-                                }}
-                                className="w-full px-3 py-2 text-left text-xs hover:bg-[var(--bg-glass)] flex items-center gap-2 transition-colors"
-                              >
-                                <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                                  person.role === 'executor' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
-                                }`}>
-                                  {person.role === 'executor' ? <UserCheck className="w-3 h-3" /> : <User className="w-3 h-3" />}
-                                </div>
-                                <span className="text-[var(--text-secondary)]">{person.name}</span>
-                                {person.telegramId && (
-                                  <span className="text-[9px] text-cyan-400 ml-auto">TG</span>
-                                )}
-                              </button>
-                            ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-3 border-t border-[var(--border-color)] bg-orange-500/5">
-                    <div className="flex items-center justify-center gap-2 text-orange-400">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-                      <p className="text-[10px]">
-                        Выберите профиль в настройках
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* Футер */}
-            <div className="sticky bottom-0 flex flex-col sm:flex-row justify-between items-center gap-2 px-4 py-3 border-t border-[var(--border-color)] bg-[var(--bg-secondary)]/95 backdrop-blur-xl">
-              <div className="text-[10px] text-[var(--text-muted)] w-full sm:w-auto text-center sm:text-left">
-                Создано: {new Date(editingTodo.createdAt).toLocaleDateString('ru-RU')}
-              </div>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <button
-                  onClick={closeTodoModal}
-                  className="flex-1 sm:flex-none px-6 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-glass)] transition-all text-sm font-medium shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm bg-gradient-to-br from-white/5 to-white/10 border border-white/10"
-                  style={{ borderRadius: '50px' }}
-                >
-                  Отмена
-                </button>
-                <button
-                  onClick={() => {
-                    // Синхронизируем описание из редактора перед сохранением
-                    const updatedTodo = { ...editingTodo };
-                    if (descriptionEditorRef.current) {
-                      updatedTodo.description = descriptionEditorRef.current.innerHTML || '';
-                    }
-                    
-                    // Log for debugging multiple executors
-                    if (updatedTodo.assignedToIds && updatedTodo.assignedToIds.length > 0) {
-                      console.log('[SAVE BUTTON] 👥 Saving task with multiple executors:');
-                      console.log('[SAVE BUTTON]    assignedToIds:', updatedTodo.assignedToIds);
-                      console.log('[SAVE BUTTON]    assignedToNames:', updatedTodo.assignedToNames);
-                      console.log('[SAVE BUTTON]    assignedToId:', updatedTodo.assignedToId);
-                      console.log('[SAVE BUTTON]    assignedTo:', updatedTodo.assignedTo);
-                    }
-                    
-                    updateTodo(updatedTodo);
-                  }}
-                  className="flex-1 sm:flex-none px-8 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white transition-all text-sm font-medium shadow-lg"
-                  style={{ borderRadius: '50px' }}
-                >
-                  Сохранить
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <Editingtodo
+        todo={editingTodo}
+        isOpen={editingTodo !== null}
+        onClose={() => setEditingTodo(null)}
+        onUpdate={updateTodo}
+        onToggle={toggleTodo}
+        people={people}
+        lists={lists}
+        nonArchivedLists={nonArchivedLists}
+        categories={categories}
+        calendarLists={calendarLists}
+        openDropdown={openDropdown}
+        setOpenDropdown={setOpenDropdown}
+        columnWidths={columnWidths}
+        setColumnWidths={setColumnWidths}
+        isResizing={isResizing}
+        setIsResizing={setIsResizing}
+        resizeStartXRef={resizeStartXRef}
+        resizeStartWidthsRef={resizeStartWidthsRef}
+        statusOptions={statusOptions}
+        TZ_LIST_ID={TZ_LIST_ID}
+        myAccountId={myAccountId || ''}
+      />
 
       {/* Category Manager Modal */}
-      {showCategoryManager && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4">
-          <div className="bg-[var(--bg-tertiary)] border-0 sm:border border-[var(--border-color)] rounded-t-2xl sm:rounded-xl w-full max-w-lg max-h-[95vh] sm:max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Settings className="w-5 h-5 text-[var(--text-secondary)]" />
-                Управление категориями
-              </h3>
-              <button
-                onClick={() => setShowCategoryManager(false)}
-                className="p-1 hover:bg-[var(--bg-glass)] rounded"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-4 overflow-y-auto flex-1">
-              <p className="text-sm text-white/50 mb-4">
-                Категории общие для всех аккаунтов. Добавляйте, редактируйте и удаляйте категории задач.
-              </p>
-
-              {/* Список категорий */}
-              <div className="space-y-2 mb-4">
-                {categories.map(cat => (
-                  <div 
-                    key={cat.id}
-                    className="flex items-center justify-between p-3 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-color)]"
-                  >
-                    {editingCategory?.id === cat.id ? (
-                      <div className="flex-1 flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={editingCategory.name}
-                          onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
-                          className="flex-1 px-2 py-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded focus:outline-none focus:border-white/30"
-                        />
-                        <input
-                          type="color"
-                          value={editingCategory.color}
-                          onChange={(e) => setEditingCategory({ ...editingCategory, color: e.target.value })}
-                          className="w-8 h-8 rounded cursor-pointer"
-                        />
-                        <select
-                          value={editingCategory.icon}
-                          onChange={(e) => setEditingCategory({ ...editingCategory, icon: e.target.value })}
-                          className="px-2 py-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded text-sm"
-                        >
-                          <option value="search">SEO</option>
-                          <option value="file-text">Контент</option>
-                          <option value="megaphone">Реклама</option>
-                          <option value="bar-chart">Аналитика</option>
-                          <option value="share-2">Соцсети</option>
-                          <option value="mail">Email</option>
-                          <option value="palette">Дизайн</option>
-                          <option value="code">Разработка</option>
-                          <option value="tag">Другое</option>
-                        </select>
-                        <button
-                          onClick={() => updateCategory(editingCategory)}
-                          className="p-1 bg-green-500 text-[var(--text-primary)] rounded"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setEditingCategory(null)}
-                          className="p-1 bg-[var(--bg-glass)] rounded"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-3">
-                          <span 
-                            className="w-8 h-8 rounded-lg flex items-center justify-center"
-                            style={{ backgroundColor: `${cat.color}20`, color: cat.color }}
-                          >
-                            {CATEGORY_ICONS[cat.icon] || <Tag className="w-4 h-4" />}
-                          </span>
-                          <span className="font-medium">{cat.name}</span>
-                          <span 
-                            className="w-4 h-4 rounded-full"
-                            style={{ backgroundColor: cat.color }}
-                          />
-                        </div>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => setEditingCategory(cat)}
-                            className="p-1.5 hover:bg-[var(--bg-glass)] rounded"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => deleteCategory(cat.id)}
-                            className="p-1.5 hover:bg-red-500/20 rounded text-red-400"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Форма добавления */}
-              {showAddCategory ? (
-                <div className="p-3 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-color)]">
-                  <h4 className="text-sm font-medium mb-3">Новая категория</h4>
-                  <div className="space-y-3">
-                    <input
-                      type="text"
-                      placeholder="Название категории"
-                      value={newCategoryName}
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg focus:outline-none focus:border-white/30"
-                    />
-                    <div className="flex gap-2">
-                      <div className="flex-1">
-                        <label className="text-xs text-white/50 block mb-1">Цвет</label>
-                        <div className="flex gap-1">
-                          {LIST_COLORS.map(color => (
-                            <button
-                              key={color}
-                              onClick={() => setNewCategoryColor(color)}
-                              className={`w-6 h-6 rounded-full transition-transform ${
-                                newCategoryColor === color ? 'ring-2 ring-offset-2 ring-white/30 scale-110' : ''
-                              }`}
-                              style={{ backgroundColor: color }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-xs text-white/50 block mb-1">Иконка</label>
-                        <select
-                          value={newCategoryIcon}
-                          onChange={(e) => setNewCategoryIcon(e.target.value)}
-                          className="px-2 py-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded text-sm h-8"
-                        >
-                          <option value="search">SEO</option>
-                          <option value="file-text">Контент</option>
-                          <option value="megaphone">Реклама</option>
-                          <option value="bar-chart">Аналитика</option>
-                          <option value="share-2">Соцсети</option>
-                          <option value="mail">Email</option>
-                          <option value="palette">Дизайн</option>
-                          <option value="code">Разработка</option>
-                          <option value="tag">Другое</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={addCategory}
-                        className="flex-1 py-2 bg-[var(--bg-glass-hover)] text-[var(--text-primary)] rounded-lg text-sm font-medium border border-[var(--border-color)] hover:bg-white/15"
-                      >
-                        Добавить
-                      </button>
-                      <button
-                        onClick={() => { setShowAddCategory(false); setNewCategoryName(''); }}
-                        className="px-4 py-2 bg-[var(--bg-glass)] rounded-lg text-sm hover:bg-[var(--bg-glass-hover)]"
-                      >
-                        Отмена
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowAddCategory(true)}
-                  className="w-full py-2 border-2 border-dashed border-[var(--border-color)] rounded-xl text-[var(--text-muted)] hover:border-[var(--border-light)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-glass)] transition-all flex items-center justify-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  Добавить категорию
-                </button>
-              )}
-            </div>
-
-            <div className="flex justify-end p-4 border-t border-[var(--border-color)]">
-              <button
-                onClick={() => setShowCategoryManager(false)}
-                className="px-4 py-2 bg-[var(--bg-glass-hover)] text-[var(--text-primary)] hover:bg-white/15 rounded-xl transition-all border border-[var(--border-color)]"
-              >
-                Готово
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CategoryManager
+        isOpen={showCategoryManager}
+        onClose={() => setShowCategoryManager(false)}
+        categories={categories}
+        editingCategory={editingCategory}
+        setEditingCategory={setEditingCategory}
+        updateCategory={updateCategory}
+        deleteCategory={deleteCategory}
+        showAddCategory={showAddCategory}
+        setShowAddCategory={setShowAddCategory}
+        newCategoryName={newCategoryName}
+        setNewCategoryName={setNewCategoryName}
+        newCategoryColor={newCategoryColor}
+        setNewCategoryColor={setNewCategoryColor}
+        newCategoryIcon={newCategoryIcon}
+        setNewCategoryIcon={setNewCategoryIcon}
+        addCategory={addCategory}
+        LIST_COLORS={LIST_COLORS}
+        CATEGORY_ICONS={CATEGORY_ICONS}
+      />
 
       {/* People Manager Modal */}
-      {showPeopleManager && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4">
-          <div className="bg-[var(--bg-tertiary)] border-0 sm:border border-[var(--border-color)] rounded-t-2xl sm:rounded-xl w-full max-w-lg max-h-[95vh] sm:max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Users className="w-5 h-5 text-[var(--text-secondary)]" />
-                Исполнители и заказчики
-              </h3>
-              <button
-                onClick={() => setShowPeopleManager(false)}
-                className="p-1 hover:bg-[var(--bg-glass)] rounded"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-4 overflow-y-auto flex-1">
-              <p className="text-sm text-white/50 mb-4">
-                Список пользователей системы и их роли в задачах. Управление пользователями доступно в админ-панели.
-              </p>
-
-              {/* Исполнители */}
-              <div className="mb-4">
-                <h4 className="text-sm font-medium text-[var(--text-secondary)] mb-2 flex items-center gap-2">
-                  <UserCheck className="w-4 h-4" /> Исполнители
-                </h4>
-                <div className="space-y-2">
-                  {people.filter(p => p.role === 'executor' || p.role === 'universal').map(person => (
-                    <div 
-                      key={person.id}
-                      className="flex items-center justify-between p-3 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-color)]"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          person.role === 'universal' 
-                            ? 'bg-purple-500/20 text-purple-400' 
-                            : 'bg-green-500/20 text-green-400'
-                        }`}>
-                          {person.role === 'universal' ? <Users className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{person.name}</span>
-                            {person.role === 'universal' && (
-                              <span className="text-[9px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded-full">Универсал</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {person.telegramId && (
-                              <span className="text-xs text-cyan-400">📱 {person.telegramId}</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {people.filter(p => p.role === 'executor' || p.role === 'universal').length === 0 && (
-                    <div className="text-sm text-[var(--text-muted)] text-center py-4">Нет исполнителей</div>
-                  )}
-                </div>
-              </div>
-
-              {/* Заказчики */}
-              <div>
-                <h4 className="text-sm font-medium text-[var(--text-secondary)] mb-2 flex items-center gap-2">
-                  <User className="w-4 h-4" /> Заказчики
-                </h4>
-                <div className="space-y-2">
-                  {people.filter(p => p.role === 'customer' || p.role === 'universal').map(person => (
-                    <div 
-                      key={person.id}
-                      className="flex items-center justify-between p-3 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-color)]"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          person.role === 'universal' 
-                            ? 'bg-purple-500/20 text-purple-400' 
-                            : 'bg-blue-500/20 text-blue-400'
-                        }`}>
-                          {person.role === 'universal' ? <Users className="w-4 h-4" /> : <User className="w-4 h-4" />}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{person.name}</span>
-                            {person.role === 'universal' && (
-                              <span className="text-[9px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded-full">Универсал</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {person.telegramId && (
-                              <span className="text-xs text-cyan-400">📱 {person.telegramId}</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {people.filter(p => p.role === 'customer' || p.role === 'universal').length === 0 && (
-                    <div className="text-sm text-[var(--text-muted)] text-center py-4">Нет заказчиков</div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end p-4 border-t border-[var(--border-color)]">
-              <button
-                onClick={() => setShowPeopleManager(false)}
-                className="px-4 py-2 bg-[var(--bg-glass-hover)] text-[var(--text-primary)] hover:bg-white/15 rounded-xl transition-all border border-[var(--border-color)]"
-              >
-                Готово
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PeopleManager
+        isOpen={showPeopleManager}
+        onClose={() => setShowPeopleManager(false)}
+        people={people}
+      />
 
       {/* Edit Person Modal */}
       {showEditPersonModal && editingPerson && (
@@ -6127,662 +3460,55 @@ export default function TodosPage() {
       )}
 
       {/* Mobile Filters Modal */}
-      {showMobileFiltersModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50 backdrop-blur-sm">
-          <div className="bg-[var(--bg-tertiary)] border-t border-[var(--border-color)] rounded-t-2xl w-full max-h-[85vh] flex flex-col shadow-2xl animate-slide-up">
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
-              <h3 className="font-semibold flex items-center gap-2 text-[var(--text-primary)]">
-                <Filter className="w-5 h-5 text-cyan-400" />
-                Фильтры
-              </h3>
-              <div className="flex items-center gap-2">
-                {(filterStatus !== 'all' || filterExecutor !== 'all' || searchQuery) && (
-                  <button 
-                    onClick={() => {
-                      setFilterStatus('all');
-                      setFilterExecutor('all');
-                      setSearchQuery('');
-                    }}
-                    className="text-xs text-[var(--text-muted)] hover:text-white transition-colors"
-                  >
-                    Сбросить
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowMobileFiltersModal(false)}
-                  className="p-1 hover:bg-[var(--bg-glass)] rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-[var(--text-muted)]" />
-                </button>
-              </div>
-            </div>
-            
-            <div className="p-4 space-y-6 overflow-y-auto">
-              {/* Поиск */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Поиск</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Поиск по задачам..."
-                    className="w-full pl-9 pr-4 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl text-sm focus:outline-none focus:border-cyan-500/50 transition-colors"
-                  />
-                </div>
-              </div>
-
-              {/* Статус */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Статус</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { value: 'all', label: 'Все статусы' }, 
-                    { value: 'todo', label: 'К выполнению' }, 
-                    { value: 'pending', label: 'В ожидании' }, 
-                    { value: 'in-progress', label: 'В работе' }, 
-                    { value: 'review', label: 'На проверке' }
-                  ].map(status => (
-                    <button
-                      key={status.value}
-                      onClick={() => setFilterStatus(status.value as any)}
-                      className={`px-3 py-2 rounded-lg text-sm text-center transition-all border ${
-                        filterStatus === status.value
-                          ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300'
-                          : 'bg-[var(--bg-glass)] border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--border-light)]'
-                      }`}
-                    >
-                      {status.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Исполнитель */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Исполнитель</label>
-                <div className="space-y-1 max-h-48 overflow-y-auto p-1 custom-scrollbar">
-                  <button
-                    onClick={() => setFilterExecutor('all')}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all ${
-                      filterExecutor === 'all'
-                        ? 'bg-green-500/20 text-green-300'
-                        : 'hover:bg-[var(--bg-glass)] text-[var(--text-secondary)]'
-                    }`}
-                  >
-                    <span>Все исполнители</span>
-                    {filterExecutor === 'all' && <Check className="w-4 h-4" />}
-                  </button>
-                  {people.length === 0 ? (
-                    <div className="px-3 py-4 text-center text-sm text-[var(--text-muted)] bg-[var(--bg-secondary)] rounded-lg border border-dashed border-[var(--border-color)]">
-                      Нет доступных исполнителей
-                    </div>
-                  ) : (
-                    people.map(person => (
-                      <button
-                        key={person.id}
-                        onClick={() => setFilterExecutor(person.id)}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all ${
-                          filterExecutor === person.id
-                            ? 'bg-green-500/20 text-green-300'
-                            : 'hover:bg-[var(--bg-glass)] text-[var(--text-secondary)]'
-                        }`}
-                      >
-                        <span>{person.name || person.username}</span>
-                        {filterExecutor === person.id && <Check className="w-4 h-4" />}
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 border-t border-[var(--border-color)] bg-[var(--bg-secondary)]/50">
-              <button
-                onClick={() => setShowMobileFiltersModal(false)}
-                className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-medium rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all"
-              >
-                Применить
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <MobileFilters
+        isOpen={showMobileFiltersModal}
+        onClose={() => setShowMobileFiltersModal(false)}
+        people={people}
+        filterStatus={filterStatus}
+        setFilterStatus={setFilterStatus}
+        filterExecutor={filterExecutor}
+        setFilterExecutor={setFilterExecutor}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+      />
 
       {/* Mobile Archive Modal */}
-      {showMobileArchiveModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50 backdrop-blur-sm">
-          <div className="bg-[var(--bg-tertiary)] border-t border-[var(--border-color)] rounded-t-2xl w-full flex flex-col shadow-2xl animate-slide-up">
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
-              <h3 className="font-semibold flex items-center gap-2 text-[var(--text-primary)]">
-                <Archive className="w-5 h-5 text-orange-400" />
-                Архив
-              </h3>
-              <button
-                onClick={() => setShowMobileArchiveModal(false)}
-                className="p-1 hover:bg-[var(--bg-glass)] rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-[var(--text-muted)]" />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              <div className="flex items-center justify-between p-4 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl">
-                <div className="flex-1">
-                  <div className="font-medium text-[var(--text-primary)] mb-1">Показывать архив</div>
-                  <div className="text-xs text-[var(--text-muted)]">
-                    Отображать скрытые списки и завершенные задачи
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer ml-4">
-                  <input
-                    type="checkbox"
-                    checked={showArchive}
-                    onChange={(e) => setShowArchive(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-[var(--bg-glass)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
-                </label>
-              </div>
-
-              <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl">
-                <h4 className="text-sm font-medium text-orange-400 mb-2 flex items-center gap-2">
-                  <Info className="w-4 h-4" />
-                  Как работает архив
-                </h4>
-                <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-                  Архивированные списки скрыты с главной доски. В архиве вы можете просматривать старые задачи и при необходимости восстанавливать их.
-                </p>
-              </div>
-            </div>
-
-            <div className="p-4 border-t border-[var(--border-color)] bg-[var(--bg-secondary)]/50">
-              <button
-                onClick={() => setShowMobileArchiveModal(false)}
-                className="w-full py-3 bg-[var(--bg-glass-hover)] text-[var(--text-primary)] font-medium rounded-xl border border-[var(--border-color)] active:scale-95 transition-all"
-              >
-                Закрыть
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <MobileArchiveModal
+        isOpen={showMobileArchiveModal}
+        onClose={() => setShowMobileArchiveModal(false)}
+        showArchive={showArchive}
+        setShowArchive={setShowArchive}
+      />
 
       {/* Telegram Settings Modal */}
-      {showTelegramSettings && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4">
-          <div className="bg-[var(--bg-tertiary)] border-0 sm:border border-[var(--border-color)] rounded-t-2xl sm:rounded-xl w-full max-w-md max-h-[95vh] sm:max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Bot className="w-5 h-5 text-cyan-400" />
-                Уведомления в Telegram
-              </h3>
-              <button
-                onClick={() => setShowTelegramSettings(false)}
-                className="p-1 hover:bg-[var(--bg-glass)] rounded"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-4 space-y-4">
-              <p className="text-sm text-white/50">
-                Настройте бота для отправки уведомлений о новых задачах исполнителям в Telegram.
-              </p>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Bot Token</label>
-                <input
-                  type="password"
-                  value={telegramToken}
-                  onChange={(e) => setTelegramToken(e.target.value)}
-                  placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
-                  className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg focus:outline-none focus:border-white/30"
-                />
-                <p className="text-xs text-[var(--text-muted)] mt-1">
-                  Получите токен у @BotFather в Telegram
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between p-3 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-color)]">
-                <div className="flex items-center gap-2">
-                  <Send className="w-4 h-4 text-white/50" />
-                  <span className="text-sm">Отправлять уведомления</span>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={telegramEnabled}
-                    onChange={(e) => setTelegramEnabled(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-9 h-5 bg-[var(--bg-glass-hover)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500"></div>
-                </label>
-              </div>
-
-              <div className="p-3 bg-cyan-500/10 border border-cyan-500/20 rounded-lg">
-                <p className="text-xs text-cyan-400">
-                  💡 Как получить Telegram ID:<br/>
-                  1. Напишите боту @userinfobot<br/>
-                  2. Он пришлёт ваш ID<br/>
-                  3. Добавьте ID к исполнителю в разделе &quot;Люди&quot;
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex justify-end gap-2 p-4 border-t border-[var(--border-color)]">
-              <button
-                onClick={() => setShowTelegramSettings(false)}
-                className="px-4 py-2 hover:bg-[var(--bg-glass)] rounded-lg transition-colors"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={updateTelegramSettings}
-                className="px-4 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg hover:bg-cyan-500/30 transition-all border border-cyan-500/30"
-              >
-                Сохранить
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <TelegramSettings
+        isOpen={showTelegramSettings}
+        onClose={() => setShowTelegramSettings(false)}
+        telegramToken={telegramToken}
+        setTelegramToken={setTelegramToken}
+        telegramEnabled={telegramEnabled}
+        setTelegramEnabled={setTelegramEnabled}
+        updateTelegramSettings={updateTelegramSettings}
+      />
 
       {/* List Settings Modal */}
-      {showListSettings && (() => {
-        const settingsList = lists.find(l => l.id === showListSettings);
-        if (!settingsList) return null;
-        
-        return (
-          <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4">
-            <div className="bg-[var(--bg-tertiary)] border-0 sm:border border-[var(--border-color)] rounded-t-2xl sm:rounded-xl w-full max-w-md max-h-[95vh] sm:max-h-[90vh] flex flex-col">
-              <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)] flex-shrink-0">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <Settings className="w-5 h-5 text-blue-400" />
-                  Настройки списка &quot;{settingsList.name}&quot;
-                </h3>
-                <button
-                  onClick={() => {
-                    setShowListSettings(null);
-                    setListSettingsDropdown(null);
-                  }}
-                  className="p-1 hover:bg-[var(--bg-glass)] rounded"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div className="p-4 space-y-4 overflow-y-auto flex-1">
-                <p className="text-sm text-[var(--text-muted)]">
-                  Задайте исполнителя и заказчика по умолчанию для новых задач в этом списке.
-                </p>
-
-                {/* Дефолтный исполнитель */}
-                <div>
-                  <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-                    <UserCheck className="w-4 h-4 text-green-400" />
-                    Исполнитель по умолчанию
-                  </label>
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setListSettingsDropdown(listSettingsDropdown === 'executor' ? null : 'executor')}
-                      className={`w-full px-3 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] text-left flex items-center justify-between hover:border-[var(--border-light)] transition-all ${
-                        listSettingsDropdown === 'executor' ? 'rounded-t-lg border-b-0' : 'rounded-lg'
-                      }`}
-                    >
-                    <div className="flex items-center gap-2">
-                      {settingsList.defaultExecutorId ? (
-                        <>
-                          <div className="w-6 h-6 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center">
-                            <UserCheck className="w-3 h-3" />
-                          </div>
-                          <span className="text-[var(--text-primary)] text-sm">{people.find(p => p.id === settingsList.defaultExecutorId)?.name}</span>
-                          {people.find(p => p.id === settingsList.defaultExecutorId)?.telegramId && (
-                            <span className="text-[9px] text-cyan-400 bg-cyan-500/20 px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                              <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
-                              TG
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-[var(--text-muted)] text-sm">Не выбран</span>
-                      )}
-                    </div>
-                    <ChevronDown className={`w-4 h-4 text-[var(--text-muted)] transition-transform duration-200 ${listSettingsDropdown === 'executor' ? 'rotate-180' : ''}`} />
-                  </button>
-                  <div className={`absolute top-full left-0 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] border-t-0 rounded-b-lg shadow-xl z-50 max-h-48 overflow-y-auto transition-all duration-200 ease-out origin-top ${
-                    listSettingsDropdown === 'executor' 
-                      ? 'opacity-100 scale-y-100' 
-                      : 'opacity-0 scale-y-0 pointer-events-none'
-                  }`}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const updated = { ...settingsList, defaultExecutorId: undefined };
-                          updateList(updated);
-                          setLists(prev => prev.map(l => l.id === updated.id ? updated : l));
-                          setListSettingsDropdown(null);
-                        }}
-                        className={`w-full px-3 py-2.5 text-left hover:bg-[var(--bg-glass)] transition-colors flex items-center gap-2 border-b border-[var(--border-secondary)] ${
-                          !settingsList.defaultExecutorId ? 'bg-[var(--bg-glass)]' : ''
-                        }`}
-                      >
-                        <div className="w-6 h-6 rounded-full bg-[var(--bg-glass-hover)] flex items-center justify-center">
-                          <X className="w-3 h-3 text-[var(--text-muted)]" />
-                        </div>
-                        <span className="text-white/50 text-sm">Не выбран</span>
-                      </button>
-                      {people.filter(p => p.role === 'executor' || p.role === 'universal').map(person => (
-                        <button
-                          key={person.id}
-                          type="button"
-                          onClick={() => {
-                            const updated = { ...settingsList, defaultExecutorId: person.id };
-                            updateList(updated);
-                            setLists(prev => prev.map(l => l.id === updated.id ? updated : l));
-                            setListSettingsDropdown(null);
-                          }}
-                          className={`w-full px-3 py-2.5 text-left hover:bg-[var(--bg-glass)] transition-colors flex items-center justify-between ${
-                            settingsList.defaultExecutorId === person.id ? 'bg-green-500/10' : ''
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                              settingsList.defaultExecutorId === person.id 
-                                ? 'bg-green-500/20 text-green-400' 
-                                : 'bg-[var(--bg-glass-hover)] text-[var(--text-secondary)]'
-                            }`}>
-                              <UserCheck className="w-3 h-3" />
-                            </div>
-                            <span className={`text-sm ${settingsList.defaultExecutorId === person.id ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
-                              {person.name}
-                            </span>
-                          </div>
-                          {person.telegramId && (
-                            <span className="text-[9px] text-cyan-400 bg-cyan-500/20 px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                              <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
-                              TG
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                      {people.filter(p => p.role === 'executor' || p.role === 'universal').length === 0 && (
-                        <div className="px-3 py-4 text-center text-[var(--text-muted)] text-sm">
-                          Нет исполнителей
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <p className="text-xs text-[var(--text-muted)] mt-1">
-                    Будет автоматически назначен при создании задачи
-                  </p>
-                </div>
-
-                {/* Дефолтный заказчик */}
-                <div>
-                  <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-                    <User className="w-4 h-4 text-blue-400" />
-                    Заказчик по умолчанию
-                  </label>
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setListSettingsDropdown(listSettingsDropdown === 'customer' ? null : 'customer')}
-                      className={`w-full px-3 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] text-left flex items-center justify-between hover:border-[var(--border-light)] transition-all ${
-                        listSettingsDropdown === 'customer' ? 'rounded-t-lg border-b-0' : 'rounded-lg'
-                      }`}
-                    >
-                    <div className="flex items-center gap-2">
-                      {settingsList.defaultCustomerId ? (
-                        <>
-                          <div className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center">
-                            <User className="w-3 h-3" />
-                          </div>
-                          <span className="text-[var(--text-primary)] text-sm">{people.find(p => p.id === settingsList.defaultCustomerId)?.name}</span>
-                          {people.find(p => p.id === settingsList.defaultCustomerId)?.telegramId && (
-                            <span className="text-[9px] text-cyan-400 bg-cyan-500/20 px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                              <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
-                              TG
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-[var(--text-muted)] text-sm">Не выбран</span>
-                      )}
-                    </div>
-                    <ChevronDown className={`w-4 h-4 text-[var(--text-muted)] transition-transform duration-200 ${listSettingsDropdown === 'customer' ? 'rotate-180' : ''}`} />
-                  </button>
-                  <div className={`absolute top-full left-0 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] border-t-0 rounded-b-lg shadow-xl z-50 max-h-48 overflow-y-auto transition-all duration-200 ease-out origin-top ${
-                    listSettingsDropdown === 'customer' 
-                      ? 'opacity-100 scale-y-100' 
-                      : 'opacity-0 scale-y-0 pointer-events-none'
-                  }`}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const updated = { ...settingsList, defaultCustomerId: undefined };
-                          updateList(updated);
-                          setLists(prev => prev.map(l => l.id === updated.id ? updated : l));
-                          setListSettingsDropdown(null);
-                        }}
-                        className={`w-full px-3 py-2.5 text-left hover:bg-[var(--bg-glass)] transition-colors flex items-center gap-2 border-b border-[var(--border-secondary)] ${
-                          !settingsList.defaultCustomerId ? 'bg-[var(--bg-glass)]' : ''
-                        }`}
-                      >
-                        <div className="w-6 h-6 rounded-full bg-[var(--bg-glass-hover)] flex items-center justify-center">
-                          <X className="w-3 h-3 text-[var(--text-muted)]" />
-                        </div>
-                        <span className="text-white/50 text-sm">Не выбран</span>
-                      </button>
-                      {people.filter(p => p.role === 'customer' || p.role === 'universal').map(person => (
-                        <button
-                          key={person.id}
-                          type="button"
-                          onClick={() => {
-                            const updated = { ...settingsList, defaultCustomerId: person.id };
-                            updateList(updated);
-                            setLists(prev => prev.map(l => l.id === updated.id ? updated : l));
-                            setListSettingsDropdown(null);
-                          }}
-                          className={`w-full px-3 py-2.5 text-left hover:bg-[var(--bg-glass)] transition-colors flex items-center justify-between ${
-                            settingsList.defaultCustomerId === person.id ? 'bg-blue-500/10' : ''
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                              settingsList.defaultCustomerId === person.id 
-                                ? 'bg-blue-500/20 text-blue-400' 
-                                : 'bg-[var(--bg-glass-hover)] text-[var(--text-secondary)]'
-                            }`}>
-                              <User className="w-3 h-3" />
-                            </div>
-                            <span className={`text-sm ${settingsList.defaultCustomerId === person.id ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
-                              {person.name}
-                            </span>
-                          </div>
-                          {person.telegramId && (
-                            <span className="text-[9px] text-cyan-400 bg-cyan-500/20 px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                              <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
-                              TG
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                      {people.filter(p => p.role === 'customer' || p.role === 'universal').length === 0 && (
-                        <div className="px-3 py-4 text-center text-[var(--text-muted)] text-sm">
-                          Нет заказчиков
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <p className="text-xs text-[var(--text-muted)] mt-1">
-                    Будет автоматически установлен как &quot;От кого&quot;
-                  </p>
-                </div>
-
-                {/* Цвет списка */}
-                <div>
-                  <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-                    <Palette className="w-4 h-4 text-purple-400" />
-                    Цвет списка
-                  </label>
-                  <div className="flex gap-2 flex-wrap">
-                    {LIST_COLORS.map(color => (
-                      <button
-                        key={color}
-                        onClick={() => {
-                          const updated = { ...settingsList, color };
-                          updateList(updated);
-                          setLists(prev => prev.map(l => l.id === updated.id ? updated : l));
-                        }}
-                        className={`w-8 h-8 rounded-lg transition-all ${
-                          settingsList.color === color 
-                            ? 'ring-2 ring-white/50 ring-offset-2 ring-offset-[#1a1a1a] scale-110' 
-                            : 'opacity-70 hover:opacity-100 hover:scale-105'
-                        }`}
-                        style={{ backgroundColor: color }}
-                        title={color}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                {/* Добавлять на календарь по умолчанию */}
-                <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg">
-                  <label 
-                    className="flex items-center gap-3 cursor-pointer group"
-                    onClick={() => {
-                      const updated = { ...settingsList, defaultAddToCalendar: !settingsList.defaultAddToCalendar };
-                      updateList(updated);
-                      setLists(prev => prev.map(l => l.id === updated.id ? updated : l));
-                    }}
-                  >
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-                      settingsList.defaultAddToCalendar 
-                        ? 'bg-purple-500 border-purple-500' 
-                        : 'border-[var(--border-light)] group-hover:border-white/40'
-                    }`}>
-                      {settingsList.defaultAddToCalendar && <Check className="w-3 h-3 text-[var(--text-primary)]" />}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <CalendarPlus className="w-4 h-4 text-purple-400" />
-                        <span className="text-sm text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
-                          Добавлять задачи на календарь
-                        </span>
-                      </div>
-                      <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                        Новые задачи будут автоматически отправляться на календарь
-                      </p>
-                    </div>
-                  </label>
-                </div>
-
-                {/* Доступ по отделам */}
-                <div>
-                  <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-                    <Users className="w-4 h-4 text-orange-400" />
-                    Доступ по отделам
-                  </label>
-                  <p className="text-xs text-[var(--text-muted)] mb-2">
-                    Пользователи из выбранных отделов смогут видеть этот список
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {(() => {
-                      // Собираем все уникальные отделы из пользователей
-                      const departments = [...new Set(people.filter(p => p.department).map(p => p.department!))].sort();
-                      return departments.map(dept => {
-                        const isSelected = settingsList.allowedDepartments?.includes(dept);
-                        return (
-                          <button
-                            key={dept}
-                            type="button"
-                            onClick={() => {
-                              const currentDepts = settingsList.allowedDepartments || [];
-                              const newDepts = isSelected
-                                ? currentDepts.filter(d => d !== dept)
-                                : [...currentDepts, dept];
-                              const updated = { ...settingsList, allowedDepartments: newDepts };
-                              updateList(updated);
-                              setLists(prev => prev.map(l => l.id === updated.id ? updated : l));
-                            }}
-                            className={`px-3 py-1.5 rounded-lg text-xs transition-all flex items-center gap-1.5 ${
-                              isSelected
-                                ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
-                                : 'bg-[var(--bg-glass)] text-[var(--text-secondary)] border border-[var(--border-color)] hover:border-orange-500/30'
-                            }`}
-                          >
-                            <Users className="w-3 h-3" />
-                            {dept}
-                            {isSelected && <Check className="w-3 h-3" />}
-                          </button>
-                        );
-                      });
-                    })()}
-                    {people.filter(p => p.department).length === 0 && (
-                      <div className="text-xs text-[var(--text-muted)] py-2">
-                        Нет пользователей с назначенными отделами
-                      </div>
-                    )}
-                  </div>
-                  {settingsList.allowedDepartments && settingsList.allowedDepartments.length > 0 && (
-                    <div className="mt-2 text-xs text-orange-400">
-                      Выбрано отделов: {settingsList.allowedDepartments.length}
-                    </div>
-                  )}
-                </div>
-
-                {/* Текущие настройки */}
-                {(settingsList.defaultExecutorId || settingsList.defaultCustomerId || settingsList.defaultAddToCalendar || (settingsList.allowedDepartments && settingsList.allowedDepartments.length > 0)) && (
-                  <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-                    <p className="text-xs text-green-400 font-medium mb-1">✓ Настройки сохранены</p>
-                    <div className="text-xs text-[var(--text-secondary)] space-y-1">
-                      {settingsList.defaultExecutorId && (
-                        <div className="flex items-center gap-1">
-                          <UserCheck className="w-3 h-3 text-green-400" />
-                          Исполнитель: {people.find(p => p.id === settingsList.defaultExecutorId)?.name}
-                        </div>
-                      )}
-                      {settingsList.defaultCustomerId && (
-                        <div className="flex items-center gap-1">
-                          <User className="w-3 h-3 text-blue-400" />
-                          Заказчик: {people.find(p => p.id === settingsList.defaultCustomerId)?.name}
-                        </div>
-                      )}
-                      {settingsList.defaultAddToCalendar && (
-                        <div className="flex items-center gap-1">
-                          <CalendarPlus className="w-3 h-3 text-purple-400" />
-                          Автодобавление в календарь
-                        </div>
-                      )}
-                      {settingsList.allowedDepartments && settingsList.allowedDepartments.length > 0 && (
-                        <div className="flex items-center gap-1">
-                          <Users className="w-3 h-3 text-orange-400" />
-                          Отделы: {settingsList.allowedDepartments.join(', ')}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex justify-end gap-2 p-4 border-t border-[var(--border-color)]">
-                <button
-                  onClick={() => {
-                    setShowListSettings(null);
-                    setListSettingsDropdown(null);
-                  }}
-                  className="px-4 py-2 bg-[var(--bg-glass-hover)] text-[var(--text-primary)] hover:bg-white/15 rounded-lg transition-all border border-[var(--border-color)]"
-                >
-                  Готово
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      <ListSettings
+        list={lists.find(l => l.id === showListSettings) || null}
+        isOpen={showListSettings !== null}
+        onClose={() => {
+          setShowListSettings(null);
+          setListSettingsDropdown(null);
+        }}
+        people={people}
+        updateList={(updatedList) => {
+          updateList(updatedList);
+          setLists(prev => prev.map(l => l.id === updatedList.id ? updatedList : l));
+        }}
+        setLists={setLists}
+        listSettingsDropdown={listSettingsDropdown}
+        setListSettingsDropdown={setListSettingsDropdown}
+        LIST_COLORS={LIST_COLORS}
+      />
 
       {/* Toast Notifications - Боковые уведомления справа */}
       <div className="fixed top-20 right-6 z-[100] flex flex-col gap-2 pointer-events-none max-h-[calc(100vh-120px)] overflow-hidden">

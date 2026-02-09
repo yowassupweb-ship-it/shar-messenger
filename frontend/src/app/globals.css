@@ -153,14 +153,14 @@ body {
 
   html {
     height: 100%;
+    background: #000000;
   }
 
   body {
-    background: transparent;
+    background: #000000;
     color: var(--text-primary);
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
     font-size: 13px;
-    transition: background-color 0.3s ease, color 0.3s ease;
     height: 100%;
     overflow: hidden;
   }

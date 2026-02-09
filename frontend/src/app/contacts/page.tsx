@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { User, Mail, Phone, Briefcase, Shield, Calendar, MessageCircle, CheckSquare, Plus, X, Inbox, Search } from 'lucide-react';
+import { User, Mail, Phone, Briefcase, Shield, Calendar, MessageCircle, CheckSquare, Plus, X, Inbox, Search, Eye, EyeOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -49,11 +49,24 @@ export default function ContactsPage() {
   const [showNewListForm, setShowNewListForm] = useState(false);
   const [newListName, setNewListName] = useState('');
   const [newListColor, setNewListColor] = useState('#3b82f6');
+  const [coloredBackgrounds, setColoredBackgrounds] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('contacts_colored_backgrounds');
+      return saved === null ? true : saved === 'true';
+    }
+    return true;
+  });
 
   useEffect(() => {
     loadContacts();
     loadLists();
   }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('contacts_colored_backgrounds', String(coloredBackgrounds));
+    }
+  }, [coloredBackgrounds]);
 
   const loadContacts = async () => {
     try {
@@ -152,6 +165,15 @@ export default function ContactsPage() {
     return a.localeCompare(b, 'ru');
   });
 
+  // Функция для уменьшения яркости цвета на заданный процент
+  const reduceBrightness = (hex: string, percent: number) => {
+    const num = parseInt(hex.replace('#', ''), 16);
+    const r = Math.floor(((num >> 16) & 0xff) * (1 - percent / 100));
+    const g = Math.floor(((num >> 8) & 0xff) * (1 - percent / 100));
+    const b = Math.floor((num & 0xff) * (1 - percent / 100));
+    return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+  };
+
   // Функция для получения стиля фона отдела (Pantone)
   const getDepartmentStyle = (index: number) => {
     const pantoneColors = [
@@ -162,11 +184,13 @@ export default function ContactsPage() {
     
     let backgroundColor = pantoneColors[index % pantoneColors.length];
     
-    // Всегда используем яркие цвета без затемнения
+    // Если цветные фоны выключены - уменьшаем яркость на 70%
+    if (!coloredBackgrounds) {
+      backgroundColor = reduceBrightness(backgroundColor, 70);
+    }
+    
     return {
         backgroundColor
-        // Убрали принудительный белый цвет текста, чтобы карточки сотрудников внутри
-        // могли использовать свои стандартные цвета темы (черный в светлой, белый в темной)
     };
   };
 
@@ -185,7 +209,7 @@ export default function ContactsPage() {
         <div className="flex items-center gap-2 w-full md:justify-center">
           {/* Search */}
           <div className="relative flex-1 md:flex-none">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)] flex items-center justify-center z-10 pointer-events-none">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white flex items-center justify-center z-10 pointer-events-none">
               <Search className="w-5 h-5" strokeWidth={2.5} />
             </div>
             <input
@@ -196,6 +220,19 @@ export default function ContactsPage() {
               className="w-full md:w-[200px] h-10 pl-10 pr-3 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 rounded-[20px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-white/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
             />
           </div>
+          
+          {/* Color Toggle Button */}
+          <button
+            onClick={() => setColoredBackgrounds(!coloredBackgrounds)}
+            className="w-10 h-10 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 flex items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
+            title={coloredBackgrounds ? 'Выключить цветные фоны' : 'Включить цветные фоны'}
+          >
+            {coloredBackgrounds ? (
+              <Eye className="w-5 h-5 text-white" strokeWidth={2.5} />
+            ) : (
+              <EyeOff className="w-5 h-5 text-white" strokeWidth={2.5} />
+            )}
+          </button>
         </div>
       </div>
 
@@ -255,10 +292,10 @@ export default function ContactsPage() {
                         {contact.email && (
                           <a 
                             href={`mailto:${contact.email}`}
-                            className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 flex items-center justify-center transition-all"
+                            className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/25 hover:to-white/10 border border-white/20 flex items-center justify-center transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,0,0,0.1)] backdrop-blur-md"
                             title={contact.email}
                           >
-                            <Mail className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-600 dark:text-gray-300" />
+                            <Mail className="w-3 h-3 md:w-3.5 md:h-3.5 text-white" />
                           </a>
                         )}
                         <button
@@ -306,20 +343,20 @@ export default function ContactsPage() {
                               console.error('[Contacts] Error opening chat:', error);
                             }
                           }}
-                          className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 flex items-center justify-center transition-all"
+                          className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/25 hover:to-white/10 border border-white/20 flex items-center justify-center transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,0,0,0.1)] backdrop-blur-md"
                           title="Написать сообщение"
                         >
-                          <MessageCircle className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-600 dark:text-gray-300" />
+                          <MessageCircle className="w-3 h-3 md:w-3.5 md:h-3.5 text-white" />
                         </button>
                         <button
                           onClick={() => {
                             setSelectedContact(contact);
                             setShowListModal(true);
                           }}
-                          className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 flex items-center justify-center transition-all"
+                          className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/25 hover:to-white/10 border border-white/20 flex items-center justify-center transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,0,0,0.1)] backdrop-blur-md"
                           title="Поставить задачу"
                         >
-                          <CheckSquare className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-600 dark:text-gray-300" />
+                          <CheckSquare className="w-3 h-3 md:w-3.5 md:h-3.5 text-white" />
                         </button>
                       </div>
                     </div>
@@ -341,12 +378,12 @@ export default function ContactsPage() {
 
       {/* Модалка выбора списка */}
       {showListModal && selectedContact && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-b from-[#1a1a1a] to-[#151515] border border-white/10 rounded-xl w-full max-w-md shadow-2xl">
+        <div className="fixed !inset-0 !p-0 !m-0 bg-black/60 backdrop-blur-sm md:flex md:items-center md:justify-center z-[100] !overflow-hidden md:p-4">
+          <div className="!w-full !h-full md:relative md:inset-auto bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl md:border md:border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_4px_24px_rgba(0,0,0,0.4)] rounded-none md:rounded-[24px] md:w-full md:max-w-md md:h-auto md:min-h-0">
             {/* Заголовок */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.02]">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
               <div>
-                <h3 className="font-semibold text-sm">Выберите список</h3>
+                <h3 className="font-semibold text-sm text-white">Выберите список</h3>
                 <p className="text-xs text-white/50 mt-0.5">
                   Задача для: {selectedContact.name || selectedContact.username}
                 </p>
@@ -357,14 +394,14 @@ export default function ContactsPage() {
                   setSelectedContact(null);
                   setShowNewListForm(false);
                 }}
-                className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+                className="p-2 hover:bg-white/10 rounded-full transition-all"
               >
-                <X className="w-4 h-4 text-white/60" />
+                <X className="w-4 h-4 text-white/80" />
               </button>
             </div>
 
             {/* Списки */}
-            <div className="p-4 max-h-[60vh] overflow-y-auto">
+            <div className="p-4 max-h-[60vh] md:max-h-[80vh] overflow-y-auto">
               {!showNewListForm ? (
                 <>
                   <div className="space-y-2">
@@ -387,7 +424,7 @@ export default function ContactsPage() {
                           createTaskInList(list.id);
                           setShowListModal(false);
                         }}
-                        className="w-full flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all text-left"
+                        className="w-full flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-[20px] transition-all text-left backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]"
                       >
                         <div 
                           className="w-4 h-4 rounded-full flex-shrink-0"
@@ -396,7 +433,7 @@ export default function ContactsPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <Inbox className="w-4 h-4 text-white/50" />
-                            <span className="font-medium text-sm truncate">{list.name}</span>
+                            <span className="font-medium text-sm truncate text-white">{list.name}</span>
                           </div>
                         </div>
                         <CheckSquare className="w-4 h-4 text-green-400 flex-shrink-0" />
@@ -407,7 +444,7 @@ export default function ContactsPage() {
                   {/* Кнопка создания нового списка */}
                   <button
                     onClick={() => setShowNewListForm(true)}
-                    className="w-full mt-4 flex items-center justify-center gap-2 p-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg transition-all"
+                    className="w-full mt-4 flex items-center justify-center gap-2 p-3 bg-[#007aff]/10 hover:bg-[#007aff]/20 text-white border border-[#007aff]/30 rounded-[20px] transition-all"
                   >
                     <Plus className="w-4 h-4" />
                     <span className="text-sm font-medium">Создать новый список</span>
@@ -424,7 +461,7 @@ export default function ContactsPage() {
                         value={newListName}
                         onChange={(e) => setNewListName(e.target.value)}
                         placeholder="Введите название..."
-                        className="w-full px-4 py-3 bg-[#0d0d0d] border border-white/10 rounded-lg text-sm focus:outline-none focus:border-blue-500/50 transition-colors"
+                        className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-[20px] text-sm text-white placeholder:text-white/50 focus:outline-none focus:border-white/40 backdrop-blur-sm shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)]"
                         autoFocus
                       />
                     </div>
@@ -448,14 +485,14 @@ export default function ContactsPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => setShowNewListForm(false)}
-                        className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all text-sm"
+                        className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-[20px] transition-all text-sm text-white"
                       >
                         Отмена
                       </button>
                       <button
                         onClick={createNewList}
                         disabled={!newListName.trim()}
-                        className="flex-1 px-4 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:bg-white/10 disabled:text-white/30 text-white rounded-lg transition-all text-sm font-medium flex items-center justify-center gap-2"
+                        className="flex-1 px-4 py-2.5 bg-[#007aff]/20 hover:bg-[#007aff]/30 disabled:bg-white/5 disabled:text-white/30 text-white border border-[#007aff]/30 rounded-[20px] transition-all text-sm font-medium flex items-center justify-center gap-2"
                       >
                         <Plus className="w-4 h-4" />
                         Создать
@@ -480,14 +517,14 @@ export default function ContactsPage() {
       {/* Модалка карточки контакта */}
       {showContactCard && viewingContact && (
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          className="fixed !inset-0 !p-0 !m-0 bg-black/60 backdrop-blur-sm md:flex md:items-center md:justify-center z-[100] !overflow-hidden md:p-4"
           onClick={() => {
             setShowContactCard(false);
             setViewingContact(null);
           }}
         >
           <div 
-            className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl w-full max-w-md shadow-2xl overflow-y-auto custom-scrollbar relative max-h-[90vh]"
+            className="!w-full !h-full md:relative md:inset-auto bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl md:border md:border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_4px_24px_rgba(0,0,0,0.4)] rounded-none md:rounded-[24px] md:w-full md:max-w-md overflow-y-auto custom-scrollbar relative md:h-auto md:max-h-[95vh] md:min-h-0"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -495,13 +532,13 @@ export default function ContactsPage() {
                 setShowContactCard(false);
                 setViewingContact(null);
               }}
-              className="absolute top-4 right-4 z-20 p-2 rounded-full bg-black/20 hover:bg-black/40 transition-colors"
+              className="absolute top-4 right-4 z-20 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-all backdrop-blur-sm"
             >
               <X className="w-4 h-4 text-white" />
             </button>
 
             {/* Header with Avatar */}
-            <div className="relative h-32 bg-gradient-to-br from-[var(--bg-tertiary)] to-[var(--bg-secondary)] border-b border-[var(--border-light)]">
+            <div className="relative h-32 bg-gradient-to-br from-white/10 to-white/5 border-b border-white/10">
               <div className="absolute -bottom-10 left-1/2 -translate-x-1/2">
                 <div className="relative">
                   <Avatar
@@ -519,11 +556,11 @@ export default function ContactsPage() {
             <div className="pt-14 pb-6 px-6">
               {/* Name & Status */}
               <div className="text-center mb-6">
-                <h2 className="text-xl font-semibold text-[var(--text-primary)]">
+                <h2 className="text-xl font-semibold text-white">
                   {viewingContact.name || viewingContact.username || 'Без имени'}
                 </h2>
                 {viewingContact.position && (
-                  <p className="text-sm text-[var(--text-secondary)] mt-1">{viewingContact.position}</p>
+                  <p className="text-sm text-white/70 mt-1">{viewingContact.position}</p>
                 )}
                 <div className="flex items-center justify-center gap-2 mt-2">
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${
@@ -546,13 +583,13 @@ export default function ContactsPage() {
               {/* Info Grid */}
               <div className="space-y-3">
                 {viewingContact.email && (
-                  <div className="flex items-center gap-3 p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl">
+                  <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-[20px] backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">
                     <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center">
                       <Mail className="w-4 h-4 text-blue-400" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-[var(--text-muted)]">Email</p>
-                      <p className="text-sm text-[var(--text-primary)] truncate">{viewingContact.email}</p>
+                      <p className="text-xs text-white/60">Email</p>
+                      <p className="text-sm text-white truncate">{viewingContact.email}</p>
                     </div>
                     <a 
                       href={`mailto:${viewingContact.email}`}
@@ -564,13 +601,13 @@ export default function ContactsPage() {
                 )}
 
                 {viewingContact.phone && (
-                  <div className="flex items-center gap-3 p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl">
+                  <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-[20px] backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">
                     <div className="w-9 h-9 rounded-lg bg-green-500/20 flex items-center justify-center">
                       <Phone className="w-4 h-4 text-green-400" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-[var(--text-muted)]">Телефон</p>
-                      <p className="text-sm text-[var(--text-primary)]">{viewingContact.phone}</p>
+                      <p className="text-xs text-white/60">Телефон</p>
+                      <p className="text-sm text-white">{viewingContact.phone}</p>
                     </div>
                     <a 
                       href={`tel:${viewingContact.phone}`}
@@ -582,37 +619,37 @@ export default function ContactsPage() {
                 )}
 
                 {viewingContact.department && (
-                  <div className="flex items-center gap-3 p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl">
+                  <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-[20px] backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">
                     <div className="w-9 h-9 rounded-lg bg-purple-500/20 flex items-center justify-center">
                       <Briefcase className="w-4 h-4 text-purple-400" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-[var(--text-muted)]">Отдел</p>
-                      <p className="text-sm text-[var(--text-primary)]">{viewingContact.department}</p>
+                      <p className="text-xs text-white/60">Отдел</p>
+                      <p className="text-sm text-white">{viewingContact.department}</p>
                     </div>
                   </div>
                 )}
 
                 {viewingContact.workSchedule && (
-                  <div className="flex items-center gap-3 p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl">
+                  <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-[20px] backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">
                     <div className="w-9 h-9 rounded-lg bg-orange-500/20 flex items-center justify-center">
                       <Calendar className="w-4 h-4 text-orange-400" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-[var(--text-muted)]">График работы</p>
-                      <p className="text-sm text-[var(--text-primary)]">{viewingContact.workSchedule}</p>
+                      <p className="text-xs text-white/60">График работы</p>
+                      <p className="text-sm text-white">{viewingContact.workSchedule}</p>
                     </div>
                   </div>
                 )}
 
                 {viewingContact.telegramUsername && (
-                  <div className="flex items-center gap-3 p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl">
+                  <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-[20px] backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">
                     <div className="w-9 h-9 rounded-lg bg-cyan-500/20 flex items-center justify-center">
                       <MessageCircle className="w-4 h-4 text-cyan-400" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-[var(--text-muted)]">Telegram</p>
-                      <p className="text-sm text-[var(--text-primary)]">{viewingContact.telegramUsername}</p>
+                      <p className="text-xs text-white/60">Telegram</p>
+                      <p className="text-sm text-white">{viewingContact.telegramUsername}</p>
                     </div>
                     <a 
                       href={`https://t.me/${viewingContact.telegramUsername.replace('@', '')}`}
@@ -653,7 +690,7 @@ export default function ContactsPage() {
                       console.error('Error opening chat:', error);
                     }
                   }}
-                  className="flex-1 py-2.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 font-medium transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 rounded-[20px] bg-purple-500/20 hover:bg-purple-500/30 text-white font-medium transition-all flex items-center justify-center gap-2 border border-purple-500/30"
                 >
                   <MessageCircle className="w-4 h-4" />
                   Написать
@@ -664,7 +701,7 @@ export default function ContactsPage() {
                     setShowContactCard(false);
                     setShowListModal(true);
                   }}
-                  className="flex-1 py-2.5 rounded-xl bg-green-500/20 hover:bg-green-500/30 text-green-400 font-medium transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 rounded-[20px] bg-green-500/20 hover:bg-green-500/30 text-white font-medium transition-all flex items-center justify-center gap-2 border border-green-500/30"
                 >
                   <CheckSquare className="w-4 h-4" />
                   Задача

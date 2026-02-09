@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React from 'react';
 import { useRouter } from 'next/navigation';
 import { MessageCircle, Send, ArrowLeft, Users, Search, Plus, MoreVertical, Check, Edit3, Trash2, Reply, Pin, PinOff, X, Paperclip, FileText, Link as LinkIcon, Calendar, CalendarPlus, Image, File, Info, Grid, List, Play, Music, Download, CheckSquare, Mail, Phone, Upload, Smile, Star, Bell, ChevronLeft, ChevronRight, ChevronDown, Building, Globe, Moon, Sun } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
 import Avatar from '@/components/Avatar';
 import EmojiPicker from '@/components/EmojiPicker';
+import ChatListSkeleton from '@/components/ChatListSkeleton';
 
 const DEPARTMENT_COLORS = [
   '#0F4C81', // Classic Blue
@@ -192,14 +194,303 @@ function LinkPreview({ url, isMyMessage }: { url: string; isMyMessage: boolean }
   );
 }
 
+// Мемоизированный компонент элемента чата - предотвращает перерендеринг при выборе другого чата
+interface ChatItemProps {
+  chat: Chat;
+  isSelected: boolean;
+  isHovered?: boolean;
+  onSelect: (chat: Chat) => void;
+  onHover?: (chatId: string | null) => void;
+  onContextMenu: (e: React.MouseEvent, chat: Chat) => void;
+  getChatTitle: (chat: Chat) => string;
+  getChatAvatarData: (chat: Chat) => { type: "user" | "group" | "favorites" | "notifications"; name: string; avatar?: string };
+  currentUser: User | null;
+  users: User[];
+  chatDrafts: Record<string, string>;
+  variant: 'collapsed-icon' | 'mobile' | 'desktop';
+  isPinned?: boolean;
+}
+
+const ChatItem = React.memo<ChatItemProps>(({
+  chat,
+  isSelected,
+  isHovered,
+  onSelect,
+  onHover,
+  onContextMenu,
+  getChatTitle,
+  getChatAvatarData,
+  currentUser,
+  users,
+  chatDrafts,
+  variant,
+  isPinned
+}) => {
+  const avatarData = getChatAvatarData(chat);
+  const otherParticipantId = !chat.isGroup ? chat.participantIds?.find(id => id !== currentUser?.id) : undefined;
+  const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : undefined;
+  const hasUnread = !chat.isFavoritesChat && (chat.unreadCount || 0) > 0;
+
+  // Collapsed icon view (только desktop)
+  if (variant === 'collapsed-icon') {
+    return (
+      <div
+        key={chat.id}
+        className="relative"
+        onMouseEnter={() => onHover?.(chat.id)}
+        onMouseLeave={() => onHover?.(null)}
+      >
+        <button
+          onClick={() => onSelect(chat)}
+          className={`w-full flex justify-center py-1 relative ${isSelected ? 'bg-[var(--bg-tertiary)]' : 'hover:bg-[var(--bg-tertiary)]/50'}`}
+        >
+          <div className="relative">
+            <Avatar
+              src={avatarData.avatar || ''}
+              name={avatarData.name}
+              type={avatarData.type}
+              size="lg"
+              isOnline={otherUser?.isOnline}
+            />
+            {hasUnread && (
+              <div className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 px-1.5 rounded-full bg-gradient-to-br from-[#007aff]/80 to-[#007aff]/60 backdrop-blur-sm border-2 border-[var(--bg-secondary)] text-white text-[10px] font-bold flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,122,255,0.3)]">
+                {chat.unreadCount! > 9 ? '9+' : chat.unreadCount}
+              </div>
+            )}
+            {isSelected && (
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 w-1 h-8 bg-cyan-500 rounded-r-full" />
+            )}
+          </div>
+        </button>
+        {isHovered && (
+          <div 
+            className="absolute left-[72px] top-0 z-50 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg shadow-xl p-3 min-w-[200px] max-w-[280px]"
+            style={{ pointerEvents: 'none' }}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              {chat.pinnedByUser?.[currentUser?.id || ''] && <Pin className="w-3 h-3 text-cyan-400 flex-shrink-0" />}
+              {chat.isGroup && <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />}
+              <span className="font-medium text-sm text-[var(--text-primary)] truncate select-none">{getChatTitle(chat)}</span>
+            </div>
+            {chat.lastMessage && (
+              <p className="text-xs text-[var(--text-muted)] line-clamp-2 mb-1">
+                <span className="text-[var(--text-secondary)]">{chat.lastMessage.authorName}:</span> {chat.lastMessage.content}
+              </p>
+            )}
+            {hasUnread && (
+              <div className="flex items-center gap-1.5 mt-2">
+                <div className="min-w-[16px] h-4 px-1 rounded-full bg-gradient-to-br from-[#007aff]/80 to-[#007aff]/60 backdrop-blur-sm border border-white/20 text-white text-[9px] font-bold flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,122,255,0.3)]">
+                  {chat.unreadCount! > 9 ? '9+' : chat.unreadCount}
+                </div>
+                <span className="text-[10px] text-cyan-400">непрочитанных</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Mobile view (простой список)
+  if (variant === 'mobile') {
+    return (
+      <div
+        key={chat.id}
+        className={`relative group ${isSelected ? 'bg-[var(--bg-tertiary)]' : ''}`}
+        onContextMenu={(e) => onContextMenu(e, chat)}
+      >
+        <button
+          onClick={() => onSelect(chat)}
+          className="w-full px-3 py-1 hover:bg-[var(--bg-tertiary)] transition-all text-left"
+        >
+          <div className="flex gap-2 items-center">
+            <Avatar
+              src={avatarData.avatar || ''}
+              name={avatarData.name}
+              type={avatarData.type}
+              size="md"
+              isOnline={otherUser?.isOnline}
+            />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                {isPinned && !chat.isFavoritesChat && !chat.isSystemChat && !chat.isNotificationsChat && (
+                  <Pin className="w-3 h-3 text-cyan-400 flex-shrink-0" />
+                )}
+                {chat.isGroup && (
+                  <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />
+                )}
+                <h3 className="font-medium text-sm truncate select-none">{getChatTitle(chat)}</h3>
+              </div>
+              {chatDrafts[chat.id] ? (
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-red-400 truncate flex-1">
+                    <span className="font-medium">Черновик:</span> {chatDrafts[chat.id]}
+                  </p>
+                </div>
+              ) : chat.lastMessage ? (
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-[var(--text-secondary)] truncate flex-1">
+                    {chat.lastMessage.authorName}: {chat.lastMessage.content}
+                  </p>
+                  {hasUnread && (
+                    <div className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-gradient-to-br from-[#007aff]/80 to-[#007aff]/60 backdrop-blur-sm border border-white/20 text-white text-[10px] font-bold flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,122,255,0.3)]">
+                      {chat.unreadCount}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+            {chat.lastMessage && (
+              <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap self-center">
+                {new Date(chat.lastMessage.createdAt).toLocaleTimeString('ru-RU', { 
+                  hour: '2-digit', 
+                  minute: '2-digit' 
+                })}
+              </span>
+            )}
+          </div>
+        </button>
+      </div>
+    );
+  }
+
+  // Desktop view (с градиентами)
+  return (
+    <div
+      key={chat.id}
+      className={`relative group mx-2 rounded-[50px] overflow-hidden backdrop-blur-xl transition-all duration-300 ${
+        isSelected 
+          ? 'bg-gradient-to-br from-[#007aff]/30 to-[#007aff]/10 border border-[#007aff]/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_3px_8px_rgba(59,130,246,0.2)]' 
+          : 'bg-gradient-to-br from-white/10 to-white/5 hover:from-white/15 hover:to-white/8 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_2px_8px_rgba(0,0,0,0.2)]'
+      }`}
+      onContextMenu={(e) => onContextMenu(e, chat)}
+    >
+      <button
+        onClick={() => onSelect(chat)}
+        className="w-full px-2 transition-all text-left"
+      >
+        <div className="flex gap-2 items-center">
+          <Avatar
+            src={avatarData.avatar || ''}
+            name={avatarData.name}
+            type={avatarData.type}
+            size="md"
+            isOnline={otherUser?.isOnline}
+          />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              {isPinned && !chat.isFavoritesChat && !chat.isSystemChat && !chat.isNotificationsChat && (
+                <Pin className="w-3 h-3 text-cyan-400 flex-shrink-0" />
+              )}
+              {chat.isGroup && (
+                <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />
+              )}
+              <h3 className="font-medium text-sm truncate">{getChatTitle(chat)}</h3>
+            </div>
+            {chatDrafts[chat.id] ? (
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-red-400 truncate flex-1">
+                  <span className="font-medium">Черновик:</span> {chatDrafts[chat.id]}
+                </p>
+              </div>
+            ) : chat.lastMessage ? (
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-[var(--text-secondary)] truncate flex-1">
+                  {chat.lastMessage.authorName}: {chat.lastMessage.content}
+                </p>
+                {hasUnread && (
+                  <div className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-gradient-to-br from-[#007aff]/80 to-[#007aff]/60 backdrop-blur-sm border border-white/20 text-white text-[10px] font-bold flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,122,255,0.3)]">
+                    {chat.unreadCount}
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+          {chat.lastMessage && (
+            <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap self-center">
+              {new Date(chat.lastMessage.createdAt).toLocaleTimeString('ru-RU', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              })}
+            </span>
+          )}
+        </div>
+      </button>
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // Оптимизация: перерендериваем только если изменились важные пропсы
+  return (
+    prevProps.chat.id === nextProps.chat.id &&
+    prevProps.chat.unreadCount === nextProps.chat.unreadCount &&
+    prevProps.chat.lastMessage?.id === nextProps.chat.lastMessage?.id &&
+    prevProps.chat.lastMessage?.content === nextProps.chat.lastMessage?.content &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.isHovered === nextProps.isHovered &&
+    prevProps.chatDrafts[prevProps.chat.id] === nextProps.chatDrafts[nextProps.chat.id] &&
+    prevProps.variant === nextProps.variant &&
+    prevProps.isPinned === nextProps.isPinned
+  );
+});
+
+ChatItem.displayName = 'ChatItem';
+
 export default function MessagesPage() {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
+
+  // Форматирование даты для разделителей
+  const formatMessageDate = (date: Date): string => {
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const messageDate = new Date(date);
+    messageDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    yesterday.setHours(0, 0, 0, 0);
+    
+    if (messageDate.getTime() === today.getTime()) {
+      return 'Сегодня';
+    } else if (messageDate.getTime() === yesterday.getTime()) {
+      return 'Вчера';
+    } else {
+      const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+      const day = messageDate.getDate();
+      const month = months[messageDate.getMonth()];
+      const year = messageDate.getFullYear();
+      const currentYear = new Date().getFullYear();
+      
+      if (year === currentYear) {
+        return `${day} ${month}`;
+      } else {
+        return `${day} ${month} ${year}`;
+      }
+    }
+  };
+
+  // Проверка, нужен ли разделитель даты
+  const shouldShowDateSeparator = (currentMessage: Message, previousMessage: Message | undefined): boolean => {
+    if (!previousMessage) return true;
+    
+    const currentDate = new Date(currentMessage.createdAt);
+    const previousDate = new Date(previousMessage.createdAt);
+    
+    currentDate.setHours(0, 0, 0, 0);
+    previousDate.setHours(0, 0, 0, 0);
+    
+    return currentDate.getTime() !== previousDate.getTime();
+  };
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  
+  // 🚀 PERFORMANCE: Loading states для LCP optimization
+  const [isLoadingChats, setIsLoadingChats] = useState(true);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showNewChatModal, setShowNewChatModal] = useState(false);
@@ -215,14 +506,11 @@ export default function MessagesPage() {
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [attachments, setAttachments] = useState<any[]>([]);
   const [showTaskPicker, setShowTaskPicker] = useState(false);
-  const [showLinkPicker, setShowLinkPicker] = useState(false);
-  const [linkPickerTab, setLinkPickerTab] = useState<'people' | 'department' | 'all'>('all');
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [showEventPicker, setShowEventPicker] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [events, setEvents] = useState<any[]>([]);
-  const [links, setLinks] = useState<any[]>([]);
   const [isDesktopView, setIsDesktopView] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
   const [showChatInfo, setShowChatInfo] = useState(false);
   const [chatInfoTab, setChatInfoTab] = useState<'profile' | 'tasks' | 'media' | 'files' | 'links' | 'participants'>('profile');
@@ -258,6 +546,9 @@ export default function MessagesPage() {
   const [showMessageContextMenu, setShowMessageContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ top: 0, left: 0 });
   const [contextMenuMessage, setContextMenuMessage] = useState<Message | null>(null);
+  const [showChatContextMenu, setShowChatContextMenu] = useState(false);
+  const [chatContextMenuPosition, setChatContextMenuPosition] = useState({ top: 0, left: 0 });
+  const [contextMenuChat, setContextMenuChat] = useState<Chat | null>(null);
   const [showEventCalendarSelector, setShowEventCalendarSelector] = useState(false);
   const [calendarLists, setCalendarLists] = useState<any[]>([]);
   const [creatingEventFromMessage, setCreatingEventFromMessage] = useState<Message | null>(null);
@@ -351,7 +642,7 @@ export default function MessagesPage() {
   };
 
   // Функция выбора чата с обновлением URL и localStorage
-  const selectChat = (chat: Chat | null) => {
+  const selectChat = useCallback((chat: Chat | null) => {
     const currentMessage = messageInputRef.current?.value || '';
     // Сохраняем черновик текущего чата
     if (selectedChat && currentMessage.trim()) {
@@ -406,7 +697,7 @@ export default function MessagesPage() {
       }
       window.history.replaceState({}, '', url.toString());
     }
-  };
+  }, [selectedChat, chatDrafts, messageInputRef]);
 
   // Загрузка настроек чата
   useEffect(() => {
@@ -526,12 +817,6 @@ export default function MessagesPage() {
       loadEvents();
     }
   }, [showEventPicker]);
-
-  useEffect(() => {
-    if (showLinkPicker) {
-      loadLinks();
-    }
-  }, [showLinkPicker]);
 
   // Открываем чат из URL параметра или localStorage
   useEffect(() => {
@@ -808,24 +1093,8 @@ export default function MessagesPage() {
     }
   };
 
-  const loadLinks = async () => {
-    if (!currentUser) return;
-    
-    try {
-      const res = await fetch(`/api/links?userId=${currentUser.id}`);
-      if (res.ok) {
-        const data = await res.json();
-        const linksArray = data.links || [];
-        setLinks(linksArray);
-      }
-    } catch (error) {
-      console.error('Error loading links:', error);
-      setLinks([]);
-    }
-  };
-
   // Функции форматирования текста
-  const handleTextSelection = () => {
+  const handleTextSelection = useCallback(() => {
     if (!messageInputRef.current) return;
     
     // Debounce для предотвращения блокировки на каждое движение мыши
@@ -859,7 +1128,7 @@ export default function MessagesPage() {
         setShowTextFormatMenu(false);
       }
     }, 200); // Увеличен debounce до 200ms для лучшего INP
-  };
+  }, []);
 
   const formatMessageText = (text: string): string => {
     let formatted = text;
@@ -924,9 +1193,10 @@ export default function MessagesPage() {
     }, 0);
   };
 
-  const loadChats = async () => {
+  const loadChats = useCallback(async () => {
     if (!currentUser) return;
     
+    setIsLoadingChats(true); // 🚀 PERFORMANCE: Start loading
     try {
       const res = await fetch(`/api/chats?user_id=${currentUser.id}`);
       
@@ -1042,8 +1312,10 @@ export default function MessagesPage() {
       }
     } catch (error) {
       console.error('Error loading chats:', error);
+    } finally {
+      setIsLoadingChats(false); // 🚀 PERFORMANCE: End loading
     }
-  };
+  }, [currentUser, selectedChat]);
 
   const ensureNotificationsChat = async () => {
     if (!currentUser) return;
@@ -1057,7 +1329,8 @@ export default function MessagesPage() {
     }
   };
 
-  const loadMessages = async (chatId: string, isPolling: boolean = false) => {
+  const loadMessages = useCallback(async (chatId: string, isPolling: boolean = false) => {
+    if (!isPolling) setIsLoadingMessages(true); // 🚀 PERFORMANCE
     try {
       const res = await fetch(`/api/chats/${chatId}/messages`);
       if (res.ok) {
@@ -1149,8 +1422,10 @@ export default function MessagesPage() {
       }
     } catch (error) {
       console.error('Error loading messages:', error);
+    } finally {
+      if (!isPolling) setIsLoadingMessages(false); // 🚀 PERFORMANCE  
     }
-  };
+  }, [messagesListRef, messages, messageInputRef, currentUser, loadChats]);
 
   const createChat = async () => {
     if (!currentUser || selectedUsers.length === 0) return;
@@ -1222,7 +1497,7 @@ export default function MessagesPage() {
     }
   };
 
-  const sendMessage = async () => {
+  const sendMessage = useCallback(async () => {
     const messageText = messageInputRef.current?.value || '';
     // Проверяем: должен быть либо текст, либо вложения
     if ((!messageText.trim() && attachments.length === 0) || !selectedChat || !currentUser || !selectedChat.id) return;
@@ -1287,9 +1562,9 @@ export default function MessagesPage() {
     } catch (error) {
       console.error('Error sending message:', error);
     }
-  };
+  }, [messageInputRef, selectedChat, currentUser, attachments, replyToMessage, messagesListRef, loadChats]);
 
-  const updateMessage = async (messageId: string, content: string) => {
+  const updateMessage = useCallback(async (messageId: string, content: string) => {
     if (!selectedChat) return;
 
     // Если текст не изменился - просто закрываем редактирование без обновления
@@ -1314,7 +1589,135 @@ export default function MessagesPage() {
     } catch (error) {
       console.error('Error updating message:', error);
     }
-  };
+  }, [selectedChat, editingMessageText, loadMessages]);
+
+  const handleMessageChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const target = e.target;
+    const value = target.value;
+    lastActivityTimeRef.current = Date.now();
+    
+    // Debounce для setNewMessage - увеличен до 300ms для лучшего INP
+    if (messageDebounceRef.current) {
+      clearTimeout(messageDebounceRef.current);
+    }
+    messageDebounceRef.current = setTimeout(() => {
+      setNewMessage(value);
+      
+      // Обработка упоминаний только после обновления state
+      if (selectedChat?.isGroup) {
+        const cursorPos = target.selectionStart;
+        const textBeforeCursor = value.substring(0, cursorPos);
+        const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
+        
+        if (lastAtSymbol !== -1 && lastAtSymbol === textBeforeCursor.length - 1) {
+          setShowMentionSuggestions(true);
+          setMentionQuery('');
+        } else if (lastAtSymbol !== -1) {
+          const afterAt = textBeforeCursor.substring(lastAtSymbol + 1);
+          if (!afterAt.includes(' ') && afterAt.length > 0) {
+            setShowMentionSuggestions(true);
+            setMentionQuery(afterAt.toLowerCase());
+          } else {
+            setShowMentionSuggestions(false);
+          }
+        } else {
+          setShowMentionSuggestions(false);
+        }
+      }
+    }, 300);
+    
+    // Auto-resize с debounce для минимальной блокировки
+    if (resizeDebounceRef.current) {
+      clearTimeout(resizeDebounceRef.current);
+    }
+    
+    // Функция для скролла к последнему сообщению
+    const scrollToBottomOnResize = () => {
+      if (messagesListRef.current) {
+        const container = messagesListRef.current;
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+        if (isNearBottom) {
+          setTimeout(() => {
+            container.scrollTo({
+              top: container.scrollHeight,
+              behavior: 'smooth'
+            });
+          }, 50);
+        }
+      }
+    };
+    
+    // Немедленный resize для первого символа
+    if (value.length <= 1 || value.length % 10 === 0) {
+      target.style.height = 'auto';
+      const lineHeight = 20;
+      const maxHeight = lineHeight * 6;
+      const newHeight = Math.min(target.scrollHeight, maxHeight);
+      target.style.height = newHeight + 'px';
+      setTextareaHeight(newHeight);
+      scrollToBottomOnResize();
+    } else {
+      // Debounced resize для остальных случаев
+      resizeDebounceRef.current = setTimeout(() => {
+        target.style.height = 'auto';
+        const lineHeight = 20;
+        const maxHeight = lineHeight * 6;
+        const newHeight = Math.min(target.scrollHeight, maxHeight);
+        target.style.height = newHeight + 'px';
+        setTextareaHeight(newHeight);
+        scrollToBottomOnResize();
+      }, 50);
+    }
+  }, [messageDebounceRef, resizeDebounceRef, lastActivityTimeRef, messagesListRef, selectedChat]);
+
+  const handleMessageKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter') {
+      if (e.ctrlKey || e.shiftKey) {
+        // Ctrl+Enter или Shift+Enter - перенос строки
+        e.preventDefault();
+        const target = e.target as HTMLTextAreaElement;
+        const start = target.selectionStart || 0;
+        const end = target.selectionEnd || 0;
+        const value = target.value;
+        const newValue = value.substring(0, start) + '\n' + value.substring(end);
+        target.value = newValue;
+        setNewMessage(newValue);
+        // Устанавливаем курсор после переноса
+        requestAnimationFrame(() => {
+          target.selectionStart = start + 1;
+          target.selectionEnd = start + 1;
+          target.focus();
+          // Обновляем высоту
+          target.style.height = 'auto';
+          const lineHeight = 20;
+          const maxHeight = lineHeight * 6;
+          const newHeight = Math.min(target.scrollHeight, maxHeight);
+          target.style.height = newHeight + 'px';
+          setTextareaHeight(newHeight);
+        });
+      } else {
+        // Enter - отправка или сохранение
+        e.preventDefault();
+        if (editingMessageId) {
+          const messageText = messageInputRef.current?.value || '';
+          updateMessage(editingMessageId, messageText);
+          if (messageInputRef.current) {
+            messageInputRef.current.value = savedMessageText;
+          }
+          setSavedMessageText('');
+        } else {
+          sendMessage();
+        }
+      }
+    } else if (e.key === 'Escape' && editingMessageId) {
+      // Escape - отмена редактирования
+      setEditingMessageId(null);
+      if (messageInputRef.current) {
+        messageInputRef.current.value = savedMessageText;
+      }
+      setSavedMessageText('');
+    }
+  }, [editingMessageId, savedMessageText, messageInputRef, updateMessage, sendMessage]);
 
   const deleteMessage = async (messageId: string) => {
     if (!selectedChat) return;
@@ -1550,7 +1953,7 @@ export default function MessagesPage() {
     }
   };
 
-  const getChatTitle = (chat: Chat): string => {
+  const getChatTitle = useCallback((chat: Chat): string => {
     if (chat.isFavoritesChat) return 'Избранное';
     if (chat.title) return chat.title;
     
@@ -1562,9 +1965,9 @@ export default function MessagesPage() {
     
     if (otherParticipants.length === 0) return 'Избранное';
     return otherParticipants.map(u => u.name || u.username || 'Пользователь').join(', ');
-  };
+  }, [currentUser, users]);
 
-  const getChatAvatar = (chat: Chat): string => {
+  const getChatAvatar = useCallback((chat: Chat): string => {
     if (chat.isFavoritesChat) return 'F';
     if (chat.isSystemChat || chat.isNotificationsChat) return 'N';
     if (chat.isGroup) return 'Г'; // Для группы показываем 'Г'
@@ -1577,10 +1980,10 @@ export default function MessagesPage() {
     
     if (otherParticipants.length === 0) return 'F';
     return otherParticipants[0].name?.[0] || otherParticipants[0].username?.[0] || 'U';
-  };
+  }, [currentUser, users]);
 
   // Получить данные для аватарки чата
-  const getChatAvatarData = (chat: Chat): { type: 'favorites' | 'notifications' | 'group' | 'user'; name: string; avatar?: string } => {
+  const getChatAvatarData = useCallback((chat: Chat): { type: 'favorites' | 'notifications' | 'group' | 'user'; name: string; avatar?: string } => {
     if (chat.isFavoritesChat) return { type: 'favorites', name: 'Избранное' };
     if (chat.isSystemChat || chat.isNotificationsChat) return { type: 'notifications', name: 'Уведомления' };
     if (chat.isGroup) return { type: 'group', name: chat.title || 'Группа' };
@@ -1608,7 +2011,7 @@ export default function MessagesPage() {
       name: participant.name || participant.username || 'Пользователь',
       avatar: participant.avatar
     };
-  };
+  }, [currentUser, users]);
 
   const filteredUsers = users.filter(u => {
     if (!searchQuery) return u.id !== currentUser?.id;
@@ -1830,7 +2233,10 @@ export default function MessagesPage() {
 
         {/* Chats list */}
         <div className="flex-1 min-h-0 overflow-y-auto pb-20 md:pb-20">
-          {chats.length === 0 ? (
+          {isLoadingChats ? (
+            /* 🚀 PERFORMANCE: Skeleton loader для LCP оптимизации */
+            <ChatListSkeleton />
+          ) : chats.length === 0 ? (
             <div className={`flex flex-col items-center justify-center h-full text-[var(--text-muted)] ${isChatListCollapsed ? 'md:px-1 px-4' : 'px-4'} py-8`}>
               <MessageCircle className={`${isChatListCollapsed ? 'md:w-8 md:h-8 w-12 h-12' : 'w-12 h-12'} mb-3 opacity-50`} />
               {isChatListCollapsed ? (
@@ -1849,76 +2255,31 @@ export default function MessagesPage() {
             <>
               {/* Свернутый список - только аватарки (только desktop) */}
               <div className="hidden md:block py-2 space-y-1">
-                {[...pinnedChats, ...unpinnedChats].map(chat => {
-                  const avatarData = getChatAvatarData(chat);
-                  const otherParticipantId = !chat.isGroup ? chat.participantIds?.find(id => id !== currentUser?.id) : undefined;
-                  const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : undefined;
-                  // В избранном не бывает непрочитанных сообщений
-                  const hasUnread = !chat.isFavoritesChat && (chat.unreadCount || 0) > 0;
-                  const isSelected = selectedChat?.id === chat.id;
-                  const isHovered = hoveredChatId === chat.id;
-                  return (
-                    <div
-                      key={chat.id}
-                      className="relative"
-                      onMouseEnter={() => setHoveredChatId(chat.id)}
-                      onMouseLeave={() => setHoveredChatId(null)}
-                    >
-                      <button
-                        onClick={() => selectChat(chat)}
-                        className={`w-full flex justify-center py-1 relative ${isSelected ? 'bg-[var(--bg-tertiary)]' : 'hover:bg-[var(--bg-tertiary)]/50'}`}
-                      >
-                        <div className="relative">
-                          <Avatar
-                            src={avatarData.avatar}
-                            name={avatarData.name}
-                            type={avatarData.type}
-                            size="lg"
-                            isOnline={otherUser?.isOnline}
-                          />
-                          {hasUnread && (
-                            <div className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-cyan-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-[var(--bg-secondary)]">
-                              {chat.unreadCount! > 9 ? '9+' : chat.unreadCount}
-                            </div>
-                          )}
-                          {isSelected && (
-                            <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 w-1 h-8 bg-cyan-500 rounded-r-full" />
-                          )}
-                        </div>
-                      </button>
-                      {/* Кастомный тултип */}
-                      {isHovered && (
-                        <div 
-                          className="absolute left-[72px] top-0 z-50 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg shadow-xl p-3 min-w-[200px] max-w-[280px]"
-                          style={{ pointerEvents: 'none' }}
-                        >
-                          <div className="flex items-center gap-2 mb-2">
-                            {chat.pinnedByUser?.[currentUser?.id || ''] && <Pin className="w-3 h-3 text-cyan-400 flex-shrink-0" />}
-                            {chat.isGroup && <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />}
-                            <span className="font-medium text-sm text-[var(--text-primary)] truncate select-none">{getChatTitle(chat)}</span>
-                          </div>
-                          {chat.lastMessage && (
-                            <p className="text-xs text-[var(--text-muted)] line-clamp-2 mb-1">
-                              <span className="text-[var(--text-secondary)]">{chat.lastMessage.authorName}:</span> {chat.lastMessage.content}
-                            </p>
-                          )}
-                          {hasUnread && (
-                            <div className="flex items-center gap-1.5 mt-2">
-                              <div className="w-4 h-4 rounded-full bg-cyan-500 text-white text-[9px] font-bold flex items-center justify-center">
-                                {chat.unreadCount! > 9 ? '9+' : chat.unreadCount}
-                              </div>
-                              <span className="text-[10px] text-cyan-400">непрочитанных</span>
-                            </div>
-                          )}
-                          {/* Стрелочка */}
-                          <div className="absolute left-0 top-3 -translate-x-full w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[6px] border-r-[var(--border-color)]" />
-                          <div className="absolute left-[1px] top-3 -translate-x-full w-0 h-0 border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent border-r-[5px] border-r-[var(--bg-secondary)]" />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {[...pinnedChats, ...unpinnedChats].map(chat => (
+                  <ChatItem
+                    key={chat.id}
+                    chat={chat}
+                    isSelected={selectedChat?.id === chat.id}
+                    isHovered={hoveredChatId === chat.id}
+                    onSelect={selectChat}
+                    onHover={setHoveredChatId}
+                    onContextMenu={(e, chat) => {
+                      e.preventDefault();
+                      setContextMenuChat(chat);
+                      setChatContextMenuPosition({ top: e.clientY, left: e.clientX });
+                      setShowChatContextMenu(true);
+                    }}
+                    getChatTitle={getChatTitle}
+                    getChatAvatarData={getChatAvatarData}
+                    currentUser={currentUser}
+                    users={users}
+                    chatDrafts={chatDrafts}
+                    variant="collapsed-icon"
+                    isPinned={chat.pinnedByUser?.[currentUser?.id || '']}
+                  />
+                ))}
               </div>
+           
               {/* Полный список для mobile когда collapsed */}
               <div className="md:hidden">
                 {/* Закрепленные чаты */}
@@ -1929,73 +2290,25 @@ export default function MessagesPage() {
                     </div>
                     <div className="divide-y divide-[var(--border-color)]">
                       {pinnedChats.map(chat => (
-                        <div
+                        <ChatItem
                           key={chat.id}
-                          className={`relative group ${
-                            selectedChat?.id === chat.id ? 'bg-[var(--bg-tertiary)]' : ''
-                          }`}
-                        >
-                          <button
-                            onClick={() => selectChat(chat)}
-                            className="w-full p-3 hover:bg-[var(--bg-tertiary)] transition-all text-left pr-10"
-                          >
-                            <div className="flex items-start gap-3">
-                              {(() => {
-                                const avatarData = getChatAvatarData(chat);
-                                const otherParticipantId = !chat.isGroup ? chat.participantIds?.find(id => id !== currentUser?.id) : undefined;
-                                const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : undefined;
-                                return (
-                                  <Avatar
-                                    src={avatarData.avatar}
-                                    name={avatarData.name}
-                                    type={avatarData.type}
-                                    size="md"
-                                    isOnline={otherUser?.isOnline}
-                                  />
-                                );
-                              })()}
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                    {!chat.isFavoritesChat && !chat.isSystemChat && !chat.isNotificationsChat && (
-                                      <Pin className="w-3 h-3 text-cyan-400 flex-shrink-0" />
-                                    )}
-                                    {chat.isGroup && (
-                                      <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />
-                                    )}
-                                    <h3 className="font-medium text-sm truncate select-none">{getChatTitle(chat)}</h3>
-                                  </div>
-                                  {chat.lastMessage && (
-                                    <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap ml-auto">
-                                      {new Date(chat.lastMessage.createdAt).toLocaleTimeString('ru-RU', { 
-                                        hour: '2-digit', 
-                                        minute: '2-digit' 
-                                      })}
-                                    </span>
-                                  )}
-                                </div>
-                                {chatDrafts[chat.id] ? (
-                                  <div className="flex items-center gap-2">
-                                    <p className="text-xs text-red-400 truncate flex-1">
-                                      <span className="font-medium">Черновик:</span> {chatDrafts[chat.id]}
-                                    </p>
-                                  </div>
-                                ) : chat.lastMessage ? (
-                                  <div className="flex items-center gap-2">
-                                    <p className="text-xs text-[var(--text-secondary)] truncate flex-1">
-                                      {chat.lastMessage.authorName}: {chat.lastMessage.content}
-                                    </p>
-                                    {!chat.isFavoritesChat && (chat.unreadCount || 0) > 0 && (
-                                      <div className="flex-shrink-0 w-5 h-5 rounded-full bg-cyan-500 text-white text-[10px] font-bold flex items-center justify-center">
-                                        {chat.unreadCount}
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : null}
-                              </div>
-                            </div>
-                          </button>
-                        </div>
+                          chat={chat}
+                          isSelected={selectedChat?.id === chat.id}
+                          onSelect={selectChat}
+                          onContextMenu={(e, chat) => {
+                            e.preventDefault();
+                            setContextMenuChat(chat);
+                            setChatContextMenuPosition({ top: e.clientY, left: e.clientX });
+                            setShowChatContextMenu(true);
+                          }}
+                          getChatTitle={getChatTitle}
+                          getChatAvatarData={getChatAvatarData}
+                          currentUser={currentUser}
+                          users={users}
+                          chatDrafts={chatDrafts}
+                          variant="mobile"
+                          isPinned={true}
+                        />
                       ))}
                     </div>
                   </div>
@@ -2009,67 +2322,25 @@ export default function MessagesPage() {
                   )}
                   <div className="divide-y divide-[var(--border-color)]">
                     {unpinnedChats.map(chat => (
-                      <div
+                      <ChatItem
                         key={chat.id}
-                        className={`relative group ${
-                          selectedChat?.id === chat.id ? 'bg-[var(--bg-tertiary)]' : ''
-                        }`}
-                      >
-                        <button
-                          onClick={() => selectChat(chat)}
-                          className="w-full p-3 hover:bg-[var(--bg-tertiary)] transition-all text-left pr-10"
-                        >
-                          <div className="flex items-start gap-3">
-                            {(() => {
-                              const avatarData = getChatAvatarData(chat);
-                              return (
-                                <Avatar
-                                  src={avatarData.avatar}
-                                  name={avatarData.name}
-                                  type={avatarData.type}
-                                  size="md"
-                                />
-                              );
-                            })()}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                  {chat.isGroup && (
-                                    <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />
-                                  )}
-                                  <h3 className="font-medium text-sm truncate">{getChatTitle(chat)}</h3>
-                                </div>
-                                {chat.lastMessage && (
-                                  <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap ml-auto">
-                                    {new Date(chat.lastMessage.createdAt).toLocaleTimeString('ru-RU', { 
-                                      hour: '2-digit', 
-                                      minute: '2-digit' 
-                                    })}
-                                  </span>
-                                )}
-                              </div>
-                              {chatDrafts[chat.id] ? (
-                                <div className="flex items-center gap-2">
-                                  <p className="text-xs text-red-400 truncate flex-1">
-                                    <span className="font-medium">Черновик:</span> {chatDrafts[chat.id]}
-                                  </p>
-                                </div>
-                              ) : chat.lastMessage ? (
-                                <div className="flex items-center gap-2">
-                                  <p className="text-xs text-[var(--text-secondary)] truncate flex-1">
-                                    {chat.lastMessage.authorName}: {chat.lastMessage.content}
-                                  </p>
-                                  {!chat.isFavoritesChat && (chat.unreadCount || 0) > 0 && (
-                                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-cyan-500 text-white text-[10px] font-bold flex items-center justify-center">
-                                      {chat.unreadCount}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-                        </button>
-                      </div>
+                        chat={chat}
+                        isSelected={selectedChat?.id === chat.id}
+                        onSelect={selectChat}
+                        onContextMenu={(e, chat) => {
+                          e.preventDefault();
+                          setContextMenuChat(chat);
+                          setChatContextMenuPosition({ top: e.clientY, left: e.clientX });
+                          setShowChatContextMenu(true);
+                        }}
+                        getChatTitle={getChatTitle}
+                        getChatAvatarData={getChatAvatarData}
+                        currentUser={currentUser}
+                        users={users}
+                        chatDrafts={chatDrafts}
+                        variant="mobile"
+                        isPinned={false}
+                      />
                     ))}
                   </div>
                 </div>
@@ -2083,88 +2354,27 @@ export default function MessagesPage() {
                   <div className="px-3 py-2 text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider select-none">
                     Закрепленные
                   </div>
-                  <div className="divide-y divide-[var(--border-color)]">
+                  <div className="space-y-1">
                     {pinnedChats.map(chat => (
-                      <div
+                      <ChatItem
                         key={chat.id}
-                        className={`relative group ${
-                          selectedChat?.id === chat.id ? 'bg-[var(--bg-tertiary)]' : ''
-                        }`}
-                      >
-                        <button
-                          onClick={() => selectChat(chat)}
-                          className="w-full p-3 hover:bg-[var(--bg-tertiary)] transition-all text-left pr-10"
-                        >
-                          <div className="flex items-start gap-3">
-                            {(() => {
-                              const avatarData = getChatAvatarData(chat);
-                              const otherParticipantId = !chat.isGroup ? chat.participantIds?.find(id => id !== currentUser?.id) : undefined;
-                              const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : undefined;
-                              return (
-                                <Avatar
-                                  src={avatarData.avatar}
-                                  name={avatarData.name}
-                                  type={avatarData.type}
-                                  size="md"
-                                  isOnline={otherUser?.isOnline}
-                                />
-                              );
-                            })()}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                  {/* Иконка закрепления только для обычных чатов, не для системных */}
-                                  {!chat.isFavoritesChat && !chat.isSystemChat && !chat.isNotificationsChat && (
-                                    <Pin className="w-3 h-3 text-cyan-400 flex-shrink-0" />
-                                  )}
-                                  {/* Иконка группового чата */}
-                                  {chat.isGroup && (
-                                    <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />
-                                  )}
-                                  <h3 className="font-medium text-sm truncate">{getChatTitle(chat)}</h3>
-                                </div>
-                                {chat.lastMessage && (
-                                  <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap ml-auto">
-                                    {new Date(chat.lastMessage.createdAt).toLocaleTimeString('ru-RU', { 
-                                      hour: '2-digit', 
-                                      minute: '2-digit' 
-                                    })}
-                                  </span>
-                                )}
-                              </div>
-                              {chatDrafts[chat.id] ? (
-                                <div className="flex items-center gap-2">
-                                  <p className="text-xs text-red-400 truncate flex-1">
-                                    <span className="font-medium">Черновик:</span> {chatDrafts[chat.id]}
-                                  </p>
-                                </div>
-                              ) : chat.lastMessage ? (
-                                <div className="flex items-center gap-2">
-                                  <p className="text-xs text-[var(--text-secondary)] truncate flex-1">
-                                    {chat.lastMessage.authorName}: {chat.lastMessage.content}
-                                  </p>
-                                  {!chat.isFavoritesChat && (chat.unreadCount || 0) > 0 && (
-                                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-cyan-500 text-white text-[10px] font-bold flex items-center justify-center">
-                                      {chat.unreadCount}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-                        </button>
-                        {/* Pin/Unpin button */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            togglePinChat(chat.id);
-                          }}
-                          className="absolute right-2 top-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-[var(--bg-tertiary)] rounded z-10"
-                          title="Открепить"
-                        >
-                          <PinOff className="w-3.5 h-3.5 text-[var(--text-muted)] hover:text-[var(--text-secondary)]" />
-                        </button>
-                      </div>
+                        chat={chat}
+                        isSelected={selectedChat?.id === chat.id}
+                        onSelect={selectChat}
+                        onContextMenu={(e, chat) => {
+                          e.preventDefault();
+                          setContextMenuChat(chat);
+                          setChatContextMenuPosition({ top: e.clientY, left: e.clientX });
+                          setShowChatContextMenu(true);
+                        }}
+                        getChatTitle={getChatTitle}
+                        getChatAvatarData={getChatAvatarData}
+                        currentUser={currentUser}
+                        users={users}
+                        chatDrafts={chatDrafts}
+                        variant="desktop"
+                        isPinned={true}
+                      />
                     ))}
                   </div>
                 </div>
@@ -2178,84 +2388,27 @@ export default function MessagesPage() {
                       Все чаты
                     </div>
                   )}
-                  <div className="divide-y divide-[var(--border-color)]">
+                  <div className="space-y-1">
                     {unpinnedChats.map(chat => (
-                      <div
+                      <ChatItem
                         key={chat.id}
-                        className={`relative group ${
-                          selectedChat?.id === chat.id ? 'bg-[var(--bg-tertiary)]' : ''
-                        }`}
-                      >
-                        <button
-                          onClick={() => selectChat(chat)}
-                          className="w-full p-3 hover:bg-[var(--bg-tertiary)] transition-all text-left pr-10"
-                        >
-                          <div className="flex items-start gap-3">
-                            {(() => {
-                              const avatarData = getChatAvatarData(chat);
-                              const otherParticipantId = !chat.isGroup ? chat.participantIds?.find(id => id !== currentUser?.id) : undefined;
-                              const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : undefined;
-                              return (
-                                <Avatar
-                                  src={avatarData.avatar}
-                                  name={avatarData.name}
-                                  type={avatarData.type}
-                                  size="md"
-                                  isOnline={otherUser?.isOnline}
-                                />
-                              );
-                            })()}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                  {/* Иконка группового чата */}
-                                  {chat.isGroup && (
-                                    <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />
-                                  )}
-                                  <h3 className="font-medium text-sm truncate">{getChatTitle(chat)}</h3>
-                                </div>
-                                {chat.lastMessage && (
-                                  <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap ml-auto">
-                                    {new Date(chat.lastMessage.createdAt).toLocaleTimeString('ru-RU', { 
-                                      hour: '2-digit', 
-                                      minute: '2-digit' 
-                                    })}
-                                  </span>
-                                )}
-                              </div>
-                              {chatDrafts[chat.id] ? (
-                                <div className="flex items-center gap-2">
-                                  <p className="text-xs text-red-400 truncate flex-1">
-                                    <span className="font-medium">Черновик:</span> {chatDrafts[chat.id]}
-                                  </p>
-                                </div>
-                              ) : chat.lastMessage ? (
-                                <div className="flex items-center gap-2">
-                                  <p className="text-xs text-[var(--text-secondary)] truncate flex-1">
-                                    {chat.lastMessage.authorName}: {chat.lastMessage.content}
-                                  </p>
-                                  {!chat.isFavoritesChat && (chat.unreadCount || 0) > 0 && (
-                                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-cyan-500 text-white text-[10px] font-bold flex items-center justify-center">
-                                      {chat.unreadCount}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-                        </button>
-                        {/* Pin button */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            togglePinChat(chat.id);
-                          }}
-                          className="absolute right-2 top-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-[var(--bg-tertiary)] rounded z-10"
-                          title="Закрепить"
-                        >
-                          <Pin className="w-3.5 h-3.5 text-[var(--text-muted)] hover:text-[var(--text-secondary)]" />
-                        </button>
-                      </div>
+                        chat={chat}
+                        isSelected={selectedChat?.id === chat.id}
+                        onSelect={selectChat}
+                        onContextMenu={(e, chat) => {
+                          e.preventDefault();
+                          setContextMenuChat(chat);
+                          setChatContextMenuPosition({ top: e.clientY, left: e.clientX });
+                          setShowChatContextMenu(true);
+                        }}
+                        getChatTitle={getChatTitle}
+                        getChatAvatarData={getChatAvatarData}
+                        currentUser={currentUser}
+                        users={users}
+                        chatDrafts={chatDrafts}
+                        variant="desktop"
+                        isPinned={false}
+                      />
                     ))}
                   </div>
                 </div>
@@ -2272,7 +2425,7 @@ export default function MessagesPage() {
           <div className="flex-1 min-h-0 flex flex-col relative bg-transparent">
           {/* Chat header */}
           <div 
-            className={`absolute top-2 left-2 right-2 z-20 h-[56px] md:h-12 bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border border-white/20 rounded-[22px] flex items-center px-3 md:px-4 py-[10px] gap-2 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] md:absolute md:top-2 md:left-2 md:right-2`}
+            className={`absolute top-2 left-2 right-2 z-20 h-[56px] md:h-12 bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border border-white/20 rounded-[50px] flex items-center px-3 md:px-4 py-[10px] gap-2 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] md:absolute md:top-2 md:left-2 md:right-2`}
           >
             {isSelectionMode ? (
               <>
@@ -2532,29 +2685,29 @@ export default function MessagesPage() {
           
           {/* Message Search Bar */}
           {showMessageSearch && (
-            <div className="px-3 py-2 border-b border-[var(--border-color)] bg-[var(--bg-tertiary)]">
-              <div className="relative px-2 md:px-4 lg:px-8">
-                <Search className="absolute left-5 md:left-7 lg:left-11 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+            <div className="absolute top-[72px] md:top-16 left-2 right-2 z-20 px-2 md:px-4 lg:px-8 py-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white" />
                 <input
                   type="text"
                   placeholder="Поиск по чату..."
                   value={messageSearchQuery}
                   onChange={(e) => setMessageSearchQuery(e.target.value)}
                   autoFocus
-                  className="pl-9 pr-10 py-2 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-[20px] w-full text-sm focus:outline-none focus:border-[var(--border-light)] transition-colors"
+                  className="w-full pl-10 pr-10 py-2.5 bg-gradient-to-br from-white/15 to-white/5 border border-white/20 rounded-[50px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-white/40 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
                 />
                 <button
                   onClick={() => { setShowMessageSearch(false); setMessageSearchQuery(''); }}
-                  className="absolute right-5 md:right-7 lg:right-11 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full hover:bg-white/10 flex items-center justify-center"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full hover:bg-white/10 flex items-center justify-center transition-all"
                 >
-                  <X className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                  <X className="w-4 h-4 text-white" />
                 </button>
               </div>
             </div>
           )}
 
           {/* Messages */}
-          <div ref={messagesListRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 pt-20 md:pt-16 pb-20 md:pb-64 bg-transparent scrollbar-hide-mobile">
+          <div ref={messagesListRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 pt-20 md:pt-16 pb-0 md:pb-64 bg-transparent scrollbar-hide-mobile">
             <div className="px-2 md:px-4 lg:px-8 h-full">
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)] select-none">
@@ -2584,8 +2737,23 @@ export default function MessagesPage() {
                   const nextMessage = filteredMessages[index + 1];
                   const nextAuthorId = nextMessage?.authorId || 'system';
                   const isLastInGroup = !nextMessage || nextAuthorId !== authorId;
+                  
+                  // Проверяем нужен ли разделитель даты
+                  const previousMessage = index > 0 ? filteredMessages[index - 1] : undefined;
+                  const showDateSeparator = shouldShowDateSeparator(message, previousMessage);
 
                     return (
+                    <React.Fragment key={message.id}>
+                      {/* Разделитель даты */}
+                      {showDateSeparator && (
+                        <div className="flex justify-center my-6 select-none">
+                          <div className="px-2 py-0.5 bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border border-white/20 rounded-full shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] flex items-center justify-center">
+                            <span className="text-[10px] font-medium text-[var(--text-muted)] leading-none">
+                              {formatMessageDate(new Date(message.createdAt))}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     <div
                       key={message.id}
                       ref={(el) => { messageRefs.current[message.id] = el; }}
@@ -3100,11 +3268,12 @@ export default function MessagesPage() {
 
                     </div>
                   </div>
+                    </React.Fragment>
                 );
               })}
                 </div>
             )}
-              <div ref={messagesEndRef} className="transition-all duration-150" style={{ height: `${Math.max(141, 97 + textareaHeight)}px` }} />
+              <div ref={messagesEndRef} className="h-16 md:h-auto transition-all duration-150" style={{ height: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${Math.max(141, 97 + textareaHeight)}px` : undefined }} />
             </div>
           </div>
 
@@ -3351,132 +3520,8 @@ export default function MessagesPage() {
                       isUserActiveRef.current = false;
                     }, 500);
                   }}
-                  onChange={(e) => {
-                    const target = e.target as HTMLTextAreaElement;
-                    const value = target.value;
-                    lastActivityTimeRef.current = Date.now();
-                    
-                    // Debounce для setNewMessage - увеличен до 300ms для лучшего INP
-                    if (messageDebounceRef.current) {
-                      clearTimeout(messageDebounceRef.current);
-                    }
-                    messageDebounceRef.current = setTimeout(() => {
-                      setNewMessage(value);
-                      
-                      // Обработка упоминаний только после обновления state
-                      if (selectedChat?.isGroup) {
-                        const cursorPos = target.selectionStart;
-                        const textBeforeCursor = value.substring(0, cursorPos);
-                        const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
-                        
-                        if (lastAtSymbol !== -1 && lastAtSymbol === textBeforeCursor.length - 1) {
-                          setShowMentionSuggestions(true);
-                          setMentionQuery('');
-                        } else if (lastAtSymbol !== -1) {
-                          const afterAt = textBeforeCursor.substring(lastAtSymbol + 1);
-                          if (!afterAt.includes(' ') && afterAt.length > 0) {
-                            setShowMentionSuggestions(true);
-                            setMentionQuery(afterAt.toLowerCase());
-                          } else {
-                            setShowMentionSuggestions(false);
-                          }
-                        } else {
-                          setShowMentionSuggestions(false);
-                        }
-                      }
-                    }, 300);
-                    
-                    // Auto-resize с debounce для минимальной блокировки
-                    if (resizeDebounceRef.current) {
-                      clearTimeout(resizeDebounceRef.current);
-                    }
-                    
-                    // Функция для скролла к последнему сообщению
-                    const scrollToBottomOnResize = () => {
-                      if (messagesListRef.current) {
-                        const container = messagesListRef.current;
-                        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
-                        if (isNearBottom) {
-                          setTimeout(() => {
-                            container.scrollTo({
-                              top: container.scrollHeight,
-                              behavior: 'smooth'
-                            });
-                          }, 50);
-                        }
-                      }
-                    };
-                    
-                    // Немедленный resize для первого символа
-                    if (value.length <= 1 || value.length % 10 === 0) {
-                      target.style.height = 'auto';
-                      const lineHeight = 20;
-                      const maxHeight = lineHeight * 6;
-                      const newHeight = Math.min(target.scrollHeight, maxHeight);
-                      target.style.height = newHeight + 'px';
-                      setTextareaHeight(newHeight);
-                      scrollToBottomOnResize();
-                    } else {
-                      // Debounced resize для остальных случаев
-                      resizeDebounceRef.current = setTimeout(() => {
-                        target.style.height = 'auto';
-                        const lineHeight = 20;
-                        const maxHeight = lineHeight * 6;
-                        const newHeight = Math.min(target.scrollHeight, maxHeight);
-                        target.style.height = newHeight + 'px';
-                        setTextareaHeight(newHeight);
-                        scrollToBottomOnResize();
-                      }, 50);
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      if (e.ctrlKey || e.shiftKey) {
-                        // Ctrl+Enter или Shift+Enter - перенос строки
-                        e.preventDefault();
-                        const target = e.target as HTMLTextAreaElement;
-                        const start = target.selectionStart || 0;
-                        const end = target.selectionEnd || 0;
-                        const value = target.value;
-                        const newValue = value.substring(0, start) + '\n' + value.substring(end);
-                        target.value = newValue;
-                        setNewMessage(newValue);
-                        // Устанавливаем курсор после переноса
-                        requestAnimationFrame(() => {
-                          target.selectionStart = start + 1;
-                          target.selectionEnd = start + 1;
-                          target.focus();
-                          // Обновляем высоту
-                          target.style.height = 'auto';
-                          const lineHeight = 20;
-                          const maxHeight = lineHeight * 6;
-                          const newHeight = Math.min(target.scrollHeight, maxHeight);
-                          target.style.height = newHeight + 'px';
-                          setTextareaHeight(newHeight);
-                        });
-                      } else {
-                        // Enter - отправка или сохранение
-                        e.preventDefault();
-                        if (editingMessageId) {
-                          const messageText = messageInputRef.current?.value || '';
-                          updateMessage(editingMessageId, messageText);
-                          if (messageInputRef.current) {
-                            messageInputRef.current.value = savedMessageText;
-                          }
-                          setSavedMessageText('');
-                        } else {
-                          sendMessage();
-                        }
-                      }
-                    } else if (e.key === 'Escape' && editingMessageId) {
-                      // Escape - отмена редактирования
-                      setEditingMessageId(null);
-                      if (messageInputRef.current) {
-                        messageInputRef.current.value = savedMessageText;
-                      }
-                      setSavedMessageText('');
-                    }
-                  }}
+                  onChange={handleMessageChange}
+                  onKeyDown={handleMessageKeyDown}
                   onDragOver={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -4209,13 +4254,10 @@ export default function MessagesPage() {
 
       {/* New Chat Modal */}
       {showNewChatModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex flex-col items-center justify-center p-0 md:p-4">
-          <div className="bg-[var(--bg-secondary)] border-0 md:border border-[var(--border-color)] rounded-none md:rounded-xl w-full h-full md:h-auto md:w-full md:max-w-md md:max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)] shrink-0">
-              <h3 className="font-semibold flex items-center gap-2">
-                <MessageCircle className="w-5 h-5 text-cyan-400" />
-                Новый чат
-              </h3>
+        <div className="fixed !inset-0 !p-0 !m-0 bg-black/50 backdrop-blur-sm z-[100] !overflow-hidden md:flex md:items-center md:justify-center md:p-4">
+          <div className="!w-full !h-full md:relative md:inset-auto bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl md:border md:border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_4px_24px_rgba(0,0,0,0.4)] rounded-none md:rounded-[24px] md:w-full md:max-w-md md:h-auto md:max-h-[80vh] md:min-h-0 flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-white/10 shrink-0">
+              <h3 className="font-semibold text-white">Новый чат</h3>
               <button
                 onClick={() => {
                   setShowNewChatModal(false);
@@ -4223,9 +4265,9 @@ export default function MessagesPage() {
                   setIsGroupChat(false);
                   setGroupTitle('');
                 }}
-                className="p-1 hover:bg-[var(--bg-tertiary)] rounded"
+                className="p-1.5 hover:bg-white/10 rounded-full transition-all"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5 text-white" />
               </button>
             </div>
 
@@ -4248,19 +4290,19 @@ export default function MessagesPage() {
                   value={groupTitle}
                   onChange={(e) => setGroupTitle(e.target.value)}
                   placeholder="Название группы"
-                  className="w-full px-3 py-2 mb-4 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-light)]"
+                  className="w-full px-4 py-2.5 mb-4 bg-white/5 border border-white/20 rounded-[20px] text-sm text-white placeholder:text-white/50 focus:outline-none focus:border-white/40 backdrop-blur-sm shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)]"
                 />
               )}
 
               {/* Search users */}
               <div className="relative mb-3">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-white/60" />
                 <input
                   type="text"
                   placeholder="Поиск пользователей..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-[25px] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-light)]"
+                  className="w-full pl-9 pr-3 py-2.5 bg-white/5 border border-white/20 rounded-[25px] text-sm text-white placeholder:text-white/50 focus:outline-none focus:border-white/40 backdrop-blur-sm shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)]"
                 />
               </div>
 
@@ -4269,7 +4311,7 @@ export default function MessagesPage() {
                 {filteredUsers.map(user => (
                   <label
                     key={user.id}
-                    className="flex items-center gap-3 p-3 bg-[var(--bg-primary)] rounded-lg border border-[var(--border-color)] hover:bg-[var(--bg-tertiary)] cursor-pointer"
+                    className="flex items-center gap-3 p-3 bg-white/5 rounded-[20px] border border-white/10 hover:bg-white/10 cursor-pointer transition-all backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]"
                   >
                     <input
                       type={isGroupChat ? 'checkbox' : 'radio'}
@@ -4295,9 +4337,9 @@ export default function MessagesPage() {
                       type="user"
                     />
                     <div className="flex-1">
-                      <p className="text-sm font-medium">{user.name || user.username || 'Без имени'}</p>
+                      <p className="text-sm font-medium text-white">{user.name || user.username || 'Без имени'}</p>
                       {user.email && (
-                        <p className="text-xs text-[var(--text-secondary)]">{user.email}</p>
+                        <p className="text-xs text-white/60">{user.email}</p>
                       )}
                     </div>
                   </label>
@@ -4305,7 +4347,7 @@ export default function MessagesPage() {
               </div>
             </div>
 
-            <div className="flex gap-2 p-4 border-t border-[var(--border-color)]">
+            <div className="flex gap-2 p-4 border-t border-white/10">
               <button
                 onClick={() => {
                   setShowNewChatModal(false);
@@ -4313,14 +4355,14 @@ export default function MessagesPage() {
                   setIsGroupChat(false);
                   setGroupTitle('');
                 }}
-                className="flex-1 py-2 bg-[var(--bg-tertiary)] rounded-lg text-sm hover:bg-[var(--bg-primary)]"
+                className="flex-1 py-2.5 bg-white/5 rounded-[20px] text-sm text-white hover:bg-white/10 transition-all border border-white/10"
               >
                 Отмена
               </button>
               <button
                 onClick={createChat}
                 disabled={selectedUsers.length === 0 || (isGroupChat && !groupTitle.trim())}
-                className="flex-1 py-2 bg-blue-500/20 text-blue-400 rounded-lg text-sm font-medium border border-blue-500/30 hover:bg-blue-500/30 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="flex-1 py-2.5 bg-[#007aff]/20 text-white rounded-[20px] text-sm font-medium border border-[#007aff]/30 hover:bg-[#007aff]/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
               >
                 Создать чат
               </button>
@@ -4581,223 +4623,6 @@ export default function MessagesPage() {
         </div>
       )}
 
-      {/* Link Picker Modal */}
-      {showLinkPicker && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all duration-300"
-          onClick={() => setShowLinkPicker(false)}
-        >
-          <div 
-            className="w-full max-w-lg bg-gradient-to-br from-[#1e293b]/95 to-[#0f172a]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] transition-all duration-300"
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/5">
-              <h3 className="font-semibold text-lg text-white/90 flex items-center gap-2.5">
-                <LinkIcon className="w-5 h-5 text-cyan-400" />
-                База ссылок
-              </h3>
-              <button
-                onClick={() => setShowLinkPicker(false)}
-                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors group"
-              >
-                <X className="w-5 h-5 text-white/50 group-hover:text-white/90 transition-colors" />
-              </button>
-            </div>
-
-            {/* Tabs */}
-            <div className="px-6 pt-6 pb-2">
-              <div className="flex p-1 gap-1 bg-black/20 rounded-xl border border-white/5">
-                <button
-                  onClick={() => setLinkPickerTab('all')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
-                    linkPickerTab === 'all' 
-                      ? 'bg-white/10 text-white shadow-sm border border-white/10' 
-                      : 'text-white/40 hover:text-white/70 hover:bg-white/5'
-                  }`}
-                >
-                  <Globe className="w-3.5 h-3.5" />
-                  Все
-                </button>
-                <button
-                  onClick={() => setLinkPickerTab('people')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
-                    linkPickerTab === 'people' 
-                      ? 'bg-white/10 text-white shadow-sm border border-white/10' 
-                      : 'text-white/40 hover:text-white/70 hover:bg-white/5'
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  Люди
-                </button>
-                <button
-                  onClick={() => setLinkPickerTab('department')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
-                    linkPickerTab === 'department' 
-                      ? 'bg-white/10 text-white shadow-sm border border-white/10' 
-                      : 'text-white/40 hover:text-white/70 hover:bg-white/5'
-                  }`}
-                >
-                  <Building className="w-3.5 h-3.5" />
-                  Отделы
-                </button>
-              </div>
-            </div>
-
-            {/* Content List */}
-            <div className="flex-1 overflow-y-auto px-6 py-4 custom-scrollbar min-h-[300px]">
-              {(() => {
-                // Determine content based on tab
-                if (linkPickerTab === 'people') {
-                   return (
-                     <div className="space-y-2">
-                       {/* Show users list */}
-                       {users.map(u => (
-                         <div key={u.id} className="group flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all cursor-pointer">
-                            <Avatar name={u.name || u.username} src={u.avatar} className="w-10 h-10 text-sm" />
-                            <div className="flex-1">
-                               <p className="text-sm font-medium text-white/90">{u.name || u.username}</p>
-                               <p className="text-xs text-white/40">Нажмите для просмотра ссылок</p>
-                            </div>
-                            <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50" />
-                         </div>
-                       ))}
-                     </div>
-                   )
-                }
-                
-                if (linkPickerTab === 'department') {
-                   // Departments with Pantone colors
-                   const depts = [
-                     { id: 'marketing', name: 'Маркетинг', count: 12 },
-                     { id: 'sales', name: 'Продажи', count: 8 },
-                     { id: 'it', name: 'Разработка', count: 24 },
-                     { id: 'hr', name: 'HR', count: 5 },
-                     { id: 'legal', name: 'Юристы', count: 3 },
-                     { id: 'logistics', name: 'Логистика', count: 7 },
-                     { id: 'design', name: 'Дизайн', count: 15 },
-                     { id: 'management', name: 'Руков.', count: 2 },
-                     { id: 'support', name: 'Поддержка', count: 18 },
-                     { id: 'finance', name: 'Финансы', count: 9 },
-                     { id: 'security', name: 'Охрана', count: 4 },
-                     { id: 'pr', name: 'PR', count: 6 },
-                     { id: 'analytics', name: 'Аналитика', count: 8 },
-                     { id: 'devops', name: 'DevOps', count: 2 },
-                     { id: 'content', name: 'Контент', count: 11 }
-                   ];
-                   
-                   return (
-                     <div className="grid grid-cols-3 gap-3">
-                       {depts.map((d, index) => {
-                         const color = DEPARTMENT_COLORS[index % DEPARTMENT_COLORS.length];
-                         return (
-                           <div 
-                             key={d.id} 
-                             className="group relative h-28 p-3 rounded-2xl border border-white/10 overflow-hidden cursor-pointer shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all flex flex-col items-center justify-center"
-                           >
-                              {/* Background color layer */}
-                              <div className="absolute inset-0 opacity-85 transition-opacity group-hover:opacity-100" style={{ backgroundColor: color }} />
-                              
-                              {/* Gradient overlay for depth */}
-                              <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/20" />
-                              
-                              {/* Content */}
-                              <div className="relative z-10 flex flex-col items-center gap-2">
-                                  <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
-                                      <Building className="w-4 h-4 text-white" strokeWidth={2.5} />
-                                  </div>
-                                  <div className="text-center w-full px-1">
-                                       <h4 className="text-white font-bold text-xs uppercase tracking-wider shadow-black/10 drop-shadow-sm truncate w-full">{d.name}</h4>
-                                       <span className="text-[9px] text-white/90 font-semibold bg-black/20 px-1.5 py-0.5 rounded-md mt-1 inline-block backdrop-blur-sm">{d.count}</span>
-                                  </div>
-                              </div>
-                           </div>
-                         );
-                       })}
-                     </div>
-                   )
-                }
-
-                // Default: All Links
-                const userLinks = Array.isArray(links) ? links : [];
-                // Sort by date (newest first)
-                const sortedLinks = userLinks.sort((a, b) => 
-                  new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                );
-
-                console.log('DEBUG - Ссылки:', {
-                  linksCount: sortedLinks.length,
-                  currentUserId: currentUser?.id,
-                  links: sortedLinks
-                });
-
-                return sortedLinks.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full py-10 text-center">
-                    <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
-                      <LinkIcon className="w-8 h-8 text-white/20" />
-                    </div>
-                    <p className="text-sm text-white/50">Нет сохраненных ссылок</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {sortedLinks.map((link, index) => (
-                      <button
-                        key={link.id || index}
-                        onClick={() => {
-                          setAttachments(prev => [...prev, {
-                            type: 'link',
-                            name: link.title || link.url,
-                            url: link.url
-                          }]);
-                          setShowLinkPicker(false);
-                        }}
-                        className="w-full group text-left p-3.5 bg-gradient-to-br from-white/5 to-white/0 hover:from-white/10 hover:to-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-all"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center flex-shrink-0 border border-indigo-500/20 mt-0.5">
-                             <LinkIcon className="w-4 h-4 text-indigo-400" />
-                          </div>
-                          
-                          <div className="flex-1 min-w-0">
-                            {link.title && (
-                              <p className="text-sm font-medium text-white/90 mb-0.5 group-hover:text-cyan-200 transition-colors line-clamp-1">{link.title}</p>
-                            )}
-                            <p className="text-[11px] text-white/40 font-mono truncate">{link.url}</p>
-                            {link.description && (
-                              <p className="text-[11px] text-white/50 mt-1.5 line-clamp-2 leading-relaxed">{link.description}</p>
-                            )}
-                            
-                            <div className="flex items-center gap-2 mt-2">
-                               <span className="px-1.5 py-0.5 rounded bg-white/5 text-[9px] text-white/30 border border-white/5">
-                                 {new Date(link.createdAt).toLocaleDateString('ru-RU')}
-                               </span>
-                            </div>
-                          </div>
-                          
-                          <div className="self-center opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0 duration-300">
-                             <Plus className="w-5 h-5 text-cyan-400" />
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                );
-              })()}
-            </div>
-            
-            {/* Footer */}
-            <div className="p-4 border-t border-white/10 bg-white/5 backdrop-blur-md flex justify-between items-center text-xs text-white/40">
-                <span>Всего ссылок: {Array.isArray(links) ? links.length : 0}</span>
-                <Link href="/links" className="hover:text-cyan-400 transition-colors flex items-center gap-1">
-                   Управление
-                   <ArrowLeft className="w-3 h-3 rotate-180" />
-                </Link>
-            </div>
-          </div>
-        </div>
-      )}
-
-
       {/* Event Picker Modal */}
       {showEventPicker && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -4990,18 +4815,7 @@ export default function MessagesPage() {
                 <span className="text-xs text-[var(--text-secondary)]">Задача</span>
               </button>
               
-              <button
-                onClick={() => {
-                  setShowLinkPicker(true);
-                  setShowAttachmentMenu(false);
-                }}
-                className="flex flex-col items-center gap-2 p-4 rounded-[20px] bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] transition-colors group"
-              >
-                <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <LinkIcon className="w-6 h-6 text-purple-400" />
-                </div>
-                <span className="text-xs text-[var(--text-secondary)]">Ссылка</span>
-              </button>
+
               
               <button
                 onClick={() => {
@@ -5650,6 +5464,44 @@ export default function MessagesPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Chat Context Menu */}
+      {showChatContextMenu && contextMenuChat && (
+        <>
+          <div 
+            className="fixed inset-0 z-40" 
+            onClick={() => setShowChatContextMenu(false)}
+          />
+          <div 
+            className="fixed z-50 bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl rounded-xl py-1 min-w-[200px]"
+            style={{
+              top: `${chatContextMenuPosition.top}px`,
+              left: `${chatContextMenuPosition.left}px`,
+            }}
+          >
+            {/* Закрепить/Открепить */}
+            <button
+              onClick={() => {
+                togglePinChat(contextMenuChat.id);
+                setShowChatContextMenu(false);
+              }}
+              className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
+            >
+              {contextMenuChat.pinnedByUser?.[currentUser?.id || ''] ? (
+                <>
+                  <PinOff className="w-4 h-4 text-cyan-400" />
+                  Открепить
+                </>
+              ) : (
+                <>
+                  <Pin className="w-4 h-4 text-cyan-400" />
+                  Закрепить
+                </>
+              )}
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

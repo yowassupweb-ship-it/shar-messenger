@@ -5,6 +5,8 @@ import ToastContainer from "@/components/Toast";
 import ApiInitializer from "@/components/ApiInitializer";
 import AuthGuard from "@/components/AuthGuard";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import PerformanceDebug from "./performance-debug";
+import "@/lib/performance-monitor"; // Auto-init in dev
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -74,6 +76,7 @@ export default function RootLayout({
           <ApiInitializer />
           <AuthGuard>{children}</AuthGuard>
           <ToastContainer />
+          <PerformanceDebug />
         </ThemeProvider>
       </body>
     </html>
