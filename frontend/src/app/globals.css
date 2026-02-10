@@ -215,3 +215,13 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Hide bottom navigation when modal is open */
+body.modal-open .bottom-nav-fixed,
+body.modal-open .desktop-navigation,
+body.modal-open [class*="fixed bottom"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

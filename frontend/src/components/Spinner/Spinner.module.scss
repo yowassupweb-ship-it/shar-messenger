@@ -1,0 +1,171 @@
+// Spinner styles adapted for dark theme
+$dot-color: #22d3ee; // cyan-400
+$center-mass-size: 12px;
+$background-color: transparent;
+$small-dot-color: rgba(#22d3ee, 0.4);
+$speed: 1s;
+
+@keyframes spin {
+  0% { 
+    transform: rotate(0deg) scale(1);
+  }
+  50% { 
+    transform: rotate(180deg) scale(0.9);
+  }
+  100% { 
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+@keyframes backspin {
+  0% { 
+    transform: rotate(0deg) scale(1);
+  }
+  50% { 
+    transform: rotate(-180deg) scale(0.9);
+  }
+  100% { 
+    transform: rotate(-360deg) scale(1);
+  }
+}
+
+.spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  
+  &.sm {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 8px;
+    
+    .mainSpinner {
+      width: 24px;
+      height: 24px;
+    }
+    
+    .dot {
+      $size: 8px;
+      $distance: 18px;
+      box-shadow: 
+        0 $distance $dot-color, 
+        0 (-$distance) $dot-color, 
+        $distance 0 $dot-color, 
+        (-$distance) 0 $dot-color;
+      height: $size;
+      width: $size;
+    }
+    
+    .centerMass {
+      $cm-size: 6px;
+      width: $cm-size;
+      height: $cm-size;
+      margin-top: (-$cm-size * 0.5);
+      margin-left: (-$cm-size * 0.5);
+      border-radius: $cm-size;
+      box-shadow: 
+        16px 0 $small-dot-color, 
+        -16px 0 $small-dot-color;
+    }
+  }
+  
+  &.md {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 16px;
+    
+    .mainSpinner {
+      width: 40px;
+      height: 40px;
+    }
+    
+    .dot {
+      $size: 12px;
+      $distance: 30px;
+      box-shadow: 
+        0 $distance $dot-color, 
+        0 (-$distance) $dot-color, 
+        $distance 0 $dot-color, 
+        (-$distance) 0 $dot-color;
+      height: $size;
+      width: $size;
+    }
+    
+    .centerMass {
+      $cm-size: 8px;
+      width: $cm-size;
+      height: $cm-size;
+      margin-top: (-$cm-size * 0.5);
+      margin-left: (-$cm-size * 0.5);
+      border-radius: $cm-size;
+      box-shadow: 
+        26px 0 $small-dot-color, 
+        -26px 0 $small-dot-color;
+    }
+  }
+  
+  &.lg {
+    width: 120px;
+    height: 120px;
+    margin-bottom: 20px;
+    
+    .mainSpinner {
+      width: 64px;
+      height: 64px;
+    }
+    
+    .dot {
+      $size: 18px;
+      $distance: 48px;
+      box-shadow: 
+        0 $distance $dot-color, 
+        0 (-$distance) $dot-color, 
+        $distance 0 $dot-color, 
+        (-$distance) 0 $dot-color;
+      height: $size;
+      width: $size;
+    }
+    
+    .centerMass {
+      $cm-size: 12px;
+      width: $cm-size;
+      height: $cm-size;
+      margin-top: (-$cm-size * 0.5);
+      margin-left: (-$cm-size * 0.5);
+      border-radius: $cm-size;
+      box-shadow: 
+        42px 0 $small-dot-color, 
+        -42px 0 $small-dot-color;
+    }
+  }
+}
+
+.mainSpinner {
+  animation: ($speed * 2) spin linear infinite;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dot {
+  animation: $speed backspin linear infinite;
+  position: absolute;
+  border-radius: 100px;
+  
+  &.dot1 {
+    left: 0;
+  }
+  
+  &.dot2 {
+    right: 0;
+  }
+}
+
+.centerMass {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: $small-dot-color;
+}

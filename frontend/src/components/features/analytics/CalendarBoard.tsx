@@ -128,9 +128,8 @@ export default function CalendarBoard() {
     const loadData = async () => {
       try {
         const username = localStorage.getItem('username') || '';
-        const [todosRes, listsRes, peopleRes, eventsRes, calListsRes, usersRes, deptsRes] = await Promise.all([
+        const [todosRes, peopleRes, eventsRes, calListsRes, usersRes, deptsRes] = await Promise.all([
           fetch('/api/todos'),
-          fetch('/api/todos/lists'),
           fetch('/api/todos/people'),
           fetch('/api/calendar-events'),
           fetch(`/api/calendar-lists?userId=${encodeURIComponent(username)}`),

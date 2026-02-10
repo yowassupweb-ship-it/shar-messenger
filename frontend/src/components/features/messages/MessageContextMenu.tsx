@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Message, User } from './types';
 import { Reply, Copy, Edit3, Forward, CheckSquare, CalendarPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -31,6 +31,23 @@ export default function MessageContextMenu({
   onLoadCalendars
 }: MessageContextMenuProps) {
   const router = useRouter();
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // РАДИКАЛЬНО: закрываем меню при ЛЮБОМ клике
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const closeMenu = () => onClose();
+      document.addEventListener('click', closeMenu, true);
+      document.addEventListener('contextmenu', closeMenu, true);
+      
+      return () => {
+        document.removeEventListener('click', closeMenu, true);
+        document.removeEventListener('contextmenu', closeMenu, true);
+      };
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [onClose]);
 
   if (!message) return null;
 
@@ -79,19 +96,12 @@ export default function MessageContextMenu({
   const canEdit = currentUser && message.authorId === currentUser.id;
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-[9998]"
-        onClick={onClose}
-      />
-
-      {/* Context Menu */}
-      <div
-        className="fixed z-[9999] bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl min-w-[200px] overflow-hidden"
-        style={{ top: `${position.top}px`, left: `${position.left}px` }}
-      >
-        <button
+    <div
+      ref={menuRef}
+      className="fixed z-[9999] bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl min-w-[200px] overflow-hidden"
+      style={{ top: `${position.top}px`, left: `${position.left}px` }}
+    >
+      <button
           onClick={() => {
             onReply(message);
             messageInputRef.current?.focus();
@@ -154,6 +164,5 @@ export default function MessageContextMenu({
           Сделать событием
         </button>
       </div>
-    </>
   );
 }

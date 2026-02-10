@@ -1770,7 +1770,9 @@ def create_user(user: UserCreate):
         user_data["id"] = f"user_{int(datetime.now().timestamp() * 1000)}"
     user_data["createdAt"] = datetime.now().isoformat()
     result = db.add_user(user_data)
-    return snake_to_camel(result) if result else None
+    if not result:
+        raise HTTPException(status_code=500, detail="Failed to create user")
+    return snake_to_camel(result)
 
 @app.put("/api/users/{user_id}")
 def update_user(user_id: str, user: UserUpdate):
@@ -3376,7 +3378,12 @@ def create_todo(todo_data: dict = Body(...)):
     """Создать новую задачу, список или категорию"""
     import uuid
     
+    print(f"[POST /api/todos] === START ===")
+    print(f"[POST /api/todos] Received data keys: {list(todo_data.keys())}")
+    print(f"[POST /api/todos] Full data: {todo_data}")
+    
     todo_type = todo_data.get('type', 'todo')
+    print(f"[POST /api/todos] Type: {todo_type}")
     
     if todo_type == 'list':
         new_list = {
@@ -3387,7 +3394,9 @@ def create_todo(todo_data: dict = Body(...)):
             'department': todo_data.get('department'),
             'order': todo_data.get('order', 0)
         }
+        print(f"[POST /api/todos] Creating list: {new_list['name']}")
         result = db.add_todo_list(new_list)
+        print(f"[POST /api/todos] List created: {result.get('id') if result else 'FAILED'}")
         return snake_to_camel(result) if result else new_list
     
     elif todo_type == 'category':
@@ -3398,7 +3407,9 @@ def create_todo(todo_data: dict = Body(...)):
             'icon': todo_data.get('icon', 'tag'),
             'order': todo_data.get('order', 0)
         }
+        print(f"[POST /api/todos] Creating category: {new_category['name']}")
         result = db.add_todo_category(new_category)
+        print(f"[POST /api/todos] Category created: {result.get('id') if result else 'FAILED'}")
         return snake_to_camel(result) if result else new_category
     
     else:
@@ -3421,8 +3432,19 @@ def create_todo(todo_data: dict = Body(...)):
             'task_order': todo_data.get('order', 0) or todo_data.get('task_order', 0)
         }
         
+        print(f"[POST /api/todos] Creating task: {new_todo['title']}")
+        print(f"[POST /api/todos] Task data: list_id={new_todo['list_id']}, assigned_to={new_todo['assigned_to']}")
+        
         result = db.add_task(new_todo)
-        return snake_to_camel(result) if result else snake_to_camel(new_todo)
+        
+        if result:
+            print(f"[POST /api/todos] Task created successfully: {result.get('id')}")
+            print(f"[POST /api/todos] === SUCCESS ===")
+            return snake_to_camel(result)
+        else:
+            print(f"[POST /api/todos] ERROR: Failed to create task")
+            print(f"[POST /api/todos] === FAILED ===")
+            return snake_to_camel(new_todo)
 
 @app.put("/api/todos")
 def update_todo(todo_data: dict = Body(...)):

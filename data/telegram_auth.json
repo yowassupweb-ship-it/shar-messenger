@@ -1,15 +1,9 @@
 {
   "codes": [
     {
-      "code": "732765",
-      "createdAt": "2026-02-07T19:44:48.842Z",
-      "expiresAt": "2026-02-07T19:54:48.842Z",
-      "authenticated": false
-    },
-    {
-      "code": "816539",
-      "createdAt": "2026-02-07T19:45:04.197Z",
-      "expiresAt": "2026-02-07T19:55:04.197Z",
+      "code": "256399",
+      "createdAt": "2026-02-10T10:19:41.622Z",
+      "expiresAt": "2026-02-10T10:29:41.622Z",
       "authenticated": false
     }
   ]

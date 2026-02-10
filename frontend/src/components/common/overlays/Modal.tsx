@@ -54,7 +54,7 @@ export default function Modal({
       <div
         role="dialog"
         aria-modal="true"
-        className="relative z-[1110] max-h-[85vh] overflow-auto"
+        className="relative z-[1110] w-full max-w-2xl max-h-[85vh] overflow-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {children}

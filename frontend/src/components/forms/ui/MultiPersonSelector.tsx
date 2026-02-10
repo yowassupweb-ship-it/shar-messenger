@@ -89,18 +89,21 @@ const MultiPersonSelector = memo(function MultiPersonSelector({
             <span className="text-gray-400 dark:text-white/30">{placeholder}</span>
           ) : (
             <>
-              {displayNames.map((name, idx) => (
-                <span
-                  key={selectedIds[idx]}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-full text-xs"
-                >
-                  {name}
-                  <X
-                    className="w-3 h-3 hover:text-red-500 transition-colors cursor-pointer"
-                    onClick={(e) => handleRemove(selectedIds[idx], name, e)}
-                  />
-                </span>
-              ))}
+              {displayNames.map((name, idx) => {
+                const personId = selectedIds[idx];
+                return (
+                  <span
+                    key={personId || `person-${idx}`}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-full text-xs"
+                  >
+                    {name}
+                    <X
+                      className="w-3 h-3 hover:text-red-500 transition-colors cursor-pointer"
+                      onClick={(e) => handleRemove(personId, name, e)}
+                    />
+                  </span>
+                );
+              })}
               {hiddenCount > 0 && (
                 <span className="text-xs text-gray-500 dark:text-white/50">+{hiddenCount}</span>
               )}

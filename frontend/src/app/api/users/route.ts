@@ -1,44 +1,111 @@
-// PROXY TO BACKEND
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server'
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Отключаем кеширование
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
-async function proxyToBackend(request: NextRequest, method: string) {
+// URL бэкенда - используем переменную окружения или localhost
+const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000'
+
+// GET - получить всех пользователей (проксирование к бэкенду)
+export async function GET(request: NextRequest) {
   try {
-    const url = new URL(request.url);
-    const backendUrl = `${BACKEND_URL}/api/users${url.search}`;
+    const includePasswords = request.nextUrl.searchParams.get('includePasswords') === 'true'
+    const url = includePasswords 
+      ? `${BACKEND_URL}/api/users?includePasswords=true`
+      : `${BACKEND_URL}/api/users`
     
-    const options: RequestInit = {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-    };
+    console.log('[Users API Proxy] GET users, url:', url)
     
-    if (method === 'POST' || method === 'PUT') {
-      const body = await request.json();
-      options.body = JSON.stringify(body);
-    }
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
     
-    const response = await fetch(backendUrl, options);
-    const data = await response.json();
-    
-    return NextResponse.json(data, { status: response.status });
+    const data = await response.json()
+    return NextResponse.json(data, { status: response.status })
   } catch (error) {
-    return NextResponse.json({ error: `Proxy error: ${error}` }, { status: 500 });
+    console.error('[Users API Proxy] Error fetching users:', error)
+    return NextResponse.json({ error: 'Ошибка получения пользователей' }, { status: 500 })
   }
 }
 
-export async function GET(request: NextRequest) {
-  return proxyToBackend(request, 'GET');
-}
-
+// POST - создать нового пользователя (проксирование к бэкенду)
 export async function POST(request: NextRequest) {
-  return proxyToBackend(request, 'POST');
+  try {
+    const body = await request.json()
+    console.log('[Users API Proxy] POST new user:', body.username || body.email)
+    
+    const response = await fetch(`${BACKEND_URL}/api/users`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+    
+    const data = await response.json()
+    console.log('[Users API Proxy] POST response:', response.status)
+    return NextResponse.json(data, { status: response.status })
+  } catch (error) {
+    console.error('[Users API Proxy] Error creating user:', error)
+    return NextResponse.json({ error: 'Ошибка создания пользователя' }, { status: 500 })
+  }
 }
 
+// PUT - обновить пользователя (проксирование к бэкенду)
 export async function PUT(request: NextRequest) {
-  return proxyToBackend(request, 'PUT');
+  try {
+    const body = await request.json()
+    const { id, ...updates } = body
+    
+    if (!id) {
+      return NextResponse.json({ error: 'ID пользователя обязателен' }, { status: 400 })
+    }
+    
+    console.log('[Users API Proxy] PUT user:', id)
+    
+    const response = await fetch(`${BACKEND_URL}/api/users/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updates),
+    })
+    
+    const data = await response.json()
+    return NextResponse.json(data, { status: response.status })
+  } catch (error) {
+    console.error('[Users API Proxy] Error updating user:', error)
+    return NextResponse.json({ error: 'Ошибка обновления пользователя' }, { status: 500 })
+  }
 }
 
+// DELETE - удалить пользователя (проксирование к бэкенду)
 export async function DELETE(request: NextRequest) {
-  return proxyToBackend(request, 'DELETE');
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+    
+    if (!id) {
+      return NextResponse.json({ error: 'ID пользователя обязателен' }, { status: 400 })
+    }
+    
+    console.log('[Users API Proxy] DELETE user:', id)
+    
+    const response = await fetch(`${BACKEND_URL}/api/users/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    
+    const data = await response.json()
+    return NextResponse.json(data, { status: response.status })
+  } catch (error) {
+    console.error('[Users API Proxy] Error deleting user:', error)
+    return NextResponse.json({ error: 'Ошибка удаления пользователя' }, { status: 500 })
+  }
 }

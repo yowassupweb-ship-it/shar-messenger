@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { MessageCircle, Send, ArrowLeft, Users, Search, Plus, MoreVertical, Check, Edit3, Trash2, Reply, Pin, PinOff, X, Paperclip, FileText, Link as LinkIcon, Calendar, CalendarPlus, Image, File, Info, Grid, List, Play, Music, Download, CheckSquare, Mail, Phone, Upload, Smile, Star, Bell, ChevronLeft, ChevronRight, ChevronDown, Building, Globe, Moon, Sun } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -52,7 +52,21 @@ const DEPARTMENT_COLORS = [
 
 export default function MessagesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { theme, toggleTheme } = useTheme();
+
+  // Проверка: если это прямой доступ к /messages (не через /account), редиректим
+  useEffect(() => {
+    // Проверяем, находимся ли мы на странице /messages напрямую
+    if (typeof window !== 'undefined' && window.location.pathname === '/messages') {
+      const chatId = searchParams.get('chat');
+      if (chatId) {
+        router.replace(`/account?tab=messages&chat=${chatId}`);
+      } else {
+        router.replace('/account?tab=messages');
+      }
+    }
+  }, [router, searchParams]);
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
@@ -304,6 +318,7 @@ export default function MessagesPage() {
   }, []);
 
   useEffect(() => {
+    console.log('useEffect[]: Loading current user and users');
     loadCurrentUser();
     loadUsers();
   }, []);
@@ -354,12 +369,6 @@ export default function MessagesPage() {
       clearInterval(usersStatusInterval);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [currentUser]);
-
-  useEffect(() => {
-    if (currentUser) {
-      loadChats();
-    }
   }, [currentUser]);
 
   useEffect(() => {
@@ -498,9 +507,13 @@ export default function MessagesPage() {
             
             if (createRes.ok) {
               const newUser = await createRes.json();
-              localStorage.setItem('myAccount', JSON.stringify({ id: newUser.id, name: newUser.name, avatar: newUser.avatar }));
-              setCurrentUser(newUser);
-              return;
+              if (newUser && newUser.id) {
+                localStorage.setItem('myAccount', JSON.stringify({ id: newUser.id, name: newUser.name, avatar: newUser.avatar }));
+                setCurrentUser(newUser);
+                return;
+              } else {
+                console.error('Invalid user data received:', newUser);
+              }
             } else if (createRes.status === 409) {
               const retryRes = await fetch('/api/users');
               if (retryRes.ok) {
@@ -753,14 +766,20 @@ export default function MessagesPage() {
   };
 
   const loadChats = useCallback(async () => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      console.log('loadChats: No currentUser, skipping');
+      return;
+    }
     
-    setIsLoadingChats(true); // 🚀 PERFORMANCE: Start loading
+    console.log('loadChats: Starting, currentUser.id:', currentUser.id);
+    // Убрали setIsLoadingChats(true) - loader только при initial load
     try {
       const res = await fetch(`/api/chats?user_id=${currentUser.id}`);
+      console.log('loadChats: API response status:', res.status, res.ok);
       
       if (res.ok) {
         let data = await res.json();
+        console.log('loadChats: Received', data.length, 'chats');
         
         const getSystemChatPinState = (chatId: string): boolean => {
           const stored = localStorage.getItem(`chat_pin_${chatId}`);
@@ -861,20 +880,31 @@ export default function MessagesPage() {
         
         // Обновляем selectedChat с новыми данными (например, readMessagesByUser)
         // Но НЕ вызываем setSelectedChat чтобы не триггерить useEffect
-        if (selectedChat) {
-          const updatedChat = data.find((c: any) => c.id === selectedChat.id);
-          if (updatedChat && JSON.stringify(updatedChat.readMessagesByUser) !== JSON.stringify(selectedChat.readMessagesByUser)) {
+        setSelectedChat((prev: Chat | null) => {
+          if (!prev) return prev;
+          const updatedChat = data.find((c: any) => c.id === prev.id);
+          if (updatedChat && JSON.stringify(updatedChat.readMessagesByUser) !== JSON.stringify(prev.readMessagesByUser)) {
             // Только обновляем если изменились данные о прочтении
-            setSelectedChat((prev: Chat | null) => prev ? { ...prev, readMessagesByUser: updatedChat.readMessagesByUser } : prev);
+            return { ...prev, readMessagesByUser: updatedChat.readMessagesByUser };
           }
-        }
+          return prev;
+        });
       }
     } catch (error) {
       console.error('Error loading chats:', error);
     } finally {
+      console.log('loadChats: Finished loading');
       setIsLoadingChats(false); // 🚀 PERFORMANCE: End loading
     }
-  }, [currentUser, selectedChat]);
+  }, [currentUser]);
+
+  // Load chats when currentUser is available
+  useEffect(() => {
+    console.log('useEffect[currentUser, loadChats]: currentUser =', currentUser?.id);
+    if (currentUser) {
+      loadChats();
+    }
+  }, [currentUser, loadChats]);
 
   const ensureNotificationsChat = async () => {
     if (!currentUser) return;
@@ -1564,7 +1594,7 @@ export default function MessagesPage() {
       pinnedChats: filterChatsBySearch(allPinnedChats),
       unpinnedChats: filterChatsBySearch(allUnpinnedChats)
     };
-  }, [chats, currentUser?.id, filterChatsBySearch]);
+  }, [chats, currentUser?.id, searchQuery]); // Заменили filterChatsBySearch на searchQuery
 
   const messagesContainerRef = useRef<HTMLDivElement>(null); // Ref для основного контейнера страницы
 

@@ -106,7 +106,7 @@ export default function CreatePlanModal({
                 <button
                   key={color}
                   onClick={() => setPlanColor(color)}
-                  className={`w-8 h-8 rounded-lg transition-all ${planColor === color ? 'ring-2 ring-offset-2 ring-gray-400 dark:ring-white/30' : ''}`}
+                  className={`w-8 h-8 rounded-lg transition-all ${planColor === color ? 'ring-2 ring-offset-2 ring-gray-400' : ''}`}
                   style={{ backgroundColor: color }}
                 />
               ))}

@@ -4,8 +4,23 @@ Handles connections and basic operations with PostgreSQL
 """
 import os
 import asyncio
-import psycopg2
-from psycopg2.extras import RealDictCursor, Json
+import json
+try:
+    # Try psycopg3 first (better Windows UTF-8 support)
+    import psycopg as psycopg_module
+    from psycopg.rows import dict_row
+    PSYCOPG_VERSION = 3
+    print("Using psycopg3")
+    # For psycopg3, JSON columns accept Python objects directly
+    def Json(data):
+        return data
+except ImportError:
+    # Fallback to psycopg2
+    import psycopg2 as psycopg_module
+    from psycopg2.extras import RealDictCursor, Json
+    PSYCOPG_VERSION = 2
+    print("Using psycopg2")
+
 from contextlib import contextmanager
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -34,25 +49,32 @@ class PostgresConnection:
     def connect(self) -> bool:
         """Establish connection to PostgreSQL"""
         try:
-            self.connection = psycopg2.connect(
-                host=self.host,
-                port=self.port,
-                database=self.database,
-                user=self.user,
-                password=self.password,
-                connect_timeout=10,
-                keepalives=1,
-                keepalives_idle=30,
-                keepalives_interval=10,
-                keepalives_count=5,
-                options='-c statement_timeout=30000'  # 30 секунд таймаут на запросы
-            )
-            # Enable autocommit to avoid rollback on connection close
-            self.connection.autocommit = True
-            print(f"Connected to PostgreSQL: {self.user}@{self.host}:{self.port}/{self.database}")
+            if PSYCOPG_VERSION == 3:
+                # psycopg3 - modern, better Windows support
+                self.connection = psycopg_module.connect(
+                    host=self.host,
+                    port=self.port,
+                    dbname=self.database,
+                    user=self.user,
+                    password=self.password,
+                    autocommit=True,
+                    row_factory=dict_row
+                )
+                print(f"✓ Connected to PostgreSQL via psycopg3: {self.user}@{self.host}:{self.port}/{self.database}")
+            else:
+                # psycopg2 - legacy with Windows encoding workarounds
+                os.environ['PGPASSFILE'] = 'nul'
+                os.environ['PGCLIENTENCODING'] = 'UTF8'
+                
+                dsn = f"host={self.host} port={self.port} dbname={self.database} user={self.user} password={self.password} client_encoding=UTF8"
+                self.connection = psycopg_module.connect(dsn)
+                self.connection.set_client_encoding('UTF8')
+                self.connection.autocommit = True
+                print(f"✓ Connected to PostgreSQL via psycopg2: {self.user}@{self.host}:{self.port}/{self.database}")
+            
             return True
-        except psycopg2.Error as e:
-            print(f"Failed to connect to PostgreSQL: {e}")
+        except Exception as e:
+            print(f"❌ Failed to connect to PostgreSQL: {e}")
             return False
     
     def disconnect(self):
@@ -95,10 +117,15 @@ class PostgresConnection:
         """Fetch all results from SELECT query"""
         try:
             self.ensure_connection()
-            with self.connection.cursor(cursor_factory=RealDictCursor) as cursor:
-                cursor.execute(query, params or ())
-                return cursor.fetchall()
-        except psycopg2.Error as e:
+            if PSYCOPG_VERSION == 3:
+                with self.connection.cursor() as cursor:
+                    cursor.execute(query, params or ())
+                    return cursor.fetchall()
+            else:
+                with self.connection.cursor(cursor_factory=RealDictCursor) as cursor:
+                    cursor.execute(query, params or ())
+                    return cursor.fetchall()
+        except Exception as e:
             print(f"❌ Query fetch error: {e}")
             return []
     
@@ -106,10 +133,15 @@ class PostgresConnection:
         """Fetch one result from SELECT query"""
         try:
             self.ensure_connection()
-            with self.connection.cursor(cursor_factory=RealDictCursor) as cursor:
-                cursor.execute(query, params or ())
-                return cursor.fetchone()
-        except psycopg2.Error as e:
+            if PSYCOPG_VERSION == 3:
+                with self.connection.cursor() as cursor:
+                    cursor.execute(query, params or ())
+                    return cursor.fetchone()
+            else:
+                with self.connection.cursor(cursor_factory=RealDictCursor) as cursor:
+                    cursor.execute(query, params or ())
+                    return cursor.fetchone()
+        except Exception as e:
             print(f"❌ Query fetch error: {e}")
             return None
     
@@ -465,7 +497,9 @@ class PostgresDatabase:
             'updatedAt': 'updated_at',
             'visibleTabs': 'visible_tabs',
             'toolsOrder': 'tools_order',
-            'isActive': 'is_active'
+            'isActive': 'is_active',
+            'pinnedTools': 'pinned_tools',
+            'chatSettings': 'chat_settings'
         }
         
         set_clauses = []
@@ -476,7 +510,7 @@ class PostgresDatabase:
             db_key = field_map.get(key, key)
             
             # Handle JSON fields
-            if db_key in ['enabled_tools', 'metadata', 'visible_tabs', 'tools_order']:
+            if db_key in ['enabled_tools', 'metadata', 'visible_tabs', 'tools_order', 'pinned_tools', 'chat_settings']:
                 set_clauses.append(f"{db_key} = %s")
                 params.append(Json(value))
             else:
@@ -928,16 +962,16 @@ class PostgresDatabase:
             task.get('description'),
             task.get('status', 'pending'),
             task.get('priority', 'medium'),
-            task.get('dueDate'),
-            task.get('assignedTo'),
-            Json(task.get('assignedToIds', [])),
-            task.get('authorId'),
-            task.get('assignedById'),
-            task.get('listId'),
+            task.get('due_date'),  # snake_case
+            task.get('assigned_to'),  # snake_case
+            Json(task.get('assigned_to_ids', [])),  # snake_case
+            task.get('author_id'),  # snake_case
+            task.get('assigned_by_id'),  # snake_case
+            task.get('list_id'),  # snake_case
             Json(task.get('tags', [])),
-            task.get('isCompleted', False),
-            task.get('addToCalendar', False),
-            task.get('order', 0)
+            task.get('is_completed', False),  # snake_case
+            task.get('add_to_calendar', False),  # snake_case
+            task.get('task_order', 0)  # snake_case
         )
         result = self.conn.fetch_one(query, params)
         return dict(result) if result else None

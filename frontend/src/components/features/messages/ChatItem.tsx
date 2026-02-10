@@ -52,7 +52,7 @@ const ChatItem = React.memo<ChatItemProps>(({
       >
         <button
           onClick={() => onSelect(chat)}
-          className={`w-full flex justify-center py-1 relative ${isSelected ? 'bg-[var(--bg-tertiary)]' : 'hover:bg-[var(--bg-tertiary)]/50'}`}
+          className={`w-full flex justify-center py-2 relative ${isSelected ? 'bg-[var(--bg-tertiary)]' : 'hover:bg-[var(--bg-tertiary)]/50'}`}
         >
           <div className="relative">
             <Avatar
@@ -111,7 +111,7 @@ const ChatItem = React.memo<ChatItemProps>(({
       >
         <button
           onClick={() => onSelect(chat)}
-          className="w-full px-3 py-1 hover:bg-[var(--bg-tertiary)] transition-all text-left"
+          className="w-full px-3 py-2 hover:bg-[var(--bg-tertiary)] transition-all text-left"
         >
           <div className="flex gap-2 items-center">
             <Avatar
@@ -177,7 +177,7 @@ const ChatItem = React.memo<ChatItemProps>(({
     >
       <button
         onClick={() => onSelect(chat)}
-        className="w-full px-2 transition-all text-left"
+        className="w-full px-2 py-2 transition-all text-left"
       >
         <div className="flex gap-2 items-center">
           <Avatar

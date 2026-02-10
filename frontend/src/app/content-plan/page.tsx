@@ -112,7 +112,7 @@ export default function ContentPlanPage() {
     editingCommentId, setEditingCommentId,
     editingCommentText, setEditingCommentText,
     replyingToComment, setReplyingToComment,
-
+    myNotifications, setMyNotifications,
     toasts, setToasts,
     contentPlans, setContentPlans,
     activePlanId, setActivePlanId,
@@ -197,24 +197,6 @@ export default function ContentPlanPage() {
       console.error('Error marking all notifications as read:', error);
     }
   };
-  
-  const [postForm, setPostForm] = useState({
-    title: '',
-    postText: '',
-    platform: 'telegram' as 'telegram' | 'vk' | 'dzen' | 'max' | 'mailing' | 'site',
-    contentType: 'post' as 'post' | 'story' | 'article' | 'mailing',
-    publishDate: '',
-    publishTime: '12:00',
-    mediaUrls: [] as string[],
-    roles: [] as ('smm' | 'manager')[],
-    participants: [] as string[],
-    postStatus: 'draft' as 'draft' | 'scheduled' | 'approved',
-    assignedById: '' as string,
-    assignedToIds: [] as string[],
-    linkId: undefined as string | undefined,
-    linkUrl: undefined as string | undefined,
-    linkTitle: undefined as string | undefined
-  });
 
   const weekDays = getWeekDays(currentWeekStart);
   const platforms = ['telegram', 'vk', 'dzen', 'max', 'mailing', 'site'] as const;

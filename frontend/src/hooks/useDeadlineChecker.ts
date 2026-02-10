@@ -22,7 +22,7 @@ export function useDeadlineChecker({
   
   useEffect(() => {
     const checkDeadlines = () => {
-      if (!myAccountId || todos.length === 0) return;
+      if (!myAccountId || todos.length === 0 || !Array.isArray(people)) return;
       
       const now = new Date();
       const tomorrow = new Date(now);

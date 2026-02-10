@@ -122,23 +122,22 @@ export default function LinksBoard() {
     }
   }, []);
 
-  // Load current user
-  const loadUser = useCallback(async () => {
-    try {
-      const res = await fetch('/api/users/me');
-      if (res.ok) {
-        const userData = await res.json();
+  // Load current user from localStorage
+  useEffect(() => {
+    const myAccount = localStorage.getItem('myAccount');
+    if (myAccount) {
+      try {
+        const userData = JSON.parse(myAccount);
         setCurrentUser(userData);
+      } catch (error) {
+        console.error('Error parsing user data:', error);
       }
-    } catch (error) {
-      console.error('Error loading user:', error);
     }
   }, []);
 
   useEffect(() => {
     loadData();
-    loadUser();
-  }, [loadData, loadUser]);
+  }, [loadData]);
 
   // Close context menu and dropdowns on click outside
   useEffect(() => {
