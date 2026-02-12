@@ -27,8 +27,8 @@ interface TodoHeaderProps {
   setShowAddList: (show: boolean) => void;
   
   // Filters
-  filterStatus: 'all' | 'todo' | 'pending' | 'in-progress' | 'review' | 'stuck';
-  setFilterStatus: React.Dispatch<React.SetStateAction<'all' | 'todo' | 'pending' | 'in-progress' | 'review' | 'stuck'>>;
+  filterStatus: 'all' | 'stages' | 'todo' | 'pending' | 'in-progress' | 'review' | 'cancelled' | 'stuck';
+  setFilterStatus: React.Dispatch<React.SetStateAction<'all' | 'stages' | 'todo' | 'pending' | 'in-progress' | 'review' | 'cancelled' | 'stuck'>>;
   statusDropdownOpen: boolean;
   setStatusDropdownOpen: (open: boolean) => void;
   
@@ -159,7 +159,7 @@ export default function TodoHeader({
             className="flex items-center gap-1.5 px-3 h-10 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all duration-200 text-sm border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] backdrop-blur-xl"
           >
             <Filter className="w-4 h-4 flex-shrink-0" />
-            <span className="truncate max-w-[120px]">{filterStatus === 'all' ? 'Все' : filterStatus === 'todo' ? 'К выполнению' : filterStatus === 'pending' ? 'В ожидании' : filterStatus === 'in-progress' ? 'В работе' : filterStatus === 'review' ? 'Готово к проверке' : 'Застряла'}</span>
+            <span className="truncate max-w-[120px]">{filterStatus === 'all' ? 'Все' : filterStatus === 'stages' ? 'Этапы' : filterStatus === 'todo' ? 'К выполнению' : filterStatus === 'pending' ? 'В ожидании' : filterStatus === 'in-progress' ? 'В работе' : filterStatus === 'review' ? 'Готово к проверке' : filterStatus === 'cancelled' ? 'Отменена' : 'Застряла'}</span>
             <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
           </button>
           <Statusdropdown

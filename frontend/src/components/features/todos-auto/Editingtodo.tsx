@@ -90,12 +90,12 @@ interface Todo {
   listId: string;
   categoryId?: string;
   tags: string[];
-  assignedById?: string;
-  assignedBy?: string;
-  delegatedById?: string;
-  delegatedBy?: string;
-  assignedToId?: string;
-  assignedTo?: string;
+  assignedById?: string | null;
+  assignedBy?: string | null;
+  delegatedById?: string | null;
+  delegatedBy?: string | null;
+  assignedToId?: string | null;
+  assignedTo?: string | null;
   assignedToIds?: string[];
   assignedToNames?: string[];
   addToCalendar?: boolean;
@@ -204,8 +204,8 @@ const Editingtodo = memo(function Editingtodo({
   if (!isOpen || !editingTodo) return null;
   
   return (
-        <div className="fixed inset-0 bg-black flex items-center justify-center z-[100]">
-          <div className="bg-white dark:bg-gradient-to-b dark:from-[#1a1a1a] dark:to-[#151515] w-full h-full flex flex-col overflow-hidden select-none">
+        <div className="fixed inset-0 bg-black flex items-start justify-center z-[100]">
+          <div className="bg-white dark:bg-gradient-to-b dark:from-[#1a1a1a] dark:to-[#151515] w-full h-screen flex flex-col overflow-hidden select-none">
             {/* Шапка */}
             <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 md:border-b border-gray-200 dark:border-[var(--border-color)] bg-gray-50 dark:bg-white/[0.02] flex-shrink-0 select-none">
               <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
@@ -237,7 +237,7 @@ const Editingtodo = memo(function Editingtodo({
             
             {/* Три колонки - адаптивно с регулируемой шириной */}
             <div 
-              className="flex flex-1 flex-col lg:flex-row min-h-0 overflow-y-auto lg:overflow-hidden relative"
+              className="flex flex-1 flex-col lg:flex-row min-h-0 overflow-hidden relative"
               style={{
                 '--col-left': `${columnWidths[0]}%`,
                 '--col-center': `${columnWidths[1]}%`,
@@ -247,7 +247,7 @@ const Editingtodo = memo(function Editingtodo({
             >
               {/* Левый блок - основные поля */}
               <div 
-                className="w-full lg:w-[var(--col-left)] border-b-0 lg:border-b-0 lg:border-r border-gray-200 dark:border-[var(--border-color)] flex-shrink-0 bg-gray-50 dark:bg-[var(--bg-secondary)] order-2 lg:order-1 lg:overflow-y-auto transition-[width] duration-100"
+                className="w-full lg:w-[var(--col-left)] border-b-0 lg:border-b-0 lg:border-r border-gray-200 dark:border-[var(--border-color)] flex-shrink-0 bg-gray-50 dark:bg-[var(--bg-secondary)] order-2 lg:order-1 overflow-y-auto min-h-0 min-w-0 transition-[width] duration-100"
               >
                 <div className="p-2 sm:p-3 space-y-2 sm:space-y-3">
                 {/* Статус */}
@@ -546,7 +546,7 @@ const Editingtodo = memo(function Editingtodo({
 
               {/* Средний блок - Название и Описание */}
               <div 
-                className="w-full lg:w-[var(--col-center)] flex flex-col bg-white dark:bg-[var(--bg-secondary)] border-b-0 lg:border-b-0 lg:border-r border-gray-200 dark:border-[var(--border-color)] order-1 lg:order-2 transition-[width] duration-100"
+                className="w-full lg:w-[var(--col-center)] flex flex-col bg-white dark:bg-[var(--bg-secondary)] border-b-0 lg:border-b-0 lg:border-r border-gray-200 dark:border-[var(--border-color)] order-1 lg:order-2 overflow-y-auto min-h-0 min-w-0 transition-[width] duration-100"
               >
                 {/* Название задачи */}
                 <div className="px-2 sm:px-3 pt-2 sm:pt-3 pb-1.5 sm:pb-2">
@@ -1203,7 +1203,7 @@ const Editingtodo = memo(function Editingtodo({
 
               {/* Правый блок - Обсуждение */}
               <div 
-                className="w-full lg:w-[var(--col-right)] flex flex-col bg-[var(--bg-secondary)] order-3 lg:order-3 transition-[width] duration-100"
+                className="w-full lg:w-[var(--col-right)] flex flex-col bg-[var(--bg-secondary)] order-3 lg:order-3 overflow-y-auto min-h-0 min-w-0 transition-[width] duration-100"
               >
                 {/* Заголовок */}
                 <div className="px-3 py-2.5 border-b border-[var(--border-color)] flex items-center justify-between bg-gradient-to-br from-white/5 to-white/2">

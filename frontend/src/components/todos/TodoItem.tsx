@@ -32,21 +32,27 @@ interface Todo {
   description?: string;
   completed: boolean;
   status?: string;
+  stagesEnabled?: boolean;
+  technicalSpecTabs?: { id: string; label: string }[];
+  stageDefaultAssigneeId?: string | null;
+  stageDefaultAssigneeName?: string | null;
+  stageMeta?: Record<string, { assigneeId?: string | null; assigneeName?: string | null }>;
   priority: 'low' | 'medium' | 'high';
   listId: string;
   order: number;
   dueDate?: string;
-  categoryId?: string;
+  categoryId?: string | null;
   linkId?: string;
   linkUrl?: string;
   linkTitle?: string;
-  assignedById?: string;
-  assignedBy?: string;
-  delegatedById?: string;
-  delegatedBy?: string;
-  assignedToId?: string;
-  assignedTo?: string;
+  assignedById?: string | null;
+  assignedBy?: string | null;
+  delegatedById?: string | null;
+  delegatedBy?: string | null;
+  assignedToId?: string | null;
+  assignedTo?: string | null;
   assignedToIds?: string[];
+  assignedToNames?: string[];
 }
 
 interface TodoItemProps {
@@ -68,7 +74,7 @@ interface TodoItemProps {
   onDelete: () => void;
 }
 
-const getPersonNameById = (people: Person[], personId: string | undefined, fallbackName?: string): string => {
+const getPersonNameById = (people: Person[], personId: string | null | undefined, fallbackName?: string): string => {
   if (!personId) return fallbackName || 'Не назначен';
   const person = people.find(p => p.id === personId);
   return person?.name || person?.username || fallbackName || 'Неизвестно';
@@ -93,6 +99,32 @@ const TodoItem = memo(function TodoItem({
   onDelete
 }: TodoItemProps) {
   const category = todo.categoryId ? categories.find(c => c.id === todo.categoryId) : null;
+  const stageCount = todo.technicalSpecTabs?.length ? Math.max(1, todo.technicalSpecTabs.length) : (todo.stagesEnabled ? 1 : 0);
+  const allAssigneeNames = (() => {
+    const map = new Map<string, string>();
+    const add = (id?: string | null, name?: string | null) => {
+      if (!id) return;
+      const display = name || getPersonNameById(people, id);
+      if (!display) return;
+      if (!map.has(id)) map.set(id, display);
+    };
+
+    if (todo.assignedToIds && todo.assignedToIds.length > 0) {
+      todo.assignedToIds.forEach((id, idx) => {
+        add(id, todo.assignedToNames?.[idx]);
+      });
+    } else if (todo.assignedToId) {
+      add(todo.assignedToId, todo.assignedTo);
+    }
+
+    Object.values(todo.stageMeta || {}).forEach((meta) => {
+      add(meta.assigneeId, meta.assigneeName);
+    });
+
+    add(todo.stageDefaultAssigneeId, todo.stageDefaultAssigneeName);
+
+    return Array.from(map.values());
+  })();
 
   return (
     <div
@@ -178,30 +210,19 @@ const TodoItem = memo(function TodoItem({
       </div>
       
       {/* Assignees */}
-      {(todo.assignedById || todo.delegatedById || todo.assignedToId || (todo.assignedToIds && todo.assignedToIds.length > 0)) && (
+      {(todo.assignedById || todo.delegatedById || allAssigneeNames.length > 0) && (
         <div className="text-[9px] text-gray-500 dark:text-white/40 mt-1">
           {todo.assignedById && (
-            <span>Заказчик: {getPersonNameById(people, todo.assignedById, todo.assignedBy)}</span>
+            <span>Заказчик: {getPersonNameById(people, todo.assignedById ?? undefined, todo.assignedBy || undefined)}</span>
           )}
           {todo.delegatedById && (
             <span className={todo.assignedById ? "ml-2" : ""}>
-              Делегировал: {getPersonNameById(people, todo.delegatedById, todo.delegatedBy)}
+              Делегировал: {getPersonNameById(people, todo.delegatedById ?? undefined, todo.delegatedBy || undefined)}
             </span>
           )}
-          {(todo.assignedToId || (todo.assignedToIds && todo.assignedToIds.length > 0)) && (
+          {allAssigneeNames.length > 0 && (
             <span className={todo.assignedById || todo.delegatedById ? "ml-2" : ""}>
-              Исполнители: {
-                todo.assignedToIds && todo.assignedToIds.length > 0
-                  ? todo.assignedToIds.filter(id => id != null).map((id, idx) => (
-                      <span key={id}>
-                        {idx > 0 && ', '}
-                        {getPersonNameById(people, id)}
-                      </span>
-                    ))
-                  : todo.assignedToId 
-                    ? getPersonNameById(people, todo.assignedToId, todo.assignedTo)
-                    : ''
-              }
+              Исполнители: {allAssigneeNames.join(', ')}
             </span>
           )}
         </div>
@@ -209,7 +230,7 @@ const TodoItem = memo(function TodoItem({
       
       {/* Actions */}
       <div className="flex items-center justify-between gap-1 mt-1">
-        {!todo.completed && todo.status && (
+        {!todo.completed && !todo.stagesEnabled && todo.status && (
           <button
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
             className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] border backdrop-blur-sm ${
@@ -228,6 +249,14 @@ const TodoItem = memo(function TodoItem({
              todo.status === 'pending' ? 'В ожидании' : 
              todo.status === 'cancelled' ? 'Отменена' :
              todo.status === 'stuck' ? 'Застряла' : 'Готово к проверке'}
+          </button>
+        )}
+        {!todo.completed && todo.stagesEnabled && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            className="px-2 py-0.5 rounded-full text-[10px] font-medium transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] border backdrop-blur-sm bg-gradient-to-br from-blue-500/10 to-blue-600/20 text-blue-600 dark:text-blue-400 border-blue-500/30"
+          >
+            Этапы: {stageCount}
           </button>
         )}
         <div className="flex items-center gap-1 ml-auto">
@@ -266,13 +295,15 @@ const TodoItem = memo(function TodoItem({
     prevProps.todo.description === nextProps.todo.description &&
     prevProps.todo.completed === nextProps.todo.completed &&
     prevProps.todo.status === nextProps.todo.status &&
+    prevProps.todo.stagesEnabled === nextProps.todo.stagesEnabled &&
     prevProps.isDragging === nextProps.isDragging &&
     prevProps.isDragOver === nextProps.isDragOver &&
     prevProps.todo.dueDate === nextProps.todo.dueDate &&
     prevProps.todo.categoryId === nextProps.todo.categoryId &&
     prevProps.todo.assignedById === nextProps.todo.assignedById &&
     prevProps.todo.assignedToId === nextProps.todo.assignedToId &&
-    JSON.stringify(prevProps.todo.assignedToIds) === JSON.stringify(nextProps.todo.assignedToIds)
+    JSON.stringify(prevProps.todo.assignedToIds) === JSON.stringify(nextProps.todo.assignedToIds) &&
+    JSON.stringify(prevProps.todo.technicalSpecTabs) === JSON.stringify(nextProps.todo.technicalSpecTabs)
   );
 });
 

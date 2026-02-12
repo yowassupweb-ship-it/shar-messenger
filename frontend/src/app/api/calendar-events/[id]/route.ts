@@ -8,7 +8,9 @@ interface CalendarEvent {
   date: string;
   time?: string;
   type: 'work' | 'meeting' | 'event' | 'holiday';
+  recurrence?: 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
   listId?: string;
+  sourceId?: string; // ID задачи, если событие связано с задачей
   assignedTo?: string;
   assignedBy?: string;
   linkUrl?: string;
@@ -71,7 +73,9 @@ export async function PUT(
       date: body.date ?? originalEvent.date,
       time: body.time ?? originalEvent.time,
       type: body.type ?? originalEvent.type,
+      recurrence: body.recurrence ?? originalEvent.recurrence,
       listId: body.listId ?? originalEvent.listId,
+      sourceId: body.sourceId ?? originalEvent.sourceId,
       assignedTo: body.assignedTo ?? originalEvent.assignedTo,
       assignedBy: body.assignedBy ?? originalEvent.assignedBy,
       linkUrl: body.linkUrl ?? originalEvent.linkUrl,
@@ -108,8 +112,9 @@ export async function DELETE(
     data.events = data.events.filter(e => e.id !== params.id);
 
     if (data.events.length === initialLength) {
-      console.error('[DELETE calendar-event] Event not found:', params.id);
-      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+      console.warn('[DELETE calendar-event] Event not found (already deleted?):', params.id);
+      // Возвращаем 200, чтобы фронтенд мог удалить событие из UI, даже если его нет в базе
+      return NextResponse.json({ success: true, message: 'Event already deleted or not found' });
     }
 
     writeJsonFile('calendar-events.json', data);

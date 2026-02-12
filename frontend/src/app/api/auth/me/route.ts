@@ -6,7 +6,9 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const username = searchParams.get('username')
+    
+    // Пробуем получить username из заголовка или query параметра
+    const username = request.headers.get('x-username') || searchParams.get('username');
     
     console.log('[/api/auth/me] Looking for user:', username);
     

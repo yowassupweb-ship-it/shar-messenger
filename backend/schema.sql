@@ -299,6 +299,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     is_completed BOOLEAN DEFAULT false,
     add_to_calendar BOOLEAN DEFAULT false,
     task_order INTEGER DEFAULT 0,
+    archived BOOLEAN DEFAULT false,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     metadata JSONB DEFAULT '{}',
@@ -313,6 +314,7 @@ CREATE INDEX idx_tasks_author_id ON tasks(author_id);
 CREATE INDEX idx_tasks_due_date ON tasks(due_date);
 CREATE INDEX idx_tasks_list_id ON tasks(list_id);
 CREATE INDEX idx_tasks_is_completed ON tasks(is_completed);
+CREATE INDEX IF NOT EXISTS idx_tasks_archived ON tasks(archived);
 
 -- Events table
 CREATE TABLE IF NOT EXISTS events (
@@ -425,10 +427,13 @@ CREATE TABLE IF NOT EXISTS todo_lists (
     color VARCHAR(50) DEFAULT '#3b82f6',
     icon VARCHAR(255),
     department VARCHAR(255),
+    archived BOOLEAN DEFAULT false,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     list_order INTEGER DEFAULT 0
 );
+
+CREATE INDEX IF NOT EXISTS idx_todo_lists_archived ON todo_lists(archived);
 
 -- TODO Categories table
 CREATE TABLE IF NOT EXISTS todo_categories (

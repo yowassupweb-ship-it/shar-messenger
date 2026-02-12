@@ -17,6 +17,47 @@ export function useNotifications({
   notificationSoundRef
 }: UseNotificationsProps) {
   const lastNotificationCountRef = useRef<number>(0);
+  const sentGroupedNotificationsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    sentGroupedNotificationsRef.current = new Set();
+  }, [myAccountId]);
+
+  const sendGroupedNotificationToChat = useCallback((groupNotifs: Notification[], groupKey: string) => {
+    if (!myAccountId) return;
+    if (groupNotifs.length < 2) return;
+
+    const firstNotif = groupNotifs[0];
+    const lastNotif = groupNotifs[groupNotifs.length - 1];
+    const signature = `${groupKey}:${lastNotif?.id || 'none'}:${groupNotifs.length}`;
+
+    if (sentGroupedNotificationsRef.current.has(signature)) return;
+    sentGroupedNotificationsRef.current.add(signature);
+
+    const title = firstNotif.type === 'comment'
+      ? 'Новый комментарий'
+      : firstNotif.type === 'mention'
+        ? 'Вас упомянули'
+        : firstNotif.type === 'status_change'
+          ? 'Статус изменен'
+          : firstNotif.type === 'new_task'
+            ? 'Новая задача'
+            : 'Уведомление';
+    const noun = firstNotif.type === 'comment' ? 'комментариев' : 'уведомлений';
+    const content = `<b>${title}</b>\n\n${firstNotif.fromUserName}: +${groupNotifs.length} ${noun}`;
+
+    fetch(`/api/chats/notifications/${myAccountId}/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content,
+        linkedTaskId: firstNotif.todoId,
+        notificationType: firstNotif.type
+      })
+    }).catch(error => {
+      console.error('[notifications chat] Failed to send grouped summary:', error);
+    });
+  }, [myAccountId]);
 
   // Загрузка уведомлений из API
   const loadNotifications = useCallback(async (playSound = false) => {
@@ -78,6 +119,8 @@ export function useNotifications({
                   groupKey,
                   count
                 };
+
+                sendGroupedNotificationToChat(groupNotifs, groupKey);
               
                 // Обновляем существующий toast или добавляем новый
                 setToasts(prev => {
@@ -111,7 +154,7 @@ export function useNotifications({
     } catch (error) {
       console.error('Error loading notifications:', error);
     }
-  }, [myAccountId, soundEnabled, setNotifications, setToasts, notificationSoundRef]);
+  }, [myAccountId, soundEnabled, setNotifications, setToasts, notificationSoundRef, sendGroupedNotificationToChat]);
 
   // Сохранение уведомления в API
   const saveNotification = useCallback(async (notification: Notification) => {

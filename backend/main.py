@@ -1643,6 +1643,9 @@ class UserUpdate(BaseModel):
     canSeeAllTasks: Optional[bool] = None  # Может видеть все задачи
     isActive: Optional[bool] = None  # Активен ли пользователь
     isDepartmentHead: Optional[bool] = None  # Руководитель отдела
+    pinnedTools: Optional[List[str]] = None  # Закрепленные инструменты
+    visibleTabs: Optional[Dict[str, bool]] = None  # Видимые вкладки навигации
+    toolsOrder: Optional[List[str]] = None  # Порядок инструментов
 
 @app.post("/api/users/batch")
 def create_users_batch(users: List[Dict[str, Any]] = Body(...)):
@@ -3361,9 +3364,34 @@ def get_todos(userId: Optional[str] = None):
     todos = db.get_tasks(user_id=userId) if userId else db.get_tasks()
     lists = db.get_todo_lists()
     categories = db.get_todo_categories()
+
+    stage_keys = {
+        'stagesEnabled',
+        'technicalSpecTabs',
+        'stageMeta',
+        'stageDefaultAssigneeId',
+        'stageDefaultAssigneeName',
+        'recurrence'
+    }
+
+    def hydrate_task(task: dict):
+        data = snake_to_camel(task)
+        metadata = data.get('metadata') or {}
+        if isinstance(metadata, dict):
+            for key in stage_keys:
+                if key in metadata:
+                    # ALWAYS use metadata value as source of truth (не проверяем key not in data)
+                    data[key] = metadata[key]
+        
+        # Log stageMeta extraction
+        if task.get('id') and metadata.get('stageMeta'):
+            print(f"[GET /api/todos] 📊 Task {task.get('id')[:20]}... has stageMeta in metadata: {metadata.get('stageMeta')}")
+            print(f"[GET /api/todos] 📊 After extraction, data.stageMeta: {data.get('stageMeta')}")
+        
+        return data
     
     # Преобразуем snake_case в camelCase
-    todos = [snake_to_camel(todo) for todo in todos]
+    todos = [hydrate_task(todo) for todo in todos]
     lists = [snake_to_camel(list_item) for list_item in lists]
     categories = [snake_to_camel(cat) for cat in categories]
     
@@ -3413,6 +3441,20 @@ def create_todo(todo_data: dict = Body(...)):
         return snake_to_camel(result) if result else new_category
     
     else:
+        stage_keys = {
+            'stagesEnabled',
+            'technicalSpecTabs',
+            'stageMeta',
+            'stageDefaultAssigneeId',
+            'stageDefaultAssigneeName',
+            'recurrence'
+        }
+        metadata = todo_data.get('metadata') or {}
+        if isinstance(metadata, dict):
+            for key in stage_keys:
+                if key in todo_data:
+                    metadata[key] = todo_data.get(key)
+
         # Преобразуем camelCase в snake_case для БД
         new_todo = {
             'id': str(uuid.uuid4()),
@@ -3426,10 +3468,14 @@ def create_todo(todo_data: dict = Body(...)):
             'assigned_by_id': todo_data.get('assignedById') or todo_data.get('assigned_by_id'),
             'due_date': todo_data.get('dueDate') or todo_data.get('due_date'),
             'list_id': todo_data.get('listId') or todo_data.get('list_id'),
+            'category_id': todo_data.get('categoryId') or todo_data.get('category_id'),
             'tags': todo_data.get('tags', []),
             'is_completed': todo_data.get('isCompleted', False) or todo_data.get('is_completed', False),
+            'calendar_event_id': todo_data.get('calendarEventId') or todo_data.get('calendar_event_id'),
+            'calendar_list_id': todo_data.get('calendarListId') or todo_data.get('calendar_list_id'),
             'add_to_calendar': todo_data.get('addToCalendar', False) or todo_data.get('add_to_calendar', False),
-            'task_order': todo_data.get('order', 0) or todo_data.get('task_order', 0)
+            'task_order': todo_data.get('order', 0) or todo_data.get('task_order', 0),
+            'metadata': metadata
         }
         
         print(f"[POST /api/todos] Creating task: {new_todo['title']}")
@@ -3440,17 +3486,35 @@ def create_todo(todo_data: dict = Body(...)):
         if result:
             print(f"[POST /api/todos] Task created successfully: {result.get('id')}")
             print(f"[POST /api/todos] === SUCCESS ===")
-            return snake_to_camel(result)
+            data = snake_to_camel(result)
+            if isinstance(data.get('metadata'), dict):
+                for key in stage_keys:
+                    if key in data['metadata']:
+                        data[key] = data['metadata'][key]
+            return data
         else:
             print(f"[POST /api/todos] ERROR: Failed to create task")
             print(f"[POST /api/todos] === FAILED ===")
-            return snake_to_camel(new_todo)
+            data = snake_to_camel(new_todo)
+            if isinstance(data.get('metadata'), dict):
+                for key in stage_keys:
+                    if key in data['metadata']:
+                        data[key] = data['metadata'][key]
+            return data
 
 @app.put("/api/todos")
 def update_todo(todo_data: dict = Body(...)):
     """Обновить задачу, список или категорию"""
     todo_id = todo_data.get('id')
     todo_type = todo_data.get('type', 'todo')
+    stage_keys = {
+        'stagesEnabled',
+        'technicalSpecTabs',
+        'stageMeta',
+            'stageDefaultAssigneeId',
+            'stageDefaultAssigneeName',
+            'recurrence'
+    }
     
     print(f"[PUT /api/todos] Received update request for {todo_type} ID: {todo_id}")
     print(f"[PUT /api/todos] Update data keys: {list(todo_data.keys())}")
@@ -3466,6 +3530,39 @@ def update_todo(todo_data: dict = Body(...)):
     elif todo_type == 'category':
         result = db.update_todo_category(todo_id, updates)
     else:
+        if any(key in updates for key in stage_keys) or 'metadata' in updates:
+            existing = db.get_task(todo_id)
+            existing_metadata = existing.get('metadata') if existing else {}
+            if not isinstance(existing_metadata, dict):
+                existing_metadata = {}
+            incoming_metadata = updates.get('metadata') or {}
+            if not isinstance(incoming_metadata, dict):
+                incoming_metadata = {}
+            
+            # Log existing metadata
+            print(f"[PUT /api/todos] 📦 Existing metadata from DB: {existing_metadata}")
+            print(f"[PUT /api/todos] 📦 Incoming metadata from client: {incoming_metadata}")
+            
+            # Log stageMeta before moving to metadata
+            if 'stageMeta' in updates:
+                print(f"[PUT /api/todos] 📊 stageMeta from client (root level): {updates.get('stageMeta')}")
+            
+            if 'technicalSpecTabs' in updates:
+                print(f"[PUT /api/todos] 📋 technicalSpecTabs from client: {updates.get('technicalSpecTabs')}")
+            
+            for key in stage_keys:
+                if key in updates:
+                    value = updates.pop(key)
+                    incoming_metadata[key] = value
+                    print(f"[PUT /api/todos] 📌 Moved {key} to incoming_metadata: {value if key != 'stageMeta' else 'stageMeta object'}")
+            
+            merged_metadata = {**existing_metadata, **incoming_metadata}
+            updates['metadata'] = merged_metadata
+            
+            print(f"[PUT /api/todos] 📦 Final merged metadata to save:")
+            print(f"[PUT /api/todos]    stageMeta keys: {list(merged_metadata.get('stageMeta', {}).keys()) if merged_metadata.get('stageMeta') else 'None'}")
+            print(f"[PUT /api/todos]    technicalSpecTabs: {merged_metadata.get('technicalSpecTabs')}")
+
         # Log assignedToIds specifically
         if 'assignedToIds' in updates or 'assigned_to_ids' in updates:
             print(f"[PUT /api/todos] 👥 Multiple executors update:")
@@ -3476,6 +3573,7 @@ def update_todo(todo_data: dict = Body(...)):
         result = db.update_task(todo_id, updates)
         if result:
             print(f"[PUT /api/todos] Task updated successfully in DB: {result.get('id')}")
+            print(f"[PUT /api/todos] 📦 metadata from DB: {result.get('metadata')}")
             if 'assigned_to_ids' in result:
                 print(f"[PUT /api/todos] 👥 DB returned assigned_to_ids: {result.get('assigned_to_ids')}")
         else:
@@ -3486,7 +3584,15 @@ def update_todo(todo_data: dict = Body(...)):
         raise HTTPException(status_code=404, detail=f"{todo_type.capitalize()} not found")
     
     print(f"[PUT /api/todos] Returning successful response")
-    return snake_to_camel(result)
+    data = snake_to_camel(result)
+    metadata = data.get('metadata') or {}
+    if isinstance(metadata, dict):
+        for key in stage_keys:
+            if key in metadata:
+                data[key] = metadata[key]
+    
+    print(f"[PUT /api/todos] 📊 Final stageMeta in response: {data.get('stageMeta')}")
+    return data
 
 @app.delete("/api/todos")
 def delete_todo(id: str, type: str = 'todo'):
@@ -4258,6 +4364,173 @@ def send_notification_to_multiple_users(notification_data: dict = Body(...)):
     
     print(f"[Notifications] Results: {results}")
     return {"results": results, "count": len([r for r in results if r['success']])}
+
+
+# ==================== SHARED LINKS ====================
+@app.post("/api/share")
+def create_share_link(share_data: dict = Body(...)):
+    """Create shared link for resource"""
+    import secrets
+    import uuid
+    
+    # Generate unique token
+    token = secrets.token_urlsafe(32)
+    link_id = str(uuid.uuid4())
+    
+    link_data = {
+        'id': link_id,
+        'token': token,
+        'resource_type': share_data.get('resourceType'),
+        'resource_id': share_data.get('resourceId'),
+        'permission': share_data.get('permission', 'viewer'),
+        'created_by': share_data.get('createdBy'),
+        'expires_at': share_data.get('expiresAt'),
+        'metadata': share_data.get('metadata', {})
+    }
+    
+    result = db.create_shared_link(link_data)
+    if not result:
+        raise HTTPException(status_code=500, detail="Failed to create share link")
+    
+    return snake_to_camel(result)
+
+@app.get("/api/share/token/{token}")
+def get_share_by_token(token: str, user_id: Optional[str] = None):
+    """Get shared link info by token with access check for user"""
+    result = db.get_shared_link_by_token(token)
+    if not result:
+        raise HTTPException(status_code=404, detail="Share link not found or expired")
+    
+    response = snake_to_camel(result)
+    
+    # Если передан user_id и это задача с типом доступа viewer, проверяем связь пользователя с задачей
+    if user_id and result.get('resource_type') == 'task' and result.get('permission') == 'viewer':
+        resource_id = result.get('resource_id')
+        if resource_id:
+            # Получаем задачу
+            task = db.get_todo(resource_id)
+            if task:
+                # Проверяем, является ли пользователь исполнителем или заказчиком
+                assigned_to_ids = task.get('assigned_to_ids', []) or []
+                if isinstance(assigned_to_ids, str):
+                    import json
+                    try:
+                        assigned_to_ids = json.loads(assigned_to_ids)
+                    except:
+                        assigned_to_ids = []
+                
+                is_related = (
+                    task.get('assigned_to_id') == user_id or
+                    task.get('assigned_by_id') == user_id or
+                    user_id in assigned_to_ids
+                )
+                
+                # Если пользователь связан с задачей, даем ему права редактора
+                response['effectivePermission'] = 'editor' if is_related else 'viewer'
+            else:
+                response['effectivePermission'] = result.get('permission')
+        else:
+            response['effectivePermission'] = result.get('permission')
+    else:
+        response['effectivePermission'] = result.get('permission')
+    
+    return response
+
+@app.get("/api/share/{resource_type}")
+def get_shares_by_resource(resource_type: str, resource_id: Optional[str] = None):
+    """Get all shared links for a resource"""
+    results = db.get_shared_links_by_resource(resource_type, resource_id)
+    return [snake_to_camel(r) for r in results]
+
+@app.put("/api/share/{link_id}")
+def update_share_link(link_id: str, updates: dict = Body(...)):
+    """Update shared link"""
+    result = db.update_shared_link(link_id, updates)
+    if not result:
+        raise HTTPException(status_code=404, detail="Share link not found")
+    
+    return snake_to_camel(result)
+
+@app.delete("/api/share/{link_id}")
+def delete_share_link(link_id: str):
+    """Delete shared link"""
+    success = db.delete_shared_link(link_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Share link not found")
+    
+    return {"success": True}
+
+
+# ==================== DIRECT ACCESS ====================
+@app.post("/api/direct-access")
+def create_direct_access(
+    resource_type: str = Body(...),
+    resource_id: str = Body(...),
+    user_ids: List[str] = Body(default=[]),
+    department_ids: List[str] = Body(default=[]),
+    permission: str = Body(default='viewer')
+):
+    """Create direct access for resource"""
+    access_id = str(uuid.uuid4())
+    
+    access_data = {
+        'id': access_id,
+        'resource_type': resource_type,
+        'resource_id': resource_id,
+        'user_ids': user_ids,
+        'department_ids': department_ids,
+        'permission': permission
+    }
+    
+    result = db.create_direct_access(access_data)
+    if not result:
+        raise HTTPException(status_code=500, detail="Failed to create direct access")
+    
+    return result
+
+
+@app.get("/api/direct-access")
+def get_direct_access(resource_type: str, resource_id: str):
+    """Get direct access for resource"""
+    result = db.get_direct_access(resource_type, resource_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Direct access not found")
+    
+    return result
+
+
+@app.put("/api/direct-access/{access_id}")
+def update_direct_access(
+    access_id: str,
+    user_ids: Optional[List[str]] = Body(default=None),
+    department_ids: Optional[List[str]] = Body(default=None),
+    permission: Optional[str] = Body(default=None)
+):
+    """Update direct access"""
+    updates = {}
+    
+    if user_ids is not None:
+        updates['user_ids'] = user_ids
+    if department_ids is not None:
+        updates['department_ids'] = department_ids
+    if permission is not None:
+        updates['permission'] = permission
+    
+    result = db.update_direct_access(access_id, updates)
+    if not result:
+        raise HTTPException(status_code=404, detail="Direct access not found")
+    
+    return result
+
+
+@app.delete("/api/direct-access/{access_id}")
+def delete_direct_access(access_id: str):
+    """Delete direct access"""
+    success = db.delete_direct_access(access_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Direct access not found")
+    
+    return {"success": True}
 
 
 if __name__ == "__main__":

@@ -32,6 +32,7 @@ import {
 } from '@/components/todos-auto';
 import TodoItem from '@/components/todos/TodoItem';
 import AddTodoForm from '@/components/todos/AddTodoForm';
+import AccessButton from '@/components/AccessButton';
 import { 
   Plus, 
   Check, 
@@ -57,7 +58,6 @@ import {
   FileText,
   Megaphone,
   BarChart3,
-  Share2,
   Mail,
   Palette,
   Code,
@@ -82,6 +82,7 @@ import {
   Link2,
   ExternalLink,
   MessageCircle,
+  Share2,
   AtSign,
   Bold,
   Italic,
@@ -114,7 +115,7 @@ interface Comment {
 
 interface Notification {
   id: string;
-  type: 'new_task' | 'comment' | 'status_change' | 'assignment' | 'mention' | 'event_invite' | 'event_reminder' | 'event_update';
+  type: 'new_task' | 'comment' | 'status_change' | 'assignment' | 'mention' | 'event_invite' | 'event_reminder' | 'event_update' | 'assignee_response';
   todoId?: string;
   todoTitle?: string;
   eventId?: string;
@@ -177,20 +178,22 @@ interface Todo {
   id: string;
   title: string;
   description?: string;
+  assigneeResponse?: string;
   completed: boolean;
   priority: 'low' | 'medium' | 'high';
   status?: 'todo' | 'in-progress' | 'pending' | 'review' | 'cancelled' | 'stuck';
   reviewComment?: string;
   dueDate?: string;
+  recurrence?: 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
   listId: string;
-  categoryId?: string;
+  categoryId?: string | null;
   tags: string[];
-  assignedById?: string;
-  assignedBy?: string;
-  delegatedById?: string;  // Делегировал (второй уровень)
-  delegatedBy?: string;
-  assignedToId?: string;
-  assignedTo?: string;
+  assignedById?: string | null;
+  assignedBy?: string | null;
+  delegatedById?: string | null;  // Делегировал (второй уровень)
+  delegatedBy?: string | null;
+  assignedToId?: string | null;
+  assignedTo?: string | null;
   assignedToIds?: string[];  // Множественные исполнители
   assignedToNames?: string[];  // Имена множественных исполнителей
   linkId?: string;
@@ -211,6 +214,12 @@ interface Todo {
   checklist?: ChecklistItem[];
   // Прикреплённые файлы
   attachments?: Attachment[];
+  stagesEnabled?: boolean;
+  technicalSpecTabs?: { id: string; label: string }[];
+  stageDefaultAssigneeId?: string | null;
+  stageDefaultAssigneeName?: string | null;
+  stageMeta?: Record<string, { assigneeId?: string | null; assigneeName?: string | null }>;
+  metadata?: Record<string, unknown>;
 }
 
 interface ChecklistItem {
@@ -316,7 +325,7 @@ const formatLastSeen = (lastSeen?: string): { text: string; isOnline: boolean; c
 };
 
 // Хелпер для получения имени человека по ID
-const getPersonNameById = (people: Person[], personId: string | undefined, fallbackName?: string): string => {
+const getPersonNameById = (people: Person[], personId: string | null | undefined, fallbackName?: string): string => {
   if (!personId) return fallbackName || '';
   const person = people.find(p => p.id === personId);
   return person?.name || fallbackName || personId;
@@ -389,15 +398,101 @@ export default function TodosPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [showCompleted, setShowCompleted] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'in-progress' | 'pending' | 'review' | 'cancelled' | 'stuck'>('all');
-  const [showStatusFilter, setShowStatusFilter] = useState(false);
-  const [executorFilter, setExecutorFilter] = useState<string>('all');
-  const [showExecutorFilter, setShowExecutorFilter] = useState(false);
   const [myAccountId, setMyAccountId] = useState<string | null>(null);
   const [myDepartment, setMyDepartment] = useState<string | null>(null);  // Отдел текущего пользователя
   const [canSeeAllTasks, setCanSeeAllTasks] = useState<boolean>(false);  // По умолчанию false - видны только свои задачи
   const [isDepartmentHead, setIsDepartmentHead] = useState<boolean>(false);  // Руководитель отдела
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+
+  // 🚀 PERFORMANCE: Мемоизация filteredAndSortedTodos должна быть ВЫШЕ headerPeople!
+  // Перенесено из строки 2795 сюда для правильного порядка зависимостей
+  const filteredAndSortedTodos = useMemo(() => {
+    return lists.map(list => {
+      if (list.archived && !showArchive) return { listId: list.id, todos: [] };
+      
+      const listTodos = todos.filter(t => {
+        if (t.listId !== list.id) return false;
+        if (t.archived && !showArchive) return false;
+        if (!showCompleted && t.completed) return false;
+        
+        // Поиск
+        if (searchQuery) {
+          const query = searchQuery.toLowerCase();
+          const matchesSearch = t.title.toLowerCase().includes(query) || 
+                               t.description?.toLowerCase().includes(query);
+          if (!matchesSearch) return false;
+        }
+        
+        // Фильтр по статусу
+        if (filterStatus !== 'all') {
+          if (filterStatus === 'stages') {
+            if (!t.stagesEnabled) return false;
+          } else {
+            if (t.stagesEnabled) return false;
+            if (t.status !== filterStatus) return false;
+          }
+        }
+        
+        // Фильтр по исполнителю
+        if (filterExecutor !== null) {
+          const matchesFilter = t.assignedToId === filterExecutor || 
+                               t.assignedToIds?.includes(filterExecutor);
+          if (!matchesFilter) return false;
+        }
+        
+        return true;
+      }).sort((a, b) => {
+        // Сначала незавершённые
+        if (a.completed !== b.completed) return a.completed ? 1 : -1;
+        // Потом по приоритету
+        const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+        return (priorityOrder[a.priority] || 2) - (priorityOrder[b.priority] || 2);
+      });
+      
+      return { listId: list.id, todos: listTodos };
+    });
+  }, [todos, lists, searchQuery, filterStatus, filterExecutor, showCompleted, showArchive]);
+
+  const headerPeople = useMemo(() => {
+    const now = new Date().toISOString();
+    const fallback = new Map<string, Person>();
+    const add = (id?: string | null, name?: string | null, role: Person['role'] = 'universal') => {
+      if (!id || fallback.has(id)) return;
+      fallback.set(id, {
+        id,
+        name: name || id,
+        role,
+        createdAt: now
+      });
+    };
+
+    people.forEach(person => {
+      const safePerson = {
+        ...person,
+        name: person.name || person.username || person.id,
+        role: person.role || 'universal',
+        createdAt: person.createdAt || now
+      };
+      fallback.set(person.id, safePerson);
+    });
+
+    // Собираем людей только из видимых на доске задач
+    const visibleTodos = filteredAndSortedTodos.flatMap(f => f.todos);
+    visibleTodos.forEach(todo => {
+      add(todo.assignedToId, todo.assignedTo, 'executor');
+      add(todo.assignedById, todo.assignedBy, 'customer');
+      add(todo.stageDefaultAssigneeId, todo.stageDefaultAssigneeName, 'executor');
+      (todo.assignedToIds || []).forEach((assigneeId, index) => {
+        add(assigneeId, todo.assignedToNames?.[index], 'executor');
+      });
+      const stageMeta = (todo.stageMeta || (todo.metadata as any)?.stageMeta) as Todo['stageMeta'] | undefined;
+      Object.values(stageMeta || {}).forEach(meta => {
+        add(meta.assigneeId, meta.assigneeName, 'executor');
+      });
+    });
+
+    return Array.from(fallback.values());
+  }, [people, filteredAndSortedTodos]);
   
   // 🚀 PERFORMANCE: Статусы для переиспользуемого компонента
   const statusOptions: StatusOption[] = [
@@ -410,7 +505,11 @@ export default function TodosPage() {
   
   // 🚀 PERFORMANCE: Мемоизированный обработчик обновления - изолирует ре-рендеры компонентов
   const handleUpdate = useCallback((updates: Partial<Todo>) => {
-    setEditingTodo(prev => prev ? { ...prev, ...updates } : prev);
+    setEditingTodo(prev => {
+      if (!prev) return prev;
+      setTodos(current => current.map(t => t.id === prev.id ? { ...t, ...updates } : t));
+      return { ...prev, ...updates };
+    });
   }, []);
   
   const [addingToList, setAddingToList] = useState<string | null>(null);
@@ -421,7 +520,7 @@ export default function TodosPage() {
   const [newListAssigneeId, setNewListAssigneeId] = useState<string | null>(null);
   const [showNewListAssigneeDropdown, setShowNewListAssigneeDropdown] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<'all' | 'todo' | 'pending' | 'in-progress' | 'review' | 'stuck'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'stages' | 'todo' | 'pending' | 'in-progress' | 'review' | 'cancelled' | 'stuck'>('all');
   const [filterExecutor, setFilterExecutor] = useState<string | null>(null);
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [executorDropdownOpen, setExecutorDropdownOpen] = useState(false);
@@ -459,6 +558,11 @@ export default function TodosPage() {
       clearTimeout(resizeTimeout);
     };
   }, []);
+
+  useEffect(() => {
+    setColumnWidths([30, 40, 30]);
+    resizeStartWidthsRef.current = [30, 40, 30];
+  }, [windowWidth]);
   const [selectedColumnIndex, setSelectedColumnIndex] = useState(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('todos_selected_column');
@@ -486,6 +590,7 @@ export default function TodosPage() {
   const [inboxTab, setInboxTab] = useState<'new' | 'history'>('new');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const notificationSoundRef = useRef<HTMLAudioElement | null>(null);
+  const sentGroupedNotificationsRef = useRef<Set<string>>(new Set());
   
   // Toast notifications state
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -506,23 +611,13 @@ export default function TodosPage() {
   const [searchDelegatedBy, setSearchDelegatedBy] = useState('');
   const [searchAssignedTo, setSearchAssignedTo] = useState('');
   
-  // Resizable columns for modal (left: 27.5%, center: 45%, right: 27.5% by default)
+  // Resizable columns for modal (left: 30%, center: 40%, right: 30% by default)
   const [columnWidths, setColumnWidths] = useState<[number, number, number]>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('todos_modal_column_widths');
-      if (stored) {
-        try {
-          return JSON.parse(stored);
-        } catch {
-          return [27.5, 45, 27.5];
-        }
-      }
-    }
-    return [27.5, 45, 27.5];
+    return [30, 40, 30];
   });
   const [isResizing, setIsResizing] = useState<number | null>(null); // 0 или 1 (между какими колонками)
   const resizeStartXRef = useRef<number>(0);
-  const resizeStartWidthsRef = useRef<[number, number, number]>([27.5, 45, 27.5]);
+  const resizeStartWidthsRef = useRef<[number, number, number]>([30, 40, 30]);
   
   // Добавляем/удаляем класс modal-open на body когда любая модалка открыта
   useEffect(() => {
@@ -646,7 +741,63 @@ export default function TodosPage() {
       setTodos(todosData.todos || []);
       setLists(todosData.lists || []);
       setCategories(todosData.categories || []);
-      setPeople(peopleData.people || []);
+      let nextPeople = Array.isArray(peopleData.people) ? peopleData.people : [];
+      let usersList: any[] = [];
+
+      const needsUsersFallback =
+        nextPeople.length === 0 || nextPeople.some((person: Person) => !person.department || !person.name || !person.role);
+
+      if (needsUsersFallback) {
+        try {
+          const usersRes = await fetch('/api/users');
+          if (usersRes.ok) {
+            const usersData = await usersRes.json();
+            usersList = Array.isArray(usersData) ? usersData : (usersData?.users || []);
+          }
+        } catch (error) {
+          console.error('[loadData] Failed to load users fallback:', error);
+        }
+      }
+
+      if (nextPeople.length === 0 && usersList.length > 0) {
+        nextPeople = usersList.map((user: any) => ({
+          id: user.id,
+          name: user.name || user.username || user.id,
+          username: user.username,
+          telegramId: user.telegramId,
+          telegramUsername: user.telegramUsername,
+          role: user.todoRole || 'universal',
+          department: user.department,
+          notifyOnNewTask: user.notifyOnNewTask,
+          notifyOnStatusChange: user.notifyOnStatusChange,
+          notifyOnComment: user.notifyOnComment,
+          notifyOnMention: user.notifyOnMention,
+          lastSeen: user.lastSeen,
+          createdAt: user.createdAt || new Date().toISOString()
+        }));
+      } else if (usersList.length > 0) {
+        const usersById = new Map(usersList.map((user: any) => [user.id, user]));
+        nextPeople = nextPeople.map((person: Person) => {
+          const match = usersById.get(person.id);
+          if (!match) return person;
+          return {
+            ...person,
+            name: person.name || match.name || match.username || match.id,
+            role: person.role || match.todoRole || 'universal',
+            department: person.department || match.department
+          };
+        });
+      }
+
+      const now = new Date().toISOString();
+      nextPeople = nextPeople.map((person: Person) => ({
+        ...person,
+        name: person.name || person.username || person.id,
+        role: person.role || 'universal',
+        createdAt: person.createdAt || now
+      }));
+
+      setPeople(nextPeople);
       setTelegramEnabled(telegramData.enabled || false);
       setCalendarLists(Array.isArray(calendarListsData) ? calendarListsData : calendarListsData.lists || []);
     } catch (error) {
@@ -654,6 +805,46 @@ export default function TodosPage() {
     } finally {
       setIsLoading(false);
     }
+  }, [myAccountId]);
+
+  useEffect(() => {
+    sentGroupedNotificationsRef.current = new Set();
+  }, [myAccountId]);
+
+  const sendGroupedNotificationToChat = useCallback((groupNotifs: Notification[], groupKey: string) => {
+    if (!myAccountId) return;
+    if (groupNotifs.length < 2) return;
+
+    const firstNotif = groupNotifs[0];
+    const lastNotif = groupNotifs[groupNotifs.length - 1];
+    const signature = `${groupKey}:${lastNotif?.id || 'none'}:${groupNotifs.length}`;
+
+    if (sentGroupedNotificationsRef.current.has(signature)) return;
+    sentGroupedNotificationsRef.current.add(signature);
+
+    const title = firstNotif.type === 'comment'
+      ? 'Новый комментарий'
+      : firstNotif.type === 'mention'
+        ? 'Вас упомянули'
+        : firstNotif.type === 'status_change'
+          ? 'Статус изменен'
+          : firstNotif.type === 'new_task'
+            ? 'Новая задача'
+            : 'Уведомление';
+    const noun = firstNotif.type === 'comment' ? 'комментариев' : 'уведомлений';
+    const content = `<b>${title}</b>\n\n${firstNotif.fromUserName}: +${groupNotifs.length} ${noun}`;
+
+    fetch(`/api/chats/notifications/${myAccountId}/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content,
+        linkedTaskId: firstNotif.todoId,
+        notificationType: firstNotif.type
+      })
+    }).catch(error => {
+      console.error('[notifications chat] Failed to send grouped summary:', error);
+    });
   }, [myAccountId]);
 
   // Загрузка уведомлений из API
@@ -717,6 +908,8 @@ export default function TodosPage() {
                 groupKey,
                 count
               };
+
+                sendGroupedNotificationToChat(groupNotifs, groupKey);
               
               // Обновляем существующий toast или добавляем новый
               setToasts(prev => {
@@ -751,7 +944,7 @@ export default function TodosPage() {
     } catch (error) {
       console.error('Error loading notifications:', error);
     }
-  }, [myAccountId, soundEnabled]); // Убрали notifications из зависимостей чтобы избежать бесконечного цикла
+  }, [myAccountId, soundEnabled, sendGroupedNotificationToChat]); // Убрали notifications из зависимостей чтобы избежать бесконечного цикла
 
   // Сохранение уведомления в API
   const saveNotification = useCallback(async (notification: Notification) => {
@@ -1318,7 +1511,7 @@ export default function TodosPage() {
   }, [myAccountId, people]);
 
   // Создание уведомления о новой задаче
-  const createTaskNotification = useCallback(async (todo: Todo, type: 'new_task' | 'assignment' | 'status_change', oldStatus?: string) => {
+  const createTaskNotification = useCallback(async (todo: Todo, type: 'new_task' | 'assignment' | 'status_change' | 'assignee_response', oldStatus?: string) => {
     if (!myAccountId) return;
     
     const author = people.find(p => p.id === myAccountId);
@@ -1378,6 +1571,25 @@ export default function TodosPage() {
       playNotificationSound();
     }
 
+    // Уведомляем заказчика об ответе исполнителя
+    if (type === 'assignee_response' && todo.assignedById && todo.assignedById !== myAccountId) {
+      const notification: Notification = {
+        id: `notif-${Date.now()}-response`,
+        type: 'assignee_response',
+        todoId: todo.id,
+        todoTitle: todo.title,
+        fromUserId: myAccountId,
+        fromUserName: author.name,
+        toUserId: todo.assignedById,
+        message: `${author.name} ответил по задаче`,
+        read: false,
+        createdAt: new Date().toISOString()
+      };
+      saveNotification(notification);
+      setNotifications(prev => [notification, ...prev]);
+      playNotificationSound();
+    }
+
     // Отправляем уведомления в чат уведомлений
     switch (type) {
       case 'new_task':
@@ -1385,7 +1597,7 @@ export default function TodosPage() {
           todo.assignedToId ? [todo.assignedToId] : [],
           todo.id,
           todo.title,
-          todo.assignedById
+          todo.assignedById ?? undefined
         );
         break;
       case 'status_change':
@@ -1402,7 +1614,7 @@ export default function TodosPage() {
           todo.assignedToId ? [todo.assignedToId] : [],
           todo.id,
           todo.title,
-          todo.assignedById
+          todo.assignedById ?? undefined
         );
         break;
     }
@@ -1523,18 +1735,26 @@ export default function TodosPage() {
       updatedTodo = { ...todo, assignedById: myAccount.id, assignedBy: myAccount.name };
     }
     setEditingTodo(updatedTodo);
-    
-    // Если мы на /account, сохраняем returnUrl
-    const currentPath = window.location.pathname + window.location.search;
-    if (currentPath.startsWith('/account')) {
-      setReturnUrl(currentPath);
-      router.push(`/account?tab=tasks&task=${todo.id}&from=${encodeURIComponent(currentPath)}`, { scroll: false });
+
+    const finalizeOpen = () => {
+      // Если мы на /account, сохраняем returnUrl
+      const currentPath = window.location.pathname + window.location.search;
+      if (currentPath.startsWith('/account')) {
+        setReturnUrl(currentPath);
+        router.push(`/account?tab=tasks&task=${todo.id}&from=${encodeURIComponent(currentPath)}`, { scroll: false });
+      } else {
+        router.push(`/account?tab=tasks&task=${todo.id}`, { scroll: false });
+      }
+
+      // Отмечаем комментарии как прочитанные
+      markCommentsAsRead(todo);
+    };
+
+    if (typeof window !== 'undefined' && 'requestAnimationFrame' in window) {
+      window.requestAnimationFrame(finalizeOpen);
     } else {
-      router.push(`/account?tab=tasks&task=${todo.id}`, { scroll: false });
+      setTimeout(finalizeOpen, 0);
     }
-    
-    // Отмечаем комментарии как прочитанные
-    markCommentsAsRead(todo);
   }, [myAccountId, people, router, markCommentsAsRead]);
 
   // Открытие задачи с загрузкой актуальных данных (для уведомлений)
@@ -1584,30 +1804,9 @@ export default function TodosPage() {
   };
 
   const closeTodoModal = async () => {
-    // 🚀 PERFORMANCE: Сохраняем title и description из refs перед закрытием
-    if (editingTodo) {
-      const title = titleInputRef.current?.value || editingTodo.title;
-      const description = descriptionEditorRef.current?.innerHTML || editingTodo.description;
-      
-      try {
-        await fetch('/api/todos', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...editingTodo,
-            title,
-            description
-          })
-        });
-      } catch (error) {
-        console.error('Error saving title/description on close:', error);
-      }
-    }
-    
     isClosingModalRef.current = true;
     setEditingTodo(null);
-    router.push(returnUrl, { scroll: false });
-    // Сбрасываем returnUrl после возврата
+    router.push('/account?tab=tasks', { scroll: false });
     setReturnUrl('/account?tab=tasks');
   };
 
@@ -1618,10 +1817,10 @@ export default function TodosPage() {
         setShowSettingsMenu(false);
       }
       if (statusFilterRef.current && !statusFilterRef.current.contains(event.target as Node)) {
-        setShowStatusFilter(false);
+        setStatusDropdownOpen(false);
       }
       if (executorFilterRef.current && !executorFilterRef.current.contains(event.target as Node)) {
-        setShowExecutorFilter(false);
+        setExecutorDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -1754,6 +1953,9 @@ export default function TodosPage() {
         const newTodo = await res.json();
         console.log('[addTodo] Created todo:', newTodo);
         
+        // Оптимистичное обновление: добавляем задачу в стейт
+        setTodos(prev => [newTodo, ...prev]);
+        
         // Очищаем форму
         setNewTodoTitle('');
         setNewTodoDescription('');
@@ -1767,9 +1969,6 @@ export default function TodosPage() {
         }
         
         console.log('[addTodo] === SUCCESS ===');
-        
-        // РАДИКАЛЬНО: Перезагружаем страницу для гарантированного обновления
-        window.location.reload();
       } else {
         const errorText = await res.text();
         console.error('[addTodo] Response not OK:', errorText);
@@ -1781,22 +1980,48 @@ export default function TodosPage() {
     }
   }, [newTodoTitle, newTodoDescription, newTodoAssigneeId, myAccountId, people, createTaskNotification, loadData]);
 
+  const removeCalendarEventForTodo = useCallback(async (todo: Todo) => {
+    if (!todo.calendarEventId) return;
+
+    try {
+      await fetch(`/api/calendar-events/${todo.calendarEventId}`, { method: 'DELETE' });
+      await fetch('/api/todos', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: todo.id, calendarEventId: null, addToCalendar: false })
+      });
+    } catch (error) {
+      console.error('Error removing calendar event:', error);
+    }
+  }, []);
+
   // Переключение статуса задачи
   const toggleTodo = useCallback(async (todo: Todo) => {
     try {
+      const nextCompleted = !todo.completed;
       const res = await fetch('/api/todos', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: todo.id,
-          completed: !todo.completed
+          completed: nextCompleted
         })
       });
       
       if (res.ok) {
         setTodos(prev => prev.map(t => 
-          t.id === todo.id ? { ...t, completed: !t.completed } : t
+          t.id === todo.id
+            ? {
+                ...t,
+                completed: nextCompleted,
+                ...(nextCompleted && t.calendarEventId ? { calendarEventId: undefined, addToCalendar: false } : {})
+              }
+            : t
         ));
+
+        if (nextCompleted && todo.calendarEventId) {
+          await removeCalendarEventForTodo({ ...todo, completed: nextCompleted });
+        }
       }
     } catch (error) {
       console.error('Error toggling todo:', error);
@@ -1811,6 +2036,10 @@ export default function TodosPage() {
       
       console.log('[updateTodo] ' + (isNewTodo ? '🆕 Creating' : '✏️ Updating') + ' task:', todo.id);
       console.log('[updateTodo] Task data keys:', Object.keys(todo).filter(k => todo[k as keyof Todo] !== undefined));
+      
+      if (todo.stageMeta) {
+        console.log('[updateTodo] 📊 stageMeta being sent:', todo.stageMeta);
+      }
       
       // Получаем текущую версию задачи для сравнения статуса (только для существующих задач)
       const currentTodo = !isNewTodo ? todos.find(t => t.id === todo.id) : null;
@@ -1834,6 +2063,13 @@ export default function TodosPage() {
         let updated = await res.json();
         
         console.log('[updateTodo] ✅ Server returned task:', updated.id);
+        if (updated.stageMeta) {
+          console.log('[updateTodo] 📊 stageMeta received from server:', updated.stageMeta);
+          console.log('🔍 Full stageMeta from server:', JSON.stringify(updated.stageMeta, null, 2));
+        }
+        if (updated.metadata?.stageMeta) {
+          console.log('🔍 metadata.stageMeta from server:', JSON.stringify(updated.metadata.stageMeta, null, 2));
+        }
         
         // Если включена опция "Поместить на календарь" и ещё не добавлено
         if (todo.addToCalendar && !updated.calendarEventId) {
@@ -1842,6 +2078,11 @@ export default function TodosPage() {
             // Обновляем задачу с calendarEventId
             updated = { ...updated, calendarEventId: calendarResult };
           }
+        }
+
+        if (updated.calendarEventId && (updated.completed || updated.archived)) {
+          await removeCalendarEventForTodo(updated);
+          updated = { ...updated, calendarEventId: undefined, addToCalendar: false };
         }
         
         // Отправляем уведомление при изменении статуса
@@ -1853,6 +2094,12 @@ export default function TodosPage() {
         const assigneeChanged = currentTodo && currentTodo.assignedToId !== todo.assignedToId;
         if (assigneeChanged && todo.assignedToId) {
           createTaskNotification(todo, 'assignment');
+        }
+
+        // Отправляем уведомление при ответе исполнителя
+        const responseChanged = currentTodo && currentTodo.assigneeResponse !== todo.assigneeResponse;
+        if (responseChanged && todo.assigneeResponse) {
+          createTaskNotification(todo, 'assignee_response');
         }
         
         // Для новых задач - добавляем, для существующих - обновляем
@@ -1878,55 +2125,77 @@ export default function TodosPage() {
     try {
       const list = lists.find(l => l.id === todo.listId);
       const isTZ = todo.listId === TZ_LIST_ID;
+      const baseDate = todo.dueDate || new Date().toISOString().split('T')[0];
+      const datesToAdd: string[] = [baseDate];
+
+      if (todo.recurrence && todo.recurrence !== 'once') {
+        const startDate = new Date(baseDate);
+        const limitDate = new Date(startDate);
+        limitDate.setFullYear(startDate.getFullYear() + 2);
+        let currentDate = new Date(startDate);
+
+        for (let i = 0; i < 365; i++) {
+          const nextDate = new Date(currentDate);
+          if (todo.recurrence === 'daily') nextDate.setDate(nextDate.getDate() + 1);
+          else if (todo.recurrence === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+          else if (todo.recurrence === 'biweekly') nextDate.setDate(nextDate.getDate() + 14);
+          else if (todo.recurrence === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+          else if (todo.recurrence === 'quarterly') nextDate.setMonth(nextDate.getMonth() + 3);
+          else if (todo.recurrence === 'yearly') nextDate.setFullYear(nextDate.getFullYear() + 1);
+
+          if (nextDate > limitDate) break;
+          datesToAdd.push(nextDate.toISOString().split('T')[0]);
+          currentDate = nextDate;
+        }
+      }
       
       // Формат для локального API calendar-events
-      const eventData = {
-        title: todo.title,
-        description: [
-          todo.description ? todo.description.replace(/<[^>]*>/g, ' ') : '',
-          todo.assignedTo ? `Исполнитель: ${todo.assignedTo}` : '',
-          todo.assignedBy ? `Постановщик: ${todo.assignedBy}` : '',
-          list?.name ? `Список: ${list.name}` : '',
-          todo.linkUrl ? `Ссылка: ${todo.linkUrl}` : ''
-        ].filter(Boolean).join('\n'),
-        date: todo.dueDate || new Date().toISOString().split('T')[0],
-        priority: todo.priority || 'medium',
-        type: isTZ ? 'tz' : 'task',
-        listId: todo.calendarListId || (calendarLists.length > 0 ? calendarLists[0].id : undefined),
-        sourceId: todo.id,
-        assignedTo: todo.assignedTo,
-        assignedBy: todo.assignedBy,
-        listName: list?.name,
-        linkUrl: todo.linkUrl,
-        linkTitle: todo.linkTitle
-      };
+      const results = await Promise.all(datesToAdd.map(async (date) => {
+        const eventData = {
+          title: todo.title,
+          description: [
+            todo.description ? todo.description.replace(/<[^>]*>/g, ' ') : '',
+            todo.assignedTo ? `Исполнитель: ${todo.assignedTo}` : '',
+            todo.assignedBy ? `Постановщик: ${todo.assignedBy}` : '',
+            list?.name ? `Список: ${list.name}` : '',
+            todo.linkUrl ? `Ссылка: ${todo.linkUrl}` : ''
+          ].filter(Boolean).join('\n'),
+          date,
+          priority: todo.priority || 'medium',
+          type: isTZ ? 'tz' : 'task',
+          recurrence: todo.recurrence || 'once',
+          listId: todo.calendarListId || (calendarLists.length > 0 ? calendarLists[0].id : undefined),
+          sourceId: todo.id,
+          assignedTo: todo.assignedTo,
+          assignedBy: todo.assignedBy,
+          listName: list?.name,
+          linkUrl: todo.linkUrl,
+          linkTitle: todo.linkTitle
+        };
 
-      console.log('Sending to calendar:', eventData);
+        const response = await fetch('/api/calendar-events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(eventData)
+        });
 
-      // Отправляем напрямую на локальный API calendar-events
-      const response = await fetch('/api/calendar-events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(eventData)
-      });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || 'Calendar error');
+        }
 
-      if (response.ok) {
-        const result = await response.json();
-        const calendarEventId = result.id;
-        // Сохраняем ID события в задаче
+        return response.json();
+      }));
+
+      const calendarEventId = results[0]?.id;
+      if (calendarEventId) {
         await fetch('/api/todos', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: todo.id, calendarEventId })
         });
-        console.log('Event added to calendar:', result);
-        return calendarEventId;
-      } else {
-        const errorText = await response.text();
-        console.error('Calendar error:', response.status, errorText);
-        alert('Ошибка добавления в календарь: ' + errorText);
-        return null;
       }
+      return calendarEventId || null;
     } catch (error) {
       console.error('Error sending to calendar:', error);
       alert('Не удалось связаться с сервером календаря');
@@ -1962,15 +2231,19 @@ export default function TodosPage() {
   // Удаление задачи
   const deleteTodo = useCallback(async (id: string) => {
     try {
+      const targetTodo = todos.find(t => t.id === id);
       const res = await fetch(`/api/todos?id=${id}`, { method: 'DELETE' });
       
       if (res.ok) {
+        if (targetTodo?.calendarEventId) {
+          await removeCalendarEventForTodo(targetTodo);
+        }
         setTodos(prev => prev.filter(t => t.id !== id));
       }
     } catch (error) {
       console.error('Error deleting todo:', error);
     }
-  }, []);
+  }, [todos, removeCalendarEventForTodo]);
 
   // Добавление списка
   const addList = async () => {
@@ -2248,12 +2521,18 @@ export default function TodosPage() {
       
       if (res.ok) {
         const updated = await res.json();
-        setTodos(prev => prev.map(t => t.id === todoId ? updated : t));
+        if (archive && updated.calendarEventId) {
+          await removeCalendarEventForTodo(updated);
+        }
+        const cleaned = archive && updated.calendarEventId
+          ? { ...updated, calendarEventId: undefined, addToCalendar: false }
+          : updated;
+        setTodos(prev => prev.map(t => t.id === todoId ? cleaned : t));
       }
     } catch (error) {
       console.error('Error archiving todo:', error);
     }
-  }, []);
+  }, [todos, removeCalendarEventForTodo]);
 
   // Обновление порядка списков
   const updateListsOrder = useCallback(async (reorderedLists: TodoList[]) => {
@@ -2563,47 +2842,6 @@ export default function TodosPage() {
     }
   };
 
-  // 🚀 PERFORMANCE OPTIMIZATION: Мемоизация фильтрованных и отсортированных задач
-  const filteredAndSortedTodos = useMemo(() => {
-    return lists.map(list => {
-      if (list.archived && !showArchive) return { listId: list.id, todos: [] };
-      
-      const listTodos = todos.filter(t => {
-        if (t.listId !== list.id) return false;
-        if (t.archived && !showArchive) return false;
-        if (!showCompleted && t.completed) return false;
-        
-        // Поиск
-        if (searchQuery) {
-          const query = searchQuery.toLowerCase();
-          const matchesSearch = t.title.toLowerCase().includes(query) || 
-                               t.description?.toLowerCase().includes(query);
-          if (!matchesSearch) return false;
-        }
-        
-        // Фильтр по статусу
-        if (filterStatus !== 'all' && t.status !== filterStatus) return false;
-        
-        // Фильтр по исполнителю
-        if (filterExecutor !== null) {
-          const matchesFilter = t.assignedToId === filterExecutor || 
-                               t.assignedToIds?.includes(filterExecutor);
-          if (!matchesFilter) return false;
-        }
-        
-        return true;
-      }).sort((a, b) => {
-        // Сначала незавершённые
-        if (a.completed !== b.completed) return a.completed ? 1 : -1;
-        // Потом по приоритету
-        const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
-        return (priorityOrder[a.priority] || 2) - (priorityOrder[b.priority] || 2);
-      });
-      
-      return { listId: list.id, todos: listTodos };
-    });
-  }, [todos, lists, searchQuery, filterStatus, filterExecutor, showCompleted, showArchive]);
-
   // Фильтрация задач по поиску, статусу, исполнителю и правам доступа
   const filterTodos = (todoList: Todo[], listId?: string) => {
     return todoList.filter(todo => {
@@ -2611,7 +2849,12 @@ export default function TodosPage() {
       
       // Фильтр по статусу
       if (filterStatus !== 'all') {
-        if (todo.status !== filterStatus) return false;
+        if (filterStatus === 'stages') {
+          if (!todo.stagesEnabled) return false;
+        } else {
+          if (todo.stagesEnabled) return false;
+          if (todo.status !== filterStatus) return false;
+        }
       }
       
       // Фильтр по исполнителю (включая множественных)
@@ -2759,13 +3002,13 @@ export default function TodosPage() {
           </div>
 
           {/* Status Filter */}
-          <div className="relative hidden md:block">
+          <div className="relative hidden md:block" ref={statusFilterRef}>
             <button
               onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
               className="flex items-center gap-1.5 px-3 h-10 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all duration-200 text-sm border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] backdrop-blur-xl"
             >
               <Filter className="w-4 h-4 flex-shrink-0" />
-              <span className="truncate max-w-[120px]">{filterStatus === 'all' ? 'Все' : filterStatus === 'todo' ? 'К выполнению' : filterStatus === 'pending' ? 'В ожидании' : filterStatus === 'in-progress' ? 'В работе' : filterStatus === 'review' ? 'Готово к проверке' : 'Застряла'}</span>
+              <span className="truncate max-w-[120px]">{filterStatus === 'all' ? 'Все' : filterStatus === 'stages' ? 'Этапы' : filterStatus === 'todo' ? 'К выполнению' : filterStatus === 'pending' ? 'В ожидании' : filterStatus === 'in-progress' ? 'В работе' : filterStatus === 'review' ? 'Готово к проверке' : filterStatus === 'cancelled' ? 'Отменена' : 'Застряла'}</span>
               <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
             </button>
             <Statusdropdown
@@ -2777,19 +3020,19 @@ export default function TodosPage() {
           </div>
 
           {/* Executor Filter */}
-          <div className="relative hidden md:block">
+          <div className="relative hidden md:block" ref={executorFilterRef}>
             <button
               onClick={() => setExecutorDropdownOpen(!executorDropdownOpen)}
               className="flex items-center gap-1.5 px-3 h-10 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all duration-200 text-sm border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] backdrop-blur-xl"
             >
               <User className="w-4 h-4 flex-shrink-0" />
-              <span className="truncate max-w-[100px]">{filterExecutor ? people.find(p => p.id === filterExecutor)?.name || 'Все' : 'Все'}</span>
+              <span className="truncate max-w-[100px]">{filterExecutor ? headerPeople.find(p => p.id === filterExecutor)?.name || 'Все' : 'Все'}</span>
               <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
             </button>
             <Executordropdown
               isOpen={executorDropdownOpen}
               onClose={() => setExecutorDropdownOpen(false)}
-              people={people}
+              people={headerPeople}
               filterExecutor={filterExecutor}
               setFilterExecutor={setFilterExecutor}
             />
@@ -2974,6 +3217,19 @@ export default function TodosPage() {
                         </button>
                         {showListMenu === list.id && (
                           <div className="absolute right-0 top-full mt-1 w-44 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl z-50 py-1 pointer-events-auto">
+                            <div className="px-1">
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <AccessButton
+                                  resourceType="list"
+                                  resourceId={list.id}
+                                  resourceName={list.name}
+                                  variant="button"
+                                  size="sm"
+                                  className="w-full justify-start"
+                                />
+                              </div>
+                            </div>
+                            <div className="border-t border-[var(--border-color)] my-1" />
                             <button
                               onClick={() => { setShowListMenu(null); setShowListSettings(list.id); }}
                               className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-blue-400 hover:bg-blue-500/10 transition-colors"
@@ -3303,7 +3559,7 @@ export default function TodosPage() {
               {hoveredTodo.assignedToId && (
                 <span className="flex items-center gap-1">
                   <UserCheck className="w-3 h-3" />
-                  {getPersonNameById(people, hoveredTodo.assignedToId, hoveredTodo.assignedTo)}
+                  {getPersonNameById(people, hoveredTodo.assignedToId ?? undefined, hoveredTodo.assignedTo || undefined)}
                 </span>
               )}
               {hoveredTodo.dueDate && (
@@ -3321,9 +3577,10 @@ export default function TodosPage() {
       <Editingtodo
         todo={editingTodo}
         isOpen={editingTodo !== null}
-        onClose={() => setEditingTodo(null)}
+        onClose={closeTodoModal}
         onUpdate={updateTodo}
         onToggle={toggleTodo}
+        onDraftUpdate={handleUpdate}
         people={people}
         lists={lists}
         nonArchivedLists={nonArchivedLists}
@@ -3519,7 +3776,7 @@ export default function TodosPage() {
       <MobileFilters
         isOpen={showMobileFiltersModal}
         onClose={() => setShowMobileFiltersModal(false)}
-        people={people}
+        people={headerPeople}
         filterStatus={filterStatus}
         setFilterStatus={setFilterStatus}
         filterExecutor={filterExecutor}

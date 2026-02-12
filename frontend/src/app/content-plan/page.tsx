@@ -32,8 +32,10 @@ import {
   Trash2,
   ExternalLink,
   Globe,
-  Settings
+  Settings,
+  Share2
 } from 'lucide-react';
+import ShareModal from '@/components/ShareModal';
 import { 
   ContentPlanNotificationManager, 
   getPostRelatedUsers,
@@ -86,6 +88,7 @@ export default function ContentPlanPage() {
   
   // Используем hook для состояния
   const state = useContentPlanState();
+  const [showShareModal, setShowShareModal] = useState(false);
   const {
     posts, setPosts,
     users, setUsers,
@@ -1374,6 +1377,15 @@ export default function ContentPlanPage() {
           handleGoToNextMonth={handleGoToNextMonth}
           togglePlatformFilter={togglePlatformFilter}
         />
+        
+        {/* Share Button */}
+        <button
+          onClick={() => setShowShareModal(true)}
+          className="ml-2 p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg transition-colors"
+          title="Поделиться"
+        >
+          <Share2 className="w-4 h-4 text-gray-600 dark:text-white/70" />
+        </button>
       </header>
 
       {/* Main Content */}
@@ -2696,6 +2708,15 @@ export default function ContentPlanPage() {
           loadPosts(planId);
         }}
         addToast={addToast}
+      />
+      
+      {/* Share Modal */}
+      <ShareModal 
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        resourceType="content-plan"
+        resourceId={activePlanId}
+        resourceName={contentPlans.find(p => p.id === activePlanId)?.name || 'Контент-план'}
       />
     </div>
   );

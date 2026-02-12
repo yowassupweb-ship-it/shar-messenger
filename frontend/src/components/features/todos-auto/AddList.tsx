@@ -56,8 +56,8 @@ const AddList = memo(function AddList({
   };
 
   return (
-    <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
-      <div className="bg-white dark:bg-[var(--bg-tertiary)] p-4 h-full w-full overflow-y-auto">
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
+      <div className="bg-white dark:bg-[var(--bg-tertiary)] p-4 h-full w-full md:h-auto md:max-h-[90vh] md:w-[520px] md:rounded-2xl md:shadow-2xl overflow-y-auto">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold text-gray-900 dark:text-[var(--text-primary)]">Новый список</h3>
           <button 

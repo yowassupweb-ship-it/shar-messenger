@@ -80,49 +80,76 @@ export function useTodoActions(
     try {
       const list = lists.find(l => l.id === todo.listId);
       const isTZ = todo.listId === TZ_LIST_ID;
+      const baseDate = todo.dueDate || new Date().toISOString().split('T')[0];
+      const datesToAdd: string[] = [baseDate];
+
+      if (todo.recurrence && todo.recurrence !== 'once') {
+        const startDate = new Date(baseDate);
+        const limitDate = new Date(startDate);
+        limitDate.setFullYear(startDate.getFullYear() + 2);
+        let currentDate = new Date(startDate);
+
+        for (let i = 0; i < 365; i++) {
+          const nextDate = new Date(currentDate);
+          if (todo.recurrence === 'daily') nextDate.setDate(nextDate.getDate() + 1);
+          else if (todo.recurrence === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+          else if (todo.recurrence === 'biweekly') nextDate.setDate(nextDate.getDate() + 14);
+          else if (todo.recurrence === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+          else if (todo.recurrence === 'quarterly') nextDate.setMonth(nextDate.getMonth() + 3);
+          else if (todo.recurrence === 'yearly') nextDate.setFullYear(nextDate.getFullYear() + 1);
+
+          if (nextDate > limitDate) break;
+          datesToAdd.push(nextDate.toISOString().split('T')[0]);
+          currentDate = nextDate;
+        }
+      }
       
-      const eventData = {
-        title: todo.title,
-        description: [
-          todo.description ? todo.description.replace(/<[^>]*>/g, ' ') : '',
-          todo.assignedTo ? `Исполнитель: ${todo.assignedTo}` : '',
-          todo.assignedBy ? `Постановщик: ${todo.assignedBy}` : '',
-          list?.name ? `Список: ${list.name}` : '',
-          todo.linkUrl ? `Ссылка: ${todo.linkUrl}` : ''
-        ].filter(Boolean).join('\n'),
-        date: todo.dueDate || new Date().toISOString().split('T')[0],
-        priority: todo.priority || 'medium',
-        type: isTZ ? 'tz' : 'task',
-        listId: todo.calendarListId || (calendarLists.length > 0 ? calendarLists[0].id : undefined),
-        sourceId: todo.id,
-        assignedTo: todo.assignedTo,
-        assignedBy: todo.assignedBy,
-        listName: list?.name,
-        linkUrl: todo.linkUrl,
-        linkTitle: todo.linkTitle
-      };
+      const results = await Promise.all(datesToAdd.map(async (date) => {
+        const eventData = {
+          title: todo.title,
+          description: [
+            todo.description ? todo.description.replace(/<[^>]*>/g, ' ') : '',
+            todo.assignedTo ? `Исполнитель: ${todo.assignedTo}` : '',
+            todo.assignedBy ? `Постановщик: ${todo.assignedBy}` : '',
+            list?.name ? `Список: ${list.name}` : '',
+            todo.linkUrl ? `Ссылка: ${todo.linkUrl}` : ''
+          ].filter(Boolean).join('\n'),
+          date,
+          priority: todo.priority || 'medium',
+          type: isTZ ? 'tz' : 'task',
+          listId: todo.calendarListId || (calendarLists.length > 0 ? calendarLists[0].id : undefined),
+          sourceId: todo.id,
+          assignedTo: todo.assignedTo,
+          assignedBy: todo.assignedBy,
+          listName: list?.name,
+          linkUrl: todo.linkUrl,
+          linkTitle: todo.linkTitle,
+          recurrence: todo.recurrence || 'once'
+        };
 
-      const response = await fetch('/api/calendar-events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(eventData)
-      });
+        const response = await fetch('/api/calendar-events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(eventData)
+        });
 
-      if (response.ok) {
-        const result = await response.json();
-        const calendarEventId = result.id;
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || 'Calendar error');
+        }
+
+        return response.json();
+      }));
+
+      const calendarEventId = results[0]?.id;
+      if (calendarEventId) {
         await fetch('/api/todos', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: todo.id, calendarEventId })
         });
-        return calendarEventId;
-      } else {
-        const errorText = await response.text();
-        console.error('Calendar error:', response.status, errorText);
-        alert('Ошибка добавления в календарь: ' + errorText);
-        return null;
       }
+      return calendarEventId || null;
     } catch (error) {
       console.error('Error sending to calendar:', error);
       alert('Не удалось связаться с сервером календаря');

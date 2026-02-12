@@ -15,10 +15,10 @@ interface Todo {
   createdAt?: string;
   assignedToIds?: string[];
   assignedToNames?: string[];
-  assignedById?: string;
-  assignedBy?: string;
-  delegatedById?: string;
-  delegatedBy?: string;
+  assignedById?: string | null;
+  assignedBy?: string | null;
+  delegatedById?: string | null;
+  delegatedBy?: string | null;
   reviewComment?: string;
   attachments?: Attachment[];
   [key: string]: any;

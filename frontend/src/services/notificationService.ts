@@ -412,9 +412,9 @@ export class ContentPlanNotificationManager {
  * (автор, заказчик, исполнители)
  */
 export function getTaskRelatedUsers(task: {
-  authorId?: string;
-  assignedById?: string;
-  assignedToId?: string | string[];
+  authorId?: string | null;
+  assignedById?: string | null;
+  assignedToId?: string | string[] | null;
 }): string[] {
   const users = new Set<string>();
   

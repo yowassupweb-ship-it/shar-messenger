@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { User, Mail, Phone, Briefcase, Shield, Calendar, MessageCircle, CheckSquare, Plus, X, Inbox, Search, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Phone, Briefcase, Shield, Calendar, MessageCircle, CheckSquare, Plus, X, Inbox, Search, Eye, EyeOff, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -34,6 +34,26 @@ interface TodoList {
   allowedUsers?: string[];
 }
 
+interface ContactTodo {
+  id: string;
+  title: string;
+  completed: boolean;
+  status?: 'todo' | 'in-progress' | 'pending' | 'review' | 'cancelled' | 'stuck';
+  dueDate?: string;
+  assignedToId?: string;
+  assignedToIds?: string[];
+  assignedById?: string;
+  listId?: string;
+  archived?: boolean;
+}
+
+interface CurrentUserInfo {
+  id: string;
+  role?: 'admin' | 'user';
+  department?: string;
+  isDepartmentHead?: boolean;
+}
+
 export default function ContactsPage() {
   const router = useRouter();
   const { theme } = useTheme();
@@ -46,6 +66,9 @@ export default function ContactsPage() {
   const [showContactCard, setShowContactCard] = useState(false);
   const [viewingContact, setViewingContact] = useState<Contact | null>(null);
   const [lists, setLists] = useState<TodoList[]>([]);
+  const [currentUser, setCurrentUser] = useState<CurrentUserInfo | null>(null);
+  const [contactTodos, setContactTodos] = useState<ContactTodo[]>([]);
+  const [isContactTodosLoading, setIsContactTodosLoading] = useState(false);
   const [showNewListForm, setShowNewListForm] = useState(false);
   const [newListName, setNewListName] = useState('');
   const [newListColor, setNewListColor] = useState('#3b82f6');
@@ -61,6 +84,63 @@ export default function ContactsPage() {
     loadContacts();
     loadLists();
   }, []);
+
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      const username = localStorage.getItem('username');
+      if (!username) return;
+
+      try {
+        const res = await fetch(`/api/auth/me?username=${encodeURIComponent(username)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setCurrentUser({
+          id: data.id,
+          role: data.role,
+          department: data.department,
+          isDepartmentHead: data.isDepartmentHead === true
+        });
+      } catch (error) {
+        console.error('Error loading current user:', error);
+      }
+    };
+
+    loadCurrentUser();
+  }, []);
+
+  useEffect(() => {
+    const loadContactTodos = async () => {
+      if (!showContactCard || !viewingContact || !currentUser?.id) return;
+
+      const canView =
+        currentUser.role === 'admin' ||
+        (currentUser.isDepartmentHead &&
+          currentUser.department &&
+          currentUser.department === viewingContact.department);
+
+      if (!canView) return;
+
+      setIsContactTodosLoading(true);
+      try {
+        const res = await fetch(`/api/todos?userId=${currentUser.id}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const todosList = Array.isArray(data?.todos) ? data.todos : [];
+        const filtered = todosList.filter((todo: ContactTodo) => {
+          const isAssignee = todo.assignedToId === viewingContact.id || todo.assignedToIds?.includes(viewingContact.id);
+          const isCreator = todo.assignedById === viewingContact.id;
+          return isAssignee || isCreator;
+        });
+        setContactTodos(filtered);
+      } catch (error) {
+        console.error('Error loading contact todos:', error);
+      } finally {
+        setIsContactTodosLoading(false);
+      }
+    };
+
+    loadContactTodos();
+  }, [showContactCard, viewingContact?.id, currentUser?.id, currentUser?.role, currentUser?.department, currentUser?.isDepartmentHead]);
 
   // Управление классом modal-open для скрытия нижнего меню
   useEffect(() => {
@@ -148,6 +228,25 @@ export default function ContactsPage() {
     router.push(`/todos?createTask=true&listId=${listId}&assignTo=${selectedContact.id}&assignToName=${encodeURIComponent(selectedContact.name || selectedContact.username || '')}&authorId=${myAccount.id}&authorName=${encodeURIComponent(myAccount.name || myAccount.username || '')}`);
   };
 
+  const getTodoStatusLabel = (status?: ContactTodo['status']) => {
+    switch (status) {
+      case 'todo':
+        return 'К выполнению';
+      case 'in-progress':
+        return 'В работе';
+      case 'pending':
+        return 'В ожидании';
+      case 'review':
+        return 'Готово к проверке';
+      case 'cancelled':
+        return 'Отменена';
+      case 'stuck':
+        return 'Застряла';
+      default:
+        return 'Без статуса';
+    }
+  };
+
   const filteredContacts = contacts.filter(contact => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
@@ -176,6 +275,15 @@ export default function ContactsPage() {
     if (b === 'Без отдела') return -1;
     return a.localeCompare(b, 'ru');
   });
+
+  const canViewContactTodos = Boolean(
+    currentUser &&
+      viewingContact &&
+      (currentUser.role === 'admin' ||
+        (currentUser.isDepartmentHead &&
+          currentUser.department &&
+          currentUser.department === viewingContact.department))
+  );
 
   // Функция для уменьшения яркости цвета на заданный процент
   const reduceBrightness = (hex: string, percent: number) => {
@@ -540,7 +648,7 @@ export default function ContactsPage() {
           }}
         >
           <div 
-            className="w-full h-full md:h-auto md:relative md:inset-auto bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl md:border md:border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_4px_24px_rgba(0,0,0,0.4)] rounded-none md:rounded-[24px] md:max-w-md overflow-y-auto custom-scrollbar relative md:max-h-[85vh] flex flex-col"
+            className="w-full h-full md:h-auto md:relative md:inset-auto bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl md:border md:border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_4px_24px_rgba(0,0,0,0.4)] rounded-none md:rounded-[24px] md:max-w-md overflow-hidden relative md:max-h-[85vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -554,22 +662,20 @@ export default function ContactsPage() {
             </button>
 
             {/* Header with Avatar */}
-            <div className="relative h-32 bg-gradient-to-br from-white/10 to-white/5 border-b border-white/10">
-              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2">
-                <div className="relative">
-                  <Avatar
-                    type="user"
-                    name={viewingContact.name || viewingContact.username || ''}
-                    src={viewingContact.avatar}
-                    size="2xl"
-                    isOnline={viewingContact.isOnline}
-                  />
-                </div>
+            <div className="relative bg-gradient-to-br from-white/10 to-white/5 border-b border-white/10 px-6 pt-6 pb-4">
+              <div className="flex justify-center">
+                <Avatar
+                  type="user"
+                  name={viewingContact.name || viewingContact.username || ''}
+                  src={viewingContact.avatar}
+                  size="2xl"
+                  isOnline={viewingContact.isOnline}
+                />
               </div>
             </div>
 
             {/* Content */}
-            <div className="pt-14 pb-6 px-6">
+            <div className="pb-6 px-6 flex-1 min-h-0 overflow-y-auto custom-scrollbar">
               {/* Name & Status */}
               <div className="text-center mb-6">
                 <h2 className="text-xl font-semibold text-white">
@@ -678,6 +784,59 @@ export default function ContactsPage() {
                   </div>
                 )}
               </div>
+
+              {canViewContactTodos && (
+                <div className="mt-6">
+                  <div className="text-xs uppercase tracking-wide text-white/60 mb-2">Задачи контакта</div>
+                  <div className="space-y-2">
+                    {isContactTodosLoading && (
+                      <div className="text-xs text-white/50">Загрузка задач...</div>
+                    )}
+                    {!isContactTodosLoading && contactTodos.length === 0 && (
+                      <div className="text-xs text-white/50">Нет задач для отображения</div>
+                    )}
+                    {!isContactTodosLoading && contactTodos.map(todo => {
+                      const listName = lists.find(list => list.id === todo.listId)?.name;
+                      return (
+                        <div
+                          key={todo.id}
+                          className="p-3 bg-white/5 border border-white/10 rounded-[18px] backdrop-blur-sm"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="text-sm text-white truncate">
+                                {todo.title}
+                              </div>
+                              <div className="text-[10px] text-white/50 mt-1">
+                                {getTodoStatusLabel(todo.status)}
+                                {listName ? ` • ${listName}` : ''}
+                              </div>
+                            </div>
+                            {todo.dueDate && (
+                              <div className="text-[10px] text-white/40 whitespace-nowrap">
+                                {new Date(todo.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                              </div>
+                            )}
+                          </div>
+                          <div className="mt-2 flex justify-end">
+                            <button
+                              onClick={() => {
+                                router.push(`/account?tab=tasks&task=${todo.id}`);
+                                setShowContactCard(false);
+                                setViewingContact(null);
+                              }}
+                              className="flex items-center gap-1 px-2 py-1 text-[10px] text-blue-200 hover:text-blue-100 bg-blue-500/20 hover:bg-blue-500/30 rounded-full border border-blue-500/30 transition-all"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              Перейти к задаче
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex gap-2 mt-6">

@@ -945,15 +945,16 @@ class PostgresDatabase:
     def get_task(self, task_id: str) -> Optional[Dict[str, Any]]:
         """Get single task"""
         query = "SELECT * FROM tasks WHERE id = %s"
-        return self.conn.fetch_one(query, (task_id,))
+        result = self.conn.fetch_one(query, (task_id,))
+        return dict(result) if result else None
     
     def add_task(self, task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Add new task"""
         query = """
             INSERT INTO tasks 
             (id, title, description, status, priority, due_date, assigned_to, assigned_to_ids, 
-             author_id, assigned_by_id, list_id, tags, is_completed, add_to_calendar, task_order)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             author_id, assigned_by_id, list_id, category_id, tags, is_completed, add_to_calendar, calendar_event_id, calendar_list_id, task_order, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
         """
         params = (
@@ -968,10 +969,14 @@ class PostgresDatabase:
             task.get('author_id'),  # snake_case
             task.get('assigned_by_id'),  # snake_case
             task.get('list_id'),  # snake_case
+            task.get('category_id'),  # snake_case
             Json(task.get('tags', [])),
             task.get('is_completed', False),  # snake_case
             task.get('add_to_calendar', False),  # snake_case
-            task.get('task_order', 0)  # snake_case
+            task.get('calendar_event_id'),  # snake_case
+            task.get('calendar_list_id'),  # snake_case
+            task.get('task_order', 0),  # snake_case
+            Json(task.get('metadata', {}))
         )
         result = self.conn.fetch_one(query, params)
         return dict(result) if result else None
@@ -982,6 +987,8 @@ class PostgresDatabase:
         field_map = {
             'title': 'title',
             'description': 'description',
+            'assigneeResponse': 'assignee_response',
+            'assignee_response': 'assignee_response',
             'status': 'status',
             'priority': 'priority',
             'dueDate': 'due_date',
@@ -996,15 +1003,24 @@ class PostgresDatabase:
             'assigned_by_id': 'assigned_by_id',
             'listId': 'list_id',
             'list_id': 'list_id',
+            'categoryId': 'category_id',
+            'category_id': 'category_id',
             'tags': 'tags',
             'completed': 'is_completed',
             'isCompleted': 'is_completed',
             'is_completed': 'is_completed',
             'addToCalendar': 'add_to_calendar',
             'add_to_calendar': 'add_to_calendar',
+            'calendarEventId': 'calendar_event_id',
+            'calendar_event_id': 'calendar_event_id',
+            'calendarListId': 'calendar_list_id',
+            'calendar_list_id': 'calendar_list_id',
             'order': 'task_order',
             'task_order': 'task_order',
-            'taskOrder': 'task_order'
+            'taskOrder': 'task_order',
+            'archived': 'archived',
+            'isArchived': 'archived',
+            'metadata': 'metadata'
         }
         
         # Логирование для assigned_to_ids
@@ -1019,7 +1035,7 @@ class PostgresDatabase:
             if key in field_map:
                 db_field = field_map[key]
                 # Для JSONB полей применяем Json()
-                if key in ['tags', 'assignedToIds', 'assigned_to_ids']:
+                if key in ['tags', 'assignedToIds', 'assigned_to_ids', 'metadata']:
                     db_updates[db_field] = Json(value)
                 else:
                     db_updates[db_field] = value
@@ -1086,7 +1102,8 @@ class PostgresDatabase:
             'color': 'color',
             'icon': 'icon',
             'department': 'department',
-            'order': 'list_order'
+            'order': 'list_order',
+            'archived': 'archived'
         }
         
         for key, db_field in field_mapping.items():
@@ -1426,4 +1443,154 @@ class PostgresDatabase:
         """Delete content plan"""
         query = "DELETE FROM content_plans WHERE id = %s"
         return self.conn.execute_query(query, (plan_id,))
+    
+    # ==================== SHARED LINKS ====================
+    def _ensure_shared_links_table(self) -> None:
+        """Ensure shared_links table exists"""
+        table_query = """
+            CREATE TABLE IF NOT EXISTS shared_links (
+                id VARCHAR(255) PRIMARY KEY,
+                token VARCHAR(255) UNIQUE NOT NULL,
+                resource_type VARCHAR(50) NOT NULL,
+                resource_id VARCHAR(255),
+                permission VARCHAR(50) NOT NULL DEFAULT 'viewer',
+                created_by VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP,
+                is_active BOOLEAN DEFAULT true,
+                metadata JSONB DEFAULT '{}'
+            )
+        """
+        self.conn.execute_query(table_query)
+        self.conn.execute_query("CREATE INDEX IF NOT EXISTS idx_shared_links_token ON shared_links(token)")
+        self.conn.execute_query("CREATE INDEX IF NOT EXISTS idx_shared_links_resource ON shared_links(resource_type, resource_id)")
+        self.conn.execute_query("CREATE INDEX IF NOT EXISTS idx_shared_links_created_by ON shared_links(created_by)")
+
+    def create_shared_link(self, link_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Create shared link for resource"""
+        self._ensure_shared_links_table()
+        query = """
+            INSERT INTO shared_links 
+            (id, token, resource_type, resource_id, permission, created_by, expires_at, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING *
+        """
+        params = (
+            link_data.get('id'),
+            link_data.get('token'),
+            link_data.get('resource_type'),
+            link_data.get('resource_id'),
+            link_data.get('permission', 'viewer'),
+            link_data.get('created_by'),
+            link_data.get('expires_at'),
+            Json(link_data.get('metadata', {}))
+        )
+        result = self.conn.fetch_one(query, params)
+        return dict(result) if result else None
+    
+    def get_shared_link_by_token(self, token: str) -> Optional[Dict[str, Any]]:
+        """Get shared link by token"""
+        self._ensure_shared_links_table()
+        query = """
+            SELECT * FROM shared_links 
+            WHERE token = %s AND is_active = true
+            AND (expires_at IS NULL OR expires_at > NOW())
+        """
+        result = self.conn.fetch_one(query, (token,))
+        return dict(result) if result else None
+    
+    def get_shared_links_by_resource(self, resource_type: str, resource_id: str = None) -> List[Dict[str, Any]]:
+        """Get all shared links for a resource"""
+        self._ensure_shared_links_table()
+        if resource_id:
+            query = "SELECT * FROM shared_links WHERE resource_type = %s AND resource_id = %s AND is_active = true ORDER BY created_at DESC"
+            return self.conn.fetch_all(query, (resource_type, resource_id))
+        else:
+            query = "SELECT * FROM shared_links WHERE resource_type = %s AND resource_id IS NULL AND is_active = true ORDER BY created_at DESC"
+            return self.conn.fetch_all(query, (resource_type,))
+    
+    def update_shared_link(self, link_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Update shared link"""
+        self._ensure_shared_links_table()
+        set_clauses = []
+        params = []
+        
+        if 'permission' in updates:
+            set_clauses.append("permission = %s")
+            params.append(updates['permission'])
+        if 'is_active' in updates:
+            set_clauses.append("is_active = %s")
+            params.append(updates['is_active'])
+        if 'expires_at' in updates:
+            set_clauses.append("expires_at = %s")
+            params.append(updates['expires_at'])
+        
+        if not set_clauses:
+            return None
+        
+        params.append(link_id)
+        query = f"UPDATE shared_links SET {', '.join(set_clauses)} WHERE id = %s RETURNING *"
+        result = self.conn.fetch_one(query, tuple(params))
+        return dict(result) if result else None
+    
+    def delete_shared_link(self, link_id: str) -> bool:
+        """Delete shared link"""
+        self._ensure_shared_links_table()
+        query = "DELETE FROM shared_links WHERE id = %s"
+        return self.conn.execute_query(query, (link_id,))
+
+    # ==================== DIRECT ACCESS ====================
+    def create_direct_access(self, access_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Create direct access for resource"""
+        query = """
+            INSERT INTO direct_access 
+            (id, resource_type, resource_id, user_ids, department_ids, permission, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
+            RETURNING *
+        """
+        params = (
+            access_data.get('id'),
+            access_data.get('resource_type'),
+            access_data.get('resource_id'),
+            access_data.get('user_ids', []),
+            access_data.get('department_ids', []),
+            access_data.get('permission', 'viewer')
+        )
+        result = self.conn.fetch_one(query, params)
+        return dict(result) if result else None
+    
+    def get_direct_access(self, resource_type: str, resource_id: str) -> Optional[Dict[str, Any]]:
+        """Get direct access for resource"""
+        query = """
+            SELECT * FROM direct_access 
+            WHERE resource_type = %s AND resource_id = %s
+        """
+        result = self.conn.fetch_one(query, (resource_type, resource_id))
+        return dict(result) if result else None
+    
+    def update_direct_access(self, access_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Update direct access"""
+        set_clauses = ['updated_at = NOW()']
+        params = []
+        
+        if 'user_ids' in updates:
+            set_clauses.append("user_ids = %s")
+            params.append(updates['user_ids'])
+        if 'department_ids' in updates:
+            set_clauses.append("department_ids = %s")
+            params.append(updates['department_ids'])
+        if 'permission' in updates:
+            set_clauses.append("permission = %s")
+            params.append(updates['permission'])
+        
+        params.append(access_id)
+        query = f"UPDATE direct_access SET {', '.join(set_clauses)} WHERE id = %s RETURNING *"
+        result = self.conn.fetch_one(query, tuple(params))
+        return dict(result) if result else None
+    
+    def delete_direct_access(self, access_id: str) -> bool:
+        """Delete direct access"""
+        query = "DELETE FROM direct_access WHERE id = %s"
+        return self.conn.execute_query(query, (access_id,))
+
 

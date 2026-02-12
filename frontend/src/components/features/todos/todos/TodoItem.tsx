@@ -36,17 +36,21 @@ interface Todo {
   listId: string;
   order: number;
   dueDate?: string;
-  categoryId?: string;
+  categoryId?: string | null;
   linkId?: string;
   linkUrl?: string;
   linkTitle?: string;
-  assignedById?: string;
-  assignedBy?: string;
-  delegatedById?: string;
-  delegatedBy?: string;
-  assignedToId?: string;
-  assignedTo?: string;
+  assignedById?: string | null;
+  assignedBy?: string | null;
+  delegatedById?: string | null;
+  delegatedBy?: string | null;
+  assignedToId?: string | null;
+  assignedTo?: string | null;
   assignedToIds?: string[];
+  assignedToNames?: string[];
+  stageDefaultAssigneeId?: string | null;
+  stageDefaultAssigneeName?: string | null;
+  stageMeta?: Record<string, { assigneeId?: string | null; assigneeName?: string | null }>;
 }
 
 interface TodoItemProps {
@@ -68,7 +72,7 @@ interface TodoItemProps {
   onDelete: () => void;
 }
 
-const getPersonNameById = (people: Person[], personId: string | undefined, fallbackName?: string): string => {
+const getPersonNameById = (people: Person[], personId: string | null | undefined, fallbackName?: string): string => {
   if (!personId) return fallbackName || 'Не назначен';
   const person = people.find(p => p.id === personId);
   return person?.name || person?.username || fallbackName || 'Неизвестно';
@@ -93,6 +97,31 @@ const TodoItem = memo(function TodoItem({
   onDelete
 }: TodoItemProps) {
   const category = todo.categoryId ? categories.find(c => c.id === todo.categoryId) : null;
+  const allAssigneeNames = (() => {
+    const map = new Map<string, string>();
+    const add = (id?: string | null, name?: string | null) => {
+      if (!id) return;
+      const display = name || getPersonNameById(people, id);
+      if (!display) return;
+      if (!map.has(id)) map.set(id, display);
+    };
+
+    if (todo.assignedToIds && todo.assignedToIds.length > 0) {
+      todo.assignedToIds.forEach((id, idx) => {
+        add(id, todo.assignedToNames?.[idx]);
+      });
+    } else if (todo.assignedToId) {
+      add(todo.assignedToId, todo.assignedTo);
+    }
+
+    Object.values(todo.stageMeta || {}).forEach((meta) => {
+      add(meta.assigneeId, meta.assigneeName);
+    });
+
+    add(todo.stageDefaultAssigneeId, todo.stageDefaultAssigneeName);
+
+    return Array.from(map.values());
+  })();
 
   return (
     <div
@@ -177,30 +206,19 @@ const TodoItem = memo(function TodoItem({
       </div>
       
       {/* Assignees */}
-      {(todo.assignedById || todo.delegatedById || todo.assignedToId || (todo.assignedToIds && todo.assignedToIds.length > 0)) && (
+      {(todo.assignedById || todo.delegatedById || allAssigneeNames.length > 0) && (
         <div className="text-[9px] text-gray-500 dark:text-white/40 mt-1">
           {todo.assignedById && (
-            <span>Заказчик: {getPersonNameById(people, todo.assignedById, todo.assignedBy)}</span>
+            <span>Заказчик: {getPersonNameById(people, todo.assignedById ?? undefined, todo.assignedBy || undefined)}</span>
           )}
           {todo.delegatedById && (
             <span className={todo.assignedById ? "ml-2" : ""}>
-              Делегировал: {getPersonNameById(people, todo.delegatedById, todo.delegatedBy)}
+              Делегировал: {getPersonNameById(people, todo.delegatedById ?? undefined, todo.delegatedBy || undefined)}
             </span>
           )}
-          {(todo.assignedToId || (todo.assignedToIds && todo.assignedToIds.length > 0)) && (
+          {allAssigneeNames.length > 0 && (
             <span className={todo.assignedById || todo.delegatedById ? "ml-2" : ""}>
-              Исполнители: {
-                todo.assignedToIds && todo.assignedToIds.length > 0
-                  ? todo.assignedToIds.filter(id => id != null).map((id, idx) => (
-                      <span key={id}>
-                        {idx > 0 && ', '}
-                        {getPersonNameById(people, id)}
-                      </span>
-                    ))
-                  : todo.assignedToId 
-                    ? getPersonNameById(people, todo.assignedToId, todo.assignedTo)
-                    : ''
-              }
+              Исполнители: {allAssigneeNames.join(', ')}
             </span>
           )}
         </div>

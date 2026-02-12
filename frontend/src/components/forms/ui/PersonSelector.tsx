@@ -11,11 +11,11 @@ export interface Person {
 }
 
 interface PersonSelectorProps {
-  selectedId?: string;
-  selectedName?: string;
+  selectedId?: string | null;
+  selectedName?: string | null;
   people: Person[];
   placeholder?: string;
-  onChange: (personId: string | undefined, personName: string | undefined) => void;
+  onChange: (personId: string | null, personName: string | null) => void;
   disabled?: boolean;
   allowClear?: boolean;
   className?: string;
@@ -33,6 +33,8 @@ const PersonSelector = memo(function PersonSelector({
 }: PersonSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const fallbackName = selectedId ? people.find(person => person.id === selectedId)?.name : undefined;
+  const displayName = selectedName || fallbackName;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -55,7 +57,7 @@ const PersonSelector = memo(function PersonSelector({
   
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onChange(undefined, undefined);
+    onChange(null, null);
   };
 
   return (
@@ -67,8 +69,8 @@ const PersonSelector = memo(function PersonSelector({
         className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm text-left flex items-center justify-between hover:border-blue-500/50 transition-all text-gray-900 dark:text-[var(--text-primary)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm overflow-hidden will-change-transform"
         style={{ borderRadius: '20px' }}
       >
-        <span className={selectedName ? '' : 'text-gray-400 dark:text-white/30'}>
-          {selectedName || placeholder}
+        <span className={displayName ? '' : 'text-gray-400 dark:text-white/30'}>
+          {displayName || placeholder}
         </span>
         <div className="flex items-center gap-1">
           {allowClear && selectedId && (

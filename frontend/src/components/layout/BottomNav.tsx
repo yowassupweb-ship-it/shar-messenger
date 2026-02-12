@@ -13,7 +13,7 @@ export default function BottomNav() {
   const [unreadChatsCount, setUnreadChatsCount] = useState(0);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
-  const [visibleTabs] = useState({
+  const [visibleTabs, setVisibleTabs] = useState({
     messages: true,
     tasks: true,
     calendar: true,
@@ -49,6 +49,9 @@ export default function BottomNav() {
         if (res.ok) {
           const user = await res.json();
           setCurrentUser(user);
+          if (user.visible_tabs || user.visibleTabs) {
+            setVisibleTabs(user.visible_tabs || user.visibleTabs);
+          }
         }
       } catch (error) {
         // Игнорируем ошибки

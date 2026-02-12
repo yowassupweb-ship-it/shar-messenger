@@ -98,7 +98,14 @@ export default function MessagesPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [events, setEvents] = useState<any[]>([]);
+  const [todoLists, setTodoLists] = useState<any[]>([]);
   const [isDesktopView, setIsDesktopView] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
+  const defaultTodoListId = useMemo(() => {
+    if (todoLists.length === 0) return null;
+    const sorted = [...todoLists].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return sorted[0]?.id || null;
+  }, [todoLists]);
+
   const [showChatInfo, setShowChatInfo] = useState(false);
   const [chatInfoTab, setChatInfoTab] = useState<'profile' | 'tasks' | 'media' | 'files' | 'links' | 'participants'>('profile');
   const [showAddParticipantModal, setShowAddParticipantModal] = useState(false);
@@ -659,6 +666,7 @@ export default function MessagesPage() {
         // API возвращает объект с полем todos
         const tasksArray = data.todos || [];
         setTasks(tasksArray);
+        setTodoLists(Array.isArray(data.lists) ? data.lists : []);
         console.log('Loaded all tasks:', tasksArray.length);
       }
     } catch (error) {
@@ -1957,7 +1965,11 @@ export default function MessagesPage() {
         position={contextMenuPosition}
         currentUser={currentUser}
         messageInputRef={messageInputRef as React.RefObject<HTMLTextAreaElement>}
-        onClose={() => setShowMessageContextMenu(false)}
+        defaultListId={defaultTodoListId}
+        onClose={() => {
+          setShowMessageContextMenu(false);
+          setContextMenuMessage(null);
+        }}
         onReply={(msg) => {
           setReplyToMessage(msg);
           messageInputRef.current?.focus();
@@ -1974,6 +1986,16 @@ export default function MessagesPage() {
           }
           setNewMessage(content);
           messageInputRef.current?.focus();
+        }}
+        onTaskCreated={(newTask) => {
+          console.log('[MessagesPage] Task created optimistically:', newTask.id);
+          setTasks(prev => [newTask, ...prev]);
+          // Не открываем панель автоматически, чтобы не было перезагрузки
+          // setShowChatInfo(true);
+          // setChatInfoTab('profile');
+        }}
+        onTaskUpdated={(tempId, realTask) => {
+          setTasks(prev => prev.map(t => t.id === tempId ? realTask : t));
         }}
         onShowEventSelector={(msg) => {
           setCreatingEventFromMessage(msg);

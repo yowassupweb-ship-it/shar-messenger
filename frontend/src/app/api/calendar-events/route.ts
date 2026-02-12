@@ -8,7 +8,9 @@ interface CalendarEvent {
   date: string;
   time?: string;
   type: 'work' | 'meeting' | 'event' | 'holiday';
+  recurrence?: 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
   listId?: string; // ID календарного листа
+  sourceId?: string; // ID задачи, если событие связано с задачей
   assignedTo?: string;
   assignedBy?: string;
   linkUrl?: string;
@@ -48,7 +50,9 @@ export async function POST(request: NextRequest) {
       date: body.date || new Date().toISOString().split('T')[0],
       time: body.time,
       type: body.type || 'work',
+      recurrence: body.recurrence || 'once',
       listId: body.listId, // Не используем fallback - если нет listId, значит undefined
+      sourceId: body.sourceId,
       assignedTo: body.assignedTo,
       assignedBy: body.assignedBy,
       linkUrl: body.linkUrl,

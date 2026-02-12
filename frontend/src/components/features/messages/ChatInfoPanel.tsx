@@ -13,7 +13,7 @@ import {
   MessageCircle 
 } from 'lucide-react';
 import Avatar from '@/components/common/data-display/Avatar';
-import { Chat, Message, User, Task } from './types';
+import { useRouter } from 'next/navigation';
 
 export interface ChatInfoPanelProps {
   showChatInfo: boolean;
@@ -52,6 +52,8 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
   getChatAvatarData,
   getChatTitle,
 }) => {
+  const router = useRouter();
+
   if (!showChatInfo || !selectedChat) return null;
 
   // Определяем собеседника (не текущий пользователь)
@@ -150,24 +152,24 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
         <div className="grid grid-cols-3 gap-2 mt-4">
           <button
             onClick={() => setChatInfoTab('media')}
-            className={`p-2 rounded-lg text-center transition-all ${chatInfoTab === 'media' ? 'bg-cyan-500/20' : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)]'}`}
+            className={`p-3 rounded-xl text-center transition-all ${chatInfoTab === 'media' ? 'bg-cyan-500/20' : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)]'}`}
           >
-            <p className="text-lg font-bold text-[var(--text-primary)]">{mediaCount}</p>
-            <p className="text-[10px] text-[var(--text-muted)]">Медиа</p>
+            <p className="text-2xl font-bold text-[var(--text-primary)] mb-1">{mediaCount}</p>
+            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Медиа</p>
           </button>
           <button
             onClick={() => setChatInfoTab('files')}
-            className={`p-2 rounded-lg text-center transition-all ${chatInfoTab === 'files' ? 'bg-cyan-500/20' : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)]'}`}
+            className={`p-3 rounded-xl text-center transition-all ${chatInfoTab === 'files' ? 'bg-cyan-500/20' : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)]'}`}
           >
-            <p className="text-lg font-bold text-[var(--text-primary)]">{fileCount}</p>
-            <p className="text-[10px] text-[var(--text-muted)]">Файлы</p>
+            <p className="text-2xl font-bold text-[var(--text-primary)] mb-1">{fileCount}</p>
+            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Файлы</p>
           </button>
           <button
             onClick={() => setChatInfoTab('links')}
-            className={`p-2 rounded-lg text-center transition-all ${chatInfoTab === 'links' ? 'bg-cyan-500/20' : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)]'}`}
+            className={`p-3 rounded-xl text-center transition-all ${chatInfoTab === 'links' ? 'bg-cyan-500/20' : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)]'}`}
           >
-            <p className="text-lg font-bold text-[var(--text-primary)]">{linkCount}</p>
-            <p className="text-[10px] text-[var(--text-muted)]">Ссылки</p>
+            <p className="text-2xl font-bold text-[var(--text-primary)] mb-1">{linkCount}</p>
+            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Ссылки</p>
           </button>
         </div>
       </div>
@@ -251,7 +253,7 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
                 {sharedTasks.slice(0, 10).map(task => (
                   <button
                     key={task.id}
-                    onClick={() => window.location.href = `/todos?task=${task.id}`}
+                    onClick={() => router.push(`/todos?task=${task.id}`)}
                     className="w-full p-3 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] transition-colors text-left"
                   >
                     <div className="flex items-start gap-3">

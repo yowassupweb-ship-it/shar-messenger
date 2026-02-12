@@ -12,8 +12,8 @@ interface MobileFiltersProps {
   isOpen: boolean;
   onClose: () => void;
   people: Person[];
-  filterStatus: 'all' | 'todo' | 'pending' | 'in-progress' | 'review' | 'stuck';
-  setFilterStatus: Dispatch<SetStateAction<'all' | 'todo' | 'pending' | 'in-progress' | 'review' | 'stuck'>>;
+  filterStatus: 'all' | 'stages' | 'todo' | 'pending' | 'in-progress' | 'review' | 'cancelled' | 'stuck';
+  setFilterStatus: Dispatch<SetStateAction<'all' | 'stages' | 'todo' | 'pending' | 'in-progress' | 'review' | 'cancelled' | 'stuck'>>;
   filterExecutor: string | null;
   setFilterExecutor: Dispatch<SetStateAction<string | null>>;
   searchQuery: string;
@@ -35,7 +35,7 @@ const MobileFilters = memo(function MobileFilters({
 
   const resetFilters = () => {
     setFilterStatus('all');
-    setFilterExecutor('all');
+    setFilterExecutor(null);
     setSearchQuery('');
   };
 
@@ -48,7 +48,7 @@ const MobileFilters = memo(function MobileFilters({
             Фильтры
           </h3>
           <div className="flex items-center gap-2">
-            {(filterStatus !== 'all' || filterExecutor !== 'all' || searchQuery) && (
+            {(filterStatus !== 'all' || filterExecutor !== null || searchQuery) && (
               <button 
                 onClick={resetFilters}
                 className="text-xs text-[var(--text-muted)] hover:text-white transition-colors"
@@ -56,11 +56,11 @@ const MobileFilters = memo(function MobileFilters({
                 Сбросить
               </button>
             )}
-            <button
+            <button 
               onClick={onClose}
-              className="p-1 hover:bg-[var(--bg-glass)] rounded-lg transition-colors"
+              className="p-2 rounded-lg hover:bg-[var(--bg-glass)] text-[var(--text-secondary)] transition-colors"
             >
-              <X className="w-5 h-5 text-[var(--text-muted)]" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -87,10 +87,13 @@ const MobileFilters = memo(function MobileFilters({
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { value: 'all', label: 'Все статусы' }, 
+                    { value: 'stages', label: 'Этапы' },
                     { value: 'todo', label: 'К выполнению' }, 
                     { value: 'pending', label: 'В ожидании' }, 
                     { value: 'in-progress', label: 'В работе' }, 
-                    { value: 'review', label: 'На проверке' }
+                    { value: 'review', label: 'На проверке' },
+                    { value: 'cancelled', label: 'Отменена' },
+                    { value: 'stuck', label: 'Застряла' }
                   ].map(status => (
                     <button
                       key={status.value}
@@ -112,15 +115,15 @@ const MobileFilters = memo(function MobileFilters({
                 <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Исполнитель</label>
                 <div className="space-y-1 max-h-48 overflow-y-auto p-1 custom-scrollbar">
                   <button
-                    onClick={() => setFilterExecutor('all')}
+                    onClick={() => setFilterExecutor(null)}
                     className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all ${
-                      filterExecutor === 'all'
+                      filterExecutor === null
                         ? 'bg-green-500/20 text-green-300'
                         : 'hover:bg-[var(--bg-glass)] text-[var(--text-secondary)]'
                     }`}
                   >
                     <span>Все исполнители</span>
-                    {filterExecutor === 'all' && <Check className="w-4 h-4" />}
+                    {filterExecutor === null && <Check className="w-4 h-4" />}
                   </button>
                   {people.length === 0 ? (
                     <div className="px-3 py-4 text-center text-sm text-[var(--text-muted)] bg-[var(--bg-secondary)] rounded-lg border border-dashed border-[var(--border-color)]">

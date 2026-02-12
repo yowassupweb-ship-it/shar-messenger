@@ -8,6 +8,7 @@ export interface Person {
   name: string;
   role?: string;
   avatar?: string;
+  department?: string;
 }
 
 interface MultiPersonSelectorProps {
@@ -114,7 +115,7 @@ const MultiPersonSelector = memo(function MultiPersonSelector({
       </button>
       
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[var(--bg-secondary)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl shadow-lg max-h-60 overflow-y-auto z-50">
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[var(--bg-secondary)] border border-gray-200 dark:border-[var(--border-color)] rounded-xl shadow-lg max-h-60 overflow-y-auto z-50 min-w-[260px]">
           {people.map((person) => {
             const isSelected = selectedIds.includes(person.id);
             
@@ -123,16 +124,21 @@ const MultiPersonSelector = memo(function MultiPersonSelector({
                 key={person.id}
                 type="button"
                 onClick={() => handleToggle(person)}
-                className={`w-full px-3 py-2 text-left transition-colors text-sm flex items-center justify-between ${
+                className={`w-full px-3 py-2 text-left transition-colors text-sm ${
                   isSelected 
                     ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' 
                     : 'hover:bg-gray-100 dark:hover:bg-white/5 text-gray-900 dark:text-[var(--text-primary)]'
                 }`}
               >
-                <span>{person.name}</span>
-                {person.role && (
-                  <span className="text-xs text-gray-500 dark:text-white/50">{person.role}</span>
-                )}
+                <div className="flex items-center justify-between">
+                  <span className="truncate">{person.name}</span>
+                  {person.role && (
+                    <span className="text-xs text-gray-500 dark:text-white/50">{person.role}</span>
+                  )}
+                </div>
+                <div className="text-[10px] text-gray-500 dark:text-white/40">
+                  {person.department || 'Без отдела'}
+                </div>
               </button>
             );
           })}

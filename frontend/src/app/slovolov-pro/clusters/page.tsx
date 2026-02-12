@@ -3,9 +3,9 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/store/store';
-import MainLayout from '@/components/MainLayout';
-import AddButton from '@/components/AddButton';
-import { Spinner } from '@/components/Spinner';
+import MainLayout from '@/components/layout/MainLayout';
+import AddButton from '@/components/common/buttons/AddButton';
+import { Spinner } from '@/components/Spinner/Spinner';
 
 interface ClusterConfig {
   clusterId: string;

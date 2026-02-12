@@ -8,11 +8,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-USE_POSTGRES = os.getenv('USE_POSTGRES', 'false').lower() == 'true'
+USE_POSTGRES = True
 
+from db_postgres import PostgresConnection, PostgresDatabase
+ 
 if USE_POSTGRES:
-    from db_postgres import PostgresConnection, PostgresDatabase
-    
     class DatabaseAdapter:
         """Adapter to PostgreSQL database"""
         
@@ -291,6 +291,22 @@ if USE_POSTGRES:
         def delete_content_plan(self, plan_id: str) -> bool:
             return self.db.delete_content_plan(plan_id)
         
+        # Shared Links
+        def create_shared_link(self, link_data: Dict[str, Any]) -> Dict[str, Any]:
+            return self.db.create_shared_link(link_data)
+        
+        def get_shared_link_by_token(self, token: str) -> Optional[Dict[str, Any]]:
+            return self.db.get_shared_link_by_token(token)
+        
+        def get_shared_links_by_resource(self, resource_type: str, resource_id: str = None) -> List[Dict[str, Any]]:
+            return self.db.get_shared_links_by_resource(resource_type, resource_id)
+        
+        def update_shared_link(self, link_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+            return self.db.update_shared_link(link_id, updates)
+        
+        def delete_shared_link(self, link_id: str) -> bool:
+            return self.db.delete_shared_link(link_id)
+        
         def save_to_disk(self):
             """No-op for PostgreSQL"""
             pass
@@ -314,9 +330,4 @@ if USE_POSTGRES:
     
     # Create singleton instance
     db = DatabaseAdapter()
-
-else:
-    # Fall back to JSON database
-    from database import Database
-    db = Database('database.json')
 
