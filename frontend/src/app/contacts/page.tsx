@@ -329,7 +329,7 @@ export default function ContactsPage() {
         <div className="flex items-center gap-2 w-full md:justify-center">
           {/* Search */}
           <div className="relative flex-1 md:flex-none">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white flex items-center justify-center z-10 pointer-events-none">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-700 dark:text-white flex items-center justify-center z-10 pointer-events-none">
               <Search className="w-5 h-5" strokeWidth={2.5} />
             </div>
             <input
@@ -348,9 +348,9 @@ export default function ContactsPage() {
             title={coloredBackgrounds ? 'Выключить цветные фоны' : 'Включить цветные фоны'}
           >
             {coloredBackgrounds ? (
-              <Eye className="w-5 h-5 text-white" strokeWidth={2.5} />
+              <Eye className="w-5 h-5 text-gray-700 dark:text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" strokeWidth={2.5} />
             ) : (
-              <EyeOff className="w-5 h-5 text-white" strokeWidth={2.5} />
+              <EyeOff className="w-5 h-5 text-gray-700 dark:text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" strokeWidth={2.5} />
             )}
           </button>
         </div>
@@ -415,7 +415,7 @@ export default function ContactsPage() {
                             className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/25 hover:to-white/10 border border-white/20 flex items-center justify-center transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,0,0,0.1)] backdrop-blur-md"
                             title={contact.email}
                           >
-                            <Mail className="w-3 h-3 md:w-3.5 md:h-3.5 text-white" />
+                            <Mail className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-700 dark:text-white" />
                           </a>
                         )}
                         <button
@@ -470,7 +470,7 @@ export default function ContactsPage() {
                           className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/25 hover:to-white/10 border border-white/20 flex items-center justify-center transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,0,0,0.1)] backdrop-blur-md"
                           title="Написать сообщение"
                         >
-                          <MessageCircle className="w-3 h-3 md:w-3.5 md:h-3.5 text-white" />
+                          <MessageCircle className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-700 dark:text-white" />
                         </button>
                         <button
                           onClick={() => {
@@ -480,7 +480,7 @@ export default function ContactsPage() {
                           className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/25 hover:to-white/10 border border-white/20 flex items-center justify-center transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,0,0,0.1)] backdrop-blur-md"
                           title="Поставить задачу"
                         >
-                          <CheckSquare className="w-3 h-3 md:w-3.5 md:h-3.5 text-white" />
+                          <CheckSquare className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-700 dark:text-white" />
                         </button>
                       </div>
                     </div>
@@ -507,8 +507,8 @@ export default function ContactsPage() {
             {/* Заголовок */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
               <div>
-                <h3 className="font-semibold text-sm text-white">Выберите список</h3>
-                <p className="text-xs text-white/50 mt-0.5">
+                <h3 className="font-semibold text-sm text-gray-900 dark:text-white">Выберите список</h3>
+                <p className="text-xs text-gray-600 dark:text-white/50 mt-0.5">
                   Задача для: {selectedContact.name || selectedContact.username}
                 </p>
               </div>
@@ -520,7 +520,7 @@ export default function ContactsPage() {
                 }}
                 className="p-2 hover:bg-white/10 rounded-full transition-all"
               >
-                <X className="w-4 h-4 text-white/80" />
+                <X className="w-4 h-4 text-gray-700 dark:text-white/80" />
               </button>
             </div>
 
@@ -548,7 +548,7 @@ export default function ContactsPage() {
                           createTaskInList(list.id);
                           setShowListModal(false);
                         }}
-                        className="w-full flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-[20px] transition-all text-left backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]"
+                        className="w-full flex items-center gap-3 p-3 bg-white/50 dark:bg-white/5 hover:bg-white/70 dark:hover:bg-white/10 border border-white/20 dark:border-white/10 rounded-[20px] transition-all text-left backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]"
                       >
                         <div 
                           className="w-4 h-4 rounded-full flex-shrink-0"
@@ -556,8 +556,8 @@ export default function ContactsPage() {
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <Inbox className="w-4 h-4 text-white/50" />
-                            <span className="font-medium text-sm truncate text-white">{list.name}</span>
+                            <Inbox className="w-4 h-4 text-gray-600 dark:text-white/50" />
+                            <span className="font-medium text-sm truncate text-gray-900 dark:text-white">{list.name}</span>
                           </div>
                         </div>
                         <CheckSquare className="w-4 h-4 text-green-400 flex-shrink-0" />
@@ -568,7 +568,7 @@ export default function ContactsPage() {
                   {/* Кнопка создания нового списка */}
                   <button
                     onClick={() => setShowNewListForm(true)}
-                    className="w-full mt-4 flex items-center justify-center gap-2 p-3 bg-[#007aff]/10 hover:bg-[#007aff]/20 text-white border border-[#007aff]/30 rounded-[20px] transition-all"
+                    className="w-full mt-4 flex items-center justify-center gap-2 p-3 bg-[#007aff]/10 hover:bg-[#007aff]/20 text-gray-900 dark:text-white border border-[#007aff]/30 rounded-[20px] transition-all"
                   >
                     <Plus className="w-4 h-4" />
                     <span className="text-sm font-medium">Создать новый список</span>
@@ -579,19 +579,19 @@ export default function ContactsPage() {
                   {/* Форма создания нового списка */}
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-xs font-medium text-white/60 mb-2">Название списка</label>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-white/60 mb-2">Название списка</label>
                       <input
                         type="text"
                         value={newListName}
                         onChange={(e) => setNewListName(e.target.value)}
                         placeholder="Введите название..."
-                        className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-[20px] text-sm text-white placeholder:text-white/50 focus:outline-none focus:border-white/40 backdrop-blur-sm shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)]"
+                        className="w-full px-4 py-3 bg-white/70 dark:bg-white/5 border border-white/30 dark:border-white/20 rounded-[20px] text-sm text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-white/50 focus:outline-none focus:border-white/50 dark:focus:border-white/40 backdrop-blur-sm shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)]"
                         autoFocus
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-white/60 mb-2">Цвет</label>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-white/60 mb-2">Цвет</label>
                       <div className="flex gap-2 flex-wrap">
                         {['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'].map((color) => (
                           <button
@@ -609,14 +609,14 @@ export default function ContactsPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => setShowNewListForm(false)}
-                        className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-[20px] transition-all text-sm text-white"
+                        className="flex-1 px-4 py-2.5 bg-white/50 dark:bg-white/5 hover:bg-white/70 dark:hover:bg-white/10 border border-white/20 dark:border-white/10 rounded-[20px] transition-all text-sm text-gray-900 dark:text-white"
                       >
                         Отмена
                       </button>
                       <button
                         onClick={createNewList}
                         disabled={!newListName.trim()}
-                        className="flex-1 px-4 py-2.5 bg-[#007aff]/20 hover:bg-[#007aff]/30 disabled:bg-white/5 disabled:text-white/30 text-white border border-[#007aff]/30 rounded-[20px] transition-all text-sm font-medium flex items-center justify-center gap-2"
+                        className="flex-1 px-4 py-2.5 bg-[#007aff]/20 hover:bg-[#007aff]/30 disabled:bg-white/20 dark:disabled:bg-white/5 disabled:text-gray-400 dark:disabled:text-white/30 text-gray-900 dark:text-white border border-[#007aff]/30 rounded-[20px] transition-all text-sm font-medium flex items-center justify-center gap-2"
                       >
                         <Plus className="w-4 h-4" />
                         Создать
@@ -658,7 +658,7 @@ export default function ContactsPage() {
               }}
               className="absolute top-4 right-4 z-20 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-all backdrop-blur-sm"
             >
-              <X className="w-4 h-4 text-white" />
+              <X className="w-4 h-4 text-gray-900 dark:text-white" />
             </button>
 
             {/* Header with Avatar */}
@@ -869,7 +869,7 @@ export default function ContactsPage() {
                       console.error('Error opening chat:', error);
                     }
                   }}
-                  className="flex-1 py-2.5 rounded-[20px] bg-purple-500/20 hover:bg-purple-500/30 text-white font-medium transition-all flex items-center justify-center gap-2 border border-purple-500/30"
+                  className="flex-1 py-2.5 rounded-[20px] bg-purple-500/20 hover:bg-purple-500/30 text-gray-900 dark:text-white font-medium transition-all flex items-center justify-center gap-2 border border-purple-500/30"
                 >
                   <MessageCircle className="w-4 h-4" />
                   Написать
@@ -880,7 +880,7 @@ export default function ContactsPage() {
                     setShowContactCard(false);
                     setShowListModal(true);
                   }}
-                  className="flex-1 py-2.5 rounded-[20px] bg-green-500/20 hover:bg-green-500/30 text-white font-medium transition-all flex items-center justify-center gap-2 border border-green-500/30"
+                  className="flex-1 py-2.5 rounded-[20px] bg-green-500/20 hover:bg-green-500/30 text-gray-900 dark:text-white font-medium transition-all flex items-center justify-center gap-2 border border-green-500/30"
                 >
                   <CheckSquare className="w-4 h-4" />
                   Задача

@@ -1,6 +1,42 @@
 {
   "notifications": [
     {
+      "id": "notif-1770906376332-response",
+      "type": "assignee_response",
+      "todoId": "eb7f0642-1e27-4d1a-a21b-15c3d41a1685",
+      "todoTitle": "111",
+      "fromUserId": "user_001",
+      "fromUserName": "Антон Николюк",
+      "toUserId": "user_002",
+      "message": "Антон Николюк ответил по задаче",
+      "read": false,
+      "createdAt": "2026-02-12T14:26:16.332Z"
+    },
+    {
+      "id": "notif-1770906376332",
+      "type": "assignee_response",
+      "todoId": "eb7f0642-1e27-4d1a-a21b-15c3d41a1685",
+      "todoTitle": "111",
+      "fromUserId": "user_001",
+      "fromUserName": "Антон Николюк",
+      "toUserId": "user_003",
+      "message": "Антон Николюк изменил статус задачи",
+      "read": false,
+      "createdAt": "2026-02-12T14:26:16.332Z"
+    },
+    {
+      "id": "notif-1770904412570-response",
+      "type": "assignee_response",
+      "todoId": "eb7f0642-1e27-4d1a-a21b-15c3d41a1685",
+      "todoTitle": "111",
+      "fromUserId": "user_001",
+      "fromUserName": "Антон Николюк",
+      "toUserId": "user_002",
+      "message": "Антон Николюк ответил по задаче",
+      "read": false,
+      "createdAt": "2026-02-12T13:53:32.570Z"
+    },
+    {
       "id": "notif-1770217977670-user_1770208723398",
       "type": "comment",
       "todoId": "20260204_124759_6tmzp6",

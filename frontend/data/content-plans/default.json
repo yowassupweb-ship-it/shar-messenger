@@ -128,6 +128,23 @@
       "createdAt": "2026-02-11T15:03:49.088Z",
       "updatedAt": "2026-02-11T15:03:49.088Z",
       "comments": []
+    },
+    {
+      "id": "post_1770889762149_eioz6kblb",
+      "title": "Рассылка про акцию (копия)",
+      "postText": "",
+      "platforms": [],
+      "contentType": "mailing",
+      "publishDate": "2026-02-03",
+      "publishTime": "12:00",
+      "mediaUrls": [],
+      "postStatus": "draft",
+      "roles": [],
+      "participants": [],
+      "createdBy": "user_002",
+      "createdAt": "2026-02-12T09:49:22.149Z",
+      "updatedAt": "2026-02-12T09:49:22.149Z",
+      "comments": []
     }
   ]
 }

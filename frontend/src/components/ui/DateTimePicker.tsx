@@ -39,7 +39,6 @@ const DateTimePicker = memo(function DateTimePicker({
         className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm text-gray-900 dark:text-[var(--text-primary)]"
         style={{ borderRadius: '20px' }}
       />
-      <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-white/50 pointer-events-none" />
       {allowClear && value && !disabled && (
         <button
           type="button"

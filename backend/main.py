@@ -3362,7 +3362,7 @@ def save_calculator_history(user_id: str, data: Dict[str, Any]):
 def get_todos(userId: Optional[str] = None):
     """Получить список задач"""
     todos = db.get_tasks(user_id=userId) if userId else db.get_tasks()
-    lists = db.get_todo_lists()
+    lists = db.get_todo_lists(user_id=userId) if userId else db.get_todo_lists()
     categories = db.get_todo_categories()
 
     stage_keys = {
@@ -3371,7 +3371,10 @@ def get_todos(userId: Optional[str] = None):
         'stageMeta',
         'stageDefaultAssigneeId',
         'stageDefaultAssigneeName',
-        'recurrence'
+        'recurrence',
+        'versionHistory',
+        'delegatedById',
+        'delegatedBy'
     }
 
     def hydrate_task(task: dict):
@@ -3420,9 +3423,10 @@ def create_todo(todo_data: dict = Body(...)):
             'color': todo_data.get('color', '#3b82f6'),
             'icon': todo_data.get('icon', 'folder'),
             'department': todo_data.get('department'),
-            'order': todo_data.get('order', 0)
+            'order': todo_data.get('order', 0),
+            'creatorId': todo_data.get('creatorId') or todo_data.get('creator_id')
         }
-        print(f"[POST /api/todos] Creating list: {new_list['name']}")
+        print(f"[POST /api/todos] Creating list: {new_list['name']} by creator: {new_list.get('creatorId')}")
         result = db.add_todo_list(new_list)
         print(f"[POST /api/todos] List created: {result.get('id') if result else 'FAILED'}")
         return snake_to_camel(result) if result else new_list
@@ -3447,7 +3451,10 @@ def create_todo(todo_data: dict = Body(...)):
             'stageMeta',
             'stageDefaultAssigneeId',
             'stageDefaultAssigneeName',
-            'recurrence'
+            'recurrence',
+            'versionHistory',
+            'delegatedById',
+            'delegatedBy'
         }
         metadata = todo_data.get('metadata') or {}
         if isinstance(metadata, dict):
@@ -3461,6 +3468,7 @@ def create_todo(todo_data: dict = Body(...)):
             'title': todo_data.get('title', ''),
             'description': todo_data.get('description', ''),
             'status': todo_data.get('status', 'todo'),
+            'review_comment': todo_data.get('reviewComment') or todo_data.get('review_comment'),
             'priority': todo_data.get('priority', 'medium'),
             'author_id': todo_data.get('authorId') or todo_data.get('author_id'),
             'assigned_to': todo_data.get('assignedTo') or todo_data.get('assigned_to'),
@@ -3513,7 +3521,10 @@ def update_todo(todo_data: dict = Body(...)):
         'stageMeta',
             'stageDefaultAssigneeId',
             'stageDefaultAssigneeName',
-            'recurrence'
+            'recurrence',
+            'versionHistory',
+            'delegatedById',
+            'delegatedBy'
     }
     
     print(f"[PUT /api/todos] Received update request for {todo_type} ID: {todo_id}")
@@ -3576,6 +3587,28 @@ def update_todo(todo_data: dict = Body(...)):
             print(f"[PUT /api/todos] 📦 metadata from DB: {result.get('metadata')}")
             if 'assigned_to_ids' in result:
                 print(f"[PUT /api/todos] 👥 DB returned assigned_to_ids: {result.get('assigned_to_ids')}")
+
+            # Синхронная архивация task-чата при архиве/завершении задачи
+            if updates.get('archived') is True or updates.get('completed') is True:
+                linked_chat = db.find_chat_by_todo(todo_id)
+
+                if not linked_chat:
+                    metadata = result.get('metadata') if isinstance(result.get('metadata'), dict) else {}
+                    chat_id = (
+                        updates.get('chatId')
+                        or updates.get('chat_id')
+                        or metadata.get('chatId')
+                        or metadata.get('chat_id')
+                    )
+                    if chat_id:
+                        linked_chat = db.get_chat(chat_id)
+
+                if linked_chat and linked_chat.get('id'):
+                    try:
+                        db.delete_chat(linked_chat['id'])
+                        print(f"[PUT /api/todos] 🗑️ Linked chat {linked_chat['id']} removed for task {todo_id}")
+                    except Exception as chat_err:
+                        print(f"[PUT /api/todos] ⚠️ Failed to remove linked chat for task {todo_id}: {chat_err}")
         else:
             print(f"[PUT /api/todos] ERROR: Task not found or update failed for ID: {todo_id}")
     
@@ -3868,6 +3901,17 @@ def get_chats(user_id: Optional[str] = None):
     
     # Фильтрация уже сделана в db.get_user_chats(user_id), не нужно делать заново
     user_chats = chats
+
+    # Скрываем task-чаты для архивных/выполненных задач
+    filtered_chats = []
+    for chat in user_chats:
+        todo_id = chat.get('todo_id')
+        if todo_id:
+            task = db.get_task(todo_id)
+            if task and (task.get('archived') or task.get('completed')):
+                continue
+        filtered_chats.append(chat)
+    user_chats = filtered_chats
     
     # Добавляем информацию о последнем сообщении и непрочитанных
     for chat in user_chats:
@@ -3991,6 +4035,17 @@ def delete_chat(chat_id: str):
     chat = db.get_chat(chat_id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
+
+    # Синхронная архивация задачи при удалении связанного task-чата
+    todo_id = chat.get('todo_id')
+    if todo_id:
+        try:
+            task = db.get_task(todo_id)
+            if task and not task.get('archived'):
+                db.update_task(todo_id, {'archived': True})
+                print(f"[DELETE /api/chats/{chat_id}] 📦 Archived linked task {todo_id}")
+        except Exception as task_err:
+            print(f"[DELETE /api/chats/{chat_id}] ⚠️ Failed to archive linked task {todo_id}: {task_err}")
     
     # Удаляем чат (CASCADE удалит сообщения и участников)
     db.delete_chat(chat_id)

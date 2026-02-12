@@ -20,8 +20,8 @@ const Statusdropdown = memo(function Statusdropdown({
   return (
     <>
       <div className="fixed inset-0 z-[90]" onClick={onClose} />
-      <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl z-[100] overflow-hidden text-gray-900 dark:text-white">
-        <div className="py-1">
+      <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl z-[100] max-h-80 overflow-y-auto text-gray-900 dark:text-white">
+        <div className="py-1 flex flex-col">
           {[{ value: 'all', label: 'Все статусы' }, { value: 'stages', label: 'Этапы' }, { value: 'todo', label: 'К выполнению' }, { value: 'pending', label: 'В ожидании' }, { value: 'in-progress', label: 'В работе' }, { value: 'review', label: 'Готово к проверке' }, { value: 'cancelled', label: 'Отменена' }, { value: 'stuck', label: 'Застряла' }].map(status => (
             <button
               key={status.value}

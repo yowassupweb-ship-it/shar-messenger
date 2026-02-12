@@ -9,11 +9,9 @@ try:
     # Try psycopg3 first (better Windows UTF-8 support)
     import psycopg as psycopg_module
     from psycopg.rows import dict_row
+    from psycopg.types.json import Jsonb as Json
     PSYCOPG_VERSION = 3
     print("Using psycopg3")
-    # For psycopg3, JSON columns accept Python objects directly
-    def Json(data):
-        return data
 except ImportError:
     # Fallback to psycopg2
     import psycopg2 as psycopg_module
@@ -420,10 +418,10 @@ class PostgresDatabase:
         return self.conn.fetch_all(query)
     
     def get_user(self, user_id: str) -> Optional[Dict[str, Any]]:
-        """Get single user by ID or username"""
-        # Try ID first
-        query = "SELECT * FROM users WHERE id = %s OR username = %s"
-        result = self.conn.fetch_one(query, (user_id, user_id))
+        """Get single user by ID, username or email"""
+        # Try ID, username or email
+        query = "SELECT * FROM users WHERE id = %s OR username = %s OR email = %s"
+        result = self.conn.fetch_one(query, (user_id, user_id, user_id))
         return dict(result) if result else None
     
     def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
@@ -612,6 +610,8 @@ class PostgresDatabase:
             'title': 'title',
             'is_group': 'is_group',
             'isGroup': 'is_group',
+            'todo_id': 'todo_id',
+            'todoId': 'todo_id',
             'is_notifications_chat': 'is_notifications_chat',
             'isNotificationsChat': 'is_notifications_chat',
             'is_system_chat': 'is_system_chat',
@@ -646,7 +646,8 @@ class PostgresDatabase:
             RETURNING *
         """
         
-        return self.conn.fetch_one(query, tuple(params))
+        result = self.conn.fetch_one(query, tuple(params))
+        return dict(result) if result else None
     
     def find_private_chat(self, user_id1: str, user_id2: str) -> Optional[Dict[str, Any]]:
         """Find existing private chat between two users"""
@@ -673,15 +674,16 @@ class PostgresDatabase:
         """Add new chat"""
         query = """
             INSERT INTO chats 
-            (id, title, is_group, is_notifications_chat, is_system_chat, is_favorites_chat, 
+            (id, title, is_group, todo_id, is_notifications_chat, is_system_chat, is_favorites_chat, 
              creator_id, read_messages_by_user, pinned_by_user)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
         """
         params = (
             chat.get('id'),
             chat.get('title'),
             chat.get('is_group', chat.get('isGroup', False)),
+            chat.get('todo_id', chat.get('todoId')),
             chat.get('is_notifications_chat', chat.get('isNotificationsChat', False)),
             chat.get('is_system_chat', chat.get('isSystemChat', False)),
             chat.get('is_favorites_chat', chat.get('isFavoritesChat', False)),
@@ -704,10 +706,22 @@ class PostgresDatabase:
         return self.add_chat(chat)
     
     def find_chat_by_todo(self, todo_id: str) -> Optional[Dict[str, Any]]:
-        """Find chat associated with a task (todo_id not in schema yet, returns None)"""
-        # TODO: After migration adds todo_id column, implement:
-        # query = "SELECT * FROM chats WHERE todo_id = %s LIMIT 1"
-        # return self.conn.fetch_one(query, (todo_id,))
+        """Find chat associated with a task"""
+        query = """
+            SELECT c.*, 
+                ARRAY_AGG(DISTINCT cp.user_id) FILTER (WHERE cp.user_id IS NOT NULL) AS participant_ids
+            FROM chats c
+            LEFT JOIN chat_participants cp ON c.id = cp.chat_id
+            WHERE c.todo_id = %s
+            GROUP BY c.id
+            LIMIT 1
+        """
+        result = self.conn.fetch_one(query, (todo_id,))
+        if result:
+            chat = dict(result)
+            if chat.get('participant_ids') is None:
+                chat['participant_ids'] = []
+            return chat
         return None
     
     def delete_chat(self, chat_id: str) -> bool:
@@ -925,16 +939,15 @@ class PostgresDatabase:
                 query = "SELECT * FROM tasks ORDER BY created_at DESC"
                 return self.conn.fetch_all(query)
             else:
-                # Фильтруем только по связанным задачам
+                # Фильтруем только по связанным задачам (заказчик или исполнитель)
                 query = """
                     SELECT * FROM tasks 
-                    WHERE author_id = %s 
-                    OR assigned_by_id = %s 
+                    WHERE assigned_by_id = %s 
                     OR assigned_to = %s
-                    OR %s = ANY(COALESCE((assigned_to_ids::text)::varchar[], ARRAY[]::varchar[]))
+                    OR assigned_to_ids::jsonb @> %s::jsonb
                     ORDER BY created_at DESC
                 """
-                return self.conn.fetch_all(query, (user_id, user_id, user_id, user_id))
+                return self.conn.fetch_all(query, (user_id, user_id, f'["{user_id}"]'))
         elif list_id:
             query = "SELECT * FROM tasks WHERE list_id = %s ORDER BY task_order, created_at DESC"
             return self.conn.fetch_all(query, (list_id,))
@@ -952,9 +965,9 @@ class PostgresDatabase:
         """Add new task"""
         query = """
             INSERT INTO tasks 
-            (id, title, description, status, priority, due_date, assigned_to, assigned_to_ids, 
+            (id, title, description, status, review_comment, priority, due_date, assigned_to, assigned_to_ids, 
              author_id, assigned_by_id, list_id, category_id, tags, is_completed, add_to_calendar, calendar_event_id, calendar_list_id, task_order, metadata)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
         """
         params = (
@@ -962,6 +975,7 @@ class PostgresDatabase:
             task.get('title'),
             task.get('description'),
             task.get('status', 'pending'),
+            task.get('review_comment') or task.get('reviewComment'),
             task.get('priority', 'medium'),
             task.get('due_date'),  # snake_case
             task.get('assigned_to'),  # snake_case
@@ -990,6 +1004,8 @@ class PostgresDatabase:
             'assigneeResponse': 'assignee_response',
             'assignee_response': 'assignee_response',
             'status': 'status',
+            'reviewComment': 'review_comment',
+            'review_comment': 'review_comment',
             'priority': 'priority',
             'dueDate': 'due_date',
             'due_date': 'due_date',
@@ -1068,17 +1084,96 @@ class PostgresDatabase:
         return self.conn.execute_query(query, (task_id,))
     
     # ==================== TODO LISTS ====================
-    def get_todo_lists(self) -> List[Dict[str, Any]]:
-        """Get all todo lists"""
-        query = "SELECT * FROM todo_lists ORDER BY list_order, created_at"
-        return self.conn.fetch_all(query)
+    def get_todo_lists(self, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get all todo lists, optionally filtered by user"""
+        if user_id:
+            # Получаем информацию о пользователе
+            user_query = "SELECT can_see_all_tasks, department, is_department_head, role FROM users WHERE id = %s"
+            user_result = self.conn.fetch_one(user_query, (user_id,))
+            
+            if not user_result:
+                return []
+            
+            can_see_all = user_result.get('can_see_all_tasks', False)
+            is_admin = user_result.get('role') == 'admin'
+            is_dept_head = user_result.get('is_department_head', False)
+            user_dept = user_result.get('department')
+            
+            # Админы и пользователи с can_see_all_tasks видят все списки
+            if is_admin or can_see_all:
+                query = "SELECT * FROM todo_lists ORDER BY list_order, created_at"
+                return self.conn.fetch_all(query)
+            
+            # Начальники отдела видят списки своих подчиненных
+            if is_dept_head and user_dept:
+                # Получаем ID всех пользователей отдела
+                dept_users_query = "SELECT id FROM users WHERE department = %s"
+                dept_users = self.conn.fetch_all(dept_users_query, (user_dept,))
+                dept_user_ids = [u['id'] for u in dept_users]
+                
+                # Списки созданные сотрудниками отдела + списки с задачами где участвуют сотрудники отдела
+                if dept_user_ids:
+                    placeholders_creator = ','.join(['%s'] * len(dept_user_ids))
+                    placeholders_assigned_by = ','.join(['%s'] * len(dept_user_ids))
+                    placeholders_names = ','.join(['%s'] * len(dept_user_ids))
+                    
+                    # Для assigned_to_ids используем OR для каждого ID
+                    assigned_to_checks = []
+                    assigned_to_params = []
+                    for uid in dept_user_ids:
+                        assigned_to_checks.append("assigned_to_ids::jsonb @> %s::jsonb")
+                        assigned_to_params.append(f'["{uid}"]')
+                    
+                    query = f"""
+                        SELECT DISTINCT l.* FROM todo_lists l
+                        WHERE l.creator_id IN ({placeholders_creator})
+                        OR l.id IN (
+                            SELECT DISTINCT list_id FROM tasks 
+                            WHERE assigned_by_id IN ({placeholders_assigned_by})
+                            OR assigned_to IN (SELECT name FROM users WHERE id IN ({placeholders_names}))
+                            OR ({' OR '.join(assigned_to_checks)})
+                        )
+                        ORDER BY l.list_order, l.created_at
+                    """
+                    params = tuple(dept_user_ids + dept_user_ids + dept_user_ids + assigned_to_params)
+                    return self.conn.fetch_all(query, tuple(params))
+            
+            # Обычные пользователи видят списки где:
+            # 1. Они создатели (даже если список пустой)
+            # 2. Есть задачи где они участники
+            query = """
+                SELECT DISTINCT l.* FROM todo_lists l
+                WHERE l.creator_id = %s
+                OR l.id IN (
+                    SELECT DISTINCT list_id FROM tasks 
+                    WHERE assigned_by_id = %s
+                    OR assigned_to = (SELECT name FROM users WHERE id = %s)
+                    OR assigned_to_ids::jsonb @> %s::jsonb
+                )
+                ORDER BY l.list_order, l.created_at
+            """
+            return self.conn.fetch_all(query, (user_id, user_id, user_id, f'["{user_id}"]'))
+        else:
+            query = "SELECT * FROM todo_lists ORDER BY list_order, created_at"
+            return self.conn.fetch_all(query)
     
     def add_todo_list(self, list_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Add new todo list"""
+        # Сначала проверяем наличие колонки creator_id
+        try:
+            check_query = "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'todo_lists' AND column_name = 'creator_id'"
+            has_creator = self.conn.fetch_one(check_query)
+            
+            if not has_creator:
+                # Добавляем колонку если её нет
+                self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS creator_id VARCHAR(255)")
+        except Exception as e:
+            print(f"Error checking/adding creator_id column: {e}")
+        
         query = """
             INSERT INTO todo_lists 
-            (id, name, color, icon, department, list_order)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            (id, name, color, icon, department, list_order, creator_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             RETURNING *
         """
         params = (
@@ -1087,7 +1182,8 @@ class PostgresDatabase:
             list_data.get('color', '#3b82f6'),
             list_data.get('icon'),
             list_data.get('department'),
-            list_data.get('order', 0)
+            list_data.get('order', 0),
+            list_data.get('creatorId') or list_data.get('creator_id')
         )
         result = self.conn.fetch_one(query, params)
         return dict(result) if result else None

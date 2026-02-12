@@ -367,6 +367,13 @@ export default function TodosPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
+  // Редирект с /todos на /account?tab=tasks
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.pathname === '/todos') {
+      router.replace('/account?tab=tasks');
+    }
+  }, [router]);
+  
   const [todos, setTodos] = useState<Todo[]>([]);
   const [lists, setLists] = useState<TodoList[]>([]);
   const [categories, setCategories] = useState<TodoCategory[]>([]);
@@ -403,6 +410,9 @@ export default function TodosPage() {
   const [canSeeAllTasks, setCanSeeAllTasks] = useState<boolean>(false);  // По умолчанию false - видны только свои задачи
   const [isDepartmentHead, setIsDepartmentHead] = useState<boolean>(false);  // Руководитель отдела
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+  const [showArchive, setShowArchive] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'stages' | 'todo' | 'pending' | 'in-progress' | 'review' | 'cancelled' | 'stuck'>('all');
+  const [filterExecutor, setFilterExecutor] = useState<string | null>(null);
 
   // 🚀 PERFORMANCE: Мемоизация filteredAndSortedTodos должна быть ВЫШЕ headerPeople!
   // Перенесено из строки 2795 сюда для правильного порядка зависимостей
@@ -436,8 +446,19 @@ export default function TodosPage() {
         // Фильтр по исполнителю
         if (filterExecutor !== null) {
           const matchesFilter = t.assignedToId === filterExecutor || 
-                               t.assignedToIds?.includes(filterExecutor);
-          if (!matchesFilter) return false;
+                               t.assignedToIds?.includes(filterExecutor) ||
+                               t.stageDefaultAssigneeId === filterExecutor;
+          
+          // Проверяем исполнителей в этапах
+          const stageMeta = (t.stageMeta || (t.metadata as any)?.stageMeta) as Todo['stageMeta'] | undefined;
+          const stageAssignees = stageMeta ? Object.values(stageMeta).map(m => m.assigneeId).filter(Boolean) : [];
+          const matchesStageAssignee = stageMeta && Object.values(stageMeta).some(meta => 
+            meta.assigneeId === filterExecutor
+          );
+          
+          const matches = matchesFilter || matchesStageAssignee;
+          
+          if (!matches) return false;
         }
         
         return true;
@@ -455,44 +476,39 @@ export default function TodosPage() {
 
   const headerPeople = useMemo(() => {
     const now = new Date().toISOString();
-    const fallback = new Map<string, Person>();
-    const add = (id?: string | null, name?: string | null, role: Person['role'] = 'universal') => {
-      if (!id || fallback.has(id)) return;
-      fallback.set(id, {
-        id,
-        name: name || id,
-        role,
-        createdAt: now
-      });
-    };
-
+    const peopleMap = new Map<string, Person>();
+    
+    // Создаём Map из всех людей для быстрого поиска
     people.forEach(person => {
-      const safePerson = {
+      peopleMap.set(person.id, {
         ...person,
         name: person.name || person.username || person.id,
         role: person.role || 'universal',
         createdAt: person.createdAt || now
-      };
-      fallback.set(person.id, safePerson);
+      });
     });
 
-    // Собираем людей только из видимых на доске задач
-    const visibleTodos = filteredAndSortedTodos.flatMap(f => f.todos);
-    visibleTodos.forEach(todo => {
-      add(todo.assignedToId, todo.assignedTo, 'executor');
-      add(todo.assignedById, todo.assignedBy, 'customer');
-      add(todo.stageDefaultAssigneeId, todo.stageDefaultAssigneeName, 'executor');
-      (todo.assignedToIds || []).forEach((assigneeId, index) => {
-        add(assigneeId, todo.assignedToNames?.[index], 'executor');
-      });
+    // Собираем ID людей из ВСЕХ задач (не только отфильтрованных!)
+    const visiblePeopleIds = new Set<string>();
+    
+    todos.forEach(todo => {
+      if (todo.assignedToId) visiblePeopleIds.add(todo.assignedToId);
+      if (todo.assignedById) visiblePeopleIds.add(todo.assignedById);
+      if (todo.stageDefaultAssigneeId) visiblePeopleIds.add(todo.stageDefaultAssigneeId);
+      if (Array.isArray(todo.assignedToIds)) {
+        todo.assignedToIds.forEach(id => visiblePeopleIds.add(id));
+      }
       const stageMeta = (todo.stageMeta || (todo.metadata as any)?.stageMeta) as Todo['stageMeta'] | undefined;
       Object.values(stageMeta || {}).forEach(meta => {
-        add(meta.assigneeId, meta.assigneeName, 'executor');
+        if (meta.assigneeId) visiblePeopleIds.add(meta.assigneeId);
       });
     });
 
-    return Array.from(fallback.values());
-  }, [people, filteredAndSortedTodos]);
+    // Возвращаем только тех людей, которые есть в задачах
+    return Array.from(visiblePeopleIds)
+      .map(id => peopleMap.get(id))
+      .filter((p): p is Person => p !== undefined);
+  }, [people, todos]);
   
   // 🚀 PERFORMANCE: Статусы для переиспользуемого компонента
   const statusOptions: StatusOption[] = [
@@ -519,9 +535,6 @@ export default function TodosPage() {
   const [showNewTodoAssigneeDropdown, setShowNewTodoAssigneeDropdown] = useState(false);
   const [newListAssigneeId, setNewListAssigneeId] = useState<string | null>(null);
   const [showNewListAssigneeDropdown, setShowNewListAssigneeDropdown] = useState(false);
-  const [showArchive, setShowArchive] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<'all' | 'stages' | 'todo' | 'pending' | 'in-progress' | 'review' | 'cancelled' | 'stuck'>('all');
-  const [filterExecutor, setFilterExecutor] = useState<string | null>(null);
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [executorDropdownOpen, setExecutorDropdownOpen] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -976,8 +989,11 @@ export default function TodosPage() {
   // }, [myAccountId, updateLastSeen]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    // Загружаем данные только когда myAccountId уже установлен
+    if (myAccountId) {
+      loadData();
+    }
+  }, [loadData, myAccountId]);
 
   // Автоматическое открытие модалки создания задачи из URL параметров
   useEffect(() => {
@@ -1806,7 +1822,9 @@ export default function TodosPage() {
   const closeTodoModal = async () => {
     isClosingModalRef.current = true;
     setEditingTodo(null);
-    router.push('/account?tab=tasks', { scroll: false });
+    // Возвращаемся туда, откуда пришли (календарь или список задач)
+    router.push(returnUrl, { scroll: false });
+    // Сбрасываем returnUrl после возврата
     setReturnUrl('/account?tab=tasks');
   };
 
@@ -1929,6 +1947,7 @@ export default function TodosPage() {
       description: newTodoDescription,
       listId: listId,
       priority: 'medium',
+      status: 'pending',
       // Если выбран исполнитель вручную - используем его
       ...(selectedAssignee && { assignedToId: selectedAssignee.id, assignedTo: selectedAssignee.name }),
       // Иначе если текущий пользователь исполнитель - ставим его
@@ -2048,16 +2067,25 @@ export default function TodosPage() {
       
       console.log('[updateTodo] Sending ' + (isNewTodo ? 'POST' : 'PUT') + ' request');
       
+      const bodyData = isNewTodo ? {
+        ...todo,
+        id: undefined, // Удаляем temp-id для создания
+      } : todo;
+      
+      console.log('[updateTodo] Request body ID:', bodyData.id, 'keys:', Object.keys(bodyData).length);
+      
       const res = await fetch('/api/todos', {
         method: isNewTodo ? 'POST' : 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(isNewTodo ? {
-          ...todo,
-          id: undefined, // Удаляем temp-id для создания
-        } : todo)
+        body: JSON.stringify(bodyData)
       });
       
       console.log('[updateTodo] Response status:', res.status);
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('[updateTodo] ❌ Error response:', errorText);
+      }
       
       if (res.ok) {
         let updated = await res.json();
@@ -3068,24 +3096,30 @@ export default function TodosPage() {
             // При поиске показываем только списки с результатами
             // Показываем столбцы: свои, с полным доступом (allowedUsers/allowedDepartments), или где есть назначенные задачи
             .filter(list => {
+              // Получаем отфильтрованные задачи для этого списка
+              const filtered = filteredAndSortedTodos.find(f => f.listId === list.id);
+              
               if (!canSeeAllTasks && myAccountId) {
                 // Проверяем полный доступ к столбцу
                 const hasFullAccess = list.creatorId === myAccountId || 
                   (list.allowedUsers && list.allowedUsers.includes(myAccountId)) ||
                   (myDepartment && list.allowedDepartments && list.allowedDepartments.includes(myDepartment));
-                // Если есть полный доступ - показываем столбец всегда
+                
                 if (hasFullAccess) {
-                  if (!searchQuery) return true;
-                  const listTodos = getTodosForList(list.id, showArchive);
-                  return listTodos.length > 0;
+                  // Если есть полный доступ и нет фильтров - показываем всегда
+                  if (!searchQuery && !filterExecutor && filterStatus === 'all') return true;
+                  // Если есть фильтры - показываем только если есть задачи
+                  return filtered && filtered.todos.length > 0;
                 }
-                // Если нет полного доступа - показываем только если есть назначенные задачи
-                const listTodos = getTodosForList(list.id, showArchive);
-                if (listTodos.length === 0) return false;
+                
+                // Если нет полного доступа - показываем только если есть задачи после фильтрации
+                return filtered && filtered.todos.length > 0;
               }
-              if (!searchQuery) return true; // Без поиска показываем все списки
-              const listTodos = getTodosForList(list.id, showArchive);
-              return listTodos.length > 0; // С поиском - только списки с результатами
+              
+              // Для админов - если нет фильтров, показываем все списки
+              if (!searchQuery && !filterExecutor && filterStatus === 'all') return true;
+              // Если есть фильтры - показываем только списки с задачами
+              return filtered && filtered.todos.length > 0;
             })
             .map((list, index) => {
             const listTodos = getTodosForList(list.id, showArchive);
@@ -3264,6 +3298,10 @@ export default function TodosPage() {
                   className={`bg-[var(--bg-secondary)] border-x border-b border-[var(--border-color)] rounded-b-xl p-2 flex flex-col gap-2 min-h-[100px] transition-colors ${
                     isDropTarget ? 'bg-[#eaeaea] dark:bg-[var(--bg-glass)]' : ''
                   }`}
+                  onDragEnter={(e) => handleDragEnter(e, list.id)}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, list.id)}
                 >
                   {/* Add Task Form */}
                   {addingToList === list.id && (

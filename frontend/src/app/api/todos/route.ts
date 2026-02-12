@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 console.log('=== TODOS ROUTE (PROXY MODE) - Backend:', BACKEND_URL, '===');
+console.log('=== process.env.NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL, '===');
 
 // Helper function to forward requests to backend
 async function proxyToBackend(request: NextRequest, method: string) {
@@ -23,10 +24,12 @@ async function proxyToBackend(request: NextRequest, method: string) {
     // Add body for POST/PUT requests
     if (method === 'POST' || method === 'PUT') {
       const body = await request.json();
+      console.log(`[PROXY] ${method} Request body:`, JSON.stringify(body).substring(0, 200));
       options.body = JSON.stringify(body);
     }
     
     const response = await fetch(backendUrl, options);
+    console.log(`[PROXY] ${method} Response status:`, response.status);
     const data = await response.json();
     
     return NextResponse.json(data, { status: response.status });

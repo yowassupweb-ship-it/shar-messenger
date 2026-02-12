@@ -98,6 +98,7 @@ export interface Todo {
   status?: 'todo' | 'in-progress' | 'pending' | 'review' | 'cancelled' | 'stuck';
   reviewComment?: string;
   dueDate?: string;
+  recurrence?: 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
   listId: string;
   categoryId?: string | null;
   tags: string[];

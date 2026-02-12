@@ -153,8 +153,8 @@ export default function BottomNav() {
               onClick={() => handleNavClick('/messages')}
               className={`relative px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-normal transition-all whitespace-nowrap ${
                 pathname === '/messages'
-                  ? 'bg-[#007aff]/20 text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
-                  : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-white dark:text-white hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
+                  ? 'bg-[#007aff]/20 !text-gray-900 dark:!text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
+                  : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-gray-900 dark:text-white hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
               }`}
             >
               <MessageCircle className="w-3.5 h-3.5" />
@@ -172,8 +172,8 @@ export default function BottomNav() {
               onClick={() => handleNavClick('/todos')}
               className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-normal transition-all whitespace-nowrap ${
                 pathname === '/todos'
-                  ? 'bg-[#007aff]/20 text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
-                  : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-white dark:text-white hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
+                  ? 'bg-[#007aff]/20 !text-gray-900 dark:!text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
+                  : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-gray-900 dark:text-white hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
               }`}
             >
               <CheckSquare className="w-3.5 h-3.5" />
@@ -186,8 +186,8 @@ export default function BottomNav() {
               onClick={() => handleNavClick('/calendar')}
               className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-normal transition-all whitespace-nowrap ${
                 pathname === '/calendar'
-                  ? 'bg-[#007aff]/20 text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
-                  : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-white dark:text-white hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
+                  ? 'bg-[#007aff]/20 !text-gray-900 dark:!text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
+                  : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-gray-900 dark:text-white hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
               }`}
             >
               <Calendar className="w-3.5 h-3.5" />
@@ -200,8 +200,8 @@ export default function BottomNav() {
               onClick={() => handleNavClick('/contacts')}
               className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-normal transition-all whitespace-nowrap ${
                 pathname === '/contacts'
-                  ? 'bg-[#007aff]/20 text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
-                  : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-white dark:text-white hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
+                  ? 'bg-[#007aff]/20 !text-gray-900 dark:!text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
+                  : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-gray-900 dark:text-white hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
               }`}
             >
               <Users className="w-3.5 h-3.5" />
@@ -214,8 +214,8 @@ export default function BottomNav() {
               onClick={() => handleNavClick('/links')}
               className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-normal transition-all whitespace-nowrap ${
                 pathname === '/links'
-                  ? 'bg-[#007aff]/20 text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
-                  : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-white dark:text-white hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
+                  ? 'bg-[#007aff]/20 !text-gray-900 dark:!text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
+                  : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-gray-900 dark:text-white hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
               }`}
             >
               <Globe className="w-3.5 h-3.5" />

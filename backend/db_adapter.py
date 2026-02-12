@@ -223,8 +223,8 @@ if USE_POSTGRES:
         def delete_task(self, task_id: str) -> bool:
             return self.db.delete_task(task_id)
         
-        def get_todo_lists(self) -> List[Dict[str, Any]]:
-            return self.db.get_todo_lists()
+        def get_todo_lists(self, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+            return self.db.get_todo_lists(user_id=user_id)
         
         def add_todo_list(self, list_data: Dict[str, Any]) -> Dict[str, Any]:
             return self.db.add_todo_list(list_data)

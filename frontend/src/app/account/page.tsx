@@ -558,7 +558,7 @@ export default function AccountPage() {
             onClick={() => handleTabChange('messages')}
             className={`relative w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
               activeTab === 'messages'
-                ? 'bg-blue-500/20 text-white border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
+                ? 'bg-blue-500/20 text-gray-900 dark:text-white border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
                 : 'text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm'
             }`}
           >
@@ -576,7 +576,7 @@ export default function AccountPage() {
             onClick={() => handleTabChange('tasks')}
             className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
               activeTab === 'tasks'
-                ? 'bg-blue-500/20 text-white border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
+                ? 'bg-blue-500/20 text-gray-900 dark:text-white border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
                 : 'text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm'
             }`}
           >
@@ -589,7 +589,7 @@ export default function AccountPage() {
             onClick={() => handleTabChange('calendar')}
             className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
               activeTab === 'calendar'
-                ? 'bg-blue-500/20 text-white border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
+                ? 'bg-blue-500/20 text-gray-900 dark:text-white border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
                 : 'text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm'
             }`}
           >
@@ -602,7 +602,7 @@ export default function AccountPage() {
             onClick={() => handleTabChange('contacts')}
             className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
               activeTab === 'contacts'
-                ? 'bg-blue-500/20 text-white border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
+                ? 'bg-blue-500/20 text-gray-900 dark:text-white border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
                 : 'text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm'
             }`}
           >
@@ -615,7 +615,7 @@ export default function AccountPage() {
             onClick={() => handleTabChange('links')}
             className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
               activeTab === 'links'
-                ? 'bg-blue-500/20 text-white border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
+                ? 'bg-blue-500/20 text-gray-900 dark:text-white border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
                 : 'text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm'
             }`}
           >
@@ -627,7 +627,7 @@ export default function AccountPage() {
             onClick={() => handleTabChange('tools')}
             className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
               activeTab === 'tools'
-                ? 'bg-blue-500/20 text-white border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
+                ? 'bg-blue-500/20 text-gray-900 dark:text-white border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
                 : 'text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm'
             }`}
           >
@@ -655,7 +655,7 @@ export default function AccountPage() {
             onClick={() => handleTabChange('messages')}
             className={`relative px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
               activeTab === 'messages'
-                ? 'bg-[#007aff]/20 text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
+                ? 'bg-[#007aff]/20 text-gray-900 dark:text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
             }`}
           >
@@ -674,7 +674,7 @@ export default function AccountPage() {
             onClick={() => handleTabChange('tasks')}
             className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
               activeTab === 'tasks'
-                ? 'bg-[#007aff]/20 text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
+                ? 'bg-[#007aff]/20 text-gray-900 dark:text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
             }`}
           >
@@ -688,7 +688,7 @@ export default function AccountPage() {
             onClick={() => handleTabChange('calendar')}
             className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
               activeTab === 'calendar'
-                ? 'bg-[#007aff]/20 text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
+                ? 'bg-[#007aff]/20 text-gray-900 dark:text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
             }`}
           >
@@ -702,7 +702,7 @@ export default function AccountPage() {
             onClick={() => handleTabChange('contacts')}
             className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
               activeTab === 'contacts'
-                ? 'bg-[#007aff]/20 text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
+                ? 'bg-[#007aff]/20 text-gray-900 dark:text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
             }`}
           >
@@ -716,7 +716,7 @@ export default function AccountPage() {
             onClick={() => handleTabChange('links')}
             className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
               activeTab === 'links'
-                ? 'bg-[#007aff]/20 text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
+                ? 'bg-[#007aff]/20 text-gray-900 dark:text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
             }`}
           >
@@ -729,7 +729,7 @@ export default function AccountPage() {
             onClick={() => handleTabChange('tools')}
             className={`w-[32px] h-[32px] rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
               activeTab === 'tools'
-                ? 'bg-[#007aff]/20 text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
+                ? 'bg-[#007aff]/20 text-gray-900 dark:text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-primary)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
             }`}
             title="Инструменты"

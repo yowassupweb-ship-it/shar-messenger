@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+// Import Todo type with recurrence field
 import type { Todo, Person, TodoList, CalendarList } from '@/types/todos';
 
 export function useTodoActions(

@@ -578,7 +578,7 @@ export default function CalendarBoard() {
   const handleEditEvent = (event: CalendarEvent) => {
     // Если это событие задачи (task/tz), открываем модалку задачи
     if ((event.type === 'task' || event.type === 'tz') && event.sourceId) {
-      router.push(`/account?tab=tasks&task=${event.sourceId}`, { scroll: false });
+      router.push(`/account?tab=tasks&task=${event.sourceId}&from=${encodeURIComponent('/account?tab=calendar')}`, { scroll: false });
       return;
     }
     
@@ -597,9 +597,9 @@ export default function CalendarBoard() {
   const timelineItems = getTimelineItems();
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-white/10 rounded-xl pb-16 sm:pb-20">
+    <div className="h-full flex flex-col overflow-hidden bg-gradient-to-br from-white/90 to-white/80 dark:from-white/10 dark:to-white/5 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-xl">
       {/* Header */}
-      <div className="flex-shrink-0 h-12 px-2 sm:px-4 border-b border-gray-200 dark:border-white/10 bg-white/50 dark:bg-[#0d0d0d] flex items-center">
+      <div className="flex-shrink-0 h-12 px-2 sm:px-4 border-b border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[var(--bg-secondary)] flex items-center">
         {/* Desktop */}
         <div className="hidden sm:flex items-center justify-between gap-3 w-full">
           <div className="flex items-center gap-2 flex-1 min-w-0">            
@@ -624,7 +624,7 @@ export default function CalendarBoard() {
                     className="sm:hidden fixed inset-0 bg-black/50 z-40"
                     onClick={() => setShowListSelector(false)}
                   />
-                  <div className="fixed sm:absolute top-1/2 sm:top-full left-1/2 sm:left-0 -translate-x-1/2 sm:translate-x-0 -translate-y-1/2 sm:translate-y-0 sm:right-auto mt-0 sm:mt-2 w-[90vw] sm:w-72 max-w-[400px] sm:max-w-none bg-white/90 dark:bg-[#1a1a1a]/90 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-2xl shadow-xl z-50 overflow-hidden ring-1 ring-black/5">
+                  <div className="fixed sm:absolute top-1/2 sm:top-full left-1/2 sm:left-0 -translate-x-1/2 sm:translate-x-0 -translate-y-1/2 sm:translate-y-0 sm:right-auto mt-0 sm:mt-2 w-[90vw] sm:w-72 max-w-[400px] sm:max-w-none bg-white/95 dark:bg-[var(--bg-secondary)]/95 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-2xl shadow-xl z-50 overflow-hidden ring-1 ring-black/5">
                   <div className="p-3 border-b border-gray-100 dark:border-white/10 flex items-center justify-between bg-gray-50/50 dark:bg-white/5">
                     <span className="text-xs text-gray-500 dark:text-white/50 font-bold uppercase tracking-wider px-2">Календари</span>
                   </div>
@@ -812,7 +812,7 @@ export default function CalendarBoard() {
       </div>
 
       {/* Mobile Month Navigation */}
-      <div className="sm:hidden flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-white/10 bg-white/30 dark:bg-black/20">
+      <div className="sm:hidden flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-white/10 bg-white/50 dark:bg-[var(--bg-secondary)]/70">
         <button
           onClick={goToPreviousMonth}
           className="p-1.5 text-gray-600 dark:text-white/70 hover:bg-white/20 dark:hover:bg-white/10 rounded-md"
@@ -868,7 +868,7 @@ export default function CalendarBoard() {
         <div className="flex-1 overflow-auto">
           <div className="min-w-full">
             {/* Weekday Headers - Sticky */}
-            <div className="grid grid-cols-7 sticky top-0 bg-gray-100 dark:bg-[#1a1a1a] border-b border-gray-300 dark:border-white/20 z-10 shadow-sm">
+            <div className="grid grid-cols-7 sticky top-0 bg-gray-100 dark:bg-[var(--bg-secondary)] border-b border-gray-300 dark:border-white/20 z-10 shadow-sm">
               {WEEKDAYS.map(day => (
                 <div
                   key={day}
@@ -893,7 +893,7 @@ export default function CalendarBoard() {
                     key={idx}
                     className={`
                       relative min-h-[70px] sm:min-h-[110px] p-1 sm:p-1.5 border-r border-b border-gray-200 dark:border-white/10
-                      ${!isCurrentMonth ? 'bg-gray-50 dark:bg-black/30' : 'bg-white dark:bg-transparent'}
+                      ${!isCurrentMonth ? 'bg-gray-50 dark:bg-[var(--bg-tertiary)]/60' : 'bg-white dark:bg-transparent'}
                       ${isToday ? 'ring-2 ring-inset ring-blue-500/30 bg-blue-50/50 dark:bg-blue-500/5' : ''}
                       group hover:bg-gray-50 dark:hover:bg-white/5 transition-colors
                     `}
@@ -969,7 +969,7 @@ export default function CalendarBoard() {
                         return (
                           <div
                             key={todo.id}
-                            onClick={() => router.push(`/account?tab=tasks&task=${todo.id}`, { scroll: false })}
+                            onClick={() => router.push(`/account?tab=tasks&task=${todo.id}&from=${encodeURIComponent('/account?tab=calendar')}`, { scroll: false })}
                             className={`
                               text-[8px] sm:text-[9px] px-1 sm:px-1.5 py-0.5 sm:py-1 rounded cursor-pointer transition-all
                               border-l-2 ${PRIORITY_COLORS[todo.priority]}
@@ -982,10 +982,8 @@ export default function CalendarBoard() {
                             title={todo.title}
                           >
                             <div className="flex items-center gap-1">
-                              {todo.completed ? (
+                              {todo.completed && (
                                 <Check className="w-2.5 h-2.5 flex-shrink-0 text-green-500" />
-                              ) : (
-                                <div className="w-2.5 h-2.5 rounded-full border border-gray-400 dark:border-white/40 flex-shrink-0" />
                               )}
                               <span className="truncate font-medium text-gray-900 dark:text-white">
                                 {todo.title}
@@ -1081,7 +1079,7 @@ export default function CalendarBoard() {
       {/* Add/Edit Event Modal */}
       {showAddEvent && (selectedDate || editingEvent) && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 sm:p-4">
-          <div className="bg-white dark:bg-[#1a1a1a] rounded-t-2xl sm:rounded-xl border-t sm:border border-gray-200 dark:border-white/10 w-full sm:max-w-md shadow-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col">
+          <div className="bg-white dark:bg-[var(--bg-secondary)] rounded-t-2xl sm:rounded-xl border-t sm:border border-gray-200 dark:border-white/10 w-full sm:max-w-md shadow-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 dark:border-white/10 flex-shrink-0">
               <h3 className="font-semibold text-sm sm:text-base text-gray-900 dark:text-white">
                 {editingEvent ? (
@@ -1222,7 +1220,7 @@ export default function CalendarBoard() {
                   onClick={() => {
                     setShowAddEvent(false);
                     setEditingEvent(null);
-                    router.push(`/account?tab=tasks&task=${editingEvent.sourceId}`);
+                    router.push(`/account?tab=tasks&task=${editingEvent.sourceId}&from=${encodeURIComponent('/account?tab=calendar')}`);
                   }}
                   className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gray-900 text-white dark:bg-white/10 dark:text-white hover:bg-gray-800 dark:hover:bg-white/20 rounded-lg text-sm font-medium transition-colors"
                 >
@@ -1258,7 +1256,7 @@ export default function CalendarBoard() {
           onClick={closeCreateListModal}
         >
           <div 
-            className="bg-white dark:bg-[#1a1a1a] border-t sm:border border-gray-200 dark:border-white/10 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg shadow-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col"
+            className="bg-white dark:bg-[var(--bg-secondary)] border-t sm:border border-gray-200 dark:border-white/10 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg shadow-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col"
             onClick={e => e.stopPropagation()}
           >
             <div className="border-b border-gray-200 dark:border-white/10 px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between flex-shrink-0">
@@ -1425,7 +1423,7 @@ export default function CalendarBoard() {
           onClick={() => setShowListSettings(false)}
         >
           <div 
-            className="bg-white dark:bg-[#1a1a1a] border-t sm:border border-gray-200 dark:border-white/10 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg shadow-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col"
+            className="bg-white dark:bg-[var(--bg-secondary)] border-t sm:border border-gray-200 dark:border-white/10 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg shadow-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col"
             onClick={e => e.stopPropagation()}
           >
             <div className="border-b border-gray-200 dark:border-white/10 px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between flex-shrink-0">

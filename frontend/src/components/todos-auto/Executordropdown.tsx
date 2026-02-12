@@ -2,6 +2,14 @@
 
 import React, { memo } from 'react';
 
+interface Person {
+  id: string;
+  name: string;
+  username?: string;
+  role?: string;
+  department?: string;
+}
+
 interface ExecutordropdownProps {
   isOpen: boolean;
   onClose: () => void;
@@ -19,11 +27,14 @@ const Executordropdown = memo(function Executordropdown({
 }: ExecutordropdownProps) {
   if (!isOpen) return null;
 
+  console.log('[Executordropdown] Rendering with people:', people.length, people);
+  console.log('[Executordropdown] People details:', people.map(p => ({ id: p.id, name: p.name, hasName: !!p.name })));
+
   return (
     <>
       <div className="fixed inset-0 z-[90]" onClick={onClose} />
-      <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl z-[100] overflow-hidden max-h-64 overflow-y-auto text-gray-900 dark:text-white">
-        <div className="py-1">
+      <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl z-[100] max-h-80 overflow-y-auto text-gray-900 dark:text-white">
+        <div className="py-1 flex flex-col">
           <button
             onClick={() => { setFilterExecutor(null); onClose(); }}
             className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-white/5 transition-colors ${
@@ -39,7 +50,7 @@ const Executordropdown = memo(function Executordropdown({
               Нет исполнителей
             </div>
           )}
-          {people.map(person => (
+          {people.map((person) => (
             <button
               key={person.id}
               onClick={() => { setFilterExecutor(person.id); onClose(); }}
@@ -49,7 +60,7 @@ const Executordropdown = memo(function Executordropdown({
                   : 'text-gray-800 dark:text-white/90'
               }`}
             >
-              {person.name}
+              {person.name || person.id}
             </button>
           ))}
         </div>
