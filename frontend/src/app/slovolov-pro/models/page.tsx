@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
-import MainLayout from '@/components/MainLayout';
-import AddButton from '@/components/AddButton';
-import { Spinner } from '@/components/Spinner';
+import MainLayout from '@/components/layout/MainLayout';
+import AddButton from '@/components/common/buttons/AddButton';
+import { Spinner } from '@/components/Spinner/Spinner';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 interface SearchModel {

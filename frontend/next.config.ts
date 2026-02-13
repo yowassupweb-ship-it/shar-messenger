@@ -1,10 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Отключаем проверки для быстрой сборки
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  // Отключаем проверки TypeScript для быстрой сборки
   typescript: {
     ignoreBuildErrors: true,
   },

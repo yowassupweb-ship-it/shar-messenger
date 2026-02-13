@@ -553,7 +553,8 @@ const Editingtodo = memo(function Editingtodo({
                   <input
                     ref={titleInputRef}
                     type="text"
-                    defaultValue={editingTodo.title}
+                    value={editingTodo.title || ''}
+                    onChange={(e) => handleUpdate({ title: e.target.value })}
                     className="no-mobile-scale w-full px-2 sm:px-3 py-3 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 rounded-[20px] text-lg sm:text-xl font-semibold focus:outline-none focus:border-blue-500/50 transition-all text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
                     placeholder="Название задачи..."
                   />
@@ -1257,9 +1258,9 @@ const Editingtodo = memo(function Editingtodo({
                             body: JSON.stringify({
                               isGroup: participantsArray.length > 2,
                               participantIds: participantsArray,
-                              name: `Обсуждение: ${editingTodo.title}`,
-                              taskId: editingTodo.id,
-                              taskTitle: editingTodo.title
+                              title: `Обсуждение: ${editingTodo.title}`,
+                              todoId: editingTodo.id,
+                              creatorId: myAccountId || undefined
                             })
                           });
                           
@@ -1273,7 +1274,9 @@ const Editingtodo = memo(function Editingtodo({
                               body: JSON.stringify(updatedTodo)
                             });
                             if (saveRes.ok) {
-                              setEditingTodo(updatedTodo);
+                              const savedTodo = await saveRes.json();
+                              setEditingTodo(savedTodo);
+                              onUpdate(savedTodo);
                               // Используем router.push вместо window.location.href
                               router.push(`/messages?chat=${newChat.id}`);
                             }

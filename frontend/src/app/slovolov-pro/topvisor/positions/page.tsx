@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import MainLayout from '@/components/MainLayout';
-import PositionSparkline from '@/components/PositionSparkline';
-import PositionsChart from '@/components/PositionsChart';
-import { Spinner } from '@/components/Spinner';
+import MainLayout from '@/components/layout/MainLayout';
+import PositionSparkline from '@/components/charts/PositionSparkline';
+import PositionsChart from '@/components/charts/PositionsChart';
+import { Spinner } from '@/components/Spinner/Spinner';
 import { 
   ArrowLeft, Loader2, TrendingUp, TrendingDown, Minus,
   RefreshCw, AlertCircle, Calendar, Globe, Search, ChevronRight, 

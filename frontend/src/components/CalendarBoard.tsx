@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Check, Clock, MessageCircle, User, UserCheck, Plus, X, Edit3, ChevronDown, Settings, Info, List } from 'lucide-react';
-import AccessButton from './AccessButton';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Check, Clock, MessageCircle, User, UserCheck, Plus, X, Edit3, ChevronDown, Settings, Info, List, RefreshCw, Link2, Users } from 'lucide-react';
+import FormField from './ui/FormField';
 
 interface CalendarEvent {
   id: string;
@@ -128,6 +128,22 @@ export default function CalendarBoard() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [newListAllowedUsers, setNewListAllowedUsers] = useState<string[]>([]);
   const [newListAllowedDepartments, setNewListAllowedDepartments] = useState<string[]>([]);
+  const [editListAccess, setEditListAccess] = useState<{listId: string, users: string[], departments: string[]} | null>(null);
+  
+  // Advanced access management states
+  const [accessPermission, setAccessPermission] = useState<'viewer' | 'editor'>('viewer');
+  const [accessShareTarget, setAccessShareTarget] = useState<'chat' | 'department' | 'user' | 'link'>('user');
+  const [accessSelectedChatId, setAccessSelectedChatId] = useState('');
+  const [accessSelectedDepartmentId, setAccessSelectedDepartmentId] = useState('');
+  const [accessSelectedUserId, setAccessSelectedUserId] = useState('');
+  const [searchChatAccess, setSearchChatAccess] = useState('');
+  const [searchDepartmentAccess, setSearchDepartmentAccess] = useState('');
+  const [searchUserAccess, setSearchUserAccess] = useState('');
+  const [showChatDropdown, setShowChatDropdown] = useState(false);
+  const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [showPermissionDropdown, setShowPermissionDropdown] = useState(false);
+  const [showShareTargetDropdown, setShowShareTargetDropdown] = useState(false);
 
   // Управление классом modal-open для скрытия нижнего меню
   useEffect(() => {
@@ -314,8 +330,30 @@ export default function CalendarBoard() {
 
   const getEventsForDay = (date: Date) => {
     const dateKey = formatDateKey(date);
+    
+    // Фильтруем только события текущего месяца
+    const monthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+    const monthEnd = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+    const eventDate = new Date(dateKey);
+    
     return events
-      .filter(e => e.date === dateKey && (!e.listId || e.listId === activeListId))
+      .filter(e => {
+        // Проверка даты
+        if (e.date !== dateKey) return false;
+        
+        // Фильтр по текущему месяцу
+        const evDate = new Date(e.date);
+        if (evDate < monthStart || evDate > monthEnd) return false;
+        
+        // Если нет активного листа, показываем все события
+        if (!activeListId) return true;
+        
+        // Если у события нет listId (старые события), показываем их
+        if (!e.listId) return true;
+        
+        // Иначе проверяем совпадение листов
+        return e.listId === activeListId;
+      })
       .sort((a, b) => {
         if (a.time && b.time) return a.time.localeCompare(b.time);
         return 0;
@@ -417,41 +455,53 @@ export default function CalendarBoard() {
     if (!newEvent.title.trim() || !selectedDate) return;
 
     try {
-      const datesToAdd: Date[] = [new Date(selectedDate)];
+      const datesToAdd: Date[] = [];
       
       console.log('[CalendarBoard] Creating event with recurrence:', newEvent.recurrence);
       
+      // Генерируем sourceId для группы повторяющихся событий
+      const sourceId = newEvent.recurrence && newEvent.recurrence !== 'once' 
+        ? `recurring_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` 
+        : undefined;
+      
       if (newEvent.recurrence && newEvent.recurrence !== 'once') {
-        console.log('[CalendarBoard] Processing recurring event...');
+        console.log('[CalendarBoard] Processing recurring event with sourceId:', sourceId);
         const startDate = new Date(selectedDate);
-        const limitDate = new Date(); // Ровно 1 год вперед от сегодня
+        const limitDate = new Date();
         limitDate.setFullYear(limitDate.getFullYear() + 1);
         
-        let currentDate = new Date(startDate);
         console.log('[CalendarBoard] Start date:', startDate, 'Limit date:', limitDate);
         
-        // Safety limit: 365 events max
+        // Создаем события на год вперед (максимум 365)
         for (let i = 0; i < 365; i++) {
-            let nextDate = new Date(currentDate);
+            const eventDate = new Date(startDate);
             
-            if (newEvent.recurrence === 'daily') nextDate.setDate(nextDate.getDate() + 1);
-            else if (newEvent.recurrence === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
-            else if (newEvent.recurrence === 'biweekly') nextDate.setDate(nextDate.getDate() + 14);
-            else if (newEvent.recurrence === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
-            else if (newEvent.recurrence === 'quarterly') nextDate.setMonth(nextDate.getMonth() + 3);
-            else if (newEvent.recurrence === 'yearly') nextDate.setFullYear(nextDate.getFullYear() + 1);
+            // Вычисляем дату события в зависимости от типа повтора
+            if (newEvent.recurrence === 'daily') {
+              eventDate.setDate(startDate.getDate() + i);
+            } else if (newEvent.recurrence === 'weekly') {
+              eventDate.setDate(startDate.getDate() + (i * 7));
+            } else if (newEvent.recurrence === 'biweekly') {
+              eventDate.setDate(startDate.getDate() + (i * 14));
+            } else if (newEvent.recurrence === 'monthly') {
+              eventDate.setMonth(startDate.getMonth() + i);
+            } else if (newEvent.recurrence === 'quarterly') {
+              eventDate.setMonth(startDate.getMonth() + (i * 3));
+            } else if (newEvent.recurrence === 'yearly') {
+              eventDate.setFullYear(startDate.getFullYear() + i);
+            }
             
-            if (nextDate > limitDate) {
+            if (eventDate > limitDate) {
               console.log('[CalendarBoard] Reached limit date, stopping at iteration', i);
               break;
             }
             
-            datesToAdd.push(nextDate);
-            currentDate = nextDate;
+            datesToAdd.push(eventDate);
         }
         console.log('[CalendarBoard] Generated', datesToAdd.length, 'dates for recurring events');
       } else {
         console.log('[CalendarBoard] Creating single (non-recurring) event');
+        datesToAdd.push(new Date(selectedDate));
       }
 
       console.log('[CalendarBoard] Dates to create:', datesToAdd.map(d => formatDateKey(d)));
@@ -463,8 +513,9 @@ export default function CalendarBoard() {
           time: newEvent.time || undefined,
           description: newEvent.description || undefined,
           type: newEvent.type,
-          listId: activeListId,
-          recurrence: newEvent.recurrence
+          listId: activeListId || undefined,
+          recurrence: 'once',
+          sourceId: sourceId // Добавляем sourceId для связи повторяющихся событий
         };
 
         console.log(`[CalendarBoard] Creating event ${index + 1}/${datesToAdd.length}:`, eventData);
@@ -508,6 +559,22 @@ export default function CalendarBoard() {
     if (!editingEvent || !newEvent.title.trim()) return;
 
     try {
+      // Если изменяется повтор или убирается повтор у события из группы
+      if (newEvent.recurrence === 'once') {
+        const seriesEvents = getRecurringSeriesEvents(editingEvent);
+        if (seriesEvents.length > 1) {
+        // Спрашиваем подтверждение
+          if (confirm('Это событие является частью повторяющейся группы. Удалить все связанные события?')) {
+          // Удаляем все события с этим sourceId
+            await handleDeleteRecurringSeries(editingEvent);
+            setEditingEvent(null);
+            setShowAddEvent(false);
+            setNewEvent({ title: '', time: '', description: '', type: 'work', recurrence: 'once' });
+            return;
+          }
+        }
+      }
+      
       const eventData = {
         title: newEvent.title,
         date: editingEvent.date,
@@ -515,7 +582,8 @@ export default function CalendarBoard() {
         description: newEvent.description || undefined,
         type: newEvent.type,
         listId: editingEvent.listId,
-        recurrence: newEvent.recurrence
+        recurrence: newEvent.recurrence,
+        sourceId: editingEvent.sourceId
       };
 
       const res = await fetch(`/api/calendar-events/${editingEvent.id}`, {
@@ -536,6 +604,84 @@ export default function CalendarBoard() {
     }
   };
 
+  const handleDeleteRecurringGroup = async (sourceId: string) => {
+    try {
+      console.log('[CalendarBoard] Deleting all events with sourceId:', sourceId);
+      // Находим все события с этим sourceId
+      const eventsToDelete = events.filter(e => e.sourceId === sourceId);
+      console.log('[CalendarBoard] Found', eventsToDelete.length, 'events to delete');
+      
+      // Удаляем все события
+      await Promise.all(eventsToDelete.map(e => 
+        fetch(`/api/calendar-events/${e.id}`, { method: 'DELETE' })
+      ));
+      
+      // Обновляем локальное состояние
+      setEvents(prev => prev.filter(e => e.sourceId !== sourceId));
+
+      // Синхронизируемся с сервером после массового удаления
+      const reloadRes = await fetch('/api/calendar-events');
+      if (reloadRes.ok) {
+        const data = await reloadRes.json();
+        const eventsList = Array.isArray(data) ? data : (data.events || []);
+        setEvents(eventsList);
+      }
+      
+      alert(`✅ Удалено ${eventsToDelete.length} связанных событий`);
+    } catch (error) {
+      console.error('Error deleting recurring group:', error);
+    }
+  };
+
+  const getRecurringSeriesEvents = (event: CalendarEvent): CalendarEvent[] => {
+    if (event.sourceId) {
+      return events.filter(e => e.sourceId === event.sourceId);
+    }
+
+    if (!event.recurrence || event.recurrence === 'once') {
+      return [];
+    }
+
+    return events.filter(e =>
+      !e.sourceId &&
+      e.recurrence === event.recurrence &&
+      e.title === event.title &&
+      e.type === event.type &&
+      (e.time || '') === (event.time || '') &&
+      (e.listId || '') === (event.listId || '')
+    );
+  };
+
+  const handleDeleteRecurringSeries = async (event: CalendarEvent) => {
+    if (event.sourceId) {
+      await handleDeleteRecurringGroup(event.sourceId);
+      return;
+    }
+
+    const eventsToDelete = getRecurringSeriesEvents(event);
+    if (eventsToDelete.length <= 1) return;
+
+    try {
+      await Promise.all(eventsToDelete.map(e =>
+        fetch(`/api/calendar-events/${e.id}`, { method: 'DELETE' })
+      ));
+
+      const idsToDelete = new Set(eventsToDelete.map(e => e.id));
+      setEvents(prev => prev.filter(e => !idsToDelete.has(e.id)));
+
+      const reloadRes = await fetch('/api/calendar-events');
+      if (reloadRes.ok) {
+        const data = await reloadRes.json();
+        const eventsList = Array.isArray(data) ? data : (data.events || []);
+        setEvents(eventsList);
+      }
+
+      alert(`✅ Удалено ${eventsToDelete.length} связанных событий`);
+    } catch (error) {
+      console.error('Error deleting recurring series:', error);
+    }
+  };
+
   const handleDeleteEvent = async (eventId: string) => {
     try {
       console.log('[CalendarBoard] === DELETE EVENT START ===');
@@ -543,6 +689,9 @@ export default function CalendarBoard() {
       console.log('[CalendarBoard] Event ID type:', typeof eventId);
       console.log('[CalendarBoard] Event ID length:', eventId.length);
       console.log('[CalendarBoard] DELETE URL:', `/api/calendar-events/${eventId}`);
+      
+      // Удаляем только текущее событие (серия удаляется отдельной кнопкой)
+      if (!confirm('Удалить только это событие?')) return;
       
       const res = await fetch(`/api/calendar-events/${eventId}`, { method: 'DELETE' });
       
@@ -588,16 +737,19 @@ export default function CalendarBoard() {
       title: event.title,
       time: event.time || '',
       description: event.description || '',
-      type: event.type,
+      type: (event.type === 'task' || event.type === 'tz') ? 'work' : event.type,
       recurrence: event.recurrence || 'once'
     });
     setShowAddEvent(true);
   };
 
   const timelineItems = getTimelineItems();
+  const editingRecurringGroupSize = editingEvent
+    ? getRecurringSeriesEvents(editingEvent).length
+    : 0;
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-gradient-to-br from-white/90 to-white/80 dark:from-white/10 dark:to-white/5 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-xl">
+    <div className="h-full flex flex-col bg-gradient-to-br from-white/90 to-white/80 dark:from-white/10 dark:to-white/5 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden">
       {/* Header */}
       <div className="flex-shrink-0 h-12 px-2 sm:px-4 border-b border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[var(--bg-secondary)] flex items-center">
         {/* Desktop */}
@@ -697,12 +849,6 @@ export default function CalendarBoard() {
                           {list.id === activeListId && (
                             <Check className="w-4 h-4 text-blue-500" />
                           )}
-                          <AccessButton
-                            resourceType="calendar"
-                            resourceId={list.id}
-                            resourceName={list.name}
-                            size="sm"
-                          />
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -865,8 +1011,8 @@ export default function CalendarBoard() {
       </div>
 
       {viewMode === 'grid' ? (
-        <div className="flex-1 overflow-auto">
-          <div className="min-w-full">
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="h-full">
             {/* Weekday Headers - Sticky */}
             <div className="grid grid-cols-7 sticky top-0 bg-gray-100 dark:bg-[var(--bg-secondary)] border-b border-gray-300 dark:border-white/20 z-10 shadow-sm">
               {WEEKDAYS.map(day => (
@@ -880,7 +1026,7 @@ export default function CalendarBoard() {
             </div>
 
             {/* Calendar Grid */}
-            <div className="grid grid-cols-7 border-l border-gray-200 dark:border-white/10">
+            <div className="grid grid-cols-7 border-l border-gray-200 dark:border-white/10 pb-[calc(env(safe-area-inset-bottom)+88px)] md:pb-[calc(env(safe-area-inset-bottom)+56px)]">
               {getCalendarDays().map(({ date, isCurrentMonth }, idx) => {
                 const dateKey = formatDateKey(date);
                 const dayTodos = getTodosForDay(date);
@@ -940,14 +1086,19 @@ export default function CalendarBoard() {
                               bg-white/60 dark:bg-white/10 backdrop-blur-md border border-white/30 dark:border-white/10
                               hover:shadow-md group/item overflow-hidden max-w-full
                             `}
-                            title={`${event.title}${event.time ? ` (${event.time})` : ''}${event.description ? `\n${event.description}` : ''}`}
+                            title={`${event.title}${event.time ? ` (${event.time})` : ''}${event.description ? `\n${event.description}` : ''}${event.recurrence && event.recurrence !== 'once' ? ' (Повторяется)' : ''}`}
                           >
                             <div className="flex items-center justify-between gap-0.5 sm:gap-1 min-w-0">
-                              <div className="flex-1 min-w-0 overflow-hidden">
-                                {event.time && (
-                                  <span className="text-[7px] sm:text-[8px] font-semibold opacity-70 whitespace-nowrap">{event.time} </span>
+                              <div className="flex-1 min-w-0 overflow-hidden flex items-center gap-0.5">
+                                {event.recurrence && event.recurrence !== 'once' && (
+                                  <RefreshCw className="w-2 h-2 sm:w-2.5 sm:h-2.5 flex-shrink-0 opacity-60" />
                                 )}
-                                <span className="font-medium truncate whitespace-nowrap">{event.title}</span>
+                                <div className="flex-1 min-w-0">
+                                  {event.time && (
+                                    <span className="text-[7px] sm:text-[8px] font-semibold opacity-70 whitespace-nowrap">{event.time} </span>
+                                  )}
+                                  <span className="font-medium truncate whitespace-nowrap">{event.title}</span>
+                                </div>
                               </div>
                               <button
                                 onClick={(e) => {
@@ -1006,8 +1157,8 @@ export default function CalendarBoard() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 overflow-auto">
-          <div className="max-w-3xl mx-auto px-3 sm:px-4 py-4 space-y-3">
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="max-w-3xl mx-auto px-3 sm:px-4 py-4 pb-[calc(env(safe-area-inset-bottom)+88px)] md:pb-[calc(env(safe-area-inset-bottom)+56px)] space-y-3">
             {(() => {
               let lastDate = '';
               return timelineItems.map(item => {
@@ -1214,18 +1365,34 @@ export default function CalendarBoard() {
             </div>
 
             <div className="flex gap-2 p-3 sm:p-4 border-t border-gray-200 dark:border-white/10 flex-shrink-0">
-              {editingEvent?.sourceId && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddEvent(false);
-                    setEditingEvent(null);
-                    router.push(`/account?tab=tasks&task=${editingEvent.sourceId}&from=${encodeURIComponent('/account?tab=calendar')}`);
-                  }}
-                  className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gray-900 text-white dark:bg-white/10 dark:text-white hover:bg-gray-800 dark:hover:bg-white/20 rounded-lg text-sm font-medium transition-colors"
-                >
-                  Перейти к задаче
-                </button>
+              {editingEvent && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleDeleteEvent(editingEvent.id);
+                    }}
+                    className="px-3 sm:px-4 py-2 sm:py-2.5 bg-red-500 text-white hover:bg-red-600 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Удалить
+                  </button>
+                  {editingRecurringGroupSize > 1 && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (confirm(`Удалить всю серию повторяющихся событий (${editingRecurringGroupSize} шт.)?`)) {
+                          await handleDeleteRecurringSeries(editingEvent);
+                          setShowAddEvent(false);
+                          setEditingEvent(null);
+                          setNewEvent({ title: '', time: '', description: '', type: 'work', recurrence: 'once' });
+                        }
+                      }}
+                      className="px-3 sm:px-4 py-2 sm:py-2.5 bg-orange-500 text-white hover:bg-orange-600 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Удалить серию ({editingRecurringGroupSize})
+                    </button>
+                  )}
+                </>
               )}
               <button
                 onClick={editingEvent ? handleUpdateEvent : handleAddEvent}
@@ -1447,97 +1614,324 @@ export default function CalendarBoard() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Доступ для пользователей</label>
-                <p className="text-xs text-gray-500 dark:text-white/50 mb-2">
-                  Выберите пользователей, которые могут видеть этот календарь. Если никто не выбран — доступен всем.
-                </p>
-                <div className="max-h-32 overflow-y-auto space-y-1 border border-gray-200 dark:border-white/10 rounded-lg p-2">
-                  {users.length === 0 ? (
-                    <div className="p-3 text-center text-xs text-gray-400 dark:text-white/40">
-                      Пользователи не загружены. Проверьте консоль браузера.
-                    </div>
-                  ) : (
-                    users.map(user => {
-                      const isAllowed = !listSettingsData.allowedUsers?.length || listSettingsData.allowedUsers.includes(user.id);
-                      const isExplicitlyAllowed = listSettingsData.allowedUsers?.includes(user.id);
-                      return (
-                        <label
-                          key={user.id}
-                          className="flex items-center gap-3 p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isExplicitlyAllowed || false}
-                            onChange={(e) => {
-                              const newAllowed = e.target.checked
-                                ? [...(listSettingsData.allowedUsers || []), user.id]
-                                : (listSettingsData.allowedUsers || []).filter(id => id !== user.id);
-                              setListSettingsData({ ...listSettingsData, allowedUsers: newAllowed });
-                            }}
-                            className="w-4 h-4 text-blue-500 rounded"
-                          />
-                          <span className="text-sm flex-1">{user.name}</span>
-                          {user.role === 'admin' && (
-                            <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 rounded">admin</span>
-                          )}
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-                {!listSettingsData.allowedUsers?.length && users.length > 0 && (
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-1 flex items-center gap-1">
-                    <Check className="w-3 h-3" />
-                    Доступен всем пользователям
-                  </p>
-                )}
-              </div>
+              {/* Advanced Access Management */}
+              <div className="space-y-3 rounded-2xl p-3 bg-white dark:bg-[var(--bg-tertiary)] border border-gray-200 dark:border-white/10">
+                <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-white/50">Управление доступом</div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Доступ для отделов</label>
-                <p className="text-xs text-gray-500 dark:text-white/50 mb-2">
-                  Выберите отделы, сотрудники которых могут видеть этот календарь. Если ничего не выбрано — доступен всем.
-                </p>
-                <div className="max-h-32 overflow-y-auto space-y-1 border border-gray-200 dark:border-white/10 rounded-lg p-2">
-                  {departments.length === 0 ? (
-                    <div className="p-3 text-center text-xs text-gray-400 dark:text-white/40">
-                      Отделы не загружены. Проверьте консоль браузера.
-                    </div>
-                  ) : (
-                    departments.map(dept => {
-                      const isExplicitlyAllowed = listSettingsData.allowedDepartments?.includes(dept.id);
-                      return (
-                        <label
-                          key={dept.id}
-                          className="flex items-center gap-3 p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg cursor-pointer"
-                        >
+                <FormField label="Уровень доступа">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowPermissionDropdown(!showPermissionDropdown)}
+                      className="w-full px-3 py-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-sm text-left flex items-center justify-between hover:bg-gray-100 dark:hover:bg-white/10 hover:border-blue-500/50 transition-all rounded-xl"
+                    >
+                      <span>{accessPermission === 'viewer' ? 'Читатель' : 'Редактор'}</span>
+                      <ChevronDown className={`w-4 h-4 transition-transform ${showPermissionDropdown ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {showPermissionDropdown && (
+                      <div className="absolute top-full left-0 right-0 mt-1 p-1 rounded-xl bg-white dark:bg-[var(--bg-secondary)] border border-gray-200 dark:border-white/15 shadow-2xl z-[140]">
+                        {[
+                          { value: 'viewer', label: 'Читатель' },
+                          { value: 'editor', label: 'Редактор' }
+                        ].map((option) => {
+                          const isActive = accessPermission === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => {
+                                setAccessPermission(option.value as 'viewer' | 'editor');
+                                setShowPermissionDropdown(false);
+                              }}
+                              className={`w-full px-3 py-2 text-sm text-left rounded-lg transition-colors ${
+                                isActive
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300'
+                                  : 'hover:bg-gray-100 dark:hover:bg-white/[0.08]'
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </FormField>
+
+                <FormField label="Куда выдать доступ">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowShareTargetDropdown(!showShareTargetDropdown)}
+                      className="w-full px-3 py-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-sm text-left flex items-center justify-between hover:bg-gray-100 dark:hover:bg-white/10 hover:border-blue-500/50 transition-all rounded-xl"
+                    >
+                      <span>
+                        {accessShareTarget === 'user' && 'Пользователю'}
+                        {accessShareTarget === 'department' && 'Отделу'}
+                      </span>
+                      <ChevronDown className={`w-4 h-4 transition-transform ${showShareTargetDropdown ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {showShareTargetDropdown && (
+                      <div className="absolute top-full left-0 right-0 mt-1 p-1 rounded-xl bg-white dark:bg-[var(--bg-secondary)] border border-gray-200 dark:border-white/15 shadow-2xl z-[140]">
+                        {[
+                          { id: 'user', label: 'Пользователю' },
+                          { id: 'department', label: 'Отделу' }
+                        ].map((option) => {
+                          const isActive = accessShareTarget === option.id;
+                          return (
+                            <button
+                              key={option.id}
+                              type="button"
+                              onClick={() => {
+                                setAccessShareTarget(option.id as 'department' | 'user');
+                                setShowShareTargetDropdown(false);
+                              }}
+                              className={`w-full px-3 py-2 text-sm text-left rounded-lg transition-colors ${
+                                isActive
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300'
+                                  : 'hover:bg-gray-100 dark:hover:bg-white/[0.08]'
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </FormField>
+
+                {accessShareTarget === 'user' && (
+                  <FormField label="Пользователь">
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setShowUserDropdown(!showUserDropdown)}
+                        className="w-full px-3 py-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-sm text-left flex items-center justify-between hover:bg-gray-100 dark:hover:bg-white/10 hover:border-blue-500/50 transition-all rounded-xl"
+                      >
+                        <span className="truncate">
+                          {accessSelectedUserId 
+                            ? users.find(u => u.id === accessSelectedUserId)?.name || 'Выберите пользователя'
+                            : 'Выберите пользователя'}
+                        </span>
+                        <ChevronDown className={`w-4 h-4 transition-transform ${showUserDropdown ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {showUserDropdown && (
+                        <div className="absolute top-full left-0 right-0 mt-1 rounded-xl bg-white dark:bg-[var(--bg-secondary)] border border-gray-200 dark:border-white/15 shadow-2xl z-[140] max-h-64 overflow-hidden flex flex-col">
                           <input
-                            type="checkbox"
-                            checked={isExplicitlyAllowed || false}
-                            onChange={(e) => {
-                              const newAllowed = e.target.checked
-                                ? [...(listSettingsData.allowedDepartments || []), dept.id]
-                                : (listSettingsData.allowedDepartments || []).filter(id => id !== dept.id);
-                              setListSettingsData({ ...listSettingsData, allowedDepartments: newAllowed });
-                            }}
-                            className="w-4 h-4 text-blue-500 rounded"
+                            type="text"
+                            placeholder="Поиск пользователя..."
+                            value={searchUserAccess}
+                            onChange={(e) => setSearchUserAccess(e.target.value)}
+                            className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border-b border-gray-200 dark:border-white/10 text-sm focus:outline-none"
                           />
-                          <div 
-                            className="w-3 h-3 rounded"
-                            style={{ backgroundColor: dept.color || '#gray' }}
+                          <div className="overflow-y-auto p-1">
+                            {users.filter(u => 
+                              u.name.toLowerCase().includes(searchUserAccess.toLowerCase())
+                            ).map((user) => {
+                              const isActive = accessSelectedUserId === user.id;
+                              const alreadyHasAccess = listSettingsData.allowedUsers?.includes(user.id);
+                              return (
+                                <button
+                                  key={user.id}
+                                  type="button"
+                                  disabled={alreadyHasAccess}
+                                  onClick={() => {
+                                    setAccessSelectedUserId(user.id);
+                                    setShowUserDropdown(false);
+                                    setSearchUserAccess('');
+                                  }}
+                                  className={`w-full px-3 py-2 text-sm text-left rounded-lg transition-colors flex items-center gap-2 ${
+                                    alreadyHasAccess
+                                      ? 'opacity-50 cursor-not-allowed'
+                                      : isActive
+                                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300'
+                                      : 'hover:bg-gray-100 dark:hover:bg-white/[0.08]'
+                                  }`}
+                                >
+                                  <span className="flex-1">{user.name}</span>
+                                  {alreadyHasAccess && (
+                                    <Check className="w-4 h-4 text-green-500" />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </FormField>
+                )}
+
+                {accessShareTarget === 'department' && (
+                  <FormField label="Отдел">
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setShowDepartmentDropdown(!showDepartmentDropdown)}
+                        className="w-full px-3 py-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-sm text-left flex items-center justify-between hover:bg-gray-100 dark:hover:bg-white/10 hover:border-blue-500/50 transition-all rounded-xl"
+                      >
+                        <span className="truncate">
+                          {accessSelectedDepartmentId 
+                            ? departments.find(d => d.id === accessSelectedDepartmentId)?.name || 'Выберите отдел'
+                            : 'Выберите отдел'}
+                        </span>
+                        <ChevronDown className={`w-4 h-4 transition-transform ${showDepartmentDropdown ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {showDepartmentDropdown && (
+                        <div className="absolute top-full left-0 right-0 mt-1 rounded-xl bg-white dark:bg-[var(--bg-secondary)] border border-gray-200 dark:border-white/15 shadow-2xl z-[140] max-h-64 overflow-hidden flex flex-col">
+                          <input
+                            type="text"
+                            placeholder="Поиск отдела..."
+                            value={searchDepartmentAccess}
+                            onChange={(e) => setSearchDepartmentAccess(e.target.value)}
+                            className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border-b border-gray-200 dark:border-white/10 text-sm focus:outline-none"
                           />
-                          <span className="text-sm flex-1">{dept.name}</span>
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-                {!listSettingsData.allowedDepartments?.length && departments.length > 0 && (
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-1 flex items-center gap-1">
+                          <div className="overflow-y-auto p-1">
+                            {departments.filter(d => 
+                              d.name.toLowerCase().includes(searchDepartmentAccess.toLowerCase())
+                            ).map((dept) => {
+                              const isActive = accessSelectedDepartmentId === dept.id;
+                              const alreadyHasAccess = listSettingsData.allowedDepartments?.includes(dept.id);
+                              return (
+                                <button
+                                  key={dept.id}
+                                  type="button"
+                                  disabled={alreadyHasAccess}
+                                  onClick={() => {
+                                    setAccessSelectedDepartmentId(dept.id);
+                                    setShowDepartmentDropdown(false);
+                                    setSearchDepartmentAccess('');
+                                  }}
+                                  className={`w-full px-3 py-2 text-sm text-left rounded-lg transition-colors flex items-center gap-2 ${
+                                    alreadyHasAccess
+                                      ? 'opacity-50 cursor-not-allowed'
+                                      : isActive
+                                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300'
+                                      : 'hover:bg-gray-100 dark:hover:bg-white/[0.08]'
+                                  }`}
+                                >
+                                  <div 
+                                    className="w-3 h-3 rounded"
+                                    style={{ backgroundColor: dept.color || '#gray' }}
+                                  />
+                                  <span className="flex-1">{dept.name}</span>
+                                  {alreadyHasAccess && (
+                                    <Check className="w-4 h-4 text-green-500" />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </FormField>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (accessShareTarget === 'user' && accessSelectedUserId) {
+                      setListSettingsData({
+                        ...listSettingsData,
+                        allowedUsers: [...(listSettingsData.allowedUsers || []), accessSelectedUserId]
+                      });
+                      setAccessSelectedUserId('');
+                    } else if (accessShareTarget === 'department' && accessSelectedDepartmentId) {
+                      setListSettingsData({
+                        ...listSettingsData,
+                        allowedDepartments: [...(listSettingsData.allowedDepartments || []), accessSelectedDepartmentId]
+                      });
+                      setAccessSelectedDepartmentId('');
+                    }
+                  }}
+                  disabled={
+                    (accessShareTarget === 'user' && !accessSelectedUserId) ||
+                    (accessShareTarget === 'department' && !accessSelectedDepartmentId)
+                  }
+                  className="w-full px-4 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Добавить доступ
+                </button>
+
+                {/* Current Access List */}
+                {((listSettingsData.allowedUsers && listSettingsData.allowedUsers.length > 0) ||
+                  (listSettingsData.allowedDepartments && listSettingsData.allowedDepartments.length > 0)) && (
+                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-white/10">
+                    <div className="text-xs font-medium text-gray-500 dark:text-white/50 mb-2">Имеют доступ:</div>
+                    <div className="space-y-1.5">
+                      {listSettingsData.allowedUsers?.map(userId => {
+                        const user = users.find(u => u.id === userId);
+                        if (!user) return null;
+                        return (
+                          <div
+                            key={userId}
+                            className="flex items-center justify-between p-2 bg-gray-50 dark:bg-white/5 rounded-lg"
+                          >
+                            <div className="flex items-center gap-2">
+                              <User className="w-4 h-4 text-gray-400" />
+                              <span className="text-sm">{user.name}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setListSettingsData({
+                                  ...listSettingsData,
+                                  allowedUsers: listSettingsData.allowedUsers?.filter(id => id !== userId)
+                                });
+                              }}
+                              className="p-1 hover:bg-red-100 dark:hover:bg-red-500/20 rounded text-red-500 transition-colors"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                      {listSettingsData.allowedDepartments?.map(deptId => {
+                        const dept = departments.find(d => d.id === deptId);
+                        if (!dept) return null;
+                        return (
+                          <div
+                            key={deptId}
+                            className="flex items-center justify-between p-2 bg-gray-50 dark:bg-white/5 rounded-lg"
+                          >
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className="w-3 h-3 rounded"
+                                style={{ backgroundColor: dept.color || '#gray' }}
+                              />
+                              <span className="text-sm">{dept.name}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setListSettingsData({
+                                  ...listSettingsData,
+                                  allowedDepartments: listSettingsData.allowedDepartments?.filter(id => id !== deptId)
+                                });
+                              }}
+                              className="p-1 hover:bg-red-100 dark:hover:bg-red-500/20 rounded text-red-500 transition-colors"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {!listSettingsData.allowedUsers?.length && !listSettingsData.allowedDepartments?.length && (
+                  <div className="text-xs text-green-600 dark:text-green-400 mt-2 flex items-center gap-1">
                     <Check className="w-3 h-3" />
-                    Доступен всем отделам
-                  </p>
+                    Доступен всем
+                  </div>
                 )}
               </div>
             </div>

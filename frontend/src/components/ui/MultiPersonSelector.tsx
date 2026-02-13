@@ -85,29 +85,25 @@ const MultiPersonSelector = memo(function MultiPersonSelector({
     );
   };
   
-  const displayNames = selectedNames.slice(0, maxDisplay);
-  const hiddenCount = selectedNames.length - maxDisplay;
-
   return (
     <div ref={dropdownRef} className={`relative ${className}`}>
       <button
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
-        className="no-mobile-scale w-full px-3 py-2.5 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-sm text-left flex items-start justify-between hover:border-blue-500/50 transition-all min-h-[42px] h-auto text-gray-900 dark:text-[var(--text-primary)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm will-change-transform"
-        style={{ borderRadius: '20px' }}
+        className="no-mobile-scale w-full px-2.5 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-sm text-left flex items-start justify-between hover:border-blue-500/30 transition-all min-h-[34px] h-auto text-gray-900 dark:text-[var(--text-primary)] rounded-xl"
       >
-        <div className="flex-1 flex flex-wrap gap-1 items-center min-h-[24px]">
+        <div className="flex-1 flex flex-wrap gap-1 items-center">
           {selectedNames.length === 0 ? (
-            <span className="text-gray-400 dark:text-white/30 truncate whitespace-nowrap">{placeholder}</span>
+            <span className="text-gray-400 dark:text-white/40 text-xs truncate whitespace-nowrap">{placeholder}</span>
           ) : (
             <>
-              {displayNames.map((name, idx) => {
+              {selectedNames.map((name, idx) => {
                 const personId = selectedIds[idx];
                 return (
                   <span
                     key={personId || `person-${idx}`}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-500/20 dark:text-blue-200 dark:border-blue-400/40"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] bg-blue-500/15 text-blue-600 dark:text-blue-300 border border-blue-500/20"
                   >
                     {name}
                     <X
@@ -117,9 +113,6 @@ const MultiPersonSelector = memo(function MultiPersonSelector({
                   </span>
                 );
               })}
-              {hiddenCount > 0 && (
-                <span className="text-xs text-gray-500 dark:text-white/50">+{hiddenCount}</span>
-              )}
             </>
           )}
         </div>

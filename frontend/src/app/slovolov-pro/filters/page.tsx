@@ -3,8 +3,8 @@
 import { useState, useMemo, useCallback, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useStore } from '@/store/store';
-import MainLayout from '@/components/MainLayout';
-import AddButton from '@/components/AddButton';
+import MainLayout from '@/components/layout/MainLayout';
+import AddButton from '@/components/common/buttons/AddButton';
 
 function FiltersPageContent() {
   const searchParams = useSearchParams();

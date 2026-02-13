@@ -1990,11 +1990,11 @@ export default function MessagesPage() {
         onTaskCreated={(newTask) => {
           console.log('[MessagesPage] Task created optimistically:', newTask.id);
           setTasks(prev => [newTask, ...prev]);
-          // Не открываем панель автоматически, чтобы не было перезагрузки
-          // setShowChatInfo(true);
-          // setChatInfoTab('profile');
+          // Показываем уведомление об успешном создании
+          console.log('[MessagesPage] Task created successfully from message');
         }}
         onTaskUpdated={(tempId, realTask) => {
+          console.log('[MessagesPage] Task updated from temp to real:', tempId, '->', realTask.id);
           setTasks(prev => prev.map(t => t.id === tempId ? realTask : t));
         }}
         onShowEventSelector={(msg) => {

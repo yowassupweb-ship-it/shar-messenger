@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import MainLayout from '@/components/MainLayout';
-import { Spinner } from '@/components/Spinner';
+import MainLayout from '@/components/layout/MainLayout';
+import { Spinner } from '@/components/Spinner/Spinner';
 
 interface SubclusterResult {
   id: string;

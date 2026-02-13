@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { apiFetch } from '@/lib/api'
 import { showToast } from '@/components/Toast'
-import { StyledSelect } from '@/components/StyledSelect'
+import { StyledSelect } from '@/components/forms/selectors/StyledSelect'
 import { 
   RefreshCw, TrendingUp, Users, Eye, DollarSign,
   ChevronDown, ChevronRight, ExternalLink, Target, Search, Calendar

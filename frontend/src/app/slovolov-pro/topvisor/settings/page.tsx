@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import MainLayout from '@/components/MainLayout';
-import { Spinner } from '@/components/Spinner';
+import MainLayout from '@/components/layout/MainLayout';
+import { Spinner } from '@/components/Spinner/Spinner';
 import { Settings, Key, User, CheckCircle, XCircle, Loader2, Wallet, Save, ChevronDown, ArrowLeft } from 'lucide-react';
 
 interface TopvisorConfig {

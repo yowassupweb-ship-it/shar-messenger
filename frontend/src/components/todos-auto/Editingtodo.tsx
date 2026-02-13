@@ -2,6 +2,7 @@
 
 import React, { memo, useRef, useState, useEffect, Dispatch, SetStateAction } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTheme } from '@/contexts/ThemeContext';
 import { 
   Calendar, 
   CalendarPlus, 
@@ -265,9 +266,13 @@ const Editingtodo = memo(function Editingtodo({
   myAccountId
 }: EditingtodoProps) {
   const router = useRouter();
+  const { theme } = useTheme();
   
   // Локальное состояние для редактирования
-  const [editingTodo, setEditingTodo] = useState<Todo | null>(todo);
+  const [editingTodo, setEditingTodo] = useState<Todo | null>(
+    todo ? { ...todo, title: todo.title ?? '' } : null
+  );
+  const initialTodoRef = useRef<Todo | null>(null); // Исходное состояние для отслеживания изменений
   const [activeStageId, setActiveStageId] = useState<string>('details');
   const [sidebarMode, setSidebarMode] = useState<'settings' | 'stages' | 'status' | 'access'>('settings');
   const [contentTab, setContentTab] = useState<'details'>('details');
@@ -305,11 +310,47 @@ const Editingtodo = memo(function Editingtodo({
   const [discussionSending, setDiscussionSending] = useState(false);
   const [editingDiscussionMessageId, setEditingDiscussionMessageId] = useState<string | null>(null);
   const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
+  
+  // Настройки чата для обсуждений
+  const [chatSettings, setChatSettings] = useState({
+    bubbleStyle: 'modern' as 'modern' | 'classic' | 'minimal',
+    fontSize: 10, // размер в пикселях для десктопа (уменьшен на 20%)
+    fontSizeMobile: 12, // размер в пикселях для мобильных (уменьшен на 20%)
+    bubbleColor: '#3c3d96', // цвет для темной темы
+    bubbleColorLight: '#453de6', // цвет для светлой темы
+    colorPreset: 0
+  });
+  
   const dropdownRef = useRef<HTMLDivElement>(null);
   const chatDropdownRef = useRef<HTMLDivElement>(null);
   const departmentDropdownRef = useRef<HTMLDivElement>(null);
   const discussionListRef = useRef<HTMLDivElement>(null);
   const discussionFileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Функция для определения нужен ли тёмный текст на светлом фоне
+  const needsDarkText = (hexColor: string) => {
+    // Преобразуем hex в RGB
+    const hex = hexColor.replace('#', '');
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    // Вычисляем яркость (YIQ формула)
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    return brightness > 128; // Если яркость выше 128 - нужен тёмный текст
+  };
+  
+  // Определяем цвет текста для своих баблов в зависимости от яркости фона
+  const currentBubbleColor = theme === 'dark' ? chatSettings.bubbleColor : chatSettings.bubbleColorLight;
+  const useDarkTextOnBubble = needsDarkText(currentBubbleColor);
+  const myBubbleTextClass = useDarkTextOnBubble ? 'text-gray-900' : 'text-white';
+  const myBubbleTextMutedClass = useDarkTextOnBubble ? 'text-gray-700' : 'text-white/70';
+  
+  // Настройки стилей баблов
+  const bubbleRadius = chatSettings.bubbleStyle === 'minimal' ? 'rounded-lg' : chatSettings.bubbleStyle === 'classic' ? 'rounded-2xl' : 'rounded-[18px]';
+  const mobileFontSize = chatSettings.fontSizeMobile || 15;
+  const desktopFontSize = chatSettings.fontSize || 13;
+  const isDesktopView = typeof window !== 'undefined' && window.innerWidth >= 768;
+  const fontSizeStyle = { fontSize: `${isDesktopView ? desktopFontSize : mobileFontSize}px`, lineHeight: isDesktopView ? '1.5' : '1.3' };
   
   const stagesEnabled = editingTodo?.stagesEnabled === true;
   const hasDiscussionStarted = Boolean(editingTodo?.chatId) || discussionMessages.length > 0;
@@ -926,6 +967,7 @@ const Editingtodo = memo(function Editingtodo({
       if (!normalizedTodo.chatId && metadataChatId) {
         normalizedTodo.chatId = metadataChatId;
       }
+      normalizedTodo.title = normalizedTodo.title ?? '';
 
       if (normalizedTodo.technicalSpecTabs) {
         normalizedTodo.technicalSpecTabs = normalizedTodo.technicalSpecTabs.map(tab => ({
@@ -958,6 +1000,8 @@ const Editingtodo = memo(function Editingtodo({
       }
       
       setEditingTodo(normalizedTodo);
+      // Сохраняем исходное состояние для отслеживания изменений
+      initialTodoRef.current = JSON.parse(JSON.stringify(normalizedTodo));
     }
   }, [todo?.id]);
 
@@ -976,12 +1020,18 @@ const Editingtodo = memo(function Editingtodo({
     console.log('🎯 Set initial active tab:', normalizedFirstTab);
   }, [editingTodo?.id]);
 
-  // Синхронизируем title при смене задачи
+  // Загрузка настроек чата для обсуждений
   useEffect(() => {
-    if (editingTodo && titleInputRef.current) {
-      titleInputRef.current.value = editingTodo.title || '';
+    const savedSettings = localStorage.getItem('chatSettings');
+    if (savedSettings) {
+      try {
+        const settings = JSON.parse(savedSettings);
+        setChatSettings(settings);
+      } catch (e) {
+        console.error('Error loading chat settings:', e);
+      }
     }
-  }, [editingTodo?.id]);
+  }, []);
 
   useEffect(() => {
     console.log('⚡ Stage content useEffect triggered:', {
@@ -1050,7 +1100,12 @@ const Editingtodo = memo(function Editingtodo({
 
   useEffect(() => {
     if (!discussionListRef.current) return;
-    discussionListRef.current.scrollTop = discussionListRef.current.scrollHeight;
+    // Скролл к последним сообщениям с небольшой задержкой для корректного рендеринга
+    setTimeout(() => {
+      if (discussionListRef.current) {
+        discussionListRef.current.scrollTop = discussionListRef.current.scrollHeight;
+      }
+    }, 100);
   }, [discussionMessages.length]);
 
   useEffect(() => {
@@ -1285,10 +1340,61 @@ const Editingtodo = memo(function Editingtodo({
   // Обработчик сохранения
   const updateTodo = (updatedTodo: Todo) => {
     onUpdate(updatedTodo);
-    onClose();
+    // Обновляем исходное состояние после сохранения
+    initialTodoRef.current = JSON.parse(JSON.stringify(updatedTodo));
+    // Не закрываем модалку после сохранения
+  };
+  
+  // Проверка наличия несохраненных изменений
+  const hasUnsavedChanges = (): boolean => {
+    if (!editingTodo || !initialTodoRef.current) return false;
+    
+    // Сравниваем ключевые поля
+    const current = JSON.stringify({
+      title: editingTodo.title,
+      description: editingTodo.description,
+      status: editingTodo.status,
+      listId: editingTodo.listId,
+      categoryId: editingTodo.categoryId,
+      assigneeId: editingTodo.assigneeId,
+      assigneeName: editingTodo.assigneeName,
+      customerId: editingTodo.customerId,
+      customerName: editingTodo.customerName,
+      dueDate: editingTodo.dueDate,
+      tags: editingTodo.tags,
+      priority: editingTodo.priority,
+      archived: editingTodo.archived,
+      stageMeta: editingTodo.stageMeta,
+      checklist: editingTodo.checklist
+    });
+    
+    const initial = JSON.stringify({
+      title: initialTodoRef.current.title,
+      description: initialTodoRef.current.description,
+      status: initialTodoRef.current.status,
+      listId: initialTodoRef.current.listId,
+      categoryId: initialTodoRef.current.categoryId,
+      assigneeId: initialTodoRef.current.assigneeId,
+      assigneeName: initialTodoRef.current.assigneeName,
+      customerId: initialTodoRef.current.customerId,
+      customerName: initialTodoRef.current.customerName,
+      dueDate: initialTodoRef.current.dueDate,
+      tags: initialTodoRef.current.tags,
+      priority: initialTodoRef.current.priority,
+      archived: initialTodoRef.current.archived,
+      stageMeta: initialTodoRef.current.stageMeta,
+      checklist: initialTodoRef.current.checklist
+    });
+    
+    return current !== initial;
   };
   
   const closeTodoModal = () => {
+    if (hasUnsavedChanges()) {
+      if (!confirm('У вас есть несохраненные изменения. Закрыть без сохранения?')) {
+        return;
+      }
+    }
     onClose();
   };
   
@@ -1669,9 +1775,6 @@ const Editingtodo = memo(function Editingtodo({
                                           return merged;
                                         });
 
-                                        if (titleInputRef.current && snap.title !== undefined) {
-                                          titleInputRef.current.value = snap.title;
-                                        }
                                         if (descriptionEditorRef.current && snap.description !== undefined) {
                                           descriptionEditorRef.current.innerHTML = snap.description;
                                         }
@@ -2041,13 +2144,14 @@ const Editingtodo = memo(function Editingtodo({
               {/* Средний блок - Название и Описание */}
               <div className="flex-1 flex flex-col bg-white dark:bg-[var(--bg-secondary)] overflow-y-auto min-h-0">
                 {/* Контейнер с ограниченной шириной по центру */}
-                <div className="w-full max-w-[680px] mx-auto px-2 sm:px-4 md:px-5">
+                <div className="w-full md:max-w-[680px] mx-auto px-2 sm:px-4 md:px-5">
                 {/* Название задачи */}
                 <div className="px-2 sm:px-3 pt-2 sm:pt-3 pb-1.5 sm:pb-2">
                   <input
                     ref={titleInputRef}
                     type="text"
-                    defaultValue={editingTodo.title}
+                    value={editingTodo.title || ''}
+                    onChange={(e) => handleUpdate({ title: e.target.value })}
                     className="no-mobile-scale w-full px-2 sm:px-3 py-3 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 rounded-[20px] text-lg sm:text-xl font-semibold focus:outline-none focus:border-blue-500/50 transition-all text-gray-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-white/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)]"
                     placeholder="Название задачи..."
                   />
@@ -2670,12 +2774,28 @@ const Editingtodo = memo(function Editingtodo({
                       const isOwn = message.authorId === myAccountId;
                       return (
                         <div key={message.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[92%] rounded-2xl px-3 py-2 border ${isOwn ? 'bg-[#007aff] border-[#007aff]/70 shadow-[0_2px_8px_rgba(0,122,255,0.3)] text-white' : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-primary)]'}`}>
+                          <div 
+                            className={`max-w-[92%] ${bubbleRadius} px-2.5 py-1.5 md:px-3 md:py-2 ${
+                              isOwn 
+                                ? myBubbleTextClass
+                                : 'bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)]'
+                            }`}
+                            style={isOwn ? { backgroundColor: currentBubbleColor } : undefined}
+                          >
                             <div className="flex items-center justify-between gap-2 mb-1">
-                              <span className={`text-[10px] truncate ${isOwn ? 'text-white/85' : 'text-[var(--text-muted)]'}`}>{message.authorName || 'Пользователь'}</span>
-                              <span className={`text-[10px] ${isOwn ? 'text-white/80' : 'text-[var(--text-muted)]'}`}>{new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
+                              <span className={`text-[10px] truncate ${isOwn ? myBubbleTextMutedClass : 'text-[var(--text-muted)]'}`}>
+                                {message.authorName || 'Пользователь'}
+                              </span>
+                              <span className={`text-[10px] ${isOwn ? myBubbleTextMutedClass : 'text-[var(--text-muted)]'}`}>
+                                {new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
                             </div>
-                            <div className={`text-xs whitespace-pre-wrap break-words ${isOwn ? 'text-white' : 'text-[var(--text-primary)]'}`}>{message.content}</div>
+                            <div 
+                              className={`whitespace-pre-wrap break-words ${isOwn ? myBubbleTextClass : 'text-[var(--text-primary)]'}`}
+                              style={fontSizeStyle}
+                            >
+                              {message.content}
+                            </div>
 
                             {Array.isArray(message.attachments) && message.attachments.length > 0 && (
                               <div className="mt-2 space-y-1">
@@ -2685,7 +2805,11 @@ const Editingtodo = memo(function Editingtodo({
                                     href={att.url || '#'}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className={`block text-[10px] truncate ${isOwn ? 'text-white/85 hover:text-white' : 'text-blue-400 hover:text-blue-300'}`}
+                                    className={`block text-[10px] truncate ${
+                                      isOwn 
+                                        ? `${myBubbleTextMutedClass} hover:${useDarkTextOnBubble ? 'text-gray-900' : 'text-white'}` 
+                                        : 'text-blue-400 hover:text-blue-300'
+                                    }`}
                                   >
                                     {att.name || att.url || 'Вложение'}
                                   </a>
@@ -2701,7 +2825,11 @@ const Editingtodo = memo(function Editingtodo({
                                     setDiscussionInput(message.content || '');
                                     setEditingDiscussionMessageId(message.id);
                                   }}
-                                  className={`p-1 rounded-md transition-colors ${isOwn ? 'text-white/75 hover:text-white hover:bg-white/15' : 'text-[var(--text-muted)] hover:text-blue-300 hover:bg-white/10'}`}
+                                  className={`p-1 rounded-md transition-colors ${
+                                    isOwn 
+                                      ? `${myBubbleTextMutedClass} hover:${myBubbleTextClass} hover:bg-white/15` 
+                                      : 'text-[var(--text-muted)] hover:text-blue-300 hover:bg-white/10'
+                                  }`}
                                   title="Редактировать"
                                 >
                                   <Edit3 className="w-3 h-3" />
@@ -2719,7 +2847,11 @@ const Editingtodo = memo(function Editingtodo({
                                       console.error('Error deleting message:', error);
                                     }
                                   }}
-                                  className={`p-1 rounded-md transition-colors ${isOwn ? 'text-white/75 hover:text-red-100 hover:bg-red-400/30' : 'text-[var(--text-muted)] hover:text-red-300 hover:bg-white/10'}`}
+                                  className={`p-1 rounded-md transition-colors ${
+                                    isOwn 
+                                      ? `${myBubbleTextMutedClass} hover:text-red-100 hover:bg-red-400/30` 
+                                      : 'text-[var(--text-muted)] hover:text-red-300 hover:bg-white/10'
+                                  }`}
                                   title="Удалить"
                                 >
                                   <Trash2 className="w-3 h-3" />
@@ -2822,7 +2954,7 @@ const Editingtodo = memo(function Editingtodo({
             {/* Футер */}
             <div className="relative z-[130] w-full mt-auto pointer-events-none">
               <div className="pointer-events-auto w-full border-t border-gray-200 dark:border-white/20 bg-white/85 dark:bg-[var(--bg-glass)]/85 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_-6px_18px_rgba(0,0,0,0.12)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_-8px_24px_rgba(0,0,0,0.22)]">
-                <div className="mx-auto max-w-[680px] px-2.5 sm:px-3.5 py-1 flex items-center justify-center gap-1.5">
+                <div className="mx-auto md:max-w-[680px] px-2.5 sm:px-3.5 py-1 flex items-center justify-center gap-1.5">
                 <button
                   onClick={closeTodoModal}
                   className="w-[74px] h-[30px] text-[12px] font-medium leading-none text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-gradient-to-b from-gray-100 to-gray-50 dark:from-white/14 dark:to-white/6 hover:from-gray-200 hover:to-gray-100 dark:hover:from-white/18 dark:hover:to-white/8 border border-gray-300 dark:border-white/20 rounded-[21px] transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.28)]"
@@ -2832,9 +2964,7 @@ const Editingtodo = memo(function Editingtodo({
                 <button
                   onClick={async () => {
                     const updatedTodo = { ...editingTodo };
-                    if (titleInputRef.current) {
-                      updatedTodo.title = titleInputRef.current.value.trim() || updatedTodo.title;
-                    }
+                    updatedTodo.title = (editingTodo.title || '').trim() || updatedTodo.title;
                     const nextDescription = descriptionEditorRef.current?.innerHTML || '';
                     const nextResponse = assigneeResponseEditorRef.current?.innerHTML || '';
 

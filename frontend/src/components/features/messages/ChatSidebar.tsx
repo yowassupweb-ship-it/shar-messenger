@@ -60,7 +60,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
     <div className={`
       ${selectedChat ? 'hidden md:flex' : 'flex'} 
       w-full ${isChatListCollapsed ? 'md:w-[72px]' : 'md:w-80'} 
-      border-r border-[var(--border-color)] flex-col h-full min-h-0 transition-all duration-200 bg-[var(--bg-secondary)]
+      border-r border-[var(--border-color)] flex-col h-full min-h-0 transition-all duration-200 bg-[var(--bg-secondary)] min-w-0
     `}>
       {/* Search / New Chat Button */}
       {isChatListCollapsed ? (

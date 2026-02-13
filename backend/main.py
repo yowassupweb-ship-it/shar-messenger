@@ -3374,7 +3374,8 @@ def get_todos(userId: Optional[str] = None):
         'recurrence',
         'versionHistory',
         'delegatedById',
-        'delegatedBy'
+        'delegatedBy',
+        'chatId'  # Добавляем chatId для индикатора обсуждения
     }
 
     def hydrate_task(task: dict):
@@ -3454,7 +3455,8 @@ def create_todo(todo_data: dict = Body(...)):
             'recurrence',
             'versionHistory',
             'delegatedById',
-            'delegatedBy'
+            'delegatedBy',
+            'chatId'  # Добавляем chatId для индикатора обсуждения
         }
         metadata = todo_data.get('metadata') or {}
         if isinstance(metadata, dict):
@@ -3524,7 +3526,8 @@ def update_todo(todo_data: dict = Body(...)):
             'recurrence',
             'versionHistory',
             'delegatedById',
-            'delegatedBy'
+            'delegatedBy',
+            'chatId'  # Добавляем chatId для индикатора обсуждения
     }
     
     print(f"[PUT /api/todos] Received update request for {todo_type} ID: {todo_id}")
@@ -3589,7 +3592,9 @@ def update_todo(todo_data: dict = Body(...)):
                 print(f"[PUT /api/todos] 👥 DB returned assigned_to_ids: {result.get('assigned_to_ids')}")
 
             # Синхронная архивация task-чата при архиве/завершении задачи
-            if updates.get('archived') is True or updates.get('completed') is True:
+            # НЕ удаляем чат при архивировании/завершении задачи
+            # Чат остается доступным даже после завершения задачи
+            if False:  # Disabled: keep chats alive
                 linked_chat = db.find_chat_by_todo(todo_id)
 
                 if not linked_chat:
@@ -3840,6 +3845,69 @@ def delete_content_plan(plan_id: str):
     return {"status": "deleted"}
 
 
+# ============== Link Lists API ==============
+
+@app.get("/api/link-lists")
+def get_link_lists(department: Optional[str] = None):
+    """Получить списки ссылок"""
+    lists = db.get_link_lists(department=department)
+    return [snake_to_camel(list_item) for list_item in lists]
+
+@app.post("/api/link-lists")
+def create_link_list(list_data: dict = Body(...)):
+    """Создать список ссылок"""
+    import uuid
+    from datetime import datetime
+    
+    new_list = {
+        'id': str(uuid.uuid4()),
+        'name': list_data.get('name', ''),
+        'color': list_data.get('color', '#3B82F6'),
+        'created_by': list_data.get('createdBy', ''),
+        'allowed_users': list_data.get('allowedUsers', []),
+        'allowed_departments': list_data.get('allowedDepartments', []),
+        'created_at': datetime.utcnow().isoformat(),
+        'order': list_data.get('order', 0)
+    }
+    
+    result = db.add_link_list(new_list)
+    return snake_to_camel(result) if result else snake_to_camel(new_list)
+
+@app.put("/api/link-lists")
+def update_link_list(list_data: dict = Body(...)):
+    """Обновить список ссылок"""
+    list_id = list_data.get('id')
+    if not list_id:
+        raise HTTPException(status_code=400, detail="ID is required")
+    
+    # Преобразуем camelCase обратно в snake_case для БД
+    updates = {}
+    if 'name' in list_data:
+        updates['name'] = list_data['name']
+    if 'color' in list_data:
+        updates['color'] = list_data['color']
+    if 'allowedUsers' in list_data:
+        updates['allowed_users'] = list_data['allowedUsers']
+    if 'allowedDepartments' in list_data:
+        updates['allowed_departments'] = list_data['allowedDepartments']
+    
+    result = db.update_link_list(list_id, updates)
+    if not result:
+        raise HTTPException(status_code=404, detail="Link list not found")
+    return snake_to_camel(result)
+
+@app.delete("/api/link-lists")
+def delete_link_list(id: str):
+    """Удалить список ссылок"""
+    if not id:
+        raise HTTPException(status_code=400, detail="ID is required")
+    
+    success = db.delete_link_list(id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Link list not found")
+    return {"success": True}
+
+
 # ============== Messaging System ==============
 
 class ChatCreate(BaseModel):
@@ -3987,17 +4055,35 @@ def get_chats(user_id: Optional[str] = None):
 def create_chat(chat_data: ChatCreate):
     """Создать новый чат"""
     import uuid
+
+    def sync_todo_chat_id(todo_id: Optional[str], chat_id: str):
+        if not todo_id or not chat_id:
+            return
+        try:
+            task = db.get_task(todo_id)
+            if not task:
+                return
+            metadata = task.get('metadata') if isinstance(task.get('metadata'), dict) else {}
+            if metadata.get('chatId') == chat_id or metadata.get('chat_id') == chat_id:
+                return
+            merged_metadata = {**metadata, 'chatId': chat_id}
+            db.update_task(todo_id, {'metadata': merged_metadata})
+        except Exception as sync_err:
+            print(f"[POST /api/chats] ⚠️ Failed to sync todo chatId for task {todo_id}: {sync_err}")
     
     # Проверяем, не существует ли уже личный чат с этими участниками
     if not chat_data.isGroup and len(chat_data.participantIds) == 2:
         existing_chat = db.find_private_chat(chat_data.participantIds[0], chat_data.participantIds[1])
         if existing_chat:
+            if chat_data.todoId:
+                sync_todo_chat_id(chat_data.todoId, existing_chat.get('id'))
             return snake_to_camel(existing_chat)
     
     # Если указан todoId, проверяем существование чата для этой задачи
     if chat_data.todoId:
         existing_chat = db.find_chat_by_todo(chat_data.todoId)
         if existing_chat:
+            sync_todo_chat_id(chat_data.todoId, existing_chat.get('id'))
             return snake_to_camel(existing_chat)
     
     new_chat = {
@@ -4018,6 +4104,9 @@ def create_chat(chat_data: ChatCreate):
         new_chat["todo_id"] = chat_data.todoId
     
     result = db.create_chat(new_chat)
+
+    if chat_data.todoId and result and result.get('id'):
+        sync_todo_chat_id(chat_data.todoId, result.get('id'))
     
     return snake_to_camel(result)
 

@@ -51,6 +51,7 @@ interface Todo {
   stageDefaultAssigneeId?: string | null;
   stageDefaultAssigneeName?: string | null;
   stageMeta?: Record<string, { assigneeId?: string | null; assigneeName?: string | null }>;
+  chatId?: string; // Для зеленой точки обсуждения
 }
 
 interface TodoItemProps {
@@ -158,9 +159,14 @@ const TodoItem = memo(function TodoItem({
         </button>
         
         <div className="flex-1 min-w-0 pointer-events-auto cursor-pointer" onClick={onEdit}>
-          <p className={`font-medium text-xs ${todo.completed ? 'line-through text-gray-400 dark:text-white/50' : 'text-gray-900 dark:text-white'}`}>
-            {todo.title}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className={`font-medium text-xs ${todo.completed ? 'line-through text-gray-400 dark:text-white/50' : 'text-gray-900 dark:text-white'}`}>
+              {todo.title}
+            </p>
+            {todo.chatId && (
+              <span className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0 animate-pulse" title="Есть обсуждение" />
+            )}
+          </div>
         </div>
       </div>
       
@@ -288,8 +294,7 @@ const TodoItem = memo(function TodoItem({
     prevProps.todo.dueDate === nextProps.todo.dueDate &&
     prevProps.todo.categoryId === nextProps.todo.categoryId &&
     prevProps.todo.assignedById === nextProps.todo.assignedById &&
-    prevProps.todo.assignedToId === nextProps.todo.assignedToId &&
-    JSON.stringify(prevProps.todo.assignedToIds) === JSON.stringify(nextProps.todo.assignedToIds)
+    prevProps.todo.assignedToId === nextProps.todo.assignedToId &&    prevProps.todo.chatId === nextProps.todo.chatId &&    JSON.stringify(prevProps.todo.assignedToIds) === JSON.stringify(nextProps.todo.assignedToIds)
   );
 });
 

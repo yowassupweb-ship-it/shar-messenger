@@ -3,12 +3,61 @@
  * Используется в /slovolov 
  */
 
-/* Glassmorphism dark theme - изолировано под .slovolov-page */
+/* Glassmorphism theme - изолировано под .slovolov-page */
 .slovolov-page {
+  /* Light theme по умолчанию */
+  --background: #f5f7fa;
+  --foreground: #1a202c;
+  --button: #3b82f6;
+  --card: rgba(255, 255, 255, 0.85);
+  --border: rgba(203, 213, 225, 0.5);
+  
+  /* Glassmorphism colors - light theme */
+  --glass-bg-primary: #f5f7fa;
+  --glass-bg-secondary: rgba(255, 255, 255, 0.9);
+  --glass-bg-tertiary: rgba(241, 245, 249, 0.8);
+  --glass-bg-card: rgba(255, 255, 255, 0.85);
+  
+  --glass-text-primary: #1a202c;
+  --glass-text-secondary: #4a5568;
+  --glass-text-tertiary: #718096;
+  
+  --glass-border: rgba(203, 213, 225, 0.5);
+  --glass-border-hover: rgba(148, 163, 184, 0.6);
+  
+  --glass-blue: #3b82f6;
+  --glass-green: #10b981;
+  --glass-orange: #f59e0b;
+  --glass-red: #ef4444;
+  --glass-purple: #8b5cf6;
+  --glass-yellow: #eab308;
+  
+  --glass-accent: rgba(59, 130, 246, 0.1);
+  --glass-success: rgba(16, 185, 129, 0.1);
+  --glass-warning: rgba(245, 158, 11, 0.1);
+  --glass-error: rgba(239, 68, 68, 0.1);
+  
+  /* Hotness colors for keywords */
+  --hotness-cold: #74c0fc;
+  --hotness-warm: #ffd43b;
+  --hotness-hot: #ff8787;
+  --hotness-very-hot: #ff6b6b;
+  
+  background: linear-gradient(135deg, #f5f7fa 0%, #e2e8f0 50%, #f5f7fa 100%);
+  min-height: 100vh;
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Dark theme для словолова */
+.slovolov-page.dark,
+.dark .slovolov-page {
   --background: #0f0f23;
   --foreground: #cdd6f4;
+  --button: #89b4fa;
+  --card: rgba(17, 25, 40, 0.75);
+  --border: rgba(108, 112, 134, 0.2);
   
-  /* Glassmorphism colors */
   --glass-bg-primary: #0f0f23;
   --glass-bg-secondary: rgba(30, 30, 46, 0.8);
   --glass-bg-tertiary: rgba(49, 50, 68, 0.6);
@@ -33,16 +82,7 @@
   --glass-warning: rgba(250, 179, 135, 0.15);
   --glass-error: rgba(243, 139, 168, 0.15);
   
-  /* Hotness colors for keywords */
-  --hotness-cold: #74c0fc;
-  --hotness-warm: #ffd43b;
-  --hotness-hot: #ff8787;
-  --hotness-very-hot: #ff6b6b;
-  
   background: linear-gradient(135deg, #0f0f23 0%, #1e1e2e 50%, #0f0f23 100%);
-  min-height: 100vh;
-  color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
 .slovolov-page .subtitle {
@@ -56,16 +96,21 @@
   border-radius: 12px;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   margin-top: 16px;
   /* Не создаем новый stacking context для избежания проблем с z-index */
   position: relative;
 }
 
+.slovolov-page.dark .glass-card,
+.dark .slovolov-page .glass-card {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
 .glass-button {
-  background: rgba(137, 180, 250, 0.15);
+  background: var(--glass-accent);
   color: var(--glass-blue);
-  border: 1px solid rgba(137, 180, 250, 0.3);
+  border: 1px solid rgba(59, 130, 246, 0.3);
   border-radius: 8px;
   font-weight: 500;
   font-size: 13px;
@@ -75,10 +120,22 @@
   backdrop-filter: blur(8px);
 }
 
+.slovolov-page.dark .glass-button,
+.dark .slovolov-page .glass-button {
+  background: rgba(137, 180, 250, 0.15);
+  border-color: rgba(137, 180, 250, 0.3);
+}
+
 .glass-button:hover {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.5);
+  transform: translateY(-1px);
+}
+
+.slovolov-page.dark .glass-button:hover,
+.dark .slovolov-page .glass-button:hover {
   background: rgba(137, 180, 250, 0.25);
   border-color: rgba(137, 180, 250, 0.5);
-  transform: translateY(-1px);
 }
 
 .glass-button:active {
@@ -92,8 +149,8 @@
 }
 
 .glass-button-primary {
-  background: rgba(137, 180, 250, 0.8);
-  color: var(--glass-bg-primary);
+  background: rgba(59, 130, 246, 0.9);
+  color: #ffffff;
   border-color: var(--glass-blue);
   border-radius: 8px;
   font-weight: 600;
@@ -103,13 +160,24 @@
   backdrop-filter: blur(8px);
 }
 
+.slovolov-page.dark .glass-button-primary,
+.dark .slovolov-page .glass-button-primary {
+  background: rgba(137, 180, 250, 0.8);
+  color: var(--glass-bg-primary);
+}
+
 .glass-button-primary:hover {
   background: var(--glass-blue);
   transform: translateY(-1px);
 }
 
+.slovolov-page.dark .glass-button-primary:hover,
+.dark .slovolov-page .glass-button-primary:hover {
+  background: var(--glass-blue);
+}
+
 .glass-input {
-  background: rgba(49, 50, 68, 0.4);
+  background: rgba(255, 255, 255, 0.6);
   border: 1px solid var(--glass-border);
   border-radius: 6px;
   color: var(--glass-text-primary);
@@ -120,9 +188,19 @@
   resize: vertical;
 }
 
+.slovolov-page.dark .glass-input,
+.dark .slovolov-page .glass-input {
+  background: rgba(49, 50, 68, 0.4);
+}
+
 .glass-input:focus {
   outline: none;
   border-color: var(--glass-blue);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.slovolov-page.dark .glass-input:focus,
+.dark .slovolov-page .glass-input:focus {
   box-shadow: 0 0 0 2px rgba(137, 180, 250, 0.1);
 }
 
@@ -143,12 +221,22 @@
 
 .glass-tab:hover {
   color: var(--glass-text-secondary);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.slovolov-page.dark .glass-tab:hover,
+.dark .slovolov-page .glass-tab:hover {
   background: rgba(49, 50, 68, 0.3);
 }
 
 .glass-tab.active {
   color: var(--glass-blue);
   background: var(--glass-accent);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.slovolov-page.dark .glass-tab.active,
+.dark .slovolov-page .glass-tab.active {
   border-color: rgba(137, 180, 250, 0.3);
 }
 

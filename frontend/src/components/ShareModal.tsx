@@ -190,16 +190,16 @@ export default function ShareModal({ isOpen, onClose, resourceType, resourceId, 
       onClick={onClose}
     >
       <div 
-        className="bg-white dark:bg-[#1a1a1a] rounded-2xl w-full max-w-2xl shadow-2xl border border-gray-200 dark:border-white/10"
+        className="bg-white dark:bg-[#252525] rounded-2xl w-full max-w-2xl shadow-2xl border border-gray-200 dark:border-white/20"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-white/10">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-white/20">
           <div>
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
               Настройки доступа
             </h3>
-            <p className="text-sm text-gray-500 dark:text-white/50 mt-1">
+            <p className="text-sm text-gray-500 dark:text-white/60 mt-1">
               {resourceName}
             </p>
           </div>
@@ -212,28 +212,28 @@ export default function ShareModal({ isOpen, onClose, resourceType, resourceId, 
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
           {/* Create Link Section */}
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-white/70 mb-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-white mb-3">
                 Уровень доступа
               </label>
               
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setShowPermissionDropdown(!showPermissionDropdown)}
-                  className="w-full px-4 py-3.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-sm font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-all flex items-center justify-between"
+                  className="w-full px-4 py-3.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/20 rounded-xl text-sm font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-all flex items-center justify-between"
                 >
                   <span className="flex items-center gap-3">
-                    <Users className="w-4 h-4 text-gray-500 dark:text-white/50" />
+                    <Users className="w-4 h-4 text-gray-500 dark:text-white/60" />
                     {permission === 'viewer' ? 'Читатель — только просмотр' : 'Редактор — полный доступ'}
                   </span>
-                  <ChevronDown className={`w-4 h-4 text-gray-500 dark:text-white/50 transition-transform ${showPermissionDropdown ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-4 h-4 text-gray-500 dark:text-white/60 transition-transform ${showPermissionDropdown ? 'rotate-180' : ''}`} />
                 </button>
                 
                 {showPermissionDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl shadow-2xl z-10 overflow-hidden">
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#252525] border border-gray-200 dark:border-white/20 rounded-xl shadow-2xl z-10 overflow-hidden">
                     <button
                       onClick={() => {
                         setPermission('viewer');
@@ -247,7 +247,7 @@ export default function ShareModal({ isOpen, onClose, resourceType, resourceId, 
                         <div className={`font-medium ${permission === 'viewer' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-white'}`}>
                           Читатель
                         </div>
-                        <div className="text-xs text-gray-500 dark:text-white/50 mt-1">
+                        <div className="text-xs text-gray-500 dark:text-white/60 mt-1">
                           Может только просматривать содержимое
                         </div>
                       </div>
@@ -255,7 +255,7 @@ export default function ShareModal({ isOpen, onClose, resourceType, resourceId, 
                         <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                       )}
                     </button>
-                    <div className="border-t border-gray-100 dark:border-white/5" />
+                    <div className="border-t border-gray-100 dark:border-white/10" />
                     <button
                       onClick={() => {
                         setPermission('editor');
@@ -269,7 +269,7 @@ export default function ShareModal({ isOpen, onClose, resourceType, resourceId, 
                         <div className={`font-medium ${permission === 'editor' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-white'}`}>
                           Редактор
                         </div>
-                        <div className="text-xs text-gray-500 dark:text-white/50 mt-1">
+                        <div className="text-xs text-gray-500 dark:text-white/60 mt-1">
                           Может редактировать и добавлять элементы
                         </div>
                       </div>
@@ -283,7 +283,7 @@ export default function ShareModal({ isOpen, onClose, resourceType, resourceId, 
             </div>
 
             <div className="space-y-3">
-              <label className="block text-sm font-medium text-gray-700 dark:text-white/70">
+              <label className="block text-sm font-medium text-gray-700 dark:text-white">
                 Куда выдать доступ
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -299,8 +299,8 @@ export default function ShareModal({ isOpen, onClose, resourceType, resourceId, 
                     onClick={() => setShareTarget(option.id as 'link' | 'chat' | 'department' | 'user')}
                     className={`px-3 py-2 rounded-lg text-sm border transition-colors ${
                       shareTarget === option.id
-                        ? 'border-blue-500 bg-blue-50 text-blue-600 dark:border-blue-400/60 dark:bg-blue-500/10'
-                        : 'border-gray-200 dark:border-white/10 hover:border-blue-300 dark:hover:border-blue-400/40 text-gray-700 dark:text-white/80'
+                        ? 'border-blue-500 bg-blue-50 text-blue-600 dark:border-blue-400 dark:bg-blue-500/20 dark:text-blue-300'
+                        : 'border-gray-200 dark:border-white/20 hover:border-blue-300 dark:hover:border-blue-400/40 text-gray-700 dark:text-white/90 hover:bg-gray-50 dark:hover:bg-white/5'
                     }`}
                   >
                     {option.label}
@@ -310,11 +310,11 @@ export default function ShareModal({ isOpen, onClose, resourceType, resourceId, 
 
               {shareTarget === 'chat' && (
                 <div className="space-y-1">
-                  <label className="text-xs text-gray-500 dark:text-white/50">ID или название чата</label>
+                  <label className="text-xs text-gray-500 dark:text-white/60">ID или название чата</label>
                   <input
                     value={chatId}
                     onChange={(e) => setChatId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1f1f1f] text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/20 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                     placeholder="chat_123 или URL"
                   />
                 </div>
@@ -322,32 +322,32 @@ export default function ShareModal({ isOpen, onClose, resourceType, resourceId, 
 
               {shareTarget === 'department' && (
                 <div className="space-y-1">
-                  <label className="text-xs text-gray-500 dark:text-white/50">Название отдела</label>
+                  <label className="text-xs text-gray-500 dark:text-white/60">Название отдела</label>
                   <div className="relative" ref={departmentDropdownRef}>
                     <button
                       type="button"
                       onClick={() => setIsDepartmentDropdownOpen(!isDepartmentDropdownOpen)}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1f1f1f] text-sm text-left text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 flex items-center justify-between"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/20 bg-white dark:bg-white/5 text-sm text-left text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 flex items-center justify-between"
                     >
-                      <span className={department ? '' : 'text-gray-400 dark:text-white/40'}>
+                      <span className={department ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-white/50'}>
                         {department || 'Выберите отдел'}
                       </span>
-                      <ChevronDown className={`w-4 h-4 text-gray-500 dark:text-white/50 transition-transform ${isDepartmentDropdownOpen ? 'rotate-180' : ''}`} />
+                      <ChevronDown className={`w-4 h-4 text-gray-500 dark:text-white/60 transition-transform ${isDepartmentDropdownOpen ? 'rotate-180' : ''}`} />
                     </button>
 
                     {isDepartmentDropdownOpen && (
-                      <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl shadow-2xl z-10 overflow-hidden">
-                        <div className="p-2 border-b border-gray-100 dark:border-white/5">
+                      <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#252525] border border-gray-200 dark:border-white/20 rounded-xl shadow-2xl z-10 overflow-hidden">
+                        <div className="p-2 border-b border-gray-100 dark:border-white/10">
                           <input
                             value={departmentSearch}
                             onChange={(e) => setDepartmentSearch(e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1f1f1f] text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/20 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                             placeholder="Поиск по отделам"
                           />
                         </div>
                         <div className="max-h-56 overflow-y-auto">
                           {filteredDepartments.length === 0 && (
-                            <div className="px-3 py-2 text-xs text-gray-500 dark:text-white/40">Отделы не найдены</div>
+                            <div className="px-3 py-2 text-xs text-gray-500 dark:text-white/60">Отделы не найдены</div>
                           )}
                           {filteredDepartments.map((dept) => (
                             <button
@@ -376,11 +376,11 @@ export default function ShareModal({ isOpen, onClose, resourceType, resourceId, 
 
               {shareTarget === 'user' && (
                 <div className="space-y-1">
-                  <label className="text-xs text-gray-500 dark:text-white/50">ID или логин контакта</label>
+                  <label className="text-xs text-gray-500 dark:text-white/60">ID или логин контакта</label>
                   <input
                     value={userId}
                     onChange={(e) => setUserId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1f1f1f] text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/20 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                     placeholder="contact_123 или @username"
                   />
                 </div>
@@ -400,7 +400,7 @@ export default function ShareModal({ isOpen, onClose, resourceType, resourceId, 
           {/* Existing Links */}
           {shareLinks.length > 0 && (
             <div className="space-y-3">
-              <label className="block text-sm font-medium text-gray-700 dark:text-white/70">
+              <label className="block text-sm font-medium text-gray-700 dark:text-white">
                 Активные ссылки ({shareLinks.length})
               </label>
               
@@ -408,21 +408,21 @@ export default function ShareModal({ isOpen, onClose, resourceType, resourceId, 
                 {shareLinks.map(link => (
                   <div
                     key={link.id}
-                    className="p-4 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                    className="p-4 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl hover:bg-gray-100 dark:hover:bg-white/[0.07] transition-colors"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2">
                           {link.permission === 'viewer' ? (
-                            <span className="text-xs px-2.5 py-1 bg-gray-200 dark:bg-white/10 text-gray-700 dark:text-white/70 rounded-lg font-medium">
+                            <span className="text-xs px-2.5 py-1 bg-gray-200 dark:bg-white/10 text-gray-700 dark:text-white/80 rounded-lg font-medium">
                               Читатель
                             </span>
                           ) : (
-                            <span className="text-xs px-2.5 py-1 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 rounded-lg font-medium">
+                            <span className="text-xs px-2.5 py-1 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded-lg font-medium">
                               Редактор
                             </span>
                           )}
-                          <span className="text-xs text-gray-500 dark:text-white/40">
+                          <span className="text-xs text-gray-500 dark:text-white/50">
                             {new Date(link.createdAt).toLocaleDateString('ru-RU', { 
                               day: 'numeric', 
                               month: 'short',
@@ -430,7 +430,7 @@ export default function ShareModal({ isOpen, onClose, resourceType, resourceId, 
                             })}
                           </span>
                         </div>
-                        <div className="text-xs font-mono text-gray-500 dark:text-white/40 truncate bg-white dark:bg-black/20 px-3 py-2 rounded-lg">
+                        <div className="text-xs font-mono text-gray-600 dark:text-white/60 truncate bg-white dark:bg-white/5 px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10">
                           {window.location.origin}/{resourceType}?share={link.token}
                         </div>
                       </div>
@@ -465,10 +465,10 @@ export default function ShareModal({ isOpen, onClose, resourceType, resourceId, 
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-200 dark:border-white/10 px-6 py-4 flex justify-end">
+        <div className="border-t border-gray-200 dark:border-white/20 px-6 py-4 flex justify-end">
           <button
             onClick={onClose}
-            className="px-5 py-2.5 text-sm text-gray-600 dark:text-white/60 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors font-medium"
+            className="px-5 py-2.5 text-sm text-gray-600 dark:text-white/70 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors font-medium"
           >
             Закрыть
           </button>

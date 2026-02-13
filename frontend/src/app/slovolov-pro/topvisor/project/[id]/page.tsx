@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import MainLayout from '@/components/MainLayout';
-import { Spinner } from '@/components/Spinner';
+import MainLayout from '@/components/layout/MainLayout';
+import { Spinner } from '@/components/Spinner/Spinner';
 import { 
   ArrowLeft, Loader2, Search, TrendingUp, TrendingDown, Minus, 
   Calendar, RefreshCw, Filter, ChevronDown, FolderOpen, Plus,

@@ -2258,8 +2258,14 @@ export default function TodosPage() {
 
   // Удаление задачи
   const deleteTodo = useCallback(async (id: string) => {
+    const targetTodo = todos.find(t => t.id === id);
+    const todoName = targetTodo?.title || 'Задача';
+    
+    if (!confirm(`Удалить задачу "${todoName}"? Это действие нельзя отменить.`)) {
+      return;
+    }
+    
     try {
-      const targetTodo = todos.find(t => t.id === id);
       const res = await fetch(`/api/todos?id=${id}`, { method: 'DELETE' });
       
       if (res.ok) {
@@ -2343,6 +2349,18 @@ export default function TodosPage() {
 
   // Удаление списка
   const deleteList = async (id: string) => {
+    const targetList = lists.find(l => l.id === id);
+    const listName = targetList?.name || 'Список';
+    const tasksInList = todos.filter(t => t.listId === id).length;
+    
+    const message = tasksInList > 0 
+      ? `Удалить список "${listName}"? В нем ${tasksInList} задач(и). Задачи будут перемещены в другой список.`
+      : `Удалить список "${listName}"?`;
+    
+    if (!confirm(message)) {
+      return;
+    }
+    
     try {
       const res = await fetch(`/api/todos?id=${id}&type=list`, { method: 'DELETE' });
       
@@ -3025,7 +3043,7 @@ export default function TodosPage() {
               placeholder="Поиск..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-[200px] h-10 pl-10 pr-3 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 rounded-[20px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-white/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
+              className="w-full sm:w-[200px] h-10 pl-10 pr-3 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 rounded-[20px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-white/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
             />
           </div>
 
