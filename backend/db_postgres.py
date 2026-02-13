@@ -1382,30 +1382,55 @@ class PostgresDatabase:
         return self.conn.execute_query(query, (link_id,))
     
     # ==================== LINK LISTS ====================
-    def get_link_lists(self, department: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Get all link lists, optionally filtered by department"""
+    def get_link_lists(self, department: Optional[str] = None, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get all link lists with optional legacy department and access filters"""
+        conditions = []
+        params: List[Any] = []
+
         if department:
-            query = "SELECT * FROM link_lists WHERE department = %s ORDER BY list_order, created_at"
-            return self.conn.fetch_all(query, (department,))
-        else:
-            query = "SELECT * FROM link_lists ORDER BY list_order, created_at"
-            return self.conn.fetch_all(query)
+            conditions.append("(department = %s OR department IS NULL OR department = '')")
+            params.append(department)
+
+        if user_id or department:
+            conditions.append("""
+                (
+                    COALESCE(is_public, true) = true
+                    OR COALESCE(array_length(allowed_users, 1), 0) = 0 AND COALESCE(array_length(allowed_departments, 1), 0) = 0
+                    OR (%s IS NOT NULL AND %s = ANY(COALESCE(allowed_users, ARRAY[]::text[])))
+                    OR (%s IS NOT NULL AND %s = ANY(COALESCE(allowed_departments, ARRAY[]::text[])))
+                )
+            """)
+            params.extend([user_id, user_id, department, department])
+
+        where_clause = f" WHERE {' AND '.join(conditions)}" if conditions else ""
+        query = f"SELECT * FROM link_lists{where_clause} ORDER BY list_order, created_at"
+        return self.conn.fetch_all(query, tuple(params) if params else None)
     
     def add_link_list(self, list_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Add new link list"""
         query = """
             INSERT INTO link_lists 
-            (id, name, color, icon, department, list_order)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            (id, name, color, icon, department, list_order, created_by, allowed_users, allowed_departments, is_public)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
         """
+        allowed_users = list_data.get('allowed_users', list_data.get('allowedUsers', [])) or []
+        allowed_departments = list_data.get('allowed_departments', list_data.get('allowedDepartments', [])) or []
+        is_public = list_data.get('is_public')
+        if is_public is None:
+            is_public = len(allowed_users) == 0 and len(allowed_departments) == 0
+
         params = (
             list_data.get('id'),
             list_data.get('name'),
             list_data.get('color', '#3b82f6'),
             list_data.get('icon'),
             list_data.get('department'),
-            list_data.get('order', 0)
+            list_data.get('order', 0),
+            list_data.get('created_by', list_data.get('createdBy')),
+            allowed_users,
+            allowed_departments,
+            is_public,
         )
         result = self.conn.fetch_one(query, params)
         return dict(result) if result else None
@@ -1415,9 +1440,24 @@ class PostgresDatabase:
         set_clauses = []
         params = []
         
-        for key in ['name', 'color', 'icon', 'department', 'order']:
+        field_map = {
+            'name': 'name',
+            'color': 'color',
+            'icon': 'icon',
+            'department': 'department',
+            'order': 'list_order',
+            'allowed_users': 'allowed_users',
+            'allowedUsers': 'allowed_users',
+            'allowed_departments': 'allowed_departments',
+            'allowedDepartments': 'allowed_departments',
+            'created_by': 'created_by',
+            'createdBy': 'created_by',
+            'is_public': 'is_public',
+            'isPublic': 'is_public',
+        }
+
+        for key, db_field in field_map.items():
             if key in updates:
-                db_field = 'list_order' if key == 'order' else key
                 set_clauses.append(f"{db_field} = %s")
                 params.append(updates[key])
         

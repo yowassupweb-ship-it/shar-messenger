@@ -8,13 +8,19 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 export const metadata: Metadata = {
   title: 'Shar Messenger',
   description: 'Task and content management system',
+  manifest: '/manifest.webmanifest',
+  icons: {
+    icon: [{ url: '/favicon.png', type: 'image/png' }],
+    shortcut: ['/favicon.png'],
+    apple: [{ url: '/apple-touch-icon.png', type: 'image/png' }],
+  },
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
+  userScalable: true,
 };
 
 export default function RootLayout({

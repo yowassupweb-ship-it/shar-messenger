@@ -60,8 +60,8 @@ export default function MessagesArea({
   setShowImageModal,
 }: MessagesAreaProps) {
   return (
-    <div ref={messagesListRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 pt-20 md:pt-16 pb-0 md:pb-64 bg-transparent scrollbar-hide-mobile">
-      <div className="px-2 md:px-4 lg:px-8 h-full">
+    <div ref={messagesListRef} className={`flex-1 min-h-0 overflow-x-hidden overscroll-contain p-4 pt-20 md:pt-16 pb-0 md:pb-64 bg-transparent scrollbar-hide-mobile ${messages.length === 0 ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+      <div className="px-2 md:px-4 lg:px-8 h-full min-w-0">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)] select-none">
             <MessageCircle className="w-16 h-16 mb-4 opacity-30" />
@@ -124,8 +124,8 @@ export default function MessagesArea({
         )}
         <div 
           ref={messagesEndRef} 
-          className="h-16 md:h-auto transition-all duration-150" 
-          style={{ height: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${Math.max(141, 97 + textareaHeight)}px` : undefined }} 
+          className={`${messages.length === 0 ? 'h-0' : 'h-16 md:h-auto'} transition-all duration-150`} 
+          style={messages.length === 0 ? undefined : { height: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${Math.max(141, 97 + textareaHeight)}px` : undefined }} 
         />
       </div>
     </div>

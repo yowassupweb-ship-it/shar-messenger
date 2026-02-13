@@ -13,7 +13,7 @@ interface ChatItemProps {
   onHover?: (chatId: string | null) => void;
   onContextMenu: (e: React.MouseEvent, chat: Chat) => void;
   getChatTitle: (chat: Chat) => string;
-  getChatAvatarData: (chat: Chat) => { type: "user" | "group" | "favorites" | "notifications"; name: string; avatar?: string };
+  getChatAvatarData: (chat: Chat) => { type: "user" | "group" | "favorites" | "notifications" | "system"; name: string; avatar?: string };
   currentUser: User | null;
   users: User[];
   chatDrafts: Record<string, string>;
@@ -111,7 +111,7 @@ const ChatItem = React.memo<ChatItemProps>(({
       >
         <button
           onClick={() => onSelect(chat)}
-          className="w-full px-3 py-2 hover:bg-[var(--bg-tertiary)] transition-all text-left"
+          className="w-full px-3 py-2.5 hover:bg-[var(--bg-tertiary)] transition-all text-left"
         >
           <div className="flex gap-2 items-center">
             <Avatar
@@ -129,17 +129,17 @@ const ChatItem = React.memo<ChatItemProps>(({
                 {chat.isGroup && (
                   <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />
                 )}
-                <h3 className="font-medium text-sm truncate select-none">{getChatTitle(chat)}</h3>
+                <h3 className="font-medium text-[15px] leading-tight truncate select-none">{getChatTitle(chat)}</h3>
               </div>
               {chatDrafts[chat.id] ? (
                 <div className="flex items-center gap-2">
-                  <p className="text-xs text-red-400 truncate flex-1">
+                  <p className="text-[13px] leading-tight text-red-400 truncate flex-1">
                     <span className="font-medium">Черновик:</span> {chatDrafts[chat.id]}
                   </p>
                 </div>
               ) : chat.lastMessage ? (
                 <div className="flex items-center gap-2">
-                  <p className="text-xs text-[var(--text-secondary)] truncate flex-1">
+                  <p className="text-[13px] leading-tight text-[var(--text-secondary)] truncate flex-1">
                     {chat.lastMessage.authorName}: {chat.lastMessage.content}
                   </p>
                   {hasUnread && (
@@ -151,7 +151,7 @@ const ChatItem = React.memo<ChatItemProps>(({
               ) : null}
             </div>
             {chat.lastMessage && (
-              <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap self-center">
+              <span className="text-[12px] text-[var(--text-muted)] whitespace-nowrap self-center">
                 {new Date(chat.lastMessage.createdAt).toLocaleTimeString('ru-RU', { 
                   hour: '2-digit', 
                   minute: '2-digit' 

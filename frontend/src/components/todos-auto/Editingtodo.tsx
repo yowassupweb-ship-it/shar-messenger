@@ -312,6 +312,7 @@ const Editingtodo = memo(function Editingtodo({
   const [discussionSending, setDiscussionSending] = useState(false);
   const [editingDiscussionMessageId, setEditingDiscussionMessageId] = useState<string | null>(null);
   const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
+  const [fullscreenImage, setFullscreenImage] = useState<{ url: string; name?: string } | null>(null);
   
   // Настройки чата для обсуждений
   const [chatSettings, setChatSettings] = useState({
@@ -328,6 +329,7 @@ const Editingtodo = memo(function Editingtodo({
   const departmentDropdownRef = useRef<HTMLDivElement>(null);
   const discussionListRef = useRef<HTMLDivElement>(null);
   const discussionFileInputRef = useRef<HTMLInputElement>(null);
+  const activeResizeImageRef = useRef<HTMLImageElement | null>(null);
   
   // Функция для определения нужен ли тёмный текст на светлом фоне
   const needsDarkText = (hexColor: string) => {
@@ -1217,6 +1219,8 @@ const Editingtodo = memo(function Editingtodo({
   const titleInputRef = useRef<HTMLInputElement>(null);
   const descriptionEditorRef = useRef<HTMLDivElement>(null);
   const assigneeResponseEditorRef = useRef<HTMLDivElement>(null);
+  const descriptionFileInputRef = useRef<HTMLInputElement>(null);
+  const assigneeResponseFileInputRef = useRef<HTMLInputElement>(null);
   
   // Обработчик обновления полей
   const handleUpdate = (updates: Partial<Todo>) => {
@@ -1278,6 +1282,89 @@ const Editingtodo = memo(function Editingtodo({
     } as Attachment;
   };
 
+  const getClipboardFiles = (clipboardData: DataTransfer): File[] => {
+    const filesFromItems: File[] = [];
+    const items = Array.from(clipboardData.items || []);
+
+    for (const item of items) {
+      if (item.kind === 'file') {
+        const file = item.getAsFile();
+        if (file) filesFromItems.push(file);
+      }
+    }
+
+    if (filesFromItems.length > 0) return filesFromItems;
+    return Array.from(clipboardData.files || []);
+  };
+
+  const toPastedFile = (file: File, index: number): File => {
+    if (file.name && file.name !== 'image.png' && file.name !== 'blob') return file;
+
+    const extFromType = (() => {
+      const mime = file.type || '';
+      if (mime.includes('/')) return mime.split('/')[1] || 'bin';
+      return 'bin';
+    })();
+
+    const isImage = (file.type || '').startsWith('image/');
+    const generatedName = `${isImage ? 'pasted-image' : 'pasted-file'}-${Date.now()}-${index}.${extFromType}`;
+    return new File([file], generatedName, { type: file.type || 'application/octet-stream' });
+  };
+
+  const restoreSelectionRange = (editor: HTMLDivElement, range: Range | null) => {
+    const selection = window.getSelection();
+    if (!selection) return;
+
+    if (range && editor.contains(range.commonAncestorContainer)) {
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return;
+    }
+
+    const fallbackRange = document.createRange();
+    fallbackRange.selectNodeContents(editor);
+    fallbackRange.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(fallbackRange);
+  };
+
+  const handleEditorClipboardPaste = async (
+    e: React.ClipboardEvent<HTMLDivElement>,
+    field: 'description' | 'assigneeResponse'
+  ) => {
+    const editor = e.currentTarget;
+    const clipboardFiles = getClipboardFiles(e.clipboardData);
+    if (clipboardFiles.length === 0) return;
+
+    e.preventDefault();
+
+    let insertionRange: Range | null = null;
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      insertionRange = selection.getRangeAt(0).cloneRange();
+    }
+
+    for (let i = 0; i < clipboardFiles.length; i++) {
+      const rawFile = clipboardFiles[i];
+      const pastedFile = toPastedFile(rawFile, i);
+
+      try {
+        const uploadedAttachment = await uploadAttachmentFile(pastedFile);
+        if (!uploadedAttachment) continue;
+
+        restoreSelectionRange(editor, insertionRange);
+        insertAttachmentIntoEditor(editor, uploadedAttachment, field);
+
+        const afterInsertSelection = window.getSelection();
+        if (afterInsertSelection && afterInsertSelection.rangeCount > 0) {
+          insertionRange = afterInsertSelection.getRangeAt(0).cloneRange();
+        }
+      } catch (error) {
+        console.error('Error uploading pasted file:', error);
+      }
+    }
+  };
+
   const setCaretFromPoint = (editor: HTMLDivElement, x: number, y: number) => {
     const selection = window.getSelection();
     if (!selection) return;
@@ -1332,12 +1419,24 @@ const Editingtodo = memo(function Editingtodo({
 
     const isImage = attachment.type === 'image' || (attachment.mime || '').startsWith('image/');
     if (isImage) {
+      const imageId = `inline-image-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const frame = document.createElement('div');
+      frame.className = 'inline-block max-w-full';
+
       const img = document.createElement('img');
       img.src = attachment.url;
       img.alt = attachment.name || 'image';
+      img.dataset.imageId = imageId;
+      img.setAttribute('contenteditable', 'false');
+      img.draggable = false;
+      img.style.width = '100%';
+      img.style.maxWidth = '100%';
+      img.style.cursor = 'default';
       img.className = 'max-w-full h-auto rounded-xl border border-white/15';
       img.loading = 'lazy';
-      wrapper.appendChild(img);
+
+      frame.appendChild(img);
+      wrapper.appendChild(frame);
     } else {
       const link = document.createElement('a');
       link.href = attachment.url;
@@ -1369,6 +1468,197 @@ const Editingtodo = memo(function Editingtodo({
       handleUpdate({ assigneeResponse: html });
     }
   };
+
+  const syncEditorHtmlToState = (
+    editor: HTMLDivElement,
+    field: 'description' | 'assigneeResponse'
+  ) => {
+    const html = editor.innerHTML || '';
+    if (stagesEnabled) {
+      updateStageMeta(activeTechSpecTab, { [field]: html });
+    } else if (field === 'description') {
+      handleUpdate({ description: html });
+    } else {
+      handleUpdate({ assigneeResponse: html });
+    }
+  };
+
+  const resizeInlineImageByDrag = (
+    editor: HTMLDivElement,
+    img: HTMLImageElement,
+    field: 'description' | 'assigneeResponse',
+    deltaPixels: number
+  ) => {
+    const editorRect = editor.getBoundingClientRect();
+    const maxWidthPx = Math.max(180, editorRect.width - 24);
+    const minWidthPx = 120;
+    const currentWidthPx = Math.max(minWidthPx, img.getBoundingClientRect().width || minWidthPx);
+    const nextWidthPx = Math.min(maxWidthPx, Math.max(minWidthPx, currentWidthPx + deltaPixels));
+
+    img.style.width = `${Math.round(nextWidthPx)}px`;
+    img.style.maxWidth = '100%';
+    img.style.height = 'auto';
+    img.classList.add('h-auto');
+    syncEditorHtmlToState(editor, field);
+    return true;
+  };
+
+  const clearActiveInlineImageResize = () => {
+    if (!activeResizeImageRef.current) return;
+    activeResizeImageRef.current.style.outline = '';
+    activeResizeImageRef.current.style.outlineOffset = '';
+    activeResizeImageRef.current.style.cursor = 'default';
+    activeResizeImageRef.current = null;
+  };
+
+  const getInlineImageResizeHit = (
+    img: HTMLImageElement,
+    clientX: number,
+    clientY: number
+  ): { cursor: string; edge: 'left' | 'right' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' } | null => {
+    const rect = img.getBoundingClientRect();
+    const edgeGap = 16;
+    const outerOffset = 14;
+
+    const expandedLeft = rect.left - outerOffset;
+    const expandedRight = rect.right + outerOffset;
+    const expandedTop = rect.top - outerOffset;
+    const expandedBottom = rect.bottom + outerOffset;
+
+    const withinExpandedX = clientX >= expandedLeft && clientX <= expandedRight;
+    const withinExpandedY = clientY >= expandedTop && clientY <= expandedBottom;
+    if (!withinExpandedX || !withinExpandedY) return null;
+
+    const nearLeft = Math.abs(clientX - rect.left) <= edgeGap;
+    const nearRight = Math.abs(clientX - rect.right) <= edgeGap;
+    const nearTop = Math.abs(clientY - rect.top) <= edgeGap;
+    const nearBottom = Math.abs(clientY - rect.bottom) <= edgeGap;
+
+    if (nearTop && nearLeft) return { cursor: 'nwse-resize', edge: 'top-left' };
+    if (nearTop && nearRight) return { cursor: 'nesw-resize', edge: 'top-right' };
+    if (nearBottom && nearLeft) return { cursor: 'nesw-resize', edge: 'bottom-left' };
+    if (nearBottom && nearRight) return { cursor: 'nwse-resize', edge: 'bottom-right' };
+    if (nearLeft) return { cursor: 'ew-resize', edge: 'left' };
+    if (nearRight) return { cursor: 'ew-resize', edge: 'right' };
+    if (nearTop) return { cursor: 'ns-resize', edge: 'top' };
+    if (nearBottom) return { cursor: 'ns-resize', edge: 'bottom' };
+
+    return null;
+  };
+
+  const activateInlineImageResize = (img: HTMLImageElement) => {
+    if (activeResizeImageRef.current && activeResizeImageRef.current !== img) {
+      activeResizeImageRef.current.style.outline = '';
+      activeResizeImageRef.current.style.outlineOffset = '';
+      activeResizeImageRef.current.style.cursor = 'default';
+    }
+
+    activeResizeImageRef.current = img;
+    img.style.cursor = 'ew-resize';
+    img.style.outline = '2px solid rgba(59,130,246,0.8)';
+    img.style.outlineOffset = '2px';
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+  };
+
+  const startInlineImageDragResize = (
+    editor: HTMLDivElement,
+    img: HTMLImageElement,
+    field: 'description' | 'assigneeResponse',
+    startClientX: number,
+    startClientY: number,
+    edge: 'left' | 'right' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+  ) => {
+    let previousX = startClientX;
+    let previousY = startClientY;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      ev.preventDefault();
+      const deltaX = ev.clientX - previousX;
+      const deltaY = ev.clientY - previousY;
+      previousX = ev.clientX;
+      previousY = ev.clientY;
+
+      let deltaPixels = 0;
+      if (edge === 'left') deltaPixels = -deltaX;
+      else if (edge === 'right') deltaPixels = deltaX;
+      else if (edge === 'top') deltaPixels = -deltaY;
+      else if (edge === 'bottom') deltaPixels = deltaY;
+      else if (edge === 'top-left') deltaPixels = (-deltaX - deltaY) / 2;
+      else if (edge === 'top-right') deltaPixels = (deltaX - deltaY) / 2;
+      else if (edge === 'bottom-left') deltaPixels = (-deltaX + deltaY) / 2;
+      else if (edge === 'bottom-right') deltaPixels = (deltaX + deltaY) / 2;
+
+      resizeInlineImageByDrag(editor, img, field, deltaPixels);
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      syncEditorHtmlToState(editor, field);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  useEffect(() => {
+    const handleDocMouseDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const activeImg = activeResizeImageRef.current;
+      if (!activeImg) return;
+      if (target && target.closest('img') === activeImg) return;
+      clearActiveInlineImageResize();
+    };
+
+    document.addEventListener('mousedown', handleDocMouseDown);
+    return () => document.removeEventListener('mousedown', handleDocMouseDown);
+  }, []);
+
+  const insertFilesIntoEditorAtCaret = async (
+    editor: HTMLDivElement | null,
+    files: File[],
+    field: 'description' | 'assigneeResponse'
+  ) => {
+    if (!editor || files.length === 0) return;
+
+    let insertionRange: Range | null = null;
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      insertionRange = selection.getRangeAt(0).cloneRange();
+    }
+
+    for (let i = 0; i < files.length; i++) {
+      const uploadedAttachment = await uploadAttachmentFile(files[i]);
+      if (!uploadedAttachment) continue;
+
+      restoreSelectionRange(editor, insertionRange);
+      insertAttachmentIntoEditor(editor, uploadedAttachment, field);
+
+      const afterInsertSelection = window.getSelection();
+      if (afterInsertSelection && afterInsertSelection.rangeCount > 0) {
+        insertionRange = afterInsertSelection.getRangeAt(0).cloneRange();
+      }
+    }
+  };
+
+  const isImageAttachment = (attachment?: { type?: string; name?: string; url?: string }) => {
+    if (!attachment) return false;
+    if (attachment.type === 'image') return true;
+    const probe = `${attachment.url || ''} ${attachment.name || ''}`;
+    return /\.(png|jpe?g|gif|webp|bmp|svg|avif)(\?|$)/i.test(probe);
+  };
+
+  const downloadImage = (url: string, fileName?: string) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName || 'image';
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
   
   // Обработчик сохранения
   const updateTodo = (updatedTodo: Todo) => {
@@ -1389,10 +1679,10 @@ const Editingtodo = memo(function Editingtodo({
       status: editingTodo.status,
       listId: editingTodo.listId,
       categoryId: editingTodo.categoryId,
-      assigneeId: editingTodo.assigneeId,
-      assigneeName: editingTodo.assigneeName,
-      customerId: editingTodo.customerId,
-      customerName: editingTodo.customerName,
+      assignedById: editingTodo.assignedById,
+      assignedBy: editingTodo.assignedBy,
+      assignedToId: editingTodo.assignedToId,
+      assignedTo: editingTodo.assignedTo,
       dueDate: editingTodo.dueDate,
       tags: editingTodo.tags,
       priority: editingTodo.priority,
@@ -1407,10 +1697,10 @@ const Editingtodo = memo(function Editingtodo({
       status: initialTodoRef.current.status,
       listId: initialTodoRef.current.listId,
       categoryId: initialTodoRef.current.categoryId,
-      assigneeId: initialTodoRef.current.assigneeId,
-      assigneeName: initialTodoRef.current.assigneeName,
-      customerId: initialTodoRef.current.customerId,
-      customerName: initialTodoRef.current.customerName,
+      assignedById: initialTodoRef.current.assignedById,
+      assignedBy: initialTodoRef.current.assignedBy,
+      assignedToId: initialTodoRef.current.assignedToId,
+      assignedTo: initialTodoRef.current.assignedTo,
       dueDate: initialTodoRef.current.dueDate,
       tags: initialTodoRef.current.tags,
       priority: initialTodoRef.current.priority,
@@ -2522,8 +2812,30 @@ const Editingtodo = memo(function Editingtodo({
                     >
                       <X className="w-5 h-5 sm:w-4 sm:h-4" />
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => descriptionFileInputRef.current?.click()}
+                      className="p-1.5 sm:p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-glass-hover)] rounded text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
+                      title="Прикрепить файл в текст"
+                    >
+                      <Paperclip className="w-5 h-5 sm:w-4 sm:h-4" />
+                    </button>
                   </div>
                 </div>
+
+                <input
+                  ref={descriptionFileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (files.length > 0) {
+                      await insertFilesIntoEditorAtCaret(descriptionEditorRef.current, files, 'description');
+                    }
+                    e.currentTarget.value = '';
+                  }}
+                />
 
                 {stagesEnabled && sidebarMode === 'stages' && (
                   <div key={activeTechSpecTab} className="px-2 sm:px-3 pb-2 sm:pb-3">
@@ -2596,8 +2908,45 @@ const Editingtodo = memo(function Editingtodo({
                           handleUpdate({ description: html });
                         }
                       }}
+                      onMouseDown={(e) => {
+                        const target = e.target as HTMLElement;
+                        const img = target.closest('img') as HTMLImageElement | null;
+                        if (img) {
+                          e.preventDefault();
+                          if (activeResizeImageRef.current === img) {
+                            const hit = getInlineImageResizeHit(img, e.clientX, e.clientY);
+                            if (hit) {
+                              startInlineImageDragResize(e.currentTarget, img, 'description', e.clientX, e.clientY, hit.edge);
+                            }
+                          } else {
+                            activateInlineImageResize(img);
+                          }
+                        } else {
+                          clearActiveInlineImageResize();
+                        }
+                      }}
+                      onMouseMove={(e) => {
+                        const target = e.target as HTMLElement;
+                        const img = target.closest('img') as HTMLImageElement | null;
+                        const activeImg = activeResizeImageRef.current;
+
+                        if (!img || !activeImg || img !== activeImg) {
+                          if (activeImg) activeImg.style.cursor = 'default';
+                          return;
+                        }
+
+                        const hit = getInlineImageResizeHit(img, e.clientX, e.clientY);
+                        img.style.cursor = hit ? hit.cursor : 'default';
+                      }}
                       onClick={(e) => {
                         const target = e.target as HTMLElement;
+                        const img = target.closest('img') as HTMLImageElement | null;
+
+                        if (img) {
+                          e.preventDefault();
+                          activateInlineImageResize(img);
+                          return;
+                        }
                         
                         if (target.tagName === 'A' && (e.ctrlKey || e.metaKey)) {
                           e.preventDefault();
@@ -2625,8 +2974,19 @@ const Editingtodo = memo(function Editingtodo({
                           }
                         }
                       }}
+                      onDoubleClick={(e) => {
+                        const target = e.target as HTMLElement;
+                        const img = target.closest('img') as HTMLImageElement | null;
+                        if (img?.src) {
+                          e.preventDefault();
+                          setFullscreenImage({
+                            url: img.src,
+                            name: img.alt || 'Изображение'
+                          });
+                        }
+                      }}
                       data-placeholder="Добавьте описание задачи..."
-                      className="w-full flex-1 min-h-[150px] max-h-[220px] px-2 sm:px-3 py-2 bg-blue-50 dark:bg-blue-500/5 border border-blue-200 dark:border-blue-500/20 rounded-xl text-sm text-gray-900 dark:text-[var(--text-primary)] focus:outline-none focus:border-blue-500/30 transition-all whitespace-pre-wrap break-words overflow-y-auto empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400 empty:before:dark:text-white/30 will-change-contents"
+                      className="w-full min-h-[150px] h-auto px-2 sm:px-3 py-2 bg-blue-50 dark:bg-blue-500/5 border border-blue-200 dark:border-blue-500/20 rounded-xl text-sm text-gray-900 dark:text-[var(--text-primary)] focus:outline-none focus:border-blue-500/30 transition-all whitespace-pre-wrap break-words overflow-visible empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400 empty:before:dark:text-white/30 will-change-contents"
                       style={{ transform: 'translate Z(0)' }}
                       onDragOver={(e) => {
                         e.preventDefault();
@@ -2664,27 +3024,7 @@ const Editingtodo = memo(function Editingtodo({
                         }
                       }}
                       onPaste={async (e) => {
-                        const editor = e.currentTarget;
-                        const items = e.clipboardData.items;
-                        for (let i = 0; i < items.length; i++) {
-                          const item = items[i];
-                          if (item.kind === 'file') {
-                            e.preventDefault();
-                            const blob = item.getAsFile();
-                            if (blob) {
-                              try {
-                                const fallbackName = blob.type.startsWith('image/') ? 'pasted-image.png' : 'pasted-file';
-                                const pastedFile = new File([blob], fallbackName, { type: blob.type || 'application/octet-stream' });
-                                const uploadedAttachment = await uploadAttachmentFile(pastedFile);
-                                if (uploadedAttachment) {
-                                  insertAttachmentIntoEditor(editor, uploadedAttachment, 'description');
-                                }
-                              } catch (error) {
-                                console.error('Error uploading pasted file:', error);
-                              }
-                            }
-                          }
-                        }
+                        await handleEditorClipboardPaste(e, 'description');
                       }}
                     >
                     </div>
@@ -2708,8 +3048,46 @@ const Editingtodo = memo(function Editingtodo({
                           handleUpdate({ assigneeResponse: html });
                         }
                       }}
+                      onMouseDown={(e) => {
+                        const target = e.target as HTMLElement;
+                        const img = target.closest('img') as HTMLImageElement | null;
+                        if (img) {
+                          e.preventDefault();
+                          if (activeResizeImageRef.current === img) {
+                            const hit = getInlineImageResizeHit(img, e.clientX, e.clientY);
+                            if (hit) {
+                              startInlineImageDragResize(e.currentTarget, img, 'assigneeResponse', e.clientX, e.clientY, hit.edge);
+                            }
+                          } else {
+                            activateInlineImageResize(img);
+                          }
+                        } else {
+                          clearActiveInlineImageResize();
+                        }
+                      }}
+                      onMouseMove={(e) => {
+                        const target = e.target as HTMLElement;
+                        const img = target.closest('img') as HTMLImageElement | null;
+                        const activeImg = activeResizeImageRef.current;
+
+                        if (!img || !activeImg || img !== activeImg) {
+                          if (activeImg) activeImg.style.cursor = 'default';
+                          return;
+                        }
+
+                        const hit = getInlineImageResizeHit(img, e.clientX, e.clientY);
+                        img.style.cursor = hit ? hit.cursor : 'default';
+                      }}
                       onClick={(e) => {
                         const target = e.target as HTMLElement;
+                        const img = target.closest('img') as HTMLImageElement | null;
+
+                        if (img) {
+                          e.preventDefault();
+                          activateInlineImageResize(img);
+                          return;
+                        }
+
                         if (target.tagName === 'A' && (e.ctrlKey || e.metaKey)) {
                           e.preventDefault();
                           const link = target as HTMLAnchorElement;
@@ -2718,8 +3096,19 @@ const Editingtodo = memo(function Editingtodo({
                           }
                         }
                       }}
+                      onDoubleClick={(e) => {
+                        const target = e.target as HTMLElement;
+                        const img = target.closest('img') as HTMLImageElement | null;
+                        if (img?.src) {
+                          e.preventDefault();
+                          setFullscreenImage({
+                            url: img.src,
+                            name: img.alt || 'Изображение'
+                          });
+                        }
+                      }}
                       data-placeholder="Ответ исполнителя на задачу..."
-                      className="w-full flex-1 min-h-[150px] max-h-[220px] px-2 sm:px-3 py-2 bg-blue-50 dark:bg-blue-500/5 border border-blue-200 dark:border-blue-500/20 rounded-xl text-sm text-gray-900 dark:text-[var(--text-primary)] focus:outline-none focus:border-blue-500/30 transition-all whitespace-pre-wrap break-words overflow-y-auto empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400 empty:before:dark:text-white/30 will-change-contents"
+                      className="w-full min-h-[150px] h-auto px-2 sm:px-3 py-2 bg-blue-50 dark:bg-blue-500/5 border border-blue-200 dark:border-blue-500/20 rounded-xl text-sm text-gray-900 dark:text-[var(--text-primary)] focus:outline-none focus:border-blue-500/30 transition-all whitespace-pre-wrap break-words overflow-visible empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400 empty:before:dark:text-white/30 will-change-contents"
                       style={{ transform: 'translateZ(0)' }}
                       onDragOver={(e) => {
                         e.preventDefault();
@@ -2757,29 +3146,33 @@ const Editingtodo = memo(function Editingtodo({
                         }
                       }}
                       onPaste={async (e) => {
-                        const editor = e.currentTarget;
-                        const items = e.clipboardData.items;
-                        for (let i = 0; i < items.length; i++) {
-                          const item = items[i];
-                          if (item.kind === 'file') {
-                            e.preventDefault();
-                            const blob = item.getAsFile();
-                            if (blob) {
-                              try {
-                                const fallbackName = blob.type.startsWith('image/') ? 'pasted-image.png' : 'pasted-file';
-                                const pastedFile = new File([blob], fallbackName, { type: blob.type || 'application/octet-stream' });
-                                const uploadedAttachment = await uploadAttachmentFile(pastedFile);
-                                if (uploadedAttachment) {
-                                  insertAttachmentIntoEditor(editor, uploadedAttachment, 'assigneeResponse');
-                                }
-                              } catch (error) {
-                                console.error('Error uploading pasted file:', error);
-                              }
-                            }
-                          }
-                        }
+                        await handleEditorClipboardPaste(e, 'assigneeResponse');
                       }}
                     />
+
+                    <div className="mt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => assigneeResponseFileInputRef.current?.click()}
+                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] border border-white/20 bg-white/5 hover:bg-white/10 text-[var(--text-secondary)] transition-colors"
+                      >
+                        <Paperclip className="w-3.5 h-3.5" />
+                        Прикрепить файл в ответ
+                      </button>
+                      <input
+                        ref={assigneeResponseFileInputRef}
+                        type="file"
+                        multiple
+                        className="hidden"
+                        onChange={async (e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length > 0) {
+                            await insertFilesIntoEditorAtCaret(assigneeResponseEditorRef.current, files, 'assigneeResponse');
+                          }
+                          e.currentTarget.value = '';
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -2847,19 +3240,49 @@ const Editingtodo = memo(function Editingtodo({
                             {Array.isArray(message.attachments) && message.attachments.length > 0 && (
                               <div className="mt-2 space-y-1">
                                 {message.attachments.map((att, idx) => (
-                                  <a
-                                    key={`${message.id}-att-${idx}`}
-                                    href={att.url || '#'}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className={`block text-[10px] truncate ${
-                                      isOwn 
-                                        ? `${myBubbleTextMutedClass} hover:${useDarkTextOnBubble ? 'text-gray-900' : 'text-white'}` 
-                                        : 'text-blue-400 hover:text-blue-300'
-                                    }`}
-                                  >
-                                    {att.name || att.url || 'Вложение'}
-                                  </a>
+                                  isImageAttachment(att) ? (
+                                    <button
+                                      key={`${message.id}-att-${idx}`}
+                                      type="button"
+                                      onClick={() => {
+                                        if (!att.url) return;
+                                        setFullscreenImage({
+                                          url: att.url,
+                                          name: att.name || 'Изображение'
+                                        });
+                                      }}
+                                      className="block w-full text-left"
+                                      title="Открыть изображение"
+                                    >
+                                      <img
+                                        src={att.url || ''}
+                                        alt={att.name || 'Вложение'}
+                                        className="max-h-40 rounded-lg border border-white/20 object-contain"
+                                        loading="lazy"
+                                      />
+                                      <span className={`mt-1 block text-[10px] truncate ${
+                                        isOwn
+                                          ? `${myBubbleTextMutedClass} hover:${useDarkTextOnBubble ? 'text-gray-900' : 'text-white'}`
+                                          : 'text-blue-400 hover:text-blue-300'
+                                      }`}>
+                                        {att.name || att.url || 'Изображение'}
+                                      </span>
+                                    </button>
+                                  ) : (
+                                    <a
+                                      key={`${message.id}-att-${idx}`}
+                                      href={att.url || '#'}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className={`block text-[10px] truncate ${
+                                        isOwn 
+                                          ? `${myBubbleTextMutedClass} hover:${useDarkTextOnBubble ? 'text-gray-900' : 'text-white'}` 
+                                          : 'text-blue-400 hover:text-blue-300'
+                                      }`}
+                                    >
+                                      {att.name || att.url || 'Вложение'}
+                                    </a>
+                                  )
                                 ))}
                               </div>
                             )}
@@ -2997,6 +3420,43 @@ const Editingtodo = memo(function Editingtodo({
               </div>
 
             </div>
+
+            {fullscreenImage && (
+              <div
+                className="fixed inset-0 z-[220] bg-black/85 backdrop-blur-sm flex items-center justify-center p-3"
+                onClick={() => setFullscreenImage(null)}
+              >
+                <div className="absolute top-3 right-3 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadImage(fullscreenImage.url, fullscreenImage.name);
+                    }}
+                    className="h-8 px-3 rounded-[18px] text-xs font-medium text-white bg-white/15 hover:bg-white/25 border border-white/25"
+                  >
+                    Скачать
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setFullscreenImage(null);
+                    }}
+                    className="h-8 px-3 rounded-[18px] text-xs font-medium text-white bg-white/15 hover:bg-white/25 border border-white/25"
+                  >
+                    Закрыть
+                  </button>
+                </div>
+
+                <img
+                  src={fullscreenImage.url}
+                  alt={fullscreenImage.name || 'Изображение'}
+                  className="max-w-[96vw] max-h-[90vh] object-contain rounded-xl border border-white/20 shadow-2xl"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            )}
             
             {/* Футер */}
             <div className="relative z-[130] w-full mt-auto pointer-events-none">

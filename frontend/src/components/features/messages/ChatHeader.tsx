@@ -65,6 +65,8 @@ export default function ChatHeader({
   togglePinChat,
   deleteChat,
 }: ChatHeaderProps) {
+  const isMobileView = typeof window !== 'undefined' && (window.innerWidth <= 785 || window.matchMedia('(pointer: coarse)').matches);
+
   return (
     <>
       {/* Chat header */}
@@ -159,7 +161,7 @@ export default function ChatHeader({
           <>
             <button
               onClick={() => selectChat(null)}
-              className="no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-all md:hidden border border-[var(--border-glass)] backdrop-blur-sm -ml-1"
+              className={`no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-all border border-[var(--border-glass)] backdrop-blur-sm -ml-1 ${isMobileView ? 'flex' : 'hidden'}`}
             >
               <ArrowLeft className="w-4 h-4" strokeWidth={2} />
             </button>

@@ -549,7 +549,7 @@ export default function TodosPage() {
   
   // 🚀 PERFORMANCE: Кэшируем ширину окна вместо множественных проверок window.innerWidth
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
-  const [mobileView, setMobileView] = useState<'board' | 'single'>(windowWidth < 768 ? 'single' : 'board');
+  const [mobileView, setMobileView] = useState<'board' | 'single'>(windowWidth < 550 ? 'single' : 'board');
   
   // 🚀 PERFORMANCE: Passive resize listener для плавной адаптации
   useEffect(() => {
@@ -561,7 +561,7 @@ export default function TodosPage() {
       resizeTimeout = setTimeout(() => {
         const newWidth = window.innerWidth;
         setWindowWidth(newWidth);
-        setMobileView(newWidth < 768 ? 'single' : 'board');
+        setMobileView(newWidth < 550 ? 'single' : 'board');
       }, 200);
     };
     
@@ -2327,7 +2327,7 @@ export default function TodosPage() {
         await loadData();
         
         // Переключаемся на новый список на мобильных
-        if (windowWidth < 768) {
+        if (windowWidth < 550) {
           // Новый список будет последним в отфильтрованном списке
           const newIndex = nonArchivedLists.length; // Так как новый список ещё не в lists, он будет добавлен после loadData
           setSelectedColumnIndex(newIndex);
@@ -2851,7 +2851,7 @@ export default function TodosPage() {
   // Drag to scroll handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     // Только для desktop
-    if (windowWidth < 768) return;
+    if (windowWidth < 550) return;
     // Не начинаем scroll если идёт перетаскивание задачи или списка
     if (!boardRef.current || draggedTodo || draggedList) return;
     // Не начинаем scroll если клик был на интерактивном элементе
@@ -2967,7 +2967,7 @@ export default function TodosPage() {
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-10 w-full px-3 py-2 flex-shrink-0">
         {/* Mobile header - all in one line */}
-        <div className="flex items-center gap-2 w-full md:hidden">
+        <div className="flex items-center gap-2 w-full min-[550px]:hidden">
           {/* Левая стрелка */}
           <button
             onClick={() => {
@@ -3035,7 +3035,7 @@ export default function TodosPage() {
         </div>
 
         {/* Desktop header */}
-        <div className="hidden md:flex items-center justify-center gap-2 whitespace-nowrap">
+        <div className="hidden min-[550px]:flex items-center justify-center gap-2 whitespace-nowrap">
           {/* Search */}
           <div className="relative flex-none">
             <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-primary)] flex items-center justify-center z-10 pointer-events-none">
@@ -3051,7 +3051,7 @@ export default function TodosPage() {
           </div>
 
           {/* Status Filter */}
-          <div className="relative hidden md:block" ref={statusFilterRef}>
+          <div className="relative hidden min-[550px]:block" ref={statusFilterRef}>
             <button
               onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
               className="flex items-center gap-1.5 px-3 h-10 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all duration-200 text-sm border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] backdrop-blur-xl"
@@ -3069,7 +3069,7 @@ export default function TodosPage() {
           </div>
 
           {/* Executor Filter */}
-          <div className="relative hidden md:block" ref={executorFilterRef}>
+          <div className="relative hidden min-[550px]:block" ref={executorFilterRef}>
             <button
               onClick={() => setExecutorDropdownOpen(!executorDropdownOpen)}
               className="flex items-center gap-1.5 px-3 h-10 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all duration-200 text-sm border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] backdrop-blur-xl"
@@ -3090,7 +3090,7 @@ export default function TodosPage() {
           {/* Archive Toggle */}
           <button
             onClick={() => setShowArchive(!showArchive)}
-            className={`hidden md:flex w-10 h-10 items-center justify-center rounded-[20px] transition-all duration-200 border flex-shrink-0 backdrop-blur-xl ${
+            className={`hidden min-[550px]:flex w-10 h-10 items-center justify-center rounded-[20px] transition-all duration-200 border flex-shrink-0 backdrop-blur-xl ${
               showArchive
                 ? 'bg-blue-500/20 text-blue-400 border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)]'
                 : 'bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)]'
@@ -3103,11 +3103,11 @@ export default function TodosPage() {
       </div>
 
       {/* Kanban Board */}
-      <div className="flex-1 min-h-0 pb-20 md:pb-16 pt-[60px] overflow-y-auto md:overflow-y-auto">
+      <div className="flex-1 min-h-0 pb-20 min-[550px]:pb-16 pt-[60px] overflow-y-auto min-[550px]:overflow-y-auto">
         <div 
           ref={boardRef}
-          className="px-0 sm:px-4 py-2 sm:py-4 flex flex-col md:flex-row gap-3 sm:gap-4 md:overflow-x-auto scrollbar-hide"
-          style={{ cursor: windowWidth >= 768 ? 'grab' : 'default' }}
+          className="px-0 sm:px-4 py-2 sm:py-4 flex flex-col min-[550px]:flex-row gap-3 sm:gap-4 min-[550px]:overflow-x-auto scrollbar-hide"
+          style={{ cursor: windowWidth >= 550 ? 'grab' : 'default' }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -3165,26 +3165,26 @@ export default function TodosPage() {
                     handleListDrop(e, list);
                   }
                 }}
-                className={`flex-shrink-0 w-full md:w-80 flex flex-col rounded-xl transition-[opacity,transform] ${
-                  isNotSelectedOnMobile ? 'hidden md:flex' : 'flex'
+                className={`flex-shrink-0 w-full min-[550px]:w-80 flex flex-col rounded-xl transition-[opacity,transform] ${
+                  isNotSelectedOnMobile ? 'hidden min-[550px]:flex' : 'flex'
                 } ${
                   isDropTarget ? '' : ''
-                } ${isListDropTarget ? 'ring-2 ring-blue-500/50' : ''} ${draggedList?.id === list.id ? 'opacity-50 scale-95' : ''} mt-[10px] md:mt-0`}
+                } ${isListDropTarget ? 'ring-2 ring-blue-500/50' : ''} ${draggedList?.id === list.id ? 'opacity-50 scale-95' : ''} mt-[10px] min-[550px]:mt-0`}
                 onDragEnter={(e) => handleDragEnter(e, list.id)}
                 onDragLeave={handleDragLeave}
               >
                 {/* List Header */}
                 <div 
-                  draggable={windowWidth >= 768}
+                  draggable={windowWidth >= 550}
                   onDragStart={(e) => handleListDragStart(e, list)}
                   onDragEnd={handleListDragEnd}
-                  className="bg-[var(--bg-secondary)] border-x border-t border-[var(--border-color)] rounded-t-xl p-2 sm:p-2.5 flex-shrink-0 md:cursor-grab md:active:cursor-grabbing"
+                  className="bg-[var(--bg-secondary)] border-x border-t border-[var(--border-color)] rounded-t-xl p-2 sm:p-2.5 flex-shrink-0 min-[550px]:cursor-grab min-[550px]:active:cursor-grabbing"
                 >
                   <div className="flex items-center justify-between pointer-events-none">
                     <div className="flex items-center gap-1.5 sm:gap-1.5">
                       {/* Drag handle - только на десктопе */}
                       <div
-                        className="hidden md:block p-0.5 -ml-1 rounded transition-colors opacity-0 group-hover:opacity-40"
+                        className="hidden min-[550px]:block p-0.5 -ml-1 rounded transition-colors opacity-0 group-hover:opacity-40"
                         title="Перетащите для изменения порядка"
                       >
                         <GripVertical className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
@@ -3348,7 +3348,7 @@ export default function TodosPage() {
                     <TodoItem
                       key={todo.id}
                       todo={todo}
-                      isDraggable={windowWidth >= 768}
+                      isDraggable={windowWidth >= 550}
                       isDragging={draggedTodo?.id === todo.id}
                       isDragOver={dragOverTodoId === todo.id && draggedTodo?.id !== todo.id}
                       categories={categories}
@@ -3380,7 +3380,7 @@ export default function TodosPage() {
 
           {/* Add List Button - скрыта на мобильных, где есть кнопка + в табах */}
           {!showAddList && (
-            <div className="hidden md:block flex-shrink-0 w-80">
+            <div className="hidden min-[550px]:block flex-shrink-0 w-80">
               <button
                 onClick={() => setShowAddList(true)}
                 className="w-full h-20 border-2 border-dashed border-gray-300 dark:border-[var(--border-color)] rounded-xl flex items-center justify-center gap-2 text-gray-400 dark:text-[var(--text-muted)] hover:border-gray-400 dark:hover:border-[var(--border-light)] hover:text-gray-500 dark:hover:text-[var(--text-secondary)] hover:bg-gray-50 dark:hover:bg-[var(--bg-glass)] transition-all pointer-events-auto"
@@ -3424,7 +3424,7 @@ export default function TodosPage() {
             {getArchivedTodos().length > 0 && (
               <div className="mb-6">
                 <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">Архивные задачи</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 min-[550px]:grid-cols-2 lg:grid-cols-3 gap-3">
                   {getArchivedTodos().map(todo => {
                     const list = lists.find(l => l.id === todo.listId);
                     return (
@@ -3564,7 +3564,7 @@ export default function TodosPage() {
       {/* Hover Preview Tooltip - only on desktop */}
       {hoveredTodo && (hoveredTodo.description || hoveredTodo.reviewComment) && (
         <div 
-          className="hidden md:block fixed z-[100] bg-white dark:bg-[#1f1f1f] border border-gray-200 dark:border-[var(--border-light)] rounded-xl shadow-2xl p-4 max-w-sm text-gray-900 dark:text-white"
+          className="hidden min-[550px]:block fixed z-[100] bg-white dark:bg-[#1f1f1f] border border-gray-200 dark:border-[var(--border-light)] rounded-xl shadow-2xl p-4 max-w-sm text-gray-900 dark:text-white"
           style={{ 
             left: Math.min(hoverPosition.x, windowWidth - 350),
             top: Math.min(hoverPosition.y, window.innerHeight - 200),

@@ -153,7 +153,7 @@ export default function LinksPageNew() {
         setNewLinkUrl('');
         setNewLinkTitle('');
         setNewLinkDescription('');
-        setShow AddLink(false);
+        setShowAddLink(false);
       }
     } catch (error) {
       console.error('Error adding link:', error);

@@ -71,7 +71,7 @@ def snake_to_camel(data):
                 new_dict['tags'] = metadata['tags']
             if 'order' in metadata:
                 new_dict['order'] = metadata['order']
-            if 'archived' in metadata:
+            if 'archived' in metadata and 'archived' not in new_dict:
                 new_dict['archived'] = metadata['archived']
             if 'completed' in metadata and 'completed' not in new_dict and 'isCompleted' not in new_dict:
                 new_dict['completed'] = metadata['completed']
@@ -3685,7 +3685,7 @@ def get_todo_telegram():
 def get_links(userId: Optional[str] = None, department: Optional[str] = None):
     """Получить список ссылок"""
     links = db.get_links(user_id=userId, department=department)
-    lists = db.get_link_lists(department=department)
+    lists = db.get_link_lists(department=department, user_id=userId)
     
     # Преобразуем snake_case в camelCase
     links = [snake_to_camel(link) for link in links]
@@ -3705,13 +3705,23 @@ def create_link(link_data: dict = Body(...)):
     
     if item_type == 'list':
         # Создание списка
+        allowed_users = link_data.get('allowedUsers', link_data.get('allowed_users', [])) or []
+        allowed_departments = link_data.get('allowedDepartments', link_data.get('allowed_departments', [])) or []
+        is_public = link_data.get('isPublic', link_data.get('is_public'))
+        if is_public is None:
+            is_public = len(allowed_users) == 0 and len(allowed_departments) == 0
+
         new_list = {
             'id': str(uuid.uuid4()),
             'name': link_data.get('name', ''),
             'color': link_data.get('color', '#3b82f6'),
             'icon': link_data.get('icon', ''),
             'department': link_data.get('department'),
-            'order': link_data.get('order', 0)
+            'order': link_data.get('order', 0),
+            'created_by': link_data.get('createdBy', link_data.get('created_by')),
+            'allowed_users': allowed_users,
+            'allowed_departments': allowed_departments,
+            'is_public': is_public,
         }
         
         result = db.add_link_list(new_list)
@@ -3759,6 +3769,14 @@ def update_link(link_data: dict = Body(...)):
             updates['department'] = link_data['department']
         if 'order' in link_data:
             updates['order'] = link_data['order']
+        if 'allowedUsers' in link_data:
+            updates['allowedUsers'] = link_data['allowedUsers']
+        if 'allowedDepartments' in link_data:
+            updates['allowedDepartments'] = link_data['allowedDepartments']
+        if 'createdBy' in link_data:
+            updates['createdBy'] = link_data['createdBy']
+        if 'isPublic' in link_data:
+            updates['isPublic'] = link_data['isPublic']
         
         result = db.update_link_list(item_id, updates)
         if not result:
@@ -3848,9 +3866,9 @@ def delete_content_plan(plan_id: str):
 # ============== Link Lists API ==============
 
 @app.get("/api/link-lists")
-def get_link_lists(department: Optional[str] = None):
+def get_link_lists(department: Optional[str] = None, userId: Optional[str] = None):
     """Получить списки ссылок"""
-    lists = db.get_link_lists(department=department)
+    lists = db.get_link_lists(department=department, user_id=userId)
     return [snake_to_camel(list_item) for list_item in lists]
 
 @app.post("/api/link-lists")
@@ -3866,6 +3884,7 @@ def create_link_list(list_data: dict = Body(...)):
         'created_by': list_data.get('createdBy', ''),
         'allowed_users': list_data.get('allowedUsers', []),
         'allowed_departments': list_data.get('allowedDepartments', []),
+        'is_public': list_data.get('isPublic', len(list_data.get('allowedUsers', [])) == 0 and len(list_data.get('allowedDepartments', [])) == 0),
         'created_at': datetime.utcnow().isoformat(),
         'order': list_data.get('order', 0)
     }
@@ -3890,6 +3909,8 @@ def update_link_list(list_data: dict = Body(...)):
         updates['allowed_users'] = list_data['allowedUsers']
     if 'allowedDepartments' in list_data:
         updates['allowed_departments'] = list_data['allowedDepartments']
+    if 'isPublic' in list_data:
+        updates['is_public'] = list_data['isPublic']
     
     result = db.update_link_list(list_id, updates)
     if not result:

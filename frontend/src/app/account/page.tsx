@@ -24,7 +24,7 @@ const TodosBoard = lazy(() => import('../../components/TodosBoard'));
 const ContactsBoard = lazy(() => import('../../components/ContactsBoard'));
 const CalendarBoard = lazy(() => import('../../components/CalendarBoard'));
 const MessagesBoard = lazy(() => import('../../components/MessagesBoard'));
-const LinksBoard = lazy(() => import('../../components/LinksBoard'));
+const LinksBoard = lazy(() => import('../links/page'));
 
 type TabType = 'messages' | 'tasks' | 'calendar' | 'contacts' | 'tools' | 'links';
 
@@ -43,6 +43,19 @@ const ALL_TOOLS: Tool[] = [
   { id: 'settings', name: 'Настройки', href: '/settings', icon: <Settings className="w-6 h-6 sm:w-8 sm:h-8 text-white" strokeWidth={1.5} />, gradient: 'from-gray-500 to-slate-600', standard: true },
   { id: 'admin', name: 'Админка', href: '/admin', icon: <Shield className="w-6 h-6 sm:w-8 sm:h-8 text-white" strokeWidth={1.5} />, gradient: 'from-amber-500 to-orange-600', adminOnly: true },
 ];
+
+const TOOL_ICON_COLORS: Record<string, string> = {
+  'feed-editor': 'text-blue-500',
+  transliterator: 'text-emerald-500',
+  slovolov: 'text-fuchsia-500',
+  'utm-generator': 'text-pink-500',
+  'slovolov-pro': 'text-sky-500',
+  'content-plan': 'text-violet-500',
+  calculator: 'text-indigo-500',
+  links: 'text-cyan-500',
+  admin: 'text-orange-500',
+  settings: 'text-slate-500',
+};
 
 export default function AccountPage() {
   const router = useRouter();
@@ -75,6 +88,8 @@ export default function AccountPage() {
   const [draggingTool, setDraggingTool] = useState<string | null>(null);
   const [isDragOverBar, setIsDragOverBar] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [isCompactViewport, setIsCompactViewport] = useState(() => typeof window !== 'undefined' ? window.innerWidth <= 540 : false);
+  const [isTouchDevice, setIsTouchDevice] = useState(() => typeof window !== 'undefined' ? window.matchMedia('(pointer: coarse)').matches : false);
   
   // Состояния видимости вкладок навигации
   const [visibleTabs, setVisibleTabs] = useState({
@@ -365,19 +380,47 @@ export default function AccountPage() {
   useEffect(() => {
     const checkChatOpen = () => {
       if (typeof window !== 'undefined') {
-        // Проверяем и URL и localStorage
+        // Проверяем только URL: localStorage может содержать устаревший selectedChatId
         const url = new URL(window.location.href);
         const chatIdFromUrl = url.searchParams.get('chat');
-        const chatIdFromStorage = localStorage.getItem('selectedChatId');
-        // Считаем чат открытым если мы на вкладке messages И есть выбранный чат
+        // Считаем чат открытым только если мы на вкладке messages и chat есть в URL
         const isMessagesTab = activeTab === 'messages';
-        const hasChatSelected = !!(chatIdFromUrl || chatIdFromStorage);
+        const hasChatSelected = !!chatIdFromUrl;
         setIsChatOpen(isMessagesTab && hasChatSelected);
       }
     };
-    const interval = setInterval(checkChatOpen, 1000); // Уменьшено с 300ms
-    return () => clearInterval(interval);
+
+    const handleChatSelectionChanged = (event: Event) => {
+      const customEvent = event as CustomEvent<{ isOpen?: boolean }>;
+      const isOpen = !!customEvent.detail?.isOpen;
+      setIsChatOpen(activeTab === 'messages' && isOpen);
+    };
+
+    checkChatOpen();
+    window.addEventListener('chat-selection-changed', handleChatSelectionChanged as EventListener);
+    const interval = setInterval(checkChatOpen, 1000); // fallback синхронизация
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('chat-selection-changed', handleChatSelectionChanged as EventListener);
+    };
   }, [activeTab]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const updateViewport = () => {
+      setIsCompactViewport(window.innerWidth <= 540);
+      setIsTouchDevice(window.matchMedia('(pointer: coarse)').matches);
+    };
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    return () => {
+      window.removeEventListener('resize', updateViewport);
+    };
+  }, []);
+
+  const shouldUseMobileNav = isCompactViewport || isTouchDevice;
+  const hideBottomNavInOpenedChat = activeTab === 'messages' && isChatOpen && shouldUseMobileNav;
 
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
@@ -450,13 +493,13 @@ export default function AccountPage() {
       
       case 'tools':
         return (
-          <div className="p-4 sm:p-6 pb-24">
+          <div className="h-full min-h-full overflow-y-auto p-4 sm:p-6 pb-[calc(env(safe-area-inset-bottom)+92px)] bg-[var(--bg-primary)]">
             <div className="flex flex-col items-center mb-6 max-w-5xl mx-auto">
               <div className="flex items-center justify-between w-full">
                 <h2 className="text-2xl font-bold text-center flex-1">Инструменты</h2>
                 <button
                   onClick={toggleTheme}
-                  className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-xl bg-[var(--bg-secondary)]/60 border border-white/10 hover:border-white/20 hover:bg-[var(--bg-tertiary)]/90 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4)]"
+                  className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] hover:bg-[var(--bg-tertiary)]"
                   title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
                 >
                   {theme === 'dark' ? (
@@ -503,22 +546,9 @@ export default function AccountPage() {
                     }}
                   >
                     <div className="relative">
-                      {/* Выпуклое стекло */}
-                      <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-3xl flex items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] border backdrop-blur-sm ${
-                        tool.id === 'feed-editor' ? 'bg-blue-400 dark:bg-blue-500/30 border-blue-600 dark:border-blue-500/40 hover:bg-blue-500 dark:hover:bg-blue-500/40 hover:border-blue-700 dark:hover:border-blue-500/50' :
-                        tool.id === 'transliterator' ? 'bg-emerald-400 dark:bg-emerald-500/30 border-emerald-600 dark:border-emerald-500/40 hover:bg-emerald-500 dark:hover:bg-emerald-500/40 hover:border-emerald-700 dark:hover:border-emerald-500/50' :
-                        tool.id === 'slovolov' ? 'bg-pink-400 dark:bg-pink-500/30 border-pink-600 dark:border-pink-500/40 hover:bg-pink-500 dark:hover:bg-pink-500/40 hover:border-pink-700 dark:hover:border-pink-500/50' :
-                        tool.id === 'utm-generator' ? 'bg-fuchsia-400 dark:bg-fuchsia-500/30 border-fuchsia-600 dark:border-fuchsia-500/40 hover:bg-fuchsia-500 dark:hover:bg-fuchsia-500/40 hover:border-fuchsia-700 dark:hover:border-fuchsia-500/50' :
-                        tool.id === 'slovolov-pro' ? 'bg-cyan-400 dark:bg-cyan-500/30 border-cyan-600 dark:border-cyan-500/40 hover:bg-cyan-500 dark:hover:bg-cyan-500/40 hover:border-cyan-700 dark:hover:border-cyan-500/50' :
-                        tool.id === 'content-plan' ? 'bg-purple-400 dark:bg-purple-500/30 border-purple-600 dark:border-purple-500/40 hover:bg-purple-500 dark:hover:bg-purple-500/40 hover:border-purple-700 dark:hover:border-purple-500/50' :
-                        tool.id === 'calculator' ? 'bg-indigo-400 dark:bg-indigo-500/30 border-indigo-600 dark:border-indigo-500/40 hover:bg-indigo-500 dark:hover:bg-indigo-500/40 hover:border-indigo-700 dark:hover:border-indigo-500/50' :
-                        tool.id === 'settings' ? 'bg-gray-400 dark:bg-gray-500/30 border-gray-600 dark:border-gray-500/40 hover:bg-gray-500 dark:hover:bg-gray-500/40 hover:border-gray-700 dark:hover:border-gray-500/50' :
-                        tool.id === 'admin' ? 'bg-amber-400 dark:bg-amber-500/30 border-amber-600 dark:border-amber-500/40 hover:bg-amber-500 dark:hover:bg-amber-500/40 hover:border-amber-700 dark:hover:border-amber-500/50' :
-                        'bg-blue-400 dark:bg-blue-500/30 border-blue-600 dark:border-blue-500/40 hover:bg-blue-500 dark:hover:bg-blue-500/40 hover:border-blue-700 dark:hover:border-blue-500/50'
-                      }`}>
-                        {/* Icon */}
-                        <div className="text-gray-800 dark:text-white">
-                          {React.cloneElement(tool.icon as React.ReactElement, { strokeWidth: 2 } as any)}
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl flex items-center justify-center transition-all duration-200 border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] shadow-[var(--shadow-card)]">
+                        <div className={`drop-shadow-[0_2px_6px_rgba(0,0,0,0.2)] ${TOOL_ICON_COLORS[tool.id] || 'text-[var(--text-primary)]'}`}>
+                          {React.cloneElement(tool.icon as React.ReactElement, { className: 'w-10 h-10 sm:w-12 sm:h-12', strokeWidth: 1.9 } as any)}
                         </div>
                       </div>
                       {/* Иконка перетаскивания (только десктоп) */}
@@ -542,17 +572,17 @@ export default function AccountPage() {
   };
 
   return (
-    <div className={`h-screen theme-text flex flex-col transition-colors duration-300 overflow-hidden ${activeTab === 'messages' ? '' : 'theme-bg'}`}>
+    <div className={`h-screen w-full max-w-full min-w-0 theme-text flex flex-col transition-colors duration-300 overflow-hidden overflow-x-hidden ${activeTab === 'messages' ? '' : 'theme-bg'}`}>
       {/* Main Content */}
-      <div className="flex-1 overflow-hidden">
-        <div className={`h-full ${activeTab === 'tasks' ? '' : 'overflow-y-auto'}`}>
+      <div className="flex-1 min-w-0 overflow-hidden overflow-x-hidden">
+        <div className={`h-full min-w-0 ${activeTab === 'tasks' ? '' : 'overflow-y-auto'} overflow-x-hidden`}>
           {renderContent()}
         </div>
       </div>
 
       {/* Mobile Bottom Navigation Bar - стеклянные кнопки */}
-      <div className={`bottom-nav-fixed md:hidden fixed bottom-0 left-0 right-0 flex justify-center pb-4 px-3 z-40 pointer-events-none select-none ${isChatOpen ? 'hidden' : ''}`}>
-        <div className="flex items-center gap-2 pointer-events-auto backdrop-blur-xl bg-gradient-to-b from-white/10 to-white/5 border border-white/20 rounded-full px-3 py-1.5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_4px_20px_rgba(0,0,0,0.3)]">
+      <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-3 pb-[max(env(safe-area-inset-bottom),12px)] px-3 z-40 pointer-events-none select-none overflow-visible ${shouldUseMobileNav && !hideBottomNavInOpenedChat ? 'flex' : 'hidden'}`}>
+        <div className="flex items-center gap-2 pointer-events-auto backdrop-blur-xl bg-gradient-to-b from-white/12 to-white/5 border border-white/25 rounded-full px-3 py-1.5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.18),0_10px_24px_rgba(0,0,0,0.22)]">
           {visibleTabs.messages && (
           <button
             onClick={() => handleTabChange('messages')}
@@ -638,7 +668,7 @@ export default function AccountPage() {
 
       {/* Desktop Bottom Status Bar - glassmorphism style with drop zone */}
       <div 
-        className={`desktop-navigation hidden md:flex fixed bottom-0 left-0 right-0 h-[48px] backdrop-blur-xl border-t z-[101] items-center justify-between px-4 transition-all duration-200 ${
+        className={`desktop-navigation fixed bottom-0 left-0 right-0 h-[48px] backdrop-blur-xl border-t z-[101] items-center justify-between px-4 transition-all duration-200 overflow-visible ${shouldUseMobileNav || hideBottomNavInOpenedChat ? 'hidden' : 'flex'} ${
           isDragOverBar 
             ? 'bg-[#007aff]/20 border-[#007aff]/50' 
             : 'bg-[var(--bg-glass)] border-[var(--border-glass)]'
@@ -649,17 +679,17 @@ export default function AccountPage() {
         onDrop={handleDrop}
       >
         {/* Left side - Navigation */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto overflow-y-visible no-scrollbar">
           {visibleTabs.messages && (
           <button
             onClick={() => handleTabChange('messages')}
-            className={`relative px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
+            className={`relative px-3 lg:px-4 py-1.5 lg:py-2 min-h-[32px] lg:min-h-[36px] rounded-[20px] flex items-center gap-1 lg:gap-2 text-[12px] font-medium transition-all min-w-0 ${
               activeTab === 'messages'
                 ? 'bg-[#007aff]/20 text-gray-900 dark:text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
             }`}
           >
-            <MessageCircle className="w-3.5 h-3.5" />
+            <MessageCircle className="hidden lg:block w-3.5 h-3.5" />
             <span>Чаты</span>
             {unreadChatsCount > 0 && (
               <span className="min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
@@ -672,13 +702,13 @@ export default function AccountPage() {
           {visibleTabs.tasks && (
           <button
             onClick={() => handleTabChange('tasks')}
-            className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
+            className={`px-3 lg:px-4 py-1.5 lg:py-2 min-h-[32px] lg:min-h-[36px] rounded-[20px] flex items-center gap-1 lg:gap-2 text-[12px] font-medium transition-all min-w-0 ${
               activeTab === 'tasks'
                 ? 'bg-[#007aff]/20 text-gray-900 dark:text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
             }`}
           >
-            <CheckSquare className="w-3.5 h-3.5" />
+            <CheckSquare className="hidden lg:block w-3.5 h-3.5" />
             <span>Задачи</span>
           </button>
           )}
@@ -686,13 +716,13 @@ export default function AccountPage() {
           {visibleTabs.calendar && (
           <button
             onClick={() => handleTabChange('calendar')}
-            className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
+            className={`px-3 lg:px-4 py-1.5 lg:py-2 min-h-[32px] lg:min-h-[36px] rounded-[20px] flex items-center gap-1 lg:gap-2 text-[12px] font-medium transition-all min-w-0 ${
               activeTab === 'calendar'
                 ? 'bg-[#007aff]/20 text-gray-900 dark:text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
             }`}
           >
-            <Calendar className="w-3.5 h-3.5" />
+            <Calendar className="hidden lg:block w-3.5 h-3.5" />
             <span>Календарь</span>
           </button>
           )}
@@ -700,13 +730,13 @@ export default function AccountPage() {
           {visibleTabs.contacts && (
           <button
             onClick={() => handleTabChange('contacts')}
-            className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
+            className={`px-3 lg:px-4 py-1.5 lg:py-2 min-h-[32px] lg:min-h-[36px] rounded-[20px] flex items-center gap-1 lg:gap-2 text-[12px] font-medium transition-all min-w-0 ${
               activeTab === 'contacts'
                 ? 'bg-[#007aff]/20 text-gray-900 dark:text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
             }`}
           >
-            <Users className="w-3.5 h-3.5" />
+            <Users className="hidden lg:block w-3.5 h-3.5" />
             <span>Контакты</span>
           </button>
           )}
@@ -714,13 +744,13 @@ export default function AccountPage() {
           {visibleTabs.links && (
           <button
             onClick={() => handleTabChange('links')}
-            className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-medium transition-all whitespace-nowrap ${
+            className={`px-3 lg:px-4 py-1.5 lg:py-2 min-h-[32px] lg:min-h-[36px] rounded-[20px] flex items-center gap-1 lg:gap-2 text-[12px] font-medium transition-all min-w-0 ${
               activeTab === 'links'
                 ? 'bg-[#007aff]/20 text-gray-900 dark:text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
                 : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
             }`}
           >
-            <Globe className="w-3.5 h-3.5" />
+            <Globe className="hidden lg:block w-3.5 h-3.5" />
             <span>Ссылки</span>
           </button>
           )}
@@ -777,11 +807,11 @@ export default function AccountPage() {
                         {tool.id === 'admin' && <Shield className="w-2.5 h-2.5 text-white" strokeWidth={2} />}
                       </div>
                     </div>
-                    <span className="hidden lg:inline text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">{tool.name}</span>
+                    <span className="hidden md:inline text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">{tool.name}</span>
                   </Link>
                   <button
                     onClick={(e) => { e.preventDefault(); removePinnedTool(toolId); }}
-                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="hidden lg:flex absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                     title="Открепить"
                   >
                     <X className="w-2.5 h-2.5" strokeWidth={3} />
@@ -792,24 +822,8 @@ export default function AccountPage() {
           </div>
         )}
 
-        {/* Right side - Theme toggle and User info */}
+        {/* Right side - User info */}
         <div className="flex items-center gap-3">
-          {/* Theme Toggle - only mobile */}
-          <button
-            onClick={toggleTheme}
-            className="md:hidden w-8 h-8 rounded-full flex items-center justify-center transition-all bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]"
-            title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
-          >
-            {theme === 'dark' ? (
-              <Sun className="w-4 h-4" strokeWidth={2} />
-            ) : (
-              <Moon className="w-4 h-4" strokeWidth={2} />
-            )}
-          </button>
-
-          {/* Divider - only mobile */}
-          <div className="md:hidden w-px h-6 bg-white/20" />
-
           {/* User Info - кликабельно для открытия меню */}
           {currentUser && (
             <div className="relative">
@@ -824,9 +838,6 @@ export default function AccountPage() {
                   size="sm"
                   isOnline={true}
                 />
-                <span className="md:hidden text-xs text-[var(--text-secondary)] max-w-[120px] truncate">
-                  {currentUser.name}
-                </span>
               </button>
               
               {/* Выпадающее меню */}

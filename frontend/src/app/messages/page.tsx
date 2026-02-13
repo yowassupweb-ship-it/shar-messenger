@@ -99,7 +99,7 @@ export default function MessagesPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [events, setEvents] = useState<any[]>([]);
   const [todoLists, setTodoLists] = useState<any[]>([]);
-  const [isDesktopView, setIsDesktopView] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
+  const [isDesktopView, setIsDesktopView] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 1024 : false);
   const defaultTodoListId = useMemo(() => {
     if (todoLists.length === 0) return null;
     const sorted = [...todoLists].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -1606,6 +1606,37 @@ export default function MessagesPage() {
 
   const messagesContainerRef = useRef<HTMLDivElement>(null); // Ref для основного контейнера страницы
 
+  // Синхронизируем состояние открытия чата с оболочкой account мгновенно
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new CustomEvent('chat-selection-changed', {
+      detail: { isOpen: !!selectedChat }
+    }));
+  }, [selectedChat]);
+
+  // На мобильной ширине выключаем режим collapsed и используем стандартный mobile-переход со стрелкой назад
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const mediaQuery = window.matchMedia('(max-width: 785px)');
+    const syncCollapsedState = (isMobile: boolean) => {
+      if (isMobile) {
+        setIsChatListCollapsed(false);
+      }
+    };
+
+    syncCollapsedState(mediaQuery.matches);
+
+    const handleChange = (event: MediaQueryListEvent) => {
+      syncCollapsedState(event.matches);
+    };
+
+    mediaQuery.addEventListener('change', handleChange);
+    return () => {
+      mediaQuery.removeEventListener('change', handleChange);
+    };
+  }, []);
+
   // --- FIX MOBILE KEYBOARD ---
   // Используем direct DOM manipulation чтобы избежать ре-рендеров при ресайзе (клавиатура)
   // Это предотвращает закрытие клавиатуры
@@ -1628,7 +1659,7 @@ export default function MessagesPage() {
       document.body.style.height = `${vh}px`;
       
       // Обновляем isDesktopView при изменении размера
-      setIsDesktopView(window.innerWidth >= 768);
+      setIsDesktopView(window.innerWidth >= 1024);
       
       // Если высота уменьшилась (клавиатура открылась) - скроллим к последнему сообщению
       if (vh < prevHeight && messagesListRef.current) {
@@ -1700,7 +1731,7 @@ export default function MessagesPage() {
   return (
     <div 
       ref={messagesContainerRef}
-      className="bg-[var(--bg-primary)] text-[var(--text-primary)] flex overflow-hidden rounded-none overscroll-none"
+      className="bg-[var(--bg-primary)] text-[var(--text-primary)] flex w-full max-w-full overflow-hidden overflow-x-hidden rounded-none overscroll-none min-w-0"
       style={{ height: '100dvh', maxHeight: '100dvh' }}
     >
       {/* Левая панель - список чатов (единый блок с разными состояниями) */}
@@ -1711,8 +1742,6 @@ export default function MessagesPage() {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         setShowNewChatModal={setShowNewChatModal}
-        theme={theme}
-        toggleTheme={toggleTheme}
         isLoadingChats={isLoadingChats}
         chats={chats}
         pinnedChats={pinnedChats}
@@ -1733,9 +1762,9 @@ export default function MessagesPage() {
 
       {/* Правая панель - чат */}
       {selectedChat ? (
-        <div className={`flex-1 min-h-0 flex overflow-hidden bg-transparent ${selectedChat ? 'block' : 'hidden md:block'}`}>
+        <div className={`flex-1 min-h-0 min-w-0 flex overflow-hidden bg-transparent ${selectedChat ? 'block' : 'hidden lg:block'}`}>
           {/* Контейнер чата */}
-          <div className="flex-1 min-h-0 flex flex-col relative bg-transparent">
+          <div className="flex-1 min-h-0 min-w-0 flex flex-col relative bg-transparent">
           <ChatHeader
             selectedChat={selectedChat}
             isSelectionMode={isSelectionMode}
@@ -1868,7 +1897,7 @@ export default function MessagesPage() {
           />
         </div>
       ) : (
-        <div className="hidden md:flex flex-1 items-center justify-center text-[var(--text-muted)]">
+        <div className="hidden lg:flex flex-1 items-center justify-center text-[var(--text-muted)]">
           <div className="text-center">
             <MessageCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
             <p className="text-sm">Выберите чат</p>

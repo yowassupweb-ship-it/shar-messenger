@@ -16,6 +16,10 @@ export interface LinkList {
   icon: string;
   order: number;
   createdAt: string;
+  createdBy?: string;
+  allowedUsers: string[];
+  allowedDepartments: string[];
+  isPublic: boolean;
 }
 
 export interface LinkItem {
@@ -47,7 +51,18 @@ interface LinksData {
 const DEFAULT_CATEGORIES: LinkCategory[] = [];
 
 const DEFAULT_LISTS: LinkList[] = [
-  { id: 'work', name: 'Работа', color: '#3b82f6', icon: '', order: 0, createdAt: new Date().toISOString() },
+  {
+    id: 'work',
+    name: 'Работа',
+    color: '#3b82f6',
+    icon: '',
+    order: 0,
+    createdAt: new Date().toISOString(),
+    createdBy: '',
+    allowedUsers: [],
+    allowedDepartments: [],
+    isPublic: true,
+  },
 ];
 
 const DEFAULT_DATA: LinksData = {
@@ -55,6 +70,34 @@ const DEFAULT_DATA: LinksData = {
   lists: DEFAULT_LISTS,
   categories: DEFAULT_CATEGORIES
 };
+
+function normalizeLinksData(input: LinksData): LinksData {
+  const lists = (input.lists || []).map((list, index) => {
+    const allowedUsers = Array.isArray((list as Partial<LinkList>).allowedUsers)
+      ? ((list as Partial<LinkList>).allowedUsers as string[]).filter(Boolean)
+      : [];
+    const allowedDepartments = Array.isArray((list as Partial<LinkList>).allowedDepartments)
+      ? ((list as Partial<LinkList>).allowedDepartments as string[]).filter(Boolean)
+      : [];
+    const explicitPublic = (list as Partial<LinkList>).isPublic;
+
+    return {
+      ...list,
+      order: typeof list.order === 'number' ? list.order : index,
+      createdAt: list.createdAt || new Date().toISOString(),
+      createdBy: (list as Partial<LinkList>).createdBy || '',
+      allowedUsers,
+      allowedDepartments,
+      isPublic: typeof explicitPublic === 'boolean' ? explicitPublic : allowedUsers.length === 0 && allowedDepartments.length === 0,
+    } as LinkList;
+  });
+
+  return {
+    links: input.links || [],
+    categories: input.categories || [],
+    lists,
+  };
+}
 
 // Fetch metadata from URL
 async function fetchUrlMetadata(url: string): Promise<Partial<LinkItem>> {
@@ -123,7 +166,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(metadata);
     }
     
-    const data = readJsonFile<LinksData>('links.json', DEFAULT_DATA);
+    const rawData = readJsonFile<LinksData>('links.json', DEFAULT_DATA);
+    const data = normalizeLinksData(rawData);
+
+    if (JSON.stringify(rawData) !== JSON.stringify(data)) {
+      writeJsonFile('links.json', data);
+    }
+
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error reading links:', error);
@@ -137,7 +186,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { type } = body;
     
-    const data = readJsonFile<LinksData>('links.json', DEFAULT_DATA);
+    const data = normalizeLinksData(readJsonFile<LinksData>('links.json', DEFAULT_DATA));
     
     if (type === 'link') {
       const { url, listId, categoryId, tags = [] } = body;
@@ -171,7 +220,16 @@ export async function POST(request: NextRequest) {
     }
     
     if (type === 'list') {
-      const { name, color = '#3b82f6', icon = '📁' } = body;
+      const {
+        name,
+        color = '#3b82f6',
+        icon = '📁',
+        createdBy = '',
+        allowedUsers = [],
+        allowedDepartments = [],
+      } = body;
+      const normalizedAllowedUsers = Array.isArray(allowedUsers) ? allowedUsers.filter(Boolean) : [];
+      const normalizedAllowedDepartments = Array.isArray(allowedDepartments) ? allowedDepartments.filter(Boolean) : [];
       
       const newList: LinkList = {
         id: generateId(),
@@ -179,7 +237,11 @@ export async function POST(request: NextRequest) {
         color,
         icon,
         order: data.lists.length,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        createdBy,
+        allowedUsers: normalizedAllowedUsers,
+        allowedDepartments: normalizedAllowedDepartments,
+        isPublic: normalizedAllowedUsers.length === 0 && normalizedAllowedDepartments.length === 0,
       };
       
       data.lists.push(newList);
@@ -220,7 +282,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { type, id, ...updates } = body;
     
-    const data = readJsonFile<LinksData>('links.json', DEFAULT_DATA);
+    const data = normalizeLinksData(readJsonFile<LinksData>('links.json', DEFAULT_DATA));
     
     if (type === 'link') {
       const linkIndex = data.links.findIndex(l => l.id === id);
@@ -252,8 +314,29 @@ export async function PUT(request: NextRequest) {
       if (listIndex === -1) {
         return NextResponse.json({ error: 'List not found' }, { status: 404 });
       }
+
+      const nextUpdates = { ...updates };
+      if ('allowedUsers' in nextUpdates) {
+        nextUpdates.allowedUsers = Array.isArray(nextUpdates.allowedUsers)
+          ? nextUpdates.allowedUsers.filter(Boolean)
+          : [];
+      }
+      if ('allowedDepartments' in nextUpdates) {
+        nextUpdates.allowedDepartments = Array.isArray(nextUpdates.allowedDepartments)
+          ? nextUpdates.allowedDepartments.filter(Boolean)
+          : [];
+      }
       
-      data.lists[listIndex] = { ...data.lists[listIndex], ...updates };
+      const merged = { ...data.lists[listIndex], ...nextUpdates } as LinkList;
+      const derivedPublic =
+        ('allowedUsers' in nextUpdates || 'allowedDepartments' in nextUpdates) && !('isPublic' in nextUpdates)
+          ? (merged.allowedUsers?.length || 0) === 0 && (merged.allowedDepartments?.length || 0) === 0
+          : merged.isPublic;
+
+      data.lists[listIndex] = {
+        ...merged,
+        isPublic: typeof derivedPublic === 'boolean' ? derivedPublic : true,
+      };
       writeJsonFile('links.json', data);
       return NextResponse.json(data.lists[listIndex]);
     }

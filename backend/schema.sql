@@ -384,12 +384,17 @@ CREATE TABLE IF NOT EXISTS link_lists (
     color VARCHAR(50) DEFAULT '#3b82f6',
     icon VARCHAR(255),
     department VARCHAR(255),
+    created_by VARCHAR(255),
+    allowed_users TEXT[] DEFAULT '{}',
+    allowed_departments TEXT[] DEFAULT '{}',
+    is_public BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     list_order INTEGER DEFAULT 0
 );
 
 CREATE INDEX idx_link_lists_department ON link_lists(department);
+CREATE INDEX idx_link_lists_is_public ON link_lists(is_public);
 
 -- Tasks table
 CREATE TABLE IF NOT EXISTS tasks (

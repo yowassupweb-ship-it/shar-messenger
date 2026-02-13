@@ -77,6 +77,9 @@ const MessageItem: React.FC<MessageItemProps> = ({
   // Проверяем нужен ли разделитель даты
   const previousMessage = index > 0 ? filteredMessages[index - 1] : undefined;
   const showDateSeparator = shouldShowDateSeparator(message, previousMessage);
+  const previousAuthorId = previousMessage?.authorId || 'system';
+  const wasPreviousMyMessage = previousAuthorId === currentUser?.id;
+  const isSideSwitch = Boolean(previousMessage) && wasPreviousMyMessage !== isMyMessage;
 
   // Определяем тип контента: только эмоджи или текст
   const content = message.content.trim();
@@ -120,9 +123,9 @@ const MessageItem: React.FC<MessageItemProps> = ({
       <div
         key={message.id}
         ref={(el) => { messageRefs.current[message.id] = el; }}
-        className={`flex ${isMyMessage ? 'justify-end md:justify-start' : 'justify-start'} group transition-all duration-200 -mx-[20px] md:px-2 md:-mx-2 ${
+        className={`flex ${isMyMessage ? 'justify-end md:justify-start' : 'justify-start'} group transition-all duration-200 mx-0 md:px-2 md:-mx-2 ${
           selectedMessages.has(message.id) ? 'bg-[var(--accent-primary)]/20' : ''
-        } ${isMyMessage ? 'message-animation-right md:message-animation-left' : 'message-animation-left'}`}
+        } ${isMyMessage ? 'message-animation-right md:message-animation-left' : 'message-animation-left'} ${isSideSwitch ? 'mt-[9px] md:mt-[12px]' : ''}`}
         onClick={(e) => {
           if (isSelectionMode && !message.isDeleted) {
             e.stopPropagation();

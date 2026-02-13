@@ -11,11 +11,12 @@
       "listId": "work",
       "tags": [],
       "isBookmarked": true,
-      "isPinned": false,
-      "clickCount": 0,
+      "isPinned": true,
+      "clickCount": 1,
       "createdAt": "2026-01-14T12:26:50.738Z",
-      "updatedAt": "2026-01-28T13:47:45.453Z",
-      "order": 0
+      "updatedAt": "2026-02-13T15:24:55.107Z",
+      "order": 0,
+      "lastClickedAt": "2026-02-13T15:40:32.091Z"
     },
     {
       "id": "20260202_143315_npu3qn",
@@ -27,11 +28,11 @@
       "siteName": "chat.deepseek.com",
       "listId": "work",
       "tags": [],
-      "isBookmarked": false,
-      "isPinned": false,
+      "isBookmarked": true,
+      "isPinned": true,
       "clickCount": 0,
       "createdAt": "2026-02-02T14:33:15.943Z",
-      "updatedAt": "2026-02-02T14:33:47.939Z",
+      "updatedAt": "2026-02-13T15:32:33.008Z",
       "order": 1,
       "categoryId": "20260202_143334_2gblwu"
     },
@@ -84,18 +85,8 @@
       "isPinned": false,
       "clickCount": 0,
       "createdAt": "2026-02-03T12:01:03.330Z",
-      "updatedAt": "2026-02-03T12:01:03.330Z",
+      "updatedAt": "2026-02-13T15:24:52.797Z",
       "order": 4
-    }
-  ],
-  "lists": [
-    {
-      "id": "work",
-      "name": "Работа",
-      "color": "#3b82f6",
-      "icon": "",
-      "order": 0,
-      "createdAt": "2025-12-29T13:57:04.220Z"
     }
   ],
   "categories": [
@@ -133,6 +124,20 @@
       "color": "#ec4899",
       "icon": "",
       "order": 4
+    }
+  ],
+  "lists": [
+    {
+      "id": "work",
+      "name": "Работа",
+      "color": "#3b82f6",
+      "icon": "",
+      "order": 0,
+      "createdAt": "2025-12-29T13:57:04.220Z",
+      "createdBy": "",
+      "allowedUsers": [],
+      "allowedDepartments": [],
+      "isPublic": true
     }
   ]
 }

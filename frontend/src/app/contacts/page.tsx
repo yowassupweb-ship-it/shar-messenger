@@ -285,32 +285,21 @@ export default function ContactsPage() {
           currentUser.department === viewingContact.department))
   );
 
-  // Функция для уменьшения яркости цвета на заданный процент
-  const reduceBrightness = (hex: string, percent: number) => {
-    const num = parseInt(hex.replace('#', ''), 16);
-    const r = Math.floor(((num >> 16) & 0xff) * (1 - percent / 100));
-    const g = Math.floor(((num >> 8) & 0xff) * (1 - percent / 100));
-    const b = Math.floor((num & 0xff) * (1 - percent / 100));
-    return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
-  };
-
-  // Функция для получения стиля фона отдела (Pantone)
+  // Более спокойный стиль карточки отдела
   const getDepartmentStyle = (index: number) => {
-    const pantoneColors = [
-      '#0F4C81', '#FF6F61', '#5F4B8B', '#88B04B', '#955251',
-      '#B565A7', '#009B77', '#DD4124', '#D65076', '#45B5AA',
-      '#EFC050', '#5A5B9F', '#9B1B30', '#7FCDCD', '#BC243C'
+    const vividGradients = [
+      'linear-gradient(160deg, rgba(59,130,246,0.35) 0%, rgba(37,99,235,0.2) 100%)',
+      'linear-gradient(160deg, rgba(16,185,129,0.34) 0%, rgba(5,150,105,0.2) 100%)',
+      'linear-gradient(160deg, rgba(236,72,153,0.3) 0%, rgba(190,24,93,0.18) 100%)',
+      'linear-gradient(160deg, rgba(168,85,247,0.32) 0%, rgba(126,34,206,0.18) 100%)',
+      'linear-gradient(160deg, rgba(245,158,11,0.35) 0%, rgba(217,119,6,0.2) 100%)',
+      'linear-gradient(160deg, rgba(6,182,212,0.32) 0%, rgba(14,116,144,0.18) 100%)',
     ];
-    
-    let backgroundColor = pantoneColors[index % pantoneColors.length];
-    
-    // Если цветные фоны выключены - уменьшаем яркость на 70%
-    if (!coloredBackgrounds) {
-      backgroundColor = reduceBrightness(backgroundColor, 70);
-    }
-    
+
     return {
-        backgroundColor
+      background: coloredBackgrounds
+        ? vividGradients[index % vividGradients.length]
+        : 'linear-gradient(160deg, rgba(148,163,184,0.08) 0%, rgba(148,163,184,0.03) 100%)'
     };
   };
 
@@ -337,20 +326,20 @@ export default function ContactsPage() {
               placeholder="Поиск..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full md:w-[200px] h-10 pl-10 pr-3 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 rounded-[20px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-white/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
+              className="w-full md:w-[220px] h-10 pl-10 pr-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-[16px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--border-light)] backdrop-blur-xl"
             />
           </div>
           
           {/* Color Toggle Button */}
           <button
             onClick={() => setColoredBackgrounds(!coloredBackgrounds)}
-            className="w-10 h-10 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 flex items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
+            className="w-10 h-10 rounded-[16px] bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] border border-[var(--border-color)] flex items-center justify-center transition-all duration-200 backdrop-blur-xl"
             title={coloredBackgrounds ? 'Выключить цветные фоны' : 'Включить цветные фоны'}
           >
             {coloredBackgrounds ? (
-              <Eye className="w-5 h-5 text-gray-700 dark:text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" strokeWidth={2.5} />
-            ) : (
               <EyeOff className="w-5 h-5 text-gray-700 dark:text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" strokeWidth={2.5} />
+            ) : (
+              <Eye className="w-5 h-5 text-gray-700 dark:text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" strokeWidth={2.5} />
             )}
           </button>
         </div>
@@ -362,22 +351,22 @@ export default function ContactsPage() {
           <div className="max-w-6xl mx-auto">
 
         {/* Contacts grouped by department */}
-        <div className="space-y-4 md:space-y-6 pb-20">
+        <div className="space-y-3 md:space-y-4 pb-20">
           {sortedDepartments.map((department, index) => (
-            <div key={department} className="rounded-xl border border-white/20 p-2 md:p-4 shadow-lg md:mx-0 mx-2 mt-[10px]" style={getDepartmentStyle(index)}>
+            <div key={department} className="rounded-2xl border border-[var(--border-color)] p-2.5 md:p-3.5 md:mx-0 mx-2 mt-[10px] backdrop-blur-xl" style={getDepartmentStyle(index)}>
               {/* Department Header */}
-              <div className="flex items-center gap-2 md:gap-3 px-1 md:px-2 py-1.5 md:py-2 mb-3">
+              <div className="flex items-center gap-2 md:gap-3 px-1 md:px-2 py-1.5 md:py-2 mb-2">
                 <div className="flex items-center gap-2">
                   <div>
-                    <h2 className="font-semibold text-sm md:text-base text-white drop-shadow-md">{department}</h2>
-                    <p className="text-[10px] md:text-xs text-white/90 drop-shadow-sm">{contactsByDepartment[department].length} сотрудник{contactsByDepartment[department].length === 1 ? '' : contactsByDepartment[department].length < 5 ? 'а' : 'ов'}</p>
+                    <h2 className="font-semibold text-sm md:text-base text-[var(--text-primary)]">{department}</h2>
+                    <p className="text-[10px] md:text-xs text-[var(--text-muted)]">{contactsByDepartment[department].length} сотрудник{contactsByDepartment[department].length === 1 ? '' : contactsByDepartment[department].length < 5 ? 'а' : 'ов'}</p>
                   </div>
                 </div>
-                <div className="flex-1 h-px bg-gradient-to-r from-white/30 to-transparent"></div>
+                <div className="flex-1 h-px bg-[var(--border-color)]"></div>
               </div>
 
               {/* Department Contacts */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 md:gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
                 {contactsByDepartment[department].map(contact => (
                   <div
                     key={contact.id}
@@ -385,7 +374,7 @@ export default function ContactsPage() {
                       setViewingContact(contact);
                       setShowContactCard(true);
                     }}
-                    className="bg-white/90 dark:bg-black/40 backdrop-blur-md border border-white/40 dark:border-white/10 rounded-[50px] p-2 md:p-3 hover:bg-white dark:hover:bg-black/60 transition-all duration-200 group cursor-pointer shadow-sm"
+                    className="bg-[var(--bg-secondary)]/90 backdrop-blur-md border border-[var(--border-color)] rounded-2xl p-2 md:p-2.5 hover:bg-[var(--bg-glass)] transition-all duration-200 group cursor-pointer"
                   >
                     <div className="flex items-center gap-2 md:gap-3">
                       {/* Avatar */}
@@ -408,11 +397,11 @@ export default function ContactsPage() {
                       </div>
 
                       {/* Quick Actions - всегда видны */}
-                      <div className="flex gap-1 md:gap-1.5 transition-opacity">
+                      <div className="flex gap-1 transition-opacity shrink-0">
                         {contact.email && (
                           <a 
                             href={`mailto:${contact.email}`}
-                            className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/25 hover:to-white/10 border border-white/20 flex items-center justify-center transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,0,0,0.1)] backdrop-blur-md"
+                            className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] border border-[var(--border-color)] flex items-center justify-center transition-all"
                             title={contact.email}
                           >
                             <Mail className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-700 dark:text-white" />
@@ -707,7 +696,7 @@ export default function ContactsPage() {
                 {viewingContact.email && (
                   <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-[20px] backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">
                     <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                      <Mail className="w-4 h-4 text-blue-400" />
+                      <Mail className="w-4 h-4 text-[var(--text-secondary)]" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-white/60">Email</p>
@@ -723,63 +712,63 @@ export default function ContactsPage() {
                 )}
 
                 {viewingContact.phone && (
-                  <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-[20px] backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">
-                    <div className="w-9 h-9 rounded-lg bg-green-500/20 flex items-center justify-center">
-                      <Phone className="w-4 h-4 text-green-400" />
+                  <div className="flex items-center gap-3 p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-[16px] backdrop-blur-sm">
+                    <div className="w-9 h-9 rounded-lg bg-[var(--bg-secondary)] flex items-center justify-center border border-[var(--border-color)]">
+                      <Phone className="w-4 h-4 text-[var(--text-secondary)]" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-white/60">Телефон</p>
-                      <p className="text-sm text-white">{viewingContact.phone}</p>
+                      <p className="text-xs text-[var(--text-muted)]">Телефон</p>
+                      <p className="text-sm text-[var(--text-primary)]">{viewingContact.phone}</p>
                     </div>
                     <a 
                       href={`tel:${viewingContact.phone}`}
-                      className="p-2 hover:bg-green-500/20 rounded-lg transition-colors"
+                      className="p-2 hover:bg-[var(--bg-glass-hover)] rounded-lg transition-colors"
                     >
-                      <Phone className="w-4 h-4 text-green-400" />
+                      <Phone className="w-4 h-4 text-[var(--text-secondary)]" />
                     </a>
                   </div>
                 )}
 
                 {viewingContact.department && (
-                  <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-[20px] backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">
-                    <div className="w-9 h-9 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                      <Briefcase className="w-4 h-4 text-purple-400" />
+                  <div className="flex items-center gap-3 p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-[16px] backdrop-blur-sm">
+                    <div className="w-9 h-9 rounded-lg bg-[var(--bg-secondary)] flex items-center justify-center border border-[var(--border-color)]">
+                      <Briefcase className="w-4 h-4 text-[var(--text-secondary)]" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-white/60">Отдел</p>
-                      <p className="text-sm text-white">{viewingContact.department}</p>
+                      <p className="text-xs text-[var(--text-muted)]">Отдел</p>
+                      <p className="text-sm text-[var(--text-primary)]">{viewingContact.department}</p>
                     </div>
                   </div>
                 )}
 
                 {viewingContact.workSchedule && (
-                  <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-[20px] backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">
-                    <div className="w-9 h-9 rounded-lg bg-orange-500/20 flex items-center justify-center">
-                      <Calendar className="w-4 h-4 text-orange-400" />
+                  <div className="flex items-center gap-3 p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-[16px] backdrop-blur-sm">
+                    <div className="w-9 h-9 rounded-lg bg-[var(--bg-secondary)] flex items-center justify-center border border-[var(--border-color)]">
+                      <Calendar className="w-4 h-4 text-[var(--text-secondary)]" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-white/60">График работы</p>
-                      <p className="text-sm text-white">{viewingContact.workSchedule}</p>
+                      <p className="text-xs text-[var(--text-muted)]">График работы</p>
+                      <p className="text-sm text-[var(--text-primary)]">{viewingContact.workSchedule}</p>
                     </div>
                   </div>
                 )}
 
                 {viewingContact.telegramUsername && (
-                  <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-[20px] backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">
-                    <div className="w-9 h-9 rounded-lg bg-cyan-500/20 flex items-center justify-center">
-                      <MessageCircle className="w-4 h-4 text-cyan-400" />
+                  <div className="flex items-center gap-3 p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-[16px] backdrop-blur-sm">
+                    <div className="w-9 h-9 rounded-lg bg-[var(--bg-secondary)] flex items-center justify-center border border-[var(--border-color)]">
+                      <MessageCircle className="w-4 h-4 text-[var(--text-secondary)]" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-white/60">Telegram</p>
-                      <p className="text-sm text-white">{viewingContact.telegramUsername}</p>
+                      <p className="text-xs text-[var(--text-muted)]">Telegram</p>
+                      <p className="text-sm text-[var(--text-primary)]">{viewingContact.telegramUsername}</p>
                     </div>
                     <a 
                       href={`https://t.me/${viewingContact.telegramUsername.replace('@', '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 hover:bg-cyan-500/20 rounded-lg transition-colors"
+                      className="p-2 hover:bg-[var(--bg-glass-hover)] rounded-lg transition-colors"
                     >
-                      <MessageCircle className="w-4 h-4 text-cyan-400" />
+                      <MessageCircle className="w-4 h-4 text-[var(--text-secondary)]" />
                     </a>
                   </div>
                 )}
@@ -787,33 +776,33 @@ export default function ContactsPage() {
 
               {canViewContactTodos && (
                 <div className="mt-6">
-                  <div className="text-xs uppercase tracking-wide text-white/60 mb-2">Задачи контакта</div>
+                  <div className="text-xs uppercase tracking-wide text-[var(--text-muted)] mb-2">Задачи контакта</div>
                   <div className="space-y-2">
                     {isContactTodosLoading && (
-                      <div className="text-xs text-white/50">Загрузка задач...</div>
+                      <div className="text-xs text-[var(--text-muted)]">Загрузка задач...</div>
                     )}
                     {!isContactTodosLoading && contactTodos.length === 0 && (
-                      <div className="text-xs text-white/50">Нет задач для отображения</div>
+                      <div className="text-xs text-[var(--text-muted)]">Нет задач для отображения</div>
                     )}
                     {!isContactTodosLoading && contactTodos.map(todo => {
                       const listName = lists.find(list => list.id === todo.listId)?.name;
                       return (
                         <div
                           key={todo.id}
-                          className="p-3 bg-white/5 border border-white/10 rounded-[18px] backdrop-blur-sm"
+                          className="p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-[16px] backdrop-blur-sm"
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0">
-                              <div className="text-sm text-white truncate">
+                              <div className="text-sm text-[var(--text-primary)] truncate">
                                 {todo.title}
                               </div>
-                              <div className="text-[10px] text-white/50 mt-1">
+                              <div className="text-[10px] text-[var(--text-muted)] mt-1">
                                 {getTodoStatusLabel(todo.status)}
                                 {listName ? ` • ${listName}` : ''}
                               </div>
                             </div>
                             {todo.dueDate && (
-                              <div className="text-[10px] text-white/40 whitespace-nowrap">
+                              <div className="text-[10px] text-[var(--text-muted)] whitespace-nowrap">
                                 {new Date(todo.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                               </div>
                             )}
@@ -825,7 +814,7 @@ export default function ContactsPage() {
                                 setShowContactCard(false);
                                 setViewingContact(null);
                               }}
-                              className="flex items-center gap-1 px-2 py-1 text-[10px] text-blue-200 hover:text-blue-100 bg-blue-500/20 hover:bg-blue-500/30 rounded-full border border-blue-500/30 transition-all"
+                              className="flex items-center gap-1 px-2 py-1 text-[10px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] rounded-full border border-[var(--border-color)] transition-all"
                             >
                               <ExternalLink className="w-3 h-3" />
                               Перейти к задаче
@@ -869,7 +858,7 @@ export default function ContactsPage() {
                       console.error('Error opening chat:', error);
                     }
                   }}
-                  className="flex-1 py-2.5 rounded-[20px] bg-purple-500/20 hover:bg-purple-500/30 text-gray-900 dark:text-white font-medium transition-all flex items-center justify-center gap-2 border border-purple-500/30"
+                  className="flex-1 py-2.5 rounded-[16px] bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] text-[var(--text-primary)] font-medium transition-all flex items-center justify-center gap-2 border border-[var(--border-color)]"
                 >
                   <MessageCircle className="w-4 h-4" />
                   Написать
@@ -880,7 +869,7 @@ export default function ContactsPage() {
                     setShowContactCard(false);
                     setShowListModal(true);
                   }}
-                  className="flex-1 py-2.5 rounded-[20px] bg-green-500/20 hover:bg-green-500/30 text-gray-900 dark:text-white font-medium transition-all flex items-center justify-center gap-2 border border-green-500/30"
+                  className="flex-1 py-2.5 rounded-[16px] bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] text-[var(--text-primary)] font-medium transition-all flex items-center justify-center gap-2 border border-[var(--border-color)]"
                 >
                   <CheckSquare className="w-4 h-4" />
                   Задача
