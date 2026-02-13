@@ -73,7 +73,7 @@ def snake_to_camel(data):
                 new_dict['order'] = metadata['order']
             if 'archived' in metadata:
                 new_dict['archived'] = metadata['archived']
-            if 'completed' in metadata:
+            if 'completed' in metadata and 'completed' not in new_dict and 'isCompleted' not in new_dict:
                 new_dict['completed'] = metadata['completed']
             if 'comments' in metadata:
                 new_dict['comments'] = metadata['comments']

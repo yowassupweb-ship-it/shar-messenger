@@ -2262,7 +2262,7 @@ export default function TodosPage() {
     const todoName = targetTodo?.title || 'Задача';
     
     if (!confirm(`Удалить задачу "${todoName}"? Это действие нельзя отменить.`)) {
-      return;
+      return false;
     }
     
     try {
@@ -2273,9 +2273,12 @@ export default function TodosPage() {
           await removeCalendarEventForTodo(targetTodo);
         }
         setTodos(prev => prev.filter(t => t.id !== id));
+        return true;
       }
+      return false;
     } catch (error) {
       console.error('Error deleting todo:', error);
+      return false;
     }
   }, [todos, removeCalendarEventForTodo]);
 
@@ -3636,6 +3639,7 @@ export default function TodosPage() {
         onClose={closeTodoModal}
         onUpdate={updateTodo}
         onToggle={toggleTodo}
+        onDelete={deleteTodo}
         onDraftUpdate={handleUpdate}
         people={people}
         lists={lists}

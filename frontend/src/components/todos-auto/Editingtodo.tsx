@@ -214,6 +214,7 @@ interface EditingtodoProps {
   onClose: () => void;
   onUpdate: (todo: Todo) => void;
   onToggle: (todo: Todo) => void;
+  onDelete?: (todoId: string) => Promise<boolean> | boolean;
   onDraftUpdate?: (updates: Partial<Todo>) => void;
   
   // Данные
@@ -247,6 +248,7 @@ const Editingtodo = memo(function Editingtodo({
   onClose,
   onUpdate,
   onToggle,
+  onDelete,
   onDraftUpdate,
   people,
   lists,
@@ -779,7 +781,18 @@ const Editingtodo = memo(function Editingtodo({
 
   const ensureTaskChat = async (): Promise<string | null> => {
     if (!editingTodo) return null;
-    if (editingTodo.chatId) return editingTodo.chatId;
+    if (editingTodo.chatId) {
+      try {
+        const existingChatRes = await fetch(`/api/chats/${editingTodo.chatId}`);
+        if (existingChatRes.ok) {
+          return editingTodo.chatId;
+        }
+      } catch (error) {
+        console.error('Error checking existing task chat:', error);
+      }
+
+      setEditingTodo(prev => (prev ? { ...prev, chatId: undefined } : prev));
+    }
 
     try {
       const participantIds = buildTaskParticipants(editingTodo);
@@ -895,7 +908,8 @@ const Editingtodo = memo(function Editingtodo({
           return;
         }
       } else {
-        const res = await fetch(`/api/chats/${ensuredChatId}/messages`, {
+        let targetChatId = ensuredChatId;
+        let res = await fetch(`/api/chats/${targetChatId}/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -906,6 +920,25 @@ const Editingtodo = memo(function Editingtodo({
             attachments: discussionAttachments
           })
         });
+
+        if (res.status === 404) {
+          const recreatedChatId = await ensureTaskChat();
+          if (recreatedChatId) {
+            targetChatId = recreatedChatId;
+            res = await fetch(`/api/chats/${targetChatId}/messages`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                authorId: myAccountId,
+                authorName: getCurrentUserName(),
+                content,
+                mentions: [],
+                attachments: discussionAttachments
+              })
+            });
+          }
+        }
+
         if (!res.ok) {
           alert('Не удалось отправить сообщение');
           return;
@@ -1793,6 +1826,20 @@ const Editingtodo = memo(function Editingtodo({
                           </div>
                         )}
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!editingTodo?.id || !onDelete) return;
+                          const deleted = await onDelete(editingTodo.id);
+                          if (deleted) {
+                            onClose();
+                          }
+                        }}
+                        className="w-full px-3 py-2.5 rounded-xl border border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-500/20 transition-colors"
+                      >
+                        Удалить задачу
+                      </button>
                     </div>
                   )}
                   {sidebarMode === 'stages' && (
