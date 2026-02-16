@@ -1234,6 +1234,20 @@ class PostgresDatabase:
     
     def update_todo_list(self, list_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Update todo list"""
+        # На проде схема могла быть частично мигрирована.
+        # Гарантируем наличие колонок перед UPDATE, чтобы не получать ложный 404
+        # из-за SQL ошибки "column does not exist".
+        try:
+            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS creator_id VARCHAR(255)")
+            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS default_executor_id VARCHAR(255)")
+            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS default_customer_id VARCHAR(255)")
+            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS default_add_to_calendar BOOLEAN DEFAULT FALSE")
+            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS stages_enabled BOOLEAN DEFAULT FALSE")
+            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS allowed_users TEXT[] DEFAULT ARRAY[]::TEXT[]")
+            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS allowed_departments TEXT[] DEFAULT ARRAY[]::TEXT[]")
+        except Exception as e:
+            print(f"Error checking/adding todo_lists columns before update: {e}")
+
         set_clauses = []
         params = []
         
