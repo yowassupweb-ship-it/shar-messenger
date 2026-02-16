@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useRouter } from 'next/navigation';
 import { ArrowLeft, Type, MessageSquare, Palette, Check, User, LogOut, Sun, Moon, ChevronRight, Bell, Phone, Calendar, Briefcase, MessageCircle, CheckSquare, Users, Globe } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import Avatar from '@/components/Avatar';
