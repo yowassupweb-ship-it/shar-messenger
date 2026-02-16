@@ -5,7 +5,7 @@ import { apiFetch } from '@/lib/api'
 import { showToast } from '@/components/Toast'
 import { 
   Search, RefreshCw, Copy, ExternalLink, Trash2, 
-  History, Filter, Calendar, TrendingUp, Eye, X
+  History
 } from 'lucide-react'
 
 interface TrackedPost {
@@ -152,12 +152,6 @@ export default function UTMHistoryPage() {
     })
   }, [history, searchQuery, filterSource, filterMedium, filterCampaign, filterPlatform])
 
-  const stats = useMemo(() => {
-    const totalViews = filteredHistory.reduce((sum, p) => sum + (p.views || 0), 0)
-    const totalClicks = filteredHistory.reduce((sum, p) => sum + (p.clicks || 0), 0)
-    return { totalViews, totalClicks, count: filteredHistory.length }
-  }, [filteredHistory])
-
   const clearFilters = () => {
     setSearchQuery('')
     setFilterSource('')
@@ -286,43 +280,6 @@ export default function UTMHistoryPage() {
 
       {/* Правая панель */}
       <div className="flex-1 flex flex-col gap-4">
-        {/* Статистика */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-2xl border border-white/10 p-4" style={panelStyle}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                <History className="w-5 h-5 text-blue-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{stats.count}</p>
-                <p className="text-[10px] text-white/50">Всего ссылок</p>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-2xl border border-white/10 p-4" style={panelStyle}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
-                <Eye className="w-5 h-5 text-green-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{stats.totalViews.toLocaleString()}</p>
-                <p className="text-[10px] text-white/50">Визитов</p>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-2xl border border-white/10 p-4" style={panelStyle}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-purple-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{stats.totalClicks.toLocaleString()}</p>
-                <p className="text-[10px] text-white/50">Кликов</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Список истории */}
         <div 
           className="flex-1 rounded-2xl border border-white/10 overflow-hidden flex flex-col"

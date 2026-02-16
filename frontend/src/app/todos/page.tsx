@@ -739,13 +739,21 @@ export default function TodosPage() {
     try {
       const userId = myAccountId;
       const username = localStorage.getItem('username') || '';
+      const myAccountRaw = localStorage.getItem('myAccount');
+      const myAccount = myAccountRaw ? JSON.parse(myAccountRaw) : null;
+      const calendarUserId = myAccount?.id || userId || '';
+      const calendarDepartment = myAccount?.department || '';
+      const calendarParams = new URLSearchParams();
+      if (calendarUserId) calendarParams.set('userId', calendarUserId);
+      if (username) calendarParams.set('username', username);
+      if (calendarDepartment) calendarParams.set('department', calendarDepartment);
       console.log('[loadData] Loading with userId:', userId);
       
       const [todosRes, peopleRes, telegramRes, calendarListsRes] = await Promise.all([
         fetch(`/api/todos${userId ? `?userId=${userId}` : ''}`),
         fetch('/api/todos/people'),
         fetch('/api/todos/telegram'),
-        fetch(`/api/calendar-lists?userId=${encodeURIComponent(username)}`)
+        fetch(`/api/calendar-lists?${calendarParams.toString()}`)
       ]);
       
       const todosData = await todosRes.json();

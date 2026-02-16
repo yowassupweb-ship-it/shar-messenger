@@ -1473,27 +1473,48 @@ class PostgresDatabase:
     # ==================== LINK LISTS ====================
     def get_link_lists(self, department: Optional[str] = None, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get all link lists with optional legacy department and access filters"""
-        conditions = []
-        params: List[Any] = []
+        def normalize_department(value: Optional[str]) -> str:
+            if not value:
+                return ''
+            return value.strip().lower().replace('ё', 'е').replace(' ', '_')
 
-        if department:
-            conditions.append("(department = %s OR department IS NULL OR department = '')")
-            params.append(department)
+        normalized_department = normalize_department(department)
+        lists = self.conn.fetch_all("SELECT * FROM link_lists ORDER BY list_order, created_at")
 
-        if user_id or department:
-            conditions.append("""
-                (
-                    COALESCE(is_public, true) = true
-                    OR COALESCE(array_length(allowed_users, 1), 0) = 0 AND COALESCE(array_length(allowed_departments, 1), 0) = 0
-                    OR (%s IS NOT NULL AND %s = ANY(COALESCE(allowed_users, ARRAY[]::text[])))
-                    OR (%s IS NOT NULL AND %s = ANY(COALESCE(allowed_departments, ARRAY[]::text[])))
+        if not user_id and not department:
+            return lists
+
+        visible_lists: List[Dict[str, Any]] = []
+        for list_item in lists:
+            allowed_users = list_item.get('allowed_users') or []
+            allowed_departments = list_item.get('allowed_departments') or []
+            is_public = list_item.get('is_public')
+
+            if is_public is None:
+                is_public = len(allowed_users) == 0 and len(allowed_departments) == 0
+
+            if is_public:
+                visible_lists.append(list_item)
+                continue
+
+            if user_id and user_id in allowed_users:
+                visible_lists.append(list_item)
+                continue
+
+            if normalized_department:
+                allowed_dep_match = any(
+                    normalize_department(dep) == normalized_department or dep == department
+                    for dep in allowed_departments
                 )
-            """)
-            params.extend([user_id, user_id, department, department])
+                legacy_dep = list_item.get('department')
+                legacy_dep_match = (
+                    normalize_department(legacy_dep) == normalized_department or legacy_dep == department
+                )
+                if allowed_dep_match or legacy_dep_match:
+                    visible_lists.append(list_item)
+                    continue
 
-        where_clause = f" WHERE {' AND '.join(conditions)}" if conditions else ""
-        query = f"SELECT * FROM link_lists{where_clause} ORDER BY list_order, created_at"
-        return self.conn.fetch_all(query, tuple(params) if params else None)
+        return visible_lists
     
     def add_link_list(self, list_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Add new link list"""

@@ -19,6 +19,16 @@ interface CalendarListsData {
   activeListId: string;
 }
 
+const normalizeDepartment = (value?: string | null): string => {
+  if (!value) return '';
+  return value
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/\s+/g, '_');
+};
+
 const DEFAULT_DATA: CalendarListsData = {
   lists: [],
   activeListId: ''
@@ -29,20 +39,41 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
+    const username = searchParams.get('username');
+    const department = searchParams.get('department');
+    const normalizedDepartment = normalizeDepartment(department);
     
     const data = readJsonFile<CalendarListsData>('calendar-lists.json', DEFAULT_DATA);
     
     // Фильтрация календарей по пользователю
     let filteredLists = data.lists;
-    if (userId) {
+    if (userId || username || department) {
       filteredLists = data.lists.filter(list => {
+        const allowedUsers = Array.isArray(list.allowedUsers) ? list.allowedUsers : [];
+        const allowedDepartments = Array.isArray(list.allowedDepartments) ? list.allowedDepartments : [];
+
+        const isPublicByAccess = allowedUsers.length === 0 && allowedDepartments.length === 0;
+
+        const userAllowed =
+          (!!userId && allowedUsers.includes(userId)) ||
+          (!!username && allowedUsers.includes(username));
+
+        const departmentAllowed =
+          !!normalizedDepartment &&
+          allowedDepartments.some((dep) => {
+            const normalizedAllowed = normalizeDepartment(dep);
+            return normalizedAllowed === normalizedDepartment || dep === department;
+          });
+
         // Показываем календарь если:
         // 1. Пользователь создал календарь
-        if (list.createdBy === userId) return true;
-        // 2. allowedUsers пусто (доступен всем)
-        if (!list.allowedUsers || list.allowedUsers.length === 0) return true;
-        // 3. userId в списке allowedUsers
-        if (list.allowedUsers.includes(userId)) return true;
+        if ((userId && list.createdBy === userId) || (username && list.createdBy === username)) return true;
+        // 2. Публичный календарь (без ограничений)
+        if (isPublicByAccess) return true;
+        // 3. Разрешен конкретному пользователю
+        if (userAllowed) return true;
+        // 4. Разрешен отделу пользователя
+        if (departmentAllowed) return true;
         return false;
       });
     }

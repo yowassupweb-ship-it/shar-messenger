@@ -72,6 +72,7 @@ export default function ChatHeader({
       {/* Chat header */}
       <div 
         className={`absolute top-2 left-2 right-2 z-20 h-[56px] md:h-12 bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border border-white/20 rounded-[50px] flex items-center px-3 md:px-4 py-[10px] gap-2 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] md:absolute md:top-2 md:left-2 md:right-2`}
+        onCopy={(e) => e.preventDefault()}
       >
         {isSelectionMode ? (
           <>
@@ -304,31 +305,6 @@ export default function ChatHeader({
         )}
       </div>
 
-      {/* Кнопка копирования под хедером - только в режиме выбора и если выбрано 1 сообщение */}
-      {isSelectionMode && selectedMessages.size === 1 && (() => {
-        const selectedMessage = messages.find(m => selectedMessages.has(m.id));
-        return selectedMessage?.content && (
-          <div className="mx-2 mt-14 md:mt-2 flex justify-center z-30">
-            <button
-              onClick={() => {
-                if (selectedMessage) {
-                  navigator.clipboard.writeText(selectedMessage.content);
-                  setIsSelectionMode(false);
-                  setSelectedMessages(new Set());
-                }
-              }}
-              className="px-4 py-2 rounded-full border border-green-500/30 hover:bg-green-500/10 flex items-center justify-center gap-2 transition-all shadow-lg"
-              title="Копировать текст"
-              style={{ borderRadius: '50px' }}
-            >
-              <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-              <span className="text-sm font-medium text-green-400">Копировать текст</span>
-            </button>
-          </div>
-        );
-      })()}
     </>
   );
 }

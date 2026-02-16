@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Message } from './types';
-import { X, Calendar } from 'lucide-react';
+import { X, Calendar, CheckSquare } from 'lucide-react';
 
 interface CalendarList {
   id: string;
@@ -23,23 +23,50 @@ export default function EventCalendarSelector({
   calendarLists,
   onClose
 }: EventCalendarSelectorProps) {
+  const [selectedList, setSelectedList] = useState<CalendarList | null>(null);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const [type, setType] = useState<'work' | 'meeting' | 'event' | 'holiday'>('event');
+  const [creating, setCreating] = useState(false);
+
+  const normalizedMessage = useMemo(() => {
+    const text = (message?.content || '').replace(/\s+/g, ' ').trim();
+    return text;
+  }, [message?.content]);
+
+  useEffect(() => {
+    if (!show || !message) return;
+    setSelectedList(null);
+    setTitle(
+      normalizedMessage.length > 100
+        ? `${normalizedMessage.substring(0, 100)}...`
+        : normalizedMessage || 'Событие из сообщения'
+    );
+    setDescription(normalizedMessage);
+    setDate(new Date().toISOString().split('T')[0]);
+    setTime('');
+    setType('event');
+  }, [show, message, normalizedMessage]);
+
   if (!show || !message) return null;
 
-  const handleCreateEvent = async (list: CalendarList) => {
+  const handleCreateEvent = async () => {
+    if (!selectedList || !title.trim() || !date) return;
+
+    setCreating(true);
     try {
-      const eventTitle = message.content.length > 100
-        ? message.content.substring(0, 100) + '...'
-        : message.content;
-      
       const res = await fetch('/api/calendar-events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: eventTitle,
-          description: message.content,
-          type: 'event',
-          date: new Date().toISOString().split('T')[0],
-          listId: list.id,
+          title: title.trim(),
+          description: description.trim(),
+          type,
+          date,
+          time: time || undefined,
+          listId: selectedList.id,
           sourceId: message.id,
           assignedBy: localStorage.getItem('username') || undefined
         })
@@ -53,16 +80,21 @@ export default function EventCalendarSelector({
     } catch (error) {
       console.error('Error creating event:', error);
       alert('Не удалось создать событие');
+    } finally {
+      setCreating(false);
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100]">
-      <div className="bg-white dark:bg-gradient-to-b dark:from-[#1a1a1a] dark:to-[#151515] border-0 sm:border border-gray-200 dark:border-white/10 rounded-t-2xl sm:rounded-xl w-full sm:w-96 max-h-[95vh] shadow-2xl flex flex-col overflow-hidden">
+      <div
+        className="bg-white dark:bg-gradient-to-b dark:from-[#1a1a1a] dark:to-[#151515] border-0 sm:border border-gray-200 dark:border-white/10 rounded-t-2xl sm:rounded-xl w-full sm:w-[560px] max-h-[95vh] shadow-2xl flex flex-col overflow-hidden select-none"
+        onCopy={(e) => e.preventDefault()}
+      >
         
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-white/10">
-          <h3 className="font-medium text-gray-900 dark:text-white">Выберите календарь</h3>
+          <h3 className="font-medium text-gray-900 dark:text-white">Создание события из сообщения</h3>
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 flex items-center justify-center transition-colors"
@@ -71,8 +103,8 @@ export default function EventCalendarSelector({
           </button>
         </div>
 
-        {/* Calendar List */}
-        <div className="p-4 flex flex-col gap-2 overflow-y-auto">
+        <div className="p-4 border-b border-gray-200 dark:border-white/10">
+          <p className="text-xs text-gray-500 dark:text-white/50 mb-2">Шаг 1: Выберите календарь</p>
           {calendarLists.length === 0 ? (
             <div className="text-center py-8 text-gray-500 dark:text-white/50">
               <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
@@ -80,18 +112,103 @@ export default function EventCalendarSelector({
               <p className="text-xs mt-1">Создайте календарь в настройках</p>
             </div>
           ) : (
-            calendarLists.map(list => (
-              <button
-                key={list.id}
-                onClick={() => handleCreateEvent(list)}
-                className="w-full px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl flex items-center gap-3 transition-colors"
-                style={{ borderLeft: `3px solid ${list.color || '#3B82F6'}` }}
-              >
-                <Calendar className="w-5 h-5 text-gray-400 dark:text-white/60" />
-                <span className="text-gray-900 dark:text-white font-medium">{list.name}</span>
-              </button>
-            ))
+            <div className="max-h-44 overflow-y-auto space-y-2">
+              {calendarLists.map(list => {
+                const isSelected = selectedList?.id === list.id;
+                return (
+                  <button
+                    key={list.id}
+                    onClick={() => setSelectedList(list)}
+                    className={`w-full px-4 py-3 border rounded-xl flex items-center gap-3 transition-colors ${
+                      isSelected
+                        ? 'bg-purple-50 dark:bg-purple-500/10 border-purple-300 dark:border-purple-500/40'
+                        : 'bg-white/5 hover:bg-white/10 border-white/10'
+                    }`}
+                    style={{ borderLeft: `3px solid ${list.color || '#3B82F6'}` }}
+                  >
+                    <Calendar className="w-5 h-5 text-gray-400 dark:text-white/60" />
+                    <span className="text-gray-900 dark:text-white font-medium">{list.name}</span>
+                  </button>
+                );
+              })}
+            </div>
           )}
+        </div>
+
+        <div className="p-4 space-y-3 overflow-y-auto">
+          <p className="text-xs text-gray-500 dark:text-white/50">Шаг 2: Проверьте данные события</p>
+
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-white/50 mb-1">Название</label>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm"
+              placeholder="Название события"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-white/50 mb-1">Описание</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm min-h-[100px]"
+              placeholder="Описание события"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-white/50 mb-1">Дата</label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-white/50 mb-1">Время</label>
+              <input
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-white/50 mb-1">Тип</label>
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value as 'work' | 'meeting' | 'event' | 'holiday')}
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm"
+            >
+              <option value="event">Событие</option>
+              <option value="work">Работа</option>
+              <option value="meeting">Встреча</option>
+              <option value="holiday">Выходной</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-gray-200 dark:border-white/10 flex gap-2">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg text-sm text-gray-700 dark:text-white/80"
+          >
+            Отмена
+          </button>
+          <button
+            onClick={handleCreateEvent}
+            disabled={!selectedList || !title.trim() || !date || creating}
+            className="flex-1 py-2 bg-purple-500/90 hover:bg-purple-500 text-white rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            <CheckSquare className="w-4 h-4" />
+            {creating ? 'Создание...' : 'Создать событие'}
+          </button>
         </div>
       </div>
     </div>

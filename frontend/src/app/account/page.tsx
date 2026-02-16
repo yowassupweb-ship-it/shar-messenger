@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense, lazy, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MessageCircle, CheckSquare, Calendar, Users, MoreVertical, Shield, FileText, Languages, Sparkles, Link2, Box, Globe, Megaphone, Sun, Moon, GripVertical, X, Settings, User, ChevronUp, Type, MessageSquare, CheckCircle, Info, Calculator, Zap, Code2, PenTool, Hash, Package2 } from 'lucide-react';
+import { MessageCircle, CheckSquare, Calendar, Users, MoreVertical, Shield, FileText, Languages, Sparkles, Link2, Box, Globe, Megaphone, Sun, Moon, GripVertical, X, Settings, User, ChevronUp, Type, MessageSquare, CheckCircle, Info, Zap, Code2, PenTool, Hash, Package2 } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
 import Avatar from '@/components/Avatar';
@@ -39,7 +39,6 @@ const ALL_TOOLS: Tool[] = [
   { id: 'utm-generator', name: 'Генератор UTM', href: '/utm-generator', icon: <Hash className="w-6 h-6 sm:w-8 sm:h-8 text-white" strokeWidth={1.5} />, gradient: 'from-fuchsia-500 to-pink-600' },
   { id: 'slovolov-pro', name: 'Словолов PRO', href: '/slovolov-pro', icon: <Package2 className="w-6 h-6 sm:w-8 sm:h-8 text-white" strokeWidth={1.5} />, gradient: 'from-cyan-500 to-blue-600' },
   { id: 'content-plan', name: 'Контент-план', href: '/content-plan', icon: <PenTool className="w-6 h-6 sm:w-8 sm:h-8 text-white" strokeWidth={1.5} />, gradient: 'from-purple-500 to-violet-600' },
-  { id: 'calculator', name: 'Калькулятор', href: '/calculator', icon: <Calculator className="w-6 h-6 sm:w-8 sm:h-8 text-white" strokeWidth={1.5} />, gradient: 'from-indigo-500 to-purple-600', standard: true },
   { id: 'settings', name: 'Настройки', href: '/settings', icon: <Settings className="w-6 h-6 sm:w-8 sm:h-8 text-white" strokeWidth={1.5} />, gradient: 'from-gray-500 to-slate-600', standard: true },
   { id: 'admin', name: 'Админка', href: '/admin', icon: <Shield className="w-6 h-6 sm:w-8 sm:h-8 text-white" strokeWidth={1.5} />, gradient: 'from-amber-500 to-orange-600', adminOnly: true },
 ];
@@ -51,7 +50,6 @@ const TOOL_ICON_COLORS: Record<string, string> = {
   'utm-generator': 'text-pink-500',
   'slovolov-pro': 'text-sky-500',
   'content-plan': 'text-violet-500',
-  calculator: 'text-indigo-500',
   links: 'text-cyan-500',
   admin: 'text-orange-500',
   settings: 'text-slate-500',
@@ -586,8 +584,8 @@ export default function AccountPage() {
       </div>
 
       {/* Mobile Bottom Navigation Bar - стеклянные кнопки */}
-      <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-3 pb-[max(env(safe-area-inset-bottom),12px)] px-3 z-40 pointer-events-none select-none overflow-visible ${shouldUseMobileNav && !hideBottomNavInOpenedChat ? 'flex' : 'hidden'}`}>
-        <div className="flex items-center gap-2 pointer-events-auto backdrop-blur-xl bg-gradient-to-b from-white/12 to-white/5 border border-white/25 rounded-full px-3 py-1.5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.18),0_10px_24px_rgba(0,0,0,0.22)]">
+      <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-3 pb-[max(env(safe-area-inset-bottom),12px)] px-3 z-40 pointer-events-none select-none overflow-visible ${shouldUseMobileNav && !hideBottomNavInOpenedChat ? 'flex' : 'hidden'}`} onCopy={(e) => e.preventDefault()}>
+        <div className="flex items-center gap-2 pointer-events-auto backdrop-blur-xl bg-gradient-to-b from-white/12 to-white/5 border border-white/25 rounded-full px-3 py-1.5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.18),0_10px_24px_rgba(0,0,0,0.22)] select-none" onCopy={(e) => e.preventDefault()}>
           {visibleTabs.messages && (
           <button
             onClick={() => handleTabChange('messages')}
@@ -679,12 +677,13 @@ export default function AccountPage() {
             : 'bg-[var(--bg-glass)] border-[var(--border-glass)]'
         }`}
         style={{ fontSize: '12px' }}
+        onCopy={(e) => e.preventDefault()}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
         {/* Left side - Navigation */}
-        <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto overflow-y-visible no-scrollbar">
+        <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto overflow-y-visible no-scrollbar select-none" onCopy={(e) => e.preventDefault()}>
           {visibleTabs.messages && (
           <button
             onClick={() => handleTabChange('messages')}
@@ -807,7 +806,6 @@ export default function AccountPage() {
                         {tool.id === 'utm-generator' && <Hash className="w-2.5 h-2.5 text-white" strokeWidth={2} />}
                         {tool.id === 'slovolov-pro' && <Package2 className="w-2.5 h-2.5 text-white" strokeWidth={2} />}
                         {tool.id === 'content-plan' && <PenTool className="w-2.5 h-2.5 text-white" strokeWidth={2} />}
-                        {tool.id === 'calculator' && <Calculator className="w-2.5 h-2.5 text-white" strokeWidth={2} />}
                         {tool.id === 'links' && <Globe className="w-2.5 h-2.5 text-white" strokeWidth={2} />}
                         {tool.id === 'admin' && <Shield className="w-2.5 h-2.5 text-white" strokeWidth={2} />}
                       </div>

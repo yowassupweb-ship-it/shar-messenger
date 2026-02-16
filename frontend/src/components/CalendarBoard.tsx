@@ -749,7 +749,10 @@ export default function CalendarBoard() {
     : 0;
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-white/90 to-white/80 dark:from-white/10 dark:to-white/5 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden">
+    <div
+      className="h-full flex flex-col bg-gradient-to-br from-white/90 to-white/80 dark:from-white/10 dark:to-white/5 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden select-none"
+      onCopy={(e) => e.preventDefault()}
+    >
       {/* Header */}
       <div className="flex-shrink-0 h-12 px-2 sm:px-4 border-b border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[var(--bg-secondary)] flex items-center">
         {/* Desktop */}

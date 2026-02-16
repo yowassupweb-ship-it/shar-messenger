@@ -3,7 +3,7 @@
 import React, { useRef, useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Message, User } from './types';
-import { Reply, Copy, Edit3, Forward, CheckSquare, CalendarPlus } from 'lucide-react';
+import { Reply, Edit3, Forward, CheckSquare, CalendarPlus } from 'lucide-react';
 
 interface MessageContextMenuProps {
   message: Message | null;
@@ -14,11 +14,10 @@ interface MessageContextMenuProps {
   onReply: (message: Message) => void;
   onForward: (message: Message) => void;
   onEdit: (messageId: string, content: string) => void;
+  onShowTaskSelector: (message: Message) => void;
+  onLoadTodoLists: () => Promise<void>;
   onShowEventSelector: (message: Message) => void;
   onLoadCalendars: () => Promise<void>;
-  defaultListId?: string | null;
-  onTaskCreated?: (task: any) => void;
-  onTaskUpdated?: (tempId: string, newTask: any) => void;
 }
 
 export default function MessageContextMenu({
@@ -30,11 +29,10 @@ export default function MessageContextMenu({
   onReply,
   onForward,
   onEdit,
+  onShowTaskSelector,
+  onLoadTodoLists,
   onShowEventSelector,
   onLoadCalendars,
-  defaultListId,
-  onTaskCreated,
-  onTaskUpdated
 }: MessageContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [coords, setCoords] = useState(position);
@@ -64,84 +62,16 @@ export default function MessageContextMenu({
 
   if (!message) return null;
 
-  const handleCopyText = () => {
-    if (message.content) {
-      navigator.clipboard.writeText(message.content);
-      alert('Текст скопирован в буфер обмена');
-    }
-    onClose();
-  };
-
   const handleCreateTask = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('[MessageContextMenu] handleCreateTask START');
-
-    const username = localStorage.getItem('username');
-    const tempId = `temp-${Date.now()}`;
-    
-    // Оптимистичное создание задачи
-    const optimisticTask = {
-      id: tempId,
-      title: message.content || 'Новая задача из сообщения',
-      description: `Создано из сообщения от ${message.authorId}`,
-      status: 'todo',
-      priority: 'medium',
-      authorId: currentUser?.id,
-      assignedById: currentUser?.id,
-      assignedTo: null,
-      assignedToIds: [],
-      listId: defaultListId || undefined,
-      createdBy: username,
-      createdAt: new Date().toISOString(),
-      isCompleted: false,
-      tags: [],
-    };
-
-    console.log('[MessageContextMenu] Optimistic task created:', optimisticTask);
-
-    if (onTaskCreated) {
-      console.log('[MessageContextMenu] Calling onTaskCreated callback');
-      onTaskCreated(optimisticTask);
-      console.log('[MessageContextMenu] Closing menu');
-      onClose(); // Закрываем меню сразу
-    }
-
-    console.log('[MessageContextMenu] Sending request to server (fire and forget)');
-    // Запускаем запрос в фоне без await
-    fetch('/api/todos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: message.content || 'Новая задача из сообщения',
-        description: `Создано из сообщения от ${message.authorId}`,
-        status: 'todo',
-        priority: 'medium',
-        authorId: currentUser?.id,
-        assignedById: currentUser?.id,
-        createdBy: username,
-        ...(defaultListId ? { listId: defaultListId } : {})
-      }),
-    }).then(res => {
-      console.log('[MessageContextMenu] Server response status:', res.status);
-      if (res.ok) {
-        return res.json();
-      } else {
-        console.error('[MessageContextMenu] Failed to create task, status:', res.status);
-        return null;
-      }
-    }).then(newTodo => {
-      if (newTodo && onTaskUpdated) {
-        console.log('[MessageContextMenu] Task created on server:', newTodo.id);
-        console.log('[MessageContextMenu] Calling onTaskUpdated callback');
-        onTaskUpdated(tempId, newTodo);
-      }
-    }).catch(error => {
-      console.error('[MessageContextMenu] Error creating task:', error);
+    onLoadTodoLists().then(() => {
+      onShowTaskSelector(message);
+      onClose();
+    }).catch((error) => {
+      console.error('Error loading todo lists:', error);
     });
-
-    console.log('[MessageContextMenu] handleCreateTask END');
-    return false; // Предотвращаем любое дефолтное поведение
+    return false;
   };
 
   const handleCreateEvent = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -207,17 +137,6 @@ export default function MessageContextMenu({
           <Forward className="w-4 h-4 text-green-400" />
           Переслать
         </button>
-
-        {message.content && (
-          <button
-            type="button"
-            onClick={handleCopyText}
-            className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
-          >
-            <Copy className="w-4 h-4 text-yellow-400" />
-            Скопировать текст
-          </button>
-        )}
 
         {canEdit && (
           <button

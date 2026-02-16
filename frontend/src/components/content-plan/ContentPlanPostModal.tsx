@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import { 
   X, Edit3, Link2, Copy, FileText, ChevronDown, Check, Globe, Mail, 
@@ -114,6 +114,8 @@ export default function ContentPlanPostModal({
   deleteComment,
   startReply
 }: ContentPlanPostModalProps) {
+  const [activeTab, setActiveTab] = useState<'details' | 'text'>('details');
+
   if (!showAddPost) return null;
 
   return (
@@ -161,10 +163,34 @@ export default function ContentPlanPostModal({
             </button>
           </div>
           
-          {/* 3-column content */}
-          <div className="flex flex-1 overflow-y-auto lg:overflow-hidden flex-col lg:flex-row">
-            {/* Left column - Fields */}
-            <div className="w-full lg:flex-1 flex-shrink-0 p-3 sm:p-4 overflow-y-auto border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-white/10 space-y-3 sm:space-y-4">
+          <div className="px-3 sm:px-5 pt-2 border-b border-gray-200 dark:border-white/10">
+            <div className="flex gap-1 p-1 bg-gray-100 dark:bg-white/5 rounded-lg w-fit">
+              <button
+                onClick={() => setActiveTab('details')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  activeTab === 'details'
+                    ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white border border-gray-200 dark:border-white/10'
+                    : 'text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/70'
+                }`}
+              >
+                Основное
+              </button>
+              <button
+                onClick={() => setActiveTab('text')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  activeTab === 'text'
+                    ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white border border-gray-200 dark:border-white/10'
+                    : 'text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/70'
+                }`}
+              >
+                Текст
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-1 overflow-y-auto">
+            {activeTab === 'details' && (
+            <div className="w-full p-3 sm:p-4 overflow-y-auto space-y-3 sm:space-y-4">
               {/* Title */}
               <div>
                 <input
@@ -204,266 +230,81 @@ export default function ContentPlanPostModal({
                 </div>
               </div>
 
-              {/* Platform Dropdown */}
-              <div className="relative">
+              <div>
                 <label className="block text-xs font-medium mb-2 text-gray-500 dark:text-white/50">Канал</label>
-                <button
-                  onClick={() => setOpenDropdown(openDropdown === 'platform' ? null : 'platform')}
-                  className="w-full px-3 py-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-gray-300 dark:hover:border-white/20 transition-all"
+                <select
+                  value={selectedPlatform || ''}
+                  onChange={(e) => {
+                    const platform = e.target.value as 'telegram' | 'vk' | 'dzen' | 'max' | 'mailing' | 'site' | '';
+                    if (!platform) {
+                      setSelectedPlatform(null);
+                      setPostForm(prev => ({ ...prev, platform: null }));
+                      return;
+                    }
+                    setSelectedPlatform(platform);
+                    const defaultContentType = PLATFORM_CONTENT_TYPES[platform][0].id as any;
+                    setPostForm(prev => ({ ...prev, platform, contentType: defaultContentType }));
+                  }}
+                  className="w-full px-3 py-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm focus:outline-none focus:border-purple-500/50 transition-colors"
                 >
-                  <div className="flex items-center gap-2">
-                    {selectedPlatform && (
-                      <>
-                        {PLATFORM_CONFIG[selectedPlatform].icon ? (
-                          <div className={`flex items-center justify-center ${selectedPlatform === 'dzen' ? 'bg-white rounded-full p-0.5' : ''}`}>
-                            <Image 
-                              src={PLATFORM_CONFIG[selectedPlatform].icon} 
-                              alt="" 
-                              width={(selectedPlatform === 'telegram' || selectedPlatform === 'vk') ? 22 : 18} 
-                              height={(selectedPlatform === 'telegram' || selectedPlatform === 'vk') ? 22 : 18}
-                              className={(selectedPlatform === 'telegram' || selectedPlatform === 'vk') ? 'w-5 h-5 object-contain' : 'w-4 h-4 object-contain'}
-                            />
-                          </div>
-                        ) : selectedPlatform === 'site' ? (
-                          <Globe className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
-                        ) : (
-                          <Mail className="w-4 h-4 text-amber-500 dark:text-amber-400" />
-                        )}
-                        <span>{PLATFORM_CONFIG[selectedPlatform].name}</span>
-                      </>
-                    )}
-                    {!selectedPlatform && <span className="text-gray-400 dark:text-white/40">Выберите канал...</span>}
-                  </div>
-                  <ChevronDown className={`w-4 h-4 text-gray-400 dark:text-white/40 transition-transform ${openDropdown === 'platform' ? 'rotate-180' : ''}`} />
-                </button>
-                {openDropdown === 'platform' && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 overflow-hidden">
-                    {platforms.map(platform => {
-                      const config = PLATFORM_CONFIG[platform];
-                      const isLargeIcon = platform === 'telegram' || platform === 'vk';
-                      return (
-                        <button
-                          key={platform}
-                          onClick={() => {
-                            setSelectedPlatform(platform);
-                            const defaultContentType = PLATFORM_CONTENT_TYPES[platform][0].id as any;
-                            setPostForm(prev => ({ ...prev, platform, contentType: defaultContentType }));
-                            setOpenDropdown(null);
-                          }}
-                          className={`w-full px-3 py-2.5 text-left flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${
-                            selectedPlatform === platform ? 'bg-gray-50 dark:bg-white/5' : 'text-gray-600 dark:text-white/70'
-                          }`}
-                        >
-                          {config.icon ? (
-                            <div className={`flex items-center justify-center ${platform === 'dzen' ? 'bg-white rounded-full p-0.5' : ''}`}>
-                              <Image 
-                                src={config.icon} 
-                                alt="" 
-                                width={isLargeIcon ? 22 : 18} 
-                                height={isLargeIcon ? 22 : 18}
-                                className={isLargeIcon ? 'w-5 h-5 object-contain' : 'w-4 h-4 object-contain'}
-                              />
-                            </div>
-                          ) : platform === 'site' ? (
-                            <Globe className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
-                          ) : (
-                            <Mail className="w-4 h-4 text-amber-500 dark:text-amber-400" />
-                          )}
-                          <span className="text-sm">{config.name}</span>
-                          {selectedPlatform === platform && (
-                            <Check className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 ml-auto" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                  <option value="">Выберите канал...</option>
+                  {platforms.map(platform => (
+                    <option key={platform} value={platform}>{PLATFORM_CONFIG[platform].name}</option>
+                  ))}
+                </select>
               </div>
 
-              {/* Content Type */}
               {selectedPlatform && getAvailableContentTypes().length > 1 && (
-                <div className="relative">
+                <div>
                   <label className="block text-xs font-medium mb-2 text-gray-500 dark:text-white/50">Тип контента</label>
-                  <button
-                    onClick={() => setOpenDropdown(openDropdown === 'contentType' ? null : 'contentType')}
-                    className="w-full px-3 py-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-gray-300 dark:hover:border-white/20 transition-all"
+                  <select
+                    value={postForm.contentType}
+                    onChange={(e) => setPostForm(prev => ({ ...prev, contentType: e.target.value as any }))}
+                    className="w-full px-3 py-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm focus:outline-none focus:border-purple-500/50 transition-colors"
                   >
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-gray-400 dark:text-white/40" />
-                      <span>{CONTENT_TYPE_LABELS[postForm.contentType]}</span>
-                    </div>
-                    <ChevronDown className={`w-4 h-4 text-gray-400 dark:text-white/40 transition-transform ${openDropdown === 'contentType' ? 'rotate-180' : ''}`} />
-                  </button>
-                  {openDropdown === 'contentType' && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 overflow-hidden">
-                      {getAvailableContentTypes().map(type => (
-                        <button
-                          key={type.id}
-                          onClick={() => {
-                            setPostForm(prev => ({ ...prev, contentType: type.id as any }));
-                            setOpenDropdown(null);
-                          }}
-                          className={`w-full px-3 py-2.5 text-left flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${
-                            postForm.contentType === type.id ? 'bg-gray-50 dark:bg-white/5' : 'text-gray-600 dark:text-white/70'
-                          }`}
-                        >
-                          <FileText className="w-4 h-4 text-gray-400 dark:text-white/40" />
-                          <span className="text-sm">{type.label}</span>
-                          {postForm.contentType === type.id && (
-                            <Check className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 ml-auto" />
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                    {getAvailableContentTypes().map(type => (
+                      <option key={type.id} value={type.id}>{type.label}</option>
+                    ))}
+                  </select>
                 </div>
               )}
 
-              {/* Заказчик */}
-              <div className="relative">
+              <div>
                 <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
                   <User className="w-2.5 h-2.5" />
                   Заказчик
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setOpenDropdown(openDropdown === 'assignedBy' ? null : 'assignedBy')}
-                  className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-gray-300 dark:hover:border-white/20 transition-all"
+                <select
+                  value={postForm.assignedById || ''}
+                  onChange={(e) => setPostForm(prev => ({ ...prev, assignedById: e.target.value || '' }))}
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm focus:outline-none focus:border-purple-500/50 transition-colors"
                 >
-                  <span className={postForm.assignedById ? '' : 'text-gray-400 dark:text-white/40'}>
-                    {postForm.assignedById 
-                      ? users.find(p => p.id === postForm.assignedById)?.name || 'Выберите заказчика'
-                      : 'Выберите заказчика'}
-                  </span>
-                  <ChevronDown className={`w-3 h-3 text-gray-400 dark:text-white/40 transition-transform ${openDropdown === 'assignedBy' ? 'rotate-180' : ''}`} />
-                </button>
-                {openDropdown === 'assignedBy' && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPostForm(prev => ({ ...prev, assignedById: '' }));
-                        setOpenDropdown(null);
-                      }}
-                      className="w-full px-3 py-1.5 text-left text-gray-500 dark:text-white/50 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-xs border-b border-gray-200 dark:border-white/10"
-                    >
-                      Очистить выбор
-                    </button>
-                    {users.filter(p => p.role === 'customer' || p.role === 'universal').map(person => (
-                      <button
-                        key={person.id}
-                        type="button"
-                        onClick={() => {
-                          setPostForm(prev => ({ ...prev, assignedById: person.id }));
-                          setOpenDropdown(null);
-                        }}
-                        className={`w-full px-3 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-xs flex items-center justify-between ${
-                          postForm.assignedById === person.id ? 'bg-gray-50 dark:bg-white/5' : 'text-gray-600 dark:text-white/70'
-                        }`}
-                      >
-                        <span>{person.name}</span>
-                      </button>
-                    ))}
-                    {users.filter(p => p.role === 'customer' || p.role === 'universal').length === 0 && (
-                      <div className="px-3 py-2 text-xs text-gray-400 dark:text-white/40">
-                        Нет пользователей с ролью «заказчик»
-                      </div>
-                    )}
-                  </div>
-                )}
+                  <option value="">Выберите заказчика</option>
+                  {users.filter(p => p.role === 'customer' || p.role === 'universal').map(person => (
+                    <option key={person.id} value={person.id}>{person.name}</option>
+                  ))}
+                </select>
               </div>
 
-              {/* Исполнители */}
-              <div className="relative">
+              <div>
                 <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
                   <Users className="w-2.5 h-2.5" />
                   Исполнители
                 </label>
-                <div
-                  onClick={() => setOpenDropdown(openDropdown === 'assignedTo' ? null : 'assignedTo')}
-                  className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-gray-300 dark:hover:border-white/20 transition-all min-h-[38px] cursor-pointer"
+                <select
+                  multiple
+                  value={postForm.assignedToIds || []}
+                  onChange={(e) => {
+                    const values = Array.from(e.target.selectedOptions).map(option => option.value);
+                    setPostForm(prev => ({ ...prev, assignedToIds: values }));
+                  }}
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm focus:outline-none focus:border-purple-500/50 transition-colors min-h-[88px]"
                 >
-                  <div className="flex flex-wrap gap-1">
-                    {postForm.assignedToIds && postForm.assignedToIds.length > 0 ? (
-                      postForm.assignedToIds.map(id => {
-                        const person = users.find(p => p.id === id);
-                        return person ? (
-                          <span key={id} className="text-xs bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded flex items-center gap-1">
-                            {person.name}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPostForm(prev => ({
-                                  ...prev,
-                                  assignedToIds: prev.assignedToIds.filter(i => i !== id)
-                                }));
-                              }}
-                              className="hover:text-green-800 dark:hover:text-white"
-                            >
-                              <X className="w-2.5 h-2.5" />
-                            </button>
-                          </span>
-                        ) : null;
-                      })
-                    ) : (
-                      <span className="text-gray-400 dark:text-white/40">Выберите исполнителей</span>
-                    )}
-                  </div>
-                  <ChevronDown className={`w-3 h-3 text-gray-400 dark:text-white/40 transition-transform flex-shrink-0 ${openDropdown === 'assignedTo' ? 'rotate-180' : ''}`} />
-                </div>
-                {openDropdown === 'assignedTo' && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPostForm(prev => ({ ...prev, assignedToIds: [] }));
-                        setOpenDropdown(null);
-                      }}
-                      className="w-full px-3 py-1.5 text-left text-gray-500 dark:text-white/50 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-xs border-b border-gray-200 dark:border-white/10"
-                    >
-                      Очистить выбор
-                    </button>
-                    {users.filter(p => p.role === 'executor' || p.role === 'universal').map(person => {
-                      const isSelected = postForm.assignedToIds?.includes(person.id);
-                      return (
-                        <button
-                          key={person.id}
-                          type="button"
-                          onClick={() => {
-                            const currentIds = postForm.assignedToIds || [];
-                            let newIds: string[];
-                            
-                            if (isSelected) {
-                              newIds = currentIds.filter(id => id !== person.id);
-                            } else {
-                              newIds = [...currentIds, person.id];
-                            }
-                            
-                            setPostForm(prev => ({ ...prev, assignedToIds: newIds }));
-                          }}
-                          className={`w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-xs flex items-center justify-between ${
-                            isSelected ? 'bg-green-50 dark:bg-green-500/10' : ''
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${
-                              isSelected ? 'bg-green-500 border-green-500' : 'border-gray-300 dark:border-white/30'
-                            }`}>
-                              {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
-                            </div>
-                            <span className={isSelected ? '' : 'text-gray-600 dark:text-white/70'}>{person.name}</span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                    {users.filter(p => p.role === 'executor' || p.role === 'universal').length === 0 && (
-                      <div className="px-3 py-2 text-xs text-gray-400 dark:text-white/40">
-                        Нет пользователей с ролью «исполнитель»
-                      </div>
-                    )}
-                  </div>
-                )}
+                  {users.filter(p => p.role === 'executor' || p.role === 'universal').map(person => (
+                    <option key={person.id} value={person.id}>{person.name}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-gray-400 dark:text-white/40 mt-1">Можно выбрать нескольких исполнителей</p>
               </div>
 
               {/* Date and Time */}
@@ -488,114 +329,6 @@ export default function ContentPlanPostModal({
                 </div>
               </div>
 
-              {/* Link */}
-              <div className="relative">
-                <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
-                  <Link2 className="w-2.5 h-2.5" />
-                  Прикреплённая ссылка
-                </label>
-                {postForm.linkId ? (
-                  <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg">
-                    <Link2 className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
-                    <a 
-                      href={postForm.linkUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 truncate flex-1"
-                      title={postForm.linkUrl}
-                    >
-                      {postForm.linkTitle || postForm.linkUrl}
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => setPostForm(prev => ({ ...prev, linkId: undefined, linkUrl: undefined, linkTitle: undefined }))}
-                      className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white flex-shrink-0"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                    <a 
-                      href={postForm.linkUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded text-gray-400 dark:text-white/40 hover:text-blue-500 dark:hover:text-blue-400 flex-shrink-0"
-                      title="Открыть ссылку"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </div>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setOpenDropdown(openDropdown === 'link' ? null : 'link')}
-                      className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-gray-300 dark:hover:border-white/20 transition-all"
-                    >
-                      <span className="text-gray-400 dark:text-white/40 text-xs">Выбрать ссылку из базы...</span>
-                      <ChevronDown className={`w-3 h-3 text-gray-400 dark:text-white/40 transition-transform ${openDropdown === 'link' ? 'rotate-180' : ''}`} />
-                    </button>
-                    {openDropdown === 'link' && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 max-h-60 overflow-hidden flex flex-col">
-                        <div className="p-2 border-b border-gray-200 dark:border-white/10">
-                          <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-50 dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10">
-                            <Search className="w-3 h-3 text-gray-400 dark:text-white/40" />
-                            <input
-                              type="text"
-                              value={linksSearchQuery}
-                              onChange={(e) => setLinksSearchQuery(e.target.value)}
-                              placeholder="Поиск ссылки..."
-                              className="bg-transparent text-xs placeholder-gray-400 dark:placeholder-white/30 outline-none flex-1"
-                              autoFocus
-                            />
-                          </div>
-                        </div>
-                        <div className="overflow-y-auto flex-1">
-                          {availableLinks.length === 0 ? (
-                            <div className="px-3 py-4 text-center text-gray-400 dark:text-white/40 text-xs">
-                              Нет сохранённых ссылок
-                            </div>
-                          ) : (
-                            availableLinks
-                              .filter(link => 
-                                !linksSearchQuery || 
-                                link.title.toLowerCase().includes(linksSearchQuery.toLowerCase()) ||
-                                link.url.toLowerCase().includes(linksSearchQuery.toLowerCase())
-                              )
-                              .slice(0, 20)
-                              .map(link => (
-                                <button
-                                  key={link.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setPostForm(prev => ({ 
-                                      ...prev, 
-                                      linkId: link.id, 
-                                      linkUrl: link.url, 
-                                      linkTitle: link.title 
-                                    }));
-                                    setOpenDropdown(null);
-                                    setLinksSearchQuery('');
-                                  }}
-                                  className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex items-center gap-2 border-b border-gray-100 dark:border-white/5 last:border-0"
-                                >
-                                  {link.favicon ? (
-                                    <img src={link.favicon} alt="" className="w-4 h-4 rounded flex-shrink-0" />
-                                  ) : (
-                                    <Link2 className="w-4 h-4 text-gray-400 dark:text-white/40 flex-shrink-0" />
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-xs truncate">{link.title}</div>
-                                    <div className="text-[10px] text-gray-400 dark:text-white/40 truncate">{link.url}</div>
-                                  </div>
-                                </button>
-                              ))
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
               {/* Created info */}
               {editingPost && (
                 <div className="pt-3 border-t border-gray-200 dark:border-white/10 text-[10px] text-gray-400 dark:text-white/30 space-y-1">
@@ -614,9 +347,10 @@ export default function ContentPlanPostModal({
                 </div>
               )}
             </div>
+            )}
 
-            {/* Middle column - Description */}
-            <div className="w-full lg:flex-1 flex flex-col bg-gray-50 dark:bg-[#0d0d0d] border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-white/10">
+            {activeTab === 'text' && (
+            <div className="w-full flex flex-col bg-gray-50 dark:bg-[#0d0d0d]">
               {/* Description Header with Formatting */}
               <div className="px-3 py-2 border-b border-gray-200 dark:border-white/10">
                 <div className="flex items-center justify-between mb-2">
@@ -714,8 +448,7 @@ export default function ContentPlanPostModal({
                 )}
               </div>
             </div>
-
-            {/* Right column - Comments [Remains in page.tsx due to complexity] */}
+            )}
           </div>
           
           {/* Footer with save button */}

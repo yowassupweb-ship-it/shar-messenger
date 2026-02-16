@@ -29,6 +29,7 @@ import TextFormattingMenu from '@/components/features/messages/TextFormattingMen
 import MessageContextMenu from '@/components/features/messages/MessageContextMenu';
 import ChatContextMenu from '@/components/features/messages/ChatContextMenu';
 import EventCalendarSelector from '@/components/features/messages/EventCalendarSelector';
+import TaskListSelector from '@/components/features/messages/TaskListSelector';
 import type { User, Message, Chat, Task } from '@/components/features/messages/types';
 import { formatMessageDate, shouldShowDateSeparator, formatMessageText, getChatTitle, getChatAvatarData } from '@/components/features/messages/utils';
 
@@ -109,11 +110,6 @@ export default function MessagesPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [todoLists, setTodoLists] = useState<any[]>([]);
   const [isDesktopView, setIsDesktopView] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 1024 : false);
-  const defaultTodoListId = useMemo(() => {
-    if (todoLists.length === 0) return null;
-    const sorted = [...todoLists].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    return sorted[0]?.id || null;
-  }, [todoLists]);
 
   const [showChatInfo, setShowChatInfo] = useState(false);
   const [chatInfoTab, setChatInfoTab] = useState<'profile' | 'tasks' | 'media' | 'files' | 'links' | 'participants'>('profile');
@@ -154,6 +150,8 @@ export default function MessagesPage() {
   const [contextMenuChat, setContextMenuChat] = useState<Chat | null>(null);
   const [showEventCalendarSelector, setShowEventCalendarSelector] = useState(false);
   const [calendarLists, setCalendarLists] = useState<any[]>([]);
+  const [showTaskListSelector, setShowTaskListSelector] = useState(false);
+  const [creatingTaskFromMessage, setCreatingTaskFromMessage] = useState<Message | null>(null);
   const [creatingEventFromMessage, setCreatingEventFromMessage] = useState<Message | null>(null);
   const [notificationSound] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -2003,7 +2001,6 @@ export default function MessagesPage() {
         position={contextMenuPosition}
         currentUser={currentUser}
         messageInputRef={messageInputRef as React.RefObject<HTMLTextAreaElement>}
-        defaultListId={defaultTodoListId}
         onClose={() => {
           setShowMessageContextMenu(false);
           setContextMenuMessage(null);
@@ -2025,15 +2022,20 @@ export default function MessagesPage() {
           setNewMessage(content);
           messageInputRef.current?.focus();
         }}
-        onTaskCreated={(newTask) => {
-          console.log('[MessagesPage] Task created optimistically:', newTask.id);
-          setTasks(prev => [newTask, ...prev]);
-          // Показываем уведомление об успешном создании
-          console.log('[MessagesPage] Task created successfully from message');
+        onShowTaskSelector={(msg) => {
+          setCreatingTaskFromMessage(msg);
+          setShowTaskListSelector(true);
         }}
-        onTaskUpdated={(tempId, realTask) => {
-          console.log('[MessagesPage] Task updated from temp to real:', tempId, '->', realTask.id);
-          setTasks(prev => prev.map(t => t.id === tempId ? realTask : t));
+        onLoadTodoLists={async () => {
+          try {
+            const res = await fetch('/api/todos');
+            if (res.ok) {
+              const data = await res.json();
+              setTodoLists(Array.isArray(data.lists) ? data.lists : []);
+            }
+          } catch (error) {
+            console.error('Error loading todo lists:', error);
+          }
         }}
         onShowEventSelector={(msg) => {
           setCreatingEventFromMessage(msg);
@@ -2041,8 +2043,14 @@ export default function MessagesPage() {
         }}
         onLoadCalendars={async () => {
           try {
-            const username = localStorage.getItem('username');
-            const res = await fetch(`/api/calendar-lists?userId=${encodeURIComponent(username || '')}`);
+            const username = localStorage.getItem('username') || '';
+            const myAccountRaw = localStorage.getItem('myAccount');
+            const myAccount = myAccountRaw ? JSON.parse(myAccountRaw) : null;
+            const params = new URLSearchParams();
+            if (myAccount?.id) params.set('userId', myAccount.id);
+            if (username) params.set('username', username);
+            if (myAccount?.department) params.set('department', myAccount.department);
+            const res = await fetch(`/api/calendar-lists?${params.toString()}`);
             if (res.ok) {
               const data = await res.json();
               setCalendarLists(Array.isArray(data) ? data : data.lists || []);
@@ -2060,6 +2068,21 @@ export default function MessagesPage() {
         onClose={() => setShowImageModal(false)}
         zoom={imageZoom}
         setZoom={setImageZoom}
+      />
+
+      {/* Модалка выбора списка и создания задачи из сообщения */}
+      <TaskListSelector
+        show={showTaskListSelector}
+        message={creatingTaskFromMessage}
+        todoLists={todoLists}
+        currentUserId={currentUser?.id}
+        onClose={() => {
+          setShowTaskListSelector(false);
+          setCreatingTaskFromMessage(null);
+        }}
+        onTaskCreated={() => {
+          loadTasks();
+        }}
       />
 
       {/* Modal выбора календаря для создания события */}

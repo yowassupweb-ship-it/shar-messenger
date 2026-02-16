@@ -75,7 +75,9 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       ${selectedChat && isMobileView ? 'hidden' : 'flex'} 
       ${isCollapsed ? 'w-[72px] min-w-[72px]' : isMobileView ? 'w-full' : 'w-full min-[786px]:w-80 min-[786px]:min-w-80'} 
       border-r border-[var(--border-color)] flex-col h-full min-h-0 transition-all duration-200 bg-[var(--bg-secondary)] flex-shrink-0 max-w-full overflow-x-hidden
-    `}>
+    `}
+      onCopy={(e) => e.preventDefault()}
+    >
       {/* Search / New Chat Button */}
       {isCollapsed ? (
         <>

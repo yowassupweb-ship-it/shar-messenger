@@ -71,6 +71,16 @@ const DEFAULT_DATA: LinksData = {
   categories: DEFAULT_CATEGORIES
 };
 
+function normalizeDepartment(value?: string | null): string {
+  if (!value) return '';
+  return value
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/\s+/g, '_');
+}
+
 function normalizeLinksData(input: LinksData): LinksData {
   const lists = (input.lists || []).map((list, index) => {
     const allowedUsers = Array.isArray((list as Partial<LinkList>).allowedUsers)
@@ -159,6 +169,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const fetchMeta = searchParams.get('fetchMeta');
     const url = searchParams.get('url');
+    const userId = searchParams.get('userId');
+    const username = searchParams.get('username');
+    const department = searchParams.get('department');
+    const normalizedDepartment = normalizeDepartment(department);
     
     // Fetch metadata for a single URL
     if (fetchMeta === 'true' && url) {
@@ -167,10 +181,43 @@ export async function GET(request: NextRequest) {
     }
     
     const rawData = readJsonFile<LinksData>('links.json', DEFAULT_DATA);
-    const data = normalizeLinksData(rawData);
+    const normalizedData = normalizeLinksData(rawData);
 
-    if (JSON.stringify(rawData) !== JSON.stringify(data)) {
-      writeJsonFile('links.json', data);
+    let data: LinksData = normalizedData;
+
+    if (userId || username || department) {
+      const visibleListIds = new Set(
+        normalizedData.lists
+          .filter((list) => {
+            const allowedUsers = Array.isArray(list.allowedUsers) ? list.allowedUsers : [];
+            const allowedDepartments = Array.isArray(list.allowedDepartments) ? list.allowedDepartments : [];
+            const isPublic = list.isPublic || (allowedUsers.length === 0 && allowedDepartments.length === 0);
+
+            if (isPublic) return true;
+            if ((userId && list.createdBy === userId) || (username && list.createdBy === username)) return true;
+            if ((userId && allowedUsers.includes(userId)) || (username && allowedUsers.includes(username))) return true;
+
+            if (normalizedDepartment) {
+              return allowedDepartments.some((dep) => {
+                const normalizedAllowed = normalizeDepartment(dep);
+                return normalizedAllowed === normalizedDepartment || dep === department;
+              });
+            }
+
+            return false;
+          })
+          .map((list) => list.id)
+      );
+
+      data = {
+        ...normalizedData,
+        lists: normalizedData.lists.filter((list) => visibleListIds.has(list.id)),
+        links: normalizedData.links.filter((link) => visibleListIds.has(link.listId)),
+      };
+    }
+
+    if (JSON.stringify(rawData) !== JSON.stringify(normalizedData)) {
+      writeJsonFile('links.json', normalizedData);
     }
 
     return NextResponse.json(data);

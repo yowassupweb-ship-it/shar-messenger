@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Link2, BarChart3, Target, Clock, ArrowLeft } from 'lucide-react'
+import { Link2, Clock, ArrowLeft } from 'lucide-react'
 
 export default function UTMGeneratorLayout({
   children,
@@ -13,8 +13,6 @@ export default function UTMGeneratorLayout({
 
   const navItems = [
     { href: '/utm-generator', label: 'Генератор', Icon: Link2, exact: true },
-    { href: '/utm-generator/tracker', label: 'Трекер', Icon: BarChart3 },
-    { href: '/utm-generator/campaigns', label: 'Кампании', Icon: Target },
     { href: '/utm-generator/history', label: 'История', Icon: Clock },
   ]
 

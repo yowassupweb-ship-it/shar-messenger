@@ -615,7 +615,7 @@ export default function ChatSettingsPage() {
 
           {/* Нижняя панель навигации */}
           <Section title="Навигация">
-            <div className="p-4 space-y-3">
+            <div className="p-4 space-y-3 select-none" onCopy={(e) => e.preventDefault()}>
               <p className="text-sm text-[var(--text-muted)] mb-3">Выберите вкладки для нижней панели</p>
               {[
                 { id: 'messages' as const, name: 'Чаты', icon: <MessageCircle className="w-4 h-4" /> },

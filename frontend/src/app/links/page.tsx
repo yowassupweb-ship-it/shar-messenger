@@ -101,6 +101,8 @@ export default function LinksPage() {
   const [data, setData] = useState<LinksData>({ links: [], lists: [], categories: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState('');
+  const [currentUsername, setCurrentUsername] = useState('');
+  const [currentDepartment, setCurrentDepartment] = useState('');
 
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -148,7 +150,13 @@ export default function LinksPage() {
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const res = await fetch('/api/links');
+      const params = new URLSearchParams();
+      if (currentUserId) params.set('userId', currentUserId);
+      if (currentUsername) params.set('username', currentUsername);
+      if (currentDepartment) params.set('department', currentDepartment);
+
+      const query = params.toString();
+      const res = await fetch(query ? `/api/links?${query}` : '/api/links');
       const payload = (await res.json()) as LinksData;
       const lists = [...(payload.lists || [])].sort((a, b) => a.order - b.order);
       const links = payload.links || [];
@@ -165,7 +173,7 @@ export default function LinksPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [currentDepartment, currentUserId, currentUsername]);
 
   useEffect(() => {
     loadData();
@@ -175,10 +183,14 @@ export default function LinksPage() {
     try {
       const raw = localStorage.getItem('myAccount');
       if (!raw) return;
-      const parsed = JSON.parse(raw) as { id?: string };
+      const parsed = JSON.parse(raw) as { id?: string; username?: string; department?: string };
       setCurrentUserId(parsed.id || '');
+      setCurrentUsername(parsed.username || '');
+      setCurrentDepartment(parsed.department || '');
     } catch {
       setCurrentUserId('');
+      setCurrentUsername('');
+      setCurrentDepartment('');
     }
   }, []);
 
