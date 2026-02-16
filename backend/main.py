@@ -3738,7 +3738,9 @@ def create_todo(todo_data: dict = Body(...)):
         print(f"[POST /api/todos] Creating list: {new_list['name']} by creator: {new_list.get('creatorId')}")
         result = db.add_todo_list(new_list)
         print(f"[POST /api/todos] List created: {result.get('id') if result else 'FAILED'}")
-        return snake_to_camel(result) if result else new_list
+        if not result:
+            raise HTTPException(status_code=500, detail="Failed to create list")
+        return snake_to_camel(result)
     
     elif todo_type == 'category':
         new_category = {
@@ -3751,7 +3753,9 @@ def create_todo(todo_data: dict = Body(...)):
         print(f"[POST /api/todos] Creating category: {new_category['name']}")
         result = db.add_todo_category(new_category)
         print(f"[POST /api/todos] Category created: {result.get('id') if result else 'FAILED'}")
-        return snake_to_camel(result) if result else new_category
+        if not result:
+            raise HTTPException(status_code=500, detail="Failed to create category")
+        return snake_to_camel(result)
     
     else:
         stage_keys = {
@@ -3813,12 +3817,7 @@ def create_todo(todo_data: dict = Body(...)):
         else:
             print(f"[POST /api/todos] ERROR: Failed to create task")
             print(f"[POST /api/todos] === FAILED ===")
-            data = snake_to_camel(new_todo)
-            if isinstance(data.get('metadata'), dict):
-                for key in stage_keys:
-                    if key in data['metadata']:
-                        data[key] = data['metadata'][key]
-            return data
+            raise HTTPException(status_code=500, detail="Failed to create task")
 
 @app.put("/api/todos")
 def update_todo(todo_data: dict = Body(...)):
