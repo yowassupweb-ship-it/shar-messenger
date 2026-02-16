@@ -3718,6 +3718,8 @@ def create_todo(todo_data: dict = Body(...)):
     print(f"[POST /api/todos] Type: {todo_type}")
     
     if todo_type == 'list':
+        allowed_users = todo_data.get('allowedUsers', todo_data.get('allowed_users', [])) or []
+        allowed_departments = todo_data.get('allowedDepartments', todo_data.get('allowed_departments', [])) or []
         new_list = {
             'id': str(uuid.uuid4()),
             'name': todo_data.get('name', 'Новый список'),
@@ -3725,7 +3727,13 @@ def create_todo(todo_data: dict = Body(...)):
             'icon': todo_data.get('icon', 'folder'),
             'department': todo_data.get('department'),
             'order': todo_data.get('order', 0),
-            'creatorId': todo_data.get('creatorId') or todo_data.get('creator_id')
+            'creatorId': todo_data.get('creatorId') or todo_data.get('creator_id'),
+            'defaultExecutorId': todo_data.get('defaultExecutorId') or todo_data.get('default_executor_id') or todo_data.get('defaultAssigneeId'),
+            'defaultCustomerId': todo_data.get('defaultCustomerId') or todo_data.get('default_customer_id'),
+            'defaultAddToCalendar': todo_data.get('defaultAddToCalendar', todo_data.get('default_add_to_calendar', False)),
+            'stagesEnabled': todo_data.get('stagesEnabled', todo_data.get('stages_enabled', False)),
+            'allowedUsers': allowed_users,
+            'allowedDepartments': allowed_departments,
         }
         print(f"[POST /api/todos] Creating list: {new_list['name']} by creator: {new_list.get('creatorId')}")
         result = db.add_todo_list(new_list)

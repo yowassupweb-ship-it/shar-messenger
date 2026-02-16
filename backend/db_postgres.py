@@ -929,15 +929,50 @@ class PostgresDatabase:
     def get_tasks(self, user_id: Optional[str] = None, list_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get all tasks, optionally filtered by user or list"""
         if user_id:
-            # Проверяем может ли пользователь видеть все задачи
-            user_query = "SELECT can_see_all_tasks FROM users WHERE id = %s"
+            # Проверяем права пользователя
+            user_query = "SELECT can_see_all_tasks, is_department_head, department, role FROM users WHERE id = %s"
             user_result = self.conn.fetch_one(user_query, (user_id,))
             can_see_all = user_result and user_result.get('can_see_all_tasks', False)
+            is_admin = user_result and user_result.get('role') == 'admin'
+            is_dept_head = user_result and user_result.get('is_department_head', False)
+            user_dept = user_result.get('department') if user_result else None
             
-            if can_see_all:
+            if can_see_all or is_admin:
                 # Пользователь видит все задачи
                 query = "SELECT * FROM tasks ORDER BY created_at DESC"
                 return self.conn.fetch_all(query)
+            elif is_dept_head and user_dept:
+                # Руководитель отдела видит все задачи участников своего отдела
+                dept_users_query = "SELECT id, name FROM users WHERE department = %s"
+                dept_users = self.conn.fetch_all(dept_users_query, (user_dept,))
+                dept_user_ids = [u['id'] for u in dept_users]
+                dept_user_names = [u['name'] for u in dept_users if u.get('name')]
+
+                if not dept_user_ids:
+                    query = "SELECT * FROM tasks WHERE assigned_by_id = %s OR author_id = %s ORDER BY created_at DESC"
+                    return self.conn.fetch_all(query, (user_id, user_id))
+
+                placeholders_ids = ','.join(['%s'] * len(dept_user_ids))
+                placeholders_names = ','.join(['%s'] * len(dept_user_names)) if dept_user_names else '%s'
+
+                assigned_to_ids_checks = []
+                assigned_to_ids_params = []
+                for uid in dept_user_ids:
+                    assigned_to_ids_checks.append("assigned_to_ids::jsonb @> %s::jsonb")
+                    assigned_to_ids_params.append(f'["{uid}"]')
+
+                query = f"""
+                    SELECT * FROM tasks
+                    WHERE assigned_by_id IN ({placeholders_ids})
+                    OR author_id IN ({placeholders_ids})
+                    OR assigned_to IN ({placeholders_names})
+                    OR ({' OR '.join(assigned_to_ids_checks)})
+                    ORDER BY created_at DESC
+                """
+
+                names_params = dept_user_names if dept_user_names else ['']
+                params = tuple(dept_user_ids + dept_user_ids + names_params + assigned_to_ids_params)
+                return self.conn.fetch_all(query, params)
             else:
                 # Фильтруем только по связанным задачам (заказчик или исполнитель)
                 query = """
@@ -1159,23 +1194,26 @@ class PostgresDatabase:
     
     def add_todo_list(self, list_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Add new todo list"""
-        # Сначала проверяем наличие колонки creator_id
+        # Сначала проверяем наличие обязательных колонок
         try:
-            check_query = "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'todo_lists' AND column_name = 'creator_id'"
-            has_creator = self.conn.fetch_one(check_query)
-            
-            if not has_creator:
-                # Добавляем колонку если её нет
-                self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS creator_id VARCHAR(255)")
+            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS creator_id VARCHAR(255)")
+            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS default_executor_id VARCHAR(255)")
+            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS default_customer_id VARCHAR(255)")
+            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS default_add_to_calendar BOOLEAN DEFAULT FALSE")
+            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS stages_enabled BOOLEAN DEFAULT FALSE")
+            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS allowed_users TEXT[] DEFAULT ARRAY[]::TEXT[]")
+            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS allowed_departments TEXT[] DEFAULT ARRAY[]::TEXT[]")
         except Exception as e:
-            print(f"Error checking/adding creator_id column: {e}")
+            print(f"Error checking/adding todo_lists columns: {e}")
         
         query = """
             INSERT INTO todo_lists 
-            (id, name, color, icon, department, list_order, creator_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            (id, name, color, icon, department, list_order, creator_id, default_executor_id, default_customer_id, default_add_to_calendar, stages_enabled, allowed_users, allowed_departments)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
         """
+        allowed_users = list_data.get('allowedUsers', list_data.get('allowed_users', [])) or []
+        allowed_departments = list_data.get('allowedDepartments', list_data.get('allowed_departments', [])) or []
         params = (
             list_data.get('id'),
             list_data.get('name'),
@@ -1183,7 +1221,13 @@ class PostgresDatabase:
             list_data.get('icon'),
             list_data.get('department'),
             list_data.get('order', 0),
-            list_data.get('creatorId') or list_data.get('creator_id')
+            list_data.get('creatorId') or list_data.get('creator_id'),
+            list_data.get('defaultExecutorId') or list_data.get('default_executor_id') or list_data.get('defaultAssigneeId'),
+            list_data.get('defaultCustomerId') or list_data.get('default_customer_id'),
+            bool(list_data.get('defaultAddToCalendar') or list_data.get('default_add_to_calendar', False)),
+            bool(list_data.get('stagesEnabled') or list_data.get('stages_enabled', False)),
+            allowed_users,
+            allowed_departments,
         )
         result = self.conn.fetch_one(query, params)
         return dict(result) if result else None
@@ -1199,7 +1243,19 @@ class PostgresDatabase:
             'icon': 'icon',
             'department': 'department',
             'order': 'list_order',
-            'archived': 'archived'
+            'archived': 'archived',
+            'defaultExecutorId': 'default_executor_id',
+            'default_executor_id': 'default_executor_id',
+            'defaultCustomerId': 'default_customer_id',
+            'default_customer_id': 'default_customer_id',
+            'defaultAddToCalendar': 'default_add_to_calendar',
+            'default_add_to_calendar': 'default_add_to_calendar',
+            'stagesEnabled': 'stages_enabled',
+            'stages_enabled': 'stages_enabled',
+            'allowedUsers': 'allowed_users',
+            'allowed_users': 'allowed_users',
+            'allowedDepartments': 'allowed_departments',
+            'allowed_departments': 'allowed_departments',
         }
         
         for key, db_field in field_mapping.items():

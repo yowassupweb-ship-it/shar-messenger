@@ -1,12 +1,13 @@
 'use client';
 
 import React, { memo, useState, useEffect } from 'react';
-import { ChevronDown, UserCheck, Users, X } from 'lucide-react';
+import { ChevronDown, UserCheck, Users, X, Check } from 'lucide-react';
 
 interface Person {
   id: string;
   name: string;
   role: 'executor' | 'customer' | 'universal';
+  department?: string;
 }
 
 interface AddListProps {
@@ -64,7 +65,11 @@ const AddList = memo(function AddList({
   
   useEffect(() => {
     if (editingList) {
-      setLocalEditedList({ ...editingList });
+      setLocalEditedList({
+        ...editingList,
+        allowedDepartments: editingList.allowedDepartments || [],
+        allowedUsers: editingList.allowedUsers || [],
+      });
     }
   }, [editingList]);
   
@@ -72,6 +77,9 @@ const AddList = memo(function AddList({
   const displayColor = isEditing ? (localEditedList?.color || editingList.color) : newListColor;
   const displayAssigneeId = isEditing ? (localEditedList?.defaultExecutorId !== undefined ? localEditedList.defaultExecutorId : editingList.defaultExecutorId) : newListAssigneeId;
   const displayStagesEnabled = isEditing ? (localEditedList?.stagesEnabled !== undefined ? localEditedList.stagesEnabled : editingList.stagesEnabled) : newListStagesEnabled;
+  const displayAllowedDepartments = isEditing
+    ? (localEditedList?.allowedDepartments || editingList.allowedDepartments || [])
+    : [];
 
   const handleClose = () => {
     onClose();
@@ -127,6 +135,22 @@ const AddList = memo(function AddList({
       setNewListStagesEnabled(enabled);
     }
   };
+
+  const handleDepartmentToggle = (department: string) => {
+    if (!isEditing) return;
+    const current = localEditedList?.allowedDepartments || [];
+    const isSelected = current.includes(department);
+    const next = isSelected
+      ? current.filter((d: string) => d !== department)
+      : [...current, department];
+
+    setLocalEditedList({
+      ...localEditedList,
+      allowedDepartments: next
+    });
+  };
+
+  const availableDepartments = [...new Set(people.filter(p => p.department).map(p => p.department!))].sort();
 
   return (
     <div 
@@ -251,6 +275,53 @@ const AddList = memo(function AddList({
                   </div>
                 </label>
               </div>
+
+              {isEditing && (
+                <div className="mb-4">
+                  <label className="block text-sm text-gray-500 dark:text-[var(--text-muted)] mb-2 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-orange-400" />
+                    Доступ по отделам
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-[var(--text-muted)] mb-2">
+                    Пользователи из выбранных отделов смогут видеть этот список.
+                    Если ничего не выбрано — доступ по отделам не ограничивается.
+                  </p>
+
+                  <div className="flex flex-wrap gap-2">
+                    {availableDepartments.map((dept) => {
+                      const isSelected = displayAllowedDepartments.includes(dept);
+                      return (
+                        <button
+                          key={dept}
+                          type="button"
+                          onClick={() => handleDepartmentToggle(dept)}
+                          className={`px-3 py-1.5 rounded-lg text-xs transition-all flex items-center gap-1.5 ${
+                            isSelected
+                              ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                              : 'bg-[var(--bg-glass)] text-[var(--text-secondary)] border border-[var(--border-color)] hover:border-orange-500/30'
+                          }`}
+                        >
+                          <Users className="w-3 h-3" />
+                          {dept}
+                          {isSelected && <Check className="w-3 h-3" />}
+                        </button>
+                      );
+                    })}
+
+                    {availableDepartments.length === 0 && (
+                      <div className="text-xs text-[var(--text-muted)] py-2">
+                        Нет пользователей с назначенными отделами
+                      </div>
+                    )}
+                  </div>
+
+                  {displayAllowedDepartments.length > 0 && (
+                    <div className="mt-2 text-xs text-orange-400">
+                      Выбрано отделов: {displayAllowedDepartments.length}
+                    </div>
+                  )}
+                </div>
+              )}
               
               <div className="flex gap-2 sticky bottom-0 bg-white dark:bg-[var(--bg-tertiary)] pt-4 -mx-4 px-4 pb-4 border-t border-gray-200 dark:border-[var(--border-color)]">
                 <button

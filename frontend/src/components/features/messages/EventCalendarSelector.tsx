@@ -3,7 +3,6 @@
 import React from 'react';
 import { Message } from './types';
 import { X, Calendar } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 
 interface CalendarList {
   id: string;
@@ -24,8 +23,6 @@ export default function EventCalendarSelector({
   calendarLists,
   onClose
 }: EventCalendarSelectorProps) {
-  const router = useRouter();
-
   if (!show || !message) return null;
 
   const handleCreateEvent = async (list: CalendarList) => {
@@ -34,23 +31,22 @@ export default function EventCalendarSelector({
         ? message.content.substring(0, 100) + '...'
         : message.content;
       
-      const res = await fetch('/api/events', {
+      const res = await fetch('/api/calendar-events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: eventTitle,
           description: message.content,
-          type: 'other',
-          dateType: 'single',
-          startDate: new Date().toISOString().split('T')[0],
-          color: list.color,
-          createdBy: localStorage.getItem('username') || 'guest'
+          type: 'event',
+          date: new Date().toISOString().split('T')[0],
+          listId: list.id,
+          sourceId: message.id,
+          assignedBy: localStorage.getItem('username') || undefined
         })
       });
       
       if (res.ok) {
         onClose();
-        router.push('/events');
       } else {
         throw new Error('Ошибка создания события');
       }

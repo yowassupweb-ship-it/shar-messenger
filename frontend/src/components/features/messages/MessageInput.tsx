@@ -180,7 +180,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
   return (
     <div
-      className={`absolute bottom-0 min-[786px]:bottom-[50px] left-0 right-0 z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(env(safe-area-inset-bottom,8px),8px)] ${
+      className={`absolute bottom-0 max-[785px]:bottom-0 min-[786px]:bottom-[50px] left-0 right-0 z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(env(safe-area-inset-bottom,8px),8px)] ${
         isDragging ? 'scale-[1.02]' : ''
       }`}
       onDragOver={(e) => {

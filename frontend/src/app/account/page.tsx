@@ -422,7 +422,9 @@ export default function AccountPage() {
   }, []);
 
   const shouldUseMobileNav = isCompactViewport || isTouchDevice;
-  const hideBottomNavInOpenedChat = activeTab === 'messages' && isChatOpen && isBelow768;
+  // На мобильной версии полностью скрываем нижнее меню на вкладке чатов,
+  // когда открыт конкретный чат (видна кнопка "Назад")
+  const hideBottomNavInOpenedChat = activeTab === 'messages' && isBelow768 && isChatOpen;
 
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
