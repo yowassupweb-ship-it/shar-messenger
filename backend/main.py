@@ -3985,7 +3985,7 @@ def get_todo_telegram():
 def get_links(userId: Optional[str] = None, department: Optional[str] = None):
     """Получить список ссылок"""
     links = db.get_links(user_id=userId, department=department)
-    lists = db.get_link_lists(department=department, user_id=userId)
+    lists = db.get_link_lists(department=department)
     
     # Преобразуем snake_case в camelCase
     links = [snake_to_camel(link) for link in links]
