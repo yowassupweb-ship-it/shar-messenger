@@ -1728,5 +1728,58 @@ class PostgresDatabase:
         """Delete direct access"""
         query = "DELETE FROM direct_access WHERE id = %s"
         return self.conn.execute_query(query, (access_id,))
-
-
+    
+    # Telegram Auth Codes
+    def add_telegram_auth_code(self, code: str, data: Dict[str, Any]) -> None:
+        """Добавить код авторизации Telegram"""
+        query = """
+            INSERT INTO telegram_auth_codes 
+            (code, authenticated, user_data, created_at)
+            VALUES (%s, %s, %s, NOW())
+            ON CONFLICT (code) DO UPDATE SET
+                authenticated = EXCLUDED.authenticated,
+                user_data = EXCLUDED.user_data,
+                created_at = NOW()
+        """
+        user_json = Json(data.get('user')) if data.get('user') else None
+        self.conn.execute_query(query, (code, data.get('authenticated', False), user_json))
+    
+    def get_telegram_auth_code(self, code: str) -> Optional[Dict[str, Any]]:
+        """Получить данные кода авторизации"""
+        query = "SELECT * FROM telegram_auth_codes WHERE code = %s"
+        result = self.conn.fetch_one(query, (code,))
+        if result:
+            return {
+                'code': result.get('code'),
+                'authenticated': result.get('authenticated'),
+                'user': result.get('user_data'),
+                'created_at': result.get('created_at').isoformat() if result.get('created_at') else None
+            }
+        return None
+    
+    def update_telegram_auth_code(self, code: str, data: Dict[str, Any]) -> bool:
+        """Обновить данные кода авторизации"""
+        query = """
+            UPDATE telegram_auth_codes 
+            SET authenticated = %s, user_data = %s
+            WHERE code = %s
+        """
+        user_json = Json(data.get('user')) if data.get('user') else None
+        return self.conn.execute_query(query, (data.get('authenticated', False), user_json, code))
+    
+    def delete_telegram_auth_code(self, code: str) -> bool:
+        """Удалить использованный код"""
+        query = "DELETE FROM telegram_auth_codes WHERE code = %s"
+        return self.conn.execute_query(query, (code,))
+    
+    def cleanup_old_telegram_codes(self, hours: int = 24) -> int:
+        """Очистить устаревшие коды (старше указанного времени)"""
+        query = f"""
+            DELETE FROM telegram_auth_codes 
+            WHERE created_at < NOW() - INTERVAL '{hours} hours'
+        """
+        self.conn.execute_query(query)
+        # Получаем количество удаленных записей
+        count_query = "SELECT ROW_COUNT()"
+        result = self.conn.fetch_one(count_query)
+        return result.get('row_count', 0) if result else 0

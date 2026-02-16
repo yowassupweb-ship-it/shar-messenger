@@ -7,6 +7,13 @@ export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
+    // Проверка авторизации
+    const isAuthenticated = localStorage.getItem('isAuthenticated');
+    if (!isAuthenticated || isAuthenticated !== 'true') {
+      router.replace('/login');
+      return;
+    }
+    
     // Редирект на страницу аккаунта с оригинальным интерфейсом
     router.replace('/account');
   }, [router]);

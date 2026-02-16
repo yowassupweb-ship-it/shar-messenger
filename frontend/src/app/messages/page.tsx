@@ -55,6 +55,15 @@ export default function MessagesPage() {
   const searchParams = useSearchParams();
   const { theme, toggleTheme } = useTheme();
 
+  // Проверка авторизации
+  useEffect(() => {
+    const isAuthenticated = localStorage.getItem('isAuthenticated');
+    if (!isAuthenticated || isAuthenticated !== 'true') {
+      router.push('/login');
+      return;
+    }
+  }, [router]);
+
   // Проверка: если это прямой доступ к /messages (не через /account), редиректим
   useEffect(() => {
     // Проверяем, находимся ли мы на странице /messages напрямую

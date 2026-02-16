@@ -13,7 +13,15 @@ const buttonStyle = {
   boxShadow: '0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.1) inset'
 }
 
-export default function TransliteratorPage() {
+export default function TransliteratorPage() {  const router = useRouter();
+
+  // Проверка авторизации
+  useEffect(() => {
+    const isAuthenticated = localStorage.getItem('isAuthenticated');
+    if (!isAuthenticated || isAuthenticated !== 'true') {
+      router.push('/login');
+    }
+  }, [router]);
   const [inputText, setInputText] = useState('')
   const [outputText, setOutputText] = useState('')
   const [isCopied, setIsCopied] = useState(false)

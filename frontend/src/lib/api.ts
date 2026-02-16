@@ -3,7 +3,7 @@
 
 const LOCALHOST_API = 'http://localhost:8000'
 const NETWORK_API = 'http://117.117.117.235:8000'
-const PRODUCTION_DOMAIN = 'vs-travel.shar-os.ru'
+const PRODUCTION_DOMAIN = 'vokrug-sveta.shar-os.ru'
 
 // Check if running in browser and not on localhost
 const isProduction = typeof window !== 'undefined' && 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
 import { showToast } from '@/components/Toast'
 import { Copy, ExternalLink, Link2, Check, RotateCcw, TrendingUp, Layers, Settings, Plus, Pencil, Trash2, X, Save } from 'lucide-react'
@@ -62,6 +63,16 @@ const buttonStyle = {
 type TabType = 'single' | 'bulk' | 'settings'
 
 export default function UTMGeneratorPage() {
+  const router = useRouter()
+
+  // Проверка авторизации
+  useEffect(() => {
+    const isAuthenticated = localStorage.getItem('isAuthenticated');
+    if (!isAuthenticated || isAuthenticated !== 'true') {
+      router.push('/login');
+    }
+  }, [router]);
+
   const [activeTab, setActiveTab] = useState<TabType>('single')
   
   const [baseUrl, setBaseUrl] = useState('')

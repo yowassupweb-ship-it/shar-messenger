@@ -115,7 +115,8 @@ class Database:
             "chats": [],  # Чаты пользователей
             "messages": [],  # Сообщения в чатах
             "links": [],  # Сохранённые ссылки
-            "link_lists": []  # Списки для организации ссылок
+            "link_lists": [],  # Списки для организации ссылок
+            "telegramAuthCodes": {}  # Коды авторизации Telegram {code: {authenticated, user, created_at}}
         }
     
     # Settings
@@ -1042,6 +1043,66 @@ class Database:
             return True
         
         return False
+    
+    # Telegram Auth Codes
+    def add_telegram_auth_code(self, code: str, data: Dict[str, Any]) -> None:
+        """Добавить код авторизации Telegram"""
+        if "telegramAuthCodes" not in self.data:
+            self.data["telegramAuthCodes"] = {}
+        
+        self.data["telegramAuthCodes"][code] = {
+            **data,
+            "created_at": datetime.now().isoformat()
+        }
+        self._save()
+    
+    def get_telegram_auth_code(self, code: str) -> Optional[Dict[str, Any]]:
+        """Получить данные кода авторизации"""
+        return self.data.get("telegramAuthCodes", {}).get(code)
+    
+    def update_telegram_auth_code(self, code: str, data: Dict[str, Any]) -> bool:
+        """Обновить данные кода авторизации"""
+        if "telegramAuthCodes" not in self.data:
+            return False
+        
+        if code in self.data["telegramAuthCodes"]:
+            self.data["telegramAuthCodes"][code].update(data)
+            self._save()
+            return True
+        return False
+    
+    def delete_telegram_auth_code(self, code: str) -> bool:
+        """Удалить использованный код"""
+        if "telegramAuthCodes" not in self.data:
+            return False
+        
+        if code in self.data["telegramAuthCodes"]:
+            del self.data["telegramAuthCodes"][code]
+            self._save()
+            return True
+        return False
+    
+    def cleanup_old_telegram_codes(self, hours: int = 24) -> int:
+        """Очистить устаревшие коды (старше указанного времени)"""
+        if "telegramAuthCodes" not in self.data:
+            return 0
+        
+        from datetime import timedelta
+        cutoff = datetime.now() - timedelta(hours=hours)
+        codes_to_delete = []
+        
+        for code, data in self.data["telegramAuthCodes"].items():
+            created_at = datetime.fromisoformat(data.get("created_at", ""))
+            if created_at < cutoff:
+                codes_to_delete.append(code)
+        
+        for code in codes_to_delete:
+            del self.data["telegramAuthCodes"][code]
+        
+        if codes_to_delete:
+            self._save()
+        
+        return len(codes_to_delete)
 
 # Note: Singleton creation moved to db_adapter.py
 # This avoids automatic instantiation on import

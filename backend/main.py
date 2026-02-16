@@ -160,8 +160,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "*",
-        "https://vs-travel.shar-os.ru",
-        "http://vs-travel.shar-os.ru",
+        "https://vokrug-sveta.shar-os.ru",
+        "http://vokrug-sveta.shar-os.ru",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -1355,6 +1355,81 @@ def login(credentials: LoginRequest):
             }
         }
     raise HTTPException(status_code=401, detail="Invalid credentials")
+
+@app.get("/api/auth/me")
+def get_current_user(username: str):
+    """Получить информацию о текущем пользователе"""
+    user = db.get_user(username)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "id": user.get("id"),
+        "username": user.get("username"),
+        "name": user.get("name", ""),
+        "role": user.get("role", "user"),
+        "telegramId": user.get("telegramId"),
+        "todoPersonId": user.get("todoPersonId"),
+        "canSeeAllTasks": user.get("canSeeAllTasks", False)
+    }
+
+# Telegram авторизация
+@app.post("/api/auth/telegram/generate-code")
+def generate_telegram_auth_code():
+    """Генерация одноразового кода для авторизации через Telegram"""
+    import secrets
+    code = secrets.token_urlsafe(8)
+    db.add_telegram_auth_code(code, {"authenticated": False, "user": None})
+    
+    # Очистка старых кодов (старше 24 часов)
+    db.cleanup_old_telegram_codes(hours=24)
+    
+    return {"code": code}
+
+@app.get("/api/auth/telegram/check")
+def check_telegram_auth(code: str):
+    """Проверка статуса авторизации по коду"""
+    auth_data = db.get_telegram_auth_code(code)
+    
+    if not auth_data:
+        raise HTTPException(status_code=404, detail="Code not found")
+    
+    if auth_data.get("authenticated"):
+        # Код использован, удаляем
+        user_data = auth_data.get("user")
+        db.delete_telegram_auth_code(code)
+        return {"authenticated": True, "user": user_data}
+    
+    return {"authenticated": False}
+
+@app.post("/api/auth/telegram/verify")
+def verify_telegram_auth(code: str, telegram_id: str):
+    """Верификация пользователя по Telegram ID (вызывается ботом)"""
+    auth_data = db.get_telegram_auth_code(code)
+    
+    if not auth_data:
+        raise HTTPException(status_code=404, detail="Code not found")
+    
+    # Находим пользователя по telegram_id
+    users = db.get_users()
+    user = next((u for u in users if u.get("telegramId") == telegram_id), None)
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Обновляем код с данными пользователя
+    db.update_telegram_auth_code(code, {
+        "authenticated": True,
+        "user": {
+            "id": user.get("id"),
+            "username": user.get("username"),
+            "name": user.get("name", ""),
+            "role": user.get("role", "user"),
+            "telegramId": telegram_id
+        }
+    })
+    
+    return {"status": "success"}
 
 # Templates - Шаблоны фидов и UTM
 @app.get("/api/templates")

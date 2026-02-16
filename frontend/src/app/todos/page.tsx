@@ -726,6 +726,13 @@ export default function TodosPage() {
   const [scrollLeft, setScrollLeft] = useState(0);
   const settingsRef = useRef<HTMLDivElement>(null);
 
+  // Проверка авторизации - редирект на /login если не авторизован
+  useEffect(() => {
+    const isAuthenticated = localStorage.getItem('isAuthenticated');
+    if (!isAuthenticated || isAuthenticated !== 'true') {
+      router.push('/login');
+    }
+  }, [router]);
 
   // Загрузка данных
   const loadData = useCallback(async () => {

@@ -90,6 +90,7 @@ export default function AccountPage() {
   const [isDesktop, setIsDesktop] = useState(false);
   const [isCompactViewport, setIsCompactViewport] = useState(() => typeof window !== 'undefined' ? window.innerWidth <= 540 : false);
   const [isTouchDevice, setIsTouchDevice] = useState(() => typeof window !== 'undefined' ? window.matchMedia('(pointer: coarse)').matches : false);
+  const [isBelow768, setIsBelow768] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 773 : false);
   
   // Состояния видимости вкладок навигации
   const [visibleTabs, setVisibleTabs] = useState({
@@ -411,6 +412,7 @@ export default function AccountPage() {
     const updateViewport = () => {
       setIsCompactViewport(window.innerWidth <= 540);
       setIsTouchDevice(window.matchMedia('(pointer: coarse)').matches);
+      setIsBelow768(window.innerWidth < 773);
     };
     updateViewport();
     window.addEventListener('resize', updateViewport);
@@ -420,7 +422,7 @@ export default function AccountPage() {
   }, []);
 
   const shouldUseMobileNav = isCompactViewport || isTouchDevice;
-  const hideBottomNavInOpenedChat = activeTab === 'messages' && isChatOpen && shouldUseMobileNav;
+  const hideBottomNavInOpenedChat = activeTab === 'messages' && isChatOpen && isBelow768;
 
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);

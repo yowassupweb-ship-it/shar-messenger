@@ -280,4 +280,9 @@ Users can be linked to task profiles via:
 - `frontend/src/app/api/auth/me/route.ts` - получение настроек пользователя
 - `frontend/src/app/admin/page.tsx` - управление пользователями
 
-/var/www/feed-editor/frontend - папка фронтенда на сервере
+## 🖥️ Server Configuration
+
+- Frontend path: `/var/www/shar/frontend`
+- Backend path: `/var/www/shar/backend`
+- Systemd services: `shar-frontend.service`, `shar-backend.service`
+- Domain: `vokrug-sveta.shar-os.ru`

@@ -315,6 +315,22 @@ if USE_POSTGRES:
             """No-op for PostgreSQL"""
             pass
         
+        # Telegram Auth Codes
+        def add_telegram_auth_code(self, code: str, data: Dict[str, Any]) -> None:
+            return self.db.add_telegram_auth_code(code, data)
+        
+        def get_telegram_auth_code(self, code: str) -> Optional[Dict[str, Any]]:
+            return self.db.get_telegram_auth_code(code)
+        
+        def update_telegram_auth_code(self, code: str, data: Dict[str, Any]) -> bool:
+            return self.db.update_telegram_auth_code(code, data)
+        
+        def delete_telegram_auth_code(self, code: str) -> bool:
+            return self.db.delete_telegram_auth_code(code)
+        
+        def cleanup_old_telegram_codes(self, hours: int = 24) -> int:
+            return self.db.cleanup_old_telegram_codes(hours)
+        
         # Fallback для доступа к data (для совместимости)
         @property
         def data(self):
