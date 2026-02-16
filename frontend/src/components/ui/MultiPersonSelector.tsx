@@ -35,6 +35,29 @@ const MultiPersonSelector = memo(function MultiPersonSelector({
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const resolveNameById = (id: string) => {
+    const person = people.find((p) => p.id === id);
+    return person?.name || person?.id || id;
+  };
+
+  const buildNamesByIds = (ids: string[]) => {
+    return ids.map((id) => {
+      const oldIndex = selectedIds.indexOf(id);
+      const oldName = oldIndex >= 0 ? selectedNames[oldIndex] : undefined;
+      return oldName || resolveNameById(id);
+    });
+  };
+
+  const selectedEntries = selectedIds.map((id, idx) => ({
+    id,
+    name: selectedNames[idx] || resolveNameById(id)
+  }));
+
+  const fallbackNameEntries = selectedEntries.length === 0
+    ? selectedNames.map((name, idx) => ({ id: `name-only-${idx}`, name }))
+    : selectedEntries;
+
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const filteredPeople = people.filter((person) => {
     if (!normalizedQuery) return true;
@@ -65,23 +88,33 @@ const MultiPersonSelector = memo(function MultiPersonSelector({
     const isSelected = selectedIds.includes(person.id);
     
     if (isSelected) {
+      const nextIds = selectedIds.filter(id => id !== person.id);
       onChange(
-        selectedIds.filter(id => id !== person.id),
-        selectedNames.filter(name => name !== person.name)
+        nextIds,
+        buildNamesByIds(nextIds)
       );
     } else {
+      const nextIds = [...selectedIds, person.id];
       onChange(
-        [...selectedIds, person.id],
-        [...selectedNames, person.name]
+        nextIds,
+        buildNamesByIds(nextIds)
       );
     }
   };
   
   const handleRemove = (personId: string, personName: string, e: React.MouseEvent) => {
     e.stopPropagation();
+
+    if (personId.startsWith('name-only-')) {
+      const nextNames = selectedNames.filter(name => name !== personName);
+      onChange([], nextNames);
+      return;
+    }
+
+    const nextIds = selectedIds.filter(id => id !== personId);
     onChange(
-      selectedIds.filter(id => id !== personId),
-      selectedNames.filter(name => name !== personName)
+      nextIds,
+      buildNamesByIds(nextIds)
     );
   };
   
@@ -94,21 +127,20 @@ const MultiPersonSelector = memo(function MultiPersonSelector({
         className="no-mobile-scale w-full px-2.5 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-sm text-left flex items-start justify-between hover:border-blue-500/30 transition-all min-h-[34px] h-auto text-gray-900 dark:text-[var(--text-primary)] rounded-xl"
       >
         <div className="flex-1 flex flex-wrap gap-1 items-center">
-          {selectedNames.length === 0 ? (
+          {fallbackNameEntries.length === 0 ? (
             <span className="text-gray-400 dark:text-white/40 text-xs truncate whitespace-nowrap">{placeholder}</span>
           ) : (
             <>
-              {selectedNames.map((name, idx) => {
-                const personId = selectedIds[idx];
+              {fallbackNameEntries.map((entry) => {
                 return (
                   <span
-                    key={personId || `person-${idx}`}
+                    key={entry.id}
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] bg-blue-500/15 text-blue-600 dark:text-blue-300 border border-blue-500/20"
                   >
-                    {name}
+                    {entry.name}
                     <X
                       className="w-3 h-3 hover:text-red-500 transition-colors cursor-pointer"
-                      onClick={(e) => handleRemove(personId, name, e)}
+                      onClick={(e) => handleRemove(entry.id, entry.name, e)}
                     />
                   </span>
                 );
