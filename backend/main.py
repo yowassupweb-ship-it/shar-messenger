@@ -1521,6 +1521,137 @@ def verify_telegram_auth(
     
     return {"status": "success"}
 
+def _send_telegram_message(chat_id: int, text: str, bot_token: str) -> bool:
+    """Отправка сообщения в Telegram"""
+    try:
+        import json
+        import urllib.request
+
+        payload = {
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": "HTML"
+        }
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{bot_token}/sendMessage",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=10) as response:
+            return 200 <= response.status < 300
+    except Exception as e:
+        logger.error(f"Telegram sendMessage failed: {e}")
+        return False
+
+
+@app.post("/api/telegram/webhook")
+def telegram_webhook(update: Dict[str, Any] = Body(...)):
+    """Webhook Telegram бота (backend-версия)"""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("BOT_TOKEN")
+    if not bot_token:
+        logger.error("TELEGRAM_BOT_TOKEN is not configured")
+        return {"ok": True}
+
+    message = update.get("message") or {}
+    text = (message.get("text") or "").strip()
+    from_user = message.get("from") or {}
+    chat = message.get("chat") or {}
+
+    telegram_id = from_user.get("id")
+    chat_id = chat.get("id")
+
+    if not text or not telegram_id or not chat_id:
+        return {"ok": True}
+
+    code = None
+
+    # /start <code>
+    if text.startswith("/start"):
+        parts = text.split(" ", 1)
+        if len(parts) > 1 and parts[1].isdigit() and len(parts[1]) == 6:
+            code = parts[1]
+        else:
+            _send_telegram_message(
+                chat_id,
+                "👋 <b>Привет!</b>\n\n"
+                "Для входа нажмите «Войти через Telegram» на странице логина, "
+                "после этого откройте бота по кнопке из интерфейса.",
+                bot_token
+            )
+            return {"ok": True}
+    elif text.isdigit() and len(text) == 6:
+        code = text
+    else:
+        return {"ok": True}
+
+    # Сначала проверяем, что Telegram ID привязан к пользователю
+    users = db.get_users()
+    user = next(
+        (
+            u for u in users
+            if str(u.get("telegramId") or u.get("telegram_id") or "") == str(telegram_id)
+        ),
+        None
+    )
+
+    if not user:
+        _send_telegram_message(
+            chat_id,
+            "❌ <b>Пользователь не найден</b>\n\n"
+            "Ваш Telegram ID не привязан к аккаунту в системе.\n"
+            "Обратитесь к администратору для привязки аккаунта.\n\n"
+            f"Ваш Telegram ID: <code>{telegram_id}</code>",
+            bot_token
+        )
+        return {"ok": True}
+
+    try:
+        verify_telegram_auth(code=code, telegram_id=str(telegram_id), telegramId=None, payload=None)
+        _send_telegram_message(
+            chat_id,
+            "✅ <b>Авторизация успешна!</b>\n\n"
+            f"Добро пожаловать, {user.get('username', '')}!\n"
+            "Теперь вы можете закрыть это окно и вернуться в браузер.",
+            bot_token
+        )
+    except HTTPException as e:
+        if e.status_code == 404 and e.detail == "Code not found":
+            _send_telegram_message(
+                chat_id,
+                "❌ <b>Код не найден</b>\n\n"
+                "Этот код не существует или истёк.\n"
+                "Запросите новый код на странице входа.",
+                bot_token
+            )
+        elif e.status_code == 404 and e.detail == "User not found":
+            _send_telegram_message(
+                chat_id,
+                "❌ <b>Пользователь не найден</b>\n\n"
+                "Ваш Telegram ID не привязан к аккаунту в системе.\n"
+                "Обратитесь к администратору для привязки аккаунта.\n\n"
+                f"Ваш Telegram ID: <code>{telegram_id}</code>",
+                bot_token
+            )
+        else:
+            logger.error(f"Telegram webhook verify failed: {e.detail}")
+            _send_telegram_message(
+                chat_id,
+                "⚠️ <b>Ошибка авторизации</b>\n\n"
+                "Попробуйте ещё раз через страницу входа.",
+                bot_token
+            )
+    except Exception as e:
+        logger.error(f"Telegram webhook unexpected error: {e}")
+        _send_telegram_message(
+            chat_id,
+            "⚠️ <b>Временная ошибка</b>\n\n"
+            "Попробуйте ещё раз через минуту.",
+            bot_token
+        )
+
+    return {"ok": True}
+
 # Templates - Шаблоны фидов и UTM
 @app.get("/api/templates")
 def get_templates(type: Optional[str] = None):
