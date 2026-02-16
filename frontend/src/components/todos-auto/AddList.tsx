@@ -56,8 +56,6 @@ const AddList = memo(function AddList({
   editingList,
   updateList
 }: AddListProps) {
-  if (!isOpen) return null;
-
   const isEditing = !!editingList;
   
   // Используем локальное состояние для редактирования
@@ -76,7 +74,11 @@ const AddList = memo(function AddList({
   const displayName = isEditing ? (localEditedList?.name || editingList.name) : newListName;
   const displayColor = isEditing ? (localEditedList?.color || editingList.color) : newListColor;
   const displayAssigneeId = isEditing ? (localEditedList?.defaultExecutorId !== undefined ? localEditedList.defaultExecutorId : editingList.defaultExecutorId) : newListAssigneeId;
-  const displayStagesEnabled = isEditing ? (localEditedList?.stagesEnabled !== undefined ? localEditedList.stagesEnabled : editingList.stagesEnabled) : newListStagesEnabled;
+  const displayStagesEnabled = Boolean(
+    isEditing
+      ? (localEditedList?.stagesEnabled !== undefined ? localEditedList.stagesEnabled : editingList.stagesEnabled)
+      : newListStagesEnabled
+  );
   const displayAllowedDepartments = isEditing
     ? (localEditedList?.allowedDepartments || editingList.allowedDepartments || [])
     : [];
@@ -151,6 +153,8 @@ const AddList = memo(function AddList({
   };
 
   const availableDepartments = [...new Set(people.filter(p => p.department).map(p => p.department!))].sort();
+
+  if (!isOpen) return null;
 
   return (
     <div 

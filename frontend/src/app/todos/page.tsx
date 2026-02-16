@@ -3156,6 +3156,9 @@ export default function TodosPage() {
             const { completedCount, totalCount } = listCounts[list.id] || { completedCount: 0, totalCount: 0 };
             const isDropTarget = dragOverListId === list.id && draggedTodo?.listId !== list.id;
             const isListDropTarget = dragOverListOrder === list.order && draggedList?.id !== list.id;
+            const listCreatorName = list.creatorId
+              ? (list.creatorId === myAccountId ? 'Вы' : getPersonNameById(people, list.creatorId))
+              : '';
             
             // На мобильных показываем только выбранную колонку (используем CSS для правильного SSR)
             const isNotSelectedOnMobile = index !== selectedColumnIndex;
@@ -3229,19 +3232,26 @@ export default function TodosPage() {
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
-                        <h3 
-                          className="font-medium text-sm sm:text-sm truncate cursor-pointer text-gray-900 dark:text-white hover:text-blue-500 dark:hover:text-blue-400 transition-colors pointer-events-auto"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingListId(list.id);
-                            setEditingListName(list.name);
-                          }}
-                          title="Кликните для переименования"
-                        >
-                          {list.name}
-                        </h3>
+                        <div className="flex flex-col min-w-0 pointer-events-auto">
+                          <h3 
+                            className="font-medium text-sm sm:text-sm truncate cursor-pointer text-gray-900 dark:text-white hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingListId(list.id);
+                              setEditingListName(list.name);
+                            }}
+                            title="Кликните для переименования"
+                          >
+                            {list.name}
+                          </h3>
+                          {listCreatorName && (
+                            <div className="text-[10px] leading-none text-gray-500 dark:text-white/45 mt-0.5 truncate" title={`Создатель: ${listCreatorName}`}>
+                              создал: {listCreatorName}
+                            </div>
+                          )}
+                        </div>
                       )}
-                      <span className="text-[10px] text-gray-500 dark:text-white/50 bg-gray-200 dark:bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded-full">
+                      <span className="text-[10px] text-gray-500 dark:text-white/50 bg-gray-200 dark:bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded-full self-start">
                         {completedCount}/{totalCount}
                       </span>
                       {/* Индикаторы привязки */}
@@ -3495,6 +3505,10 @@ export default function TodosPage() {
                     const listTodos = getTodosForList(list.id, true);
                     const { completedCount, totalCount } = listCounts[list.id] || { completedCount: 0, totalCount: 0 };
                     
+                    const listCreatorName = list.creatorId
+                      ? (list.creatorId === myAccountId ? 'Вы' : getPersonNameById(people, list.creatorId))
+                      : '';
+
                     return (
                       <div
                         key={list.id}
@@ -3508,9 +3522,16 @@ export default function TodosPage() {
                                 className="w-2 h-2 rounded-full"
                                 style={{ backgroundColor: list.color }}
                               />
-                              <h3 className="font-medium text-sm truncate text-[var(--text-secondary)]">
-                                {list.name}
-                              </h3>
+                              <div className="flex flex-col min-w-0">
+                                <h3 className="font-medium text-sm truncate text-[var(--text-secondary)]">
+                                  {list.name}
+                                </h3>
+                                {listCreatorName && (
+                                  <div className="text-[10px] leading-none text-[var(--text-muted)]/80 mt-0.5 truncate" title={`Создатель: ${listCreatorName}`}>
+                                    создал: {listCreatorName}
+                                  </div>
+                                )}
+                              </div>
                               <span className="text-[10px] text-[var(--text-muted)] bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded-full">
                                 {completedCount}/{totalCount}
                               </span>

@@ -1,10 +1,10 @@
 // PROXY TO BACKEND - All requests forwarded to backend API
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const BACKEND_URL = process.env.BACKEND_URL || process.env.API_URL || 'http://127.0.0.1:8000';
 
 console.log('=== TODOS ROUTE (PROXY MODE) - Backend:', BACKEND_URL, '===');
-console.log('=== process.env.NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL, '===');
+console.log('=== process.env.BACKEND_URL:', process.env.BACKEND_URL, '===');
 
 // Helper function to forward requests to backend
 async function proxyToBackend(request: NextRequest, method: string) {
