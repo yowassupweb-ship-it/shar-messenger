@@ -1196,13 +1196,13 @@ class PostgresDatabase:
         """Add new todo list"""
         # Сначала проверяем наличие обязательных колонок
         try:
-            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS creator_id VARCHAR(255)")
-            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS default_executor_id VARCHAR(255)")
-            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS default_customer_id VARCHAR(255)")
-            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS default_add_to_calendar BOOLEAN DEFAULT FALSE")
-            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS stages_enabled BOOLEAN DEFAULT FALSE")
-            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS allowed_users TEXT[] DEFAULT ARRAY[]::TEXT[]")
-            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS allowed_departments TEXT[] DEFAULT ARRAY[]::TEXT[]")
+            self.conn.execute_query("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS creator_id VARCHAR(255)")
+            self.conn.execute_query("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS default_executor_id VARCHAR(255)")
+            self.conn.execute_query("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS default_customer_id VARCHAR(255)")
+            self.conn.execute_query("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS default_add_to_calendar BOOLEAN DEFAULT FALSE")
+            self.conn.execute_query("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS stages_enabled BOOLEAN DEFAULT FALSE")
+            self.conn.execute_query("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS allowed_users TEXT[] DEFAULT ARRAY[]::TEXT[]")
+            self.conn.execute_query("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS allowed_departments TEXT[] DEFAULT ARRAY[]::TEXT[]")
         except Exception as e:
             print(f"Error checking/adding todo_lists columns: {e}")
         
@@ -1230,7 +1230,26 @@ class PostgresDatabase:
             allowed_departments,
         )
         result = self.conn.fetch_one(query, params)
-        return dict(result) if result else None
+        if result:
+            return dict(result)
+
+        # Fallback для старой схемы БД (без новых колонок)
+        fallback_query = """
+            INSERT INTO todo_lists
+            (id, name, color, icon, department, list_order)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING *
+        """
+        fallback_params = (
+            list_data.get('id'),
+            list_data.get('name'),
+            list_data.get('color', '#3b82f6'),
+            list_data.get('icon'),
+            list_data.get('department'),
+            list_data.get('order', 0),
+        )
+        fallback_result = self.conn.fetch_one(fallback_query, fallback_params)
+        return dict(fallback_result) if fallback_result else None
     
     def update_todo_list(self, list_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Update todo list"""
@@ -1238,13 +1257,13 @@ class PostgresDatabase:
         # Гарантируем наличие колонок перед UPDATE, чтобы не получать ложный 404
         # из-за SQL ошибки "column does not exist".
         try:
-            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS creator_id VARCHAR(255)")
-            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS default_executor_id VARCHAR(255)")
-            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS default_customer_id VARCHAR(255)")
-            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS default_add_to_calendar BOOLEAN DEFAULT FALSE")
-            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS stages_enabled BOOLEAN DEFAULT FALSE")
-            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS allowed_users TEXT[] DEFAULT ARRAY[]::TEXT[]")
-            self.conn.execute("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS allowed_departments TEXT[] DEFAULT ARRAY[]::TEXT[]")
+            self.conn.execute_query("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS creator_id VARCHAR(255)")
+            self.conn.execute_query("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS default_executor_id VARCHAR(255)")
+            self.conn.execute_query("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS default_customer_id VARCHAR(255)")
+            self.conn.execute_query("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS default_add_to_calendar BOOLEAN DEFAULT FALSE")
+            self.conn.execute_query("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS stages_enabled BOOLEAN DEFAULT FALSE")
+            self.conn.execute_query("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS allowed_users TEXT[] DEFAULT ARRAY[]::TEXT[]")
+            self.conn.execute_query("ALTER TABLE todo_lists ADD COLUMN IF NOT EXISTS allowed_departments TEXT[] DEFAULT ARRAY[]::TEXT[]")
         except Exception as e:
             print(f"Error checking/adding todo_lists columns before update: {e}")
 

@@ -3852,7 +3852,7 @@ def update_todo(todo_data: dict = Body(...)):
         # Fallback для прода с частично несовместимой схемой:
         # если обновление не прошло, пробуем только безопасные базовые поля.
         if not result:
-            safe_keys = {'name', 'color', 'icon', 'department', 'order', 'archived'}
+            safe_keys = {'name', 'color', 'icon', 'department', 'order'}
             safe_updates = {k: v for k, v in updates.items() if k in safe_keys}
             if safe_updates:
                 print(f"[PUT /api/todos] List update fallback with safe fields: {list(safe_updates.keys())}")
