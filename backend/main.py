@@ -1380,8 +1380,24 @@ telegram_auth_codes_cache: Dict[str, Dict[str, Any]] = {}
 @app.post("/api/auth/telegram/generate-code")
 def generate_telegram_auth_code():
     """Генерация одноразового кода для авторизации через Telegram"""
-    import secrets
-    code = secrets.token_urlsafe(8)
+    import random
+
+    # ВАЖНО: бот ожидает 6-значный код (историческая совместимость)
+    code = None
+    for _ in range(20):
+        candidate = str(random.randint(100000, 999999))
+        exists = False
+        try:
+            exists = bool(db.get_telegram_auth_code(candidate))
+        except Exception:
+            exists = candidate in telegram_auth_codes_cache
+        if not exists:
+            code = candidate
+            break
+
+    if not code:
+        # Крайний fallback (практически недостижимо)
+        code = str(random.randint(100000, 999999))
     payload = {
         "authenticated": False,
         "user": None,
@@ -1434,18 +1450,30 @@ def check_telegram_auth(code: str):
     return {"authenticated": False}
 
 @app.post("/api/auth/telegram/verify")
-def verify_telegram_auth(code: str, telegram_id: str):
+@app.post("/api/auth/telegram/confirm")
+def verify_telegram_auth(
+    code: Optional[str] = None,
+    telegram_id: Optional[str] = None,
+    telegramId: Optional[str] = None,
+    payload: Optional[Dict[str, Any]] = Body(None)
+):
     """Верификация пользователя по Telegram ID (вызывается ботом)"""
+    resolved_code = code or (payload or {}).get("code")
+    resolved_telegram_id = telegram_id or telegramId or (payload or {}).get("telegram_id") or (payload or {}).get("telegramId")
+
+    if not resolved_code or not resolved_telegram_id:
+        raise HTTPException(status_code=400, detail="code and telegram_id are required")
+
     auth_data = None
     code_in_cache = False
 
     try:
-        auth_data = db.get_telegram_auth_code(code)
+        auth_data = db.get_telegram_auth_code(resolved_code)
     except Exception as e:
         logger.error(f"Telegram auth DB read failed in verify: {e}")
 
     if not auth_data:
-        auth_data = telegram_auth_codes_cache.get(code)
+        auth_data = telegram_auth_codes_cache.get(resolved_code)
         code_in_cache = bool(auth_data)
     
     if not auth_data:
@@ -1456,7 +1484,7 @@ def verify_telegram_auth(code: str, telegram_id: str):
     user = next(
         (
             u for u in users
-            if str(u.get("telegramId") or u.get("telegram_id") or "") == str(telegram_id)
+            if str(u.get("telegramId") or u.get("telegram_id") or "") == str(resolved_telegram_id)
         ),
         None
     )
@@ -1472,21 +1500,21 @@ def verify_telegram_auth(code: str, telegram_id: str):
             "username": user.get("username"),
             "name": user.get("name", ""),
             "role": user.get("role", "user"),
-            "telegramId": telegram_id
+            "telegramId": resolved_telegram_id
         }
     }
 
     if code_in_cache:
-        telegram_auth_codes_cache[code] = {
-            **telegram_auth_codes_cache.get(code, {}),
+        telegram_auth_codes_cache[resolved_code] = {
+            **telegram_auth_codes_cache.get(resolved_code, {}),
             **auth_payload
         }
     else:
         try:
-            db.update_telegram_auth_code(code, auth_payload)
+            db.update_telegram_auth_code(resolved_code, auth_payload)
         except Exception as e:
             logger.error(f"Telegram auth DB update failed, writing to fallback cache: {e}")
-            telegram_auth_codes_cache[code] = {
+            telegram_auth_codes_cache[resolved_code] = {
                 "created_at": datetime.now().isoformat(),
                 **auth_payload
             }
