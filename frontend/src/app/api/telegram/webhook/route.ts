@@ -41,33 +41,12 @@ interface TelegramUpdate {
   message?: TelegramMessage;
 }
 
-const AUTH_DATA_FILE = path.join(process.cwd(), '..', 'data', 'telegram_auth.json');
-
-async function readAuthData(): Promise<TelegramAuthData> {
-  try {
-    const dir = path.dirname(AUTH_DATA_FILE);
-    if (!existsSync(dir)) {
-      await mkdir(dir, { recursive: true });
-    }
-    if (!existsSync(AUTH_DATA_FILE)) {
-      return { codes: [] };
-    }
-    const content = await readFile(AUTH_DATA_FILE, 'utf-8');
-    return JSON.parse(content);
-  } catch {
-    return { codes: [] };
-  }
-}
-
-async function writeAuthData(data: TelegramAuthData): Promise<void> {
-  const dir = path.dirname(AUTH_DATA_FILE);
-  if (!existsSync(dir)) {
-    await mkdir(dir, { recursive: true });
-  }
-  await writeFile(AUTH_DATA_FILE, JSON.stringify(data, null, 2));
-}
-
 async function readTelegramSettings(): Promise<{ botToken: string; enabled: boolean }> {
+  const tokenFromEnv = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || '';
+  if (tokenFromEnv) {
+    return { botToken: tokenFromEnv, enabled: true };
+  }
+
   try {
     const settingsPath = path.join(process.cwd(), 'data', 'telegram-settings.json');
     if (!existsSync(settingsPath)) {
@@ -154,11 +133,14 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ ok: true });
         }
         
-        // Находим код и подтверждаем
-        const authData = await readAuthData();
-        const authCode = authData.codes.find(c => c.code === code);
-        
-        if (!authCode) {
+        // Подтверждаем код через backend API
+        const confirmRes = await fetch(`${backendUrl}/api/auth/telegram/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, telegramId: telegramId.toString() })
+        });
+
+        if (confirmRes.status === 404) {
           await sendTelegramMessage(
             chatId,
             '❌ <b>Код не найден</b>\n\n' +
@@ -168,22 +150,16 @@ export async function POST(request: NextRequest) {
           );
           return NextResponse.json({ ok: true });
         }
-        
-        if (new Date(authCode.expiresAt) < new Date()) {
+
+        if (!confirmRes.ok) {
           await sendTelegramMessage(
             chatId,
-            '⏰ <b>Код истёк</b>\n\n' +
-            'Срок действия этого кода истёк.\n' +
-            'Запросите новый код на странице входа.',
+            '⚠️ <b>Ошибка подтверждения</b>\n\n' +
+            'Не удалось подтвердить код. Попробуйте ещё раз через минуту.',
             settings.botToken
           );
           return NextResponse.json({ ok: true });
         }
-        
-        // Подтверждаем код
-        authCode.authenticated = true;
-        authCode.userId = user.id;
-        await writeAuthData(authData);
         
         await sendTelegramMessage(
           chatId,
@@ -240,11 +216,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true });
       }
       
-      // Находим код и подтверждаем
-      const authData = await readAuthData();
-      const authCode = authData.codes.find(c => c.code === code);
-      
-      if (!authCode) {
+      // Подтверждаем код через backend API
+      const confirmRes = await fetch(`${backendUrl}/api/auth/telegram/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, telegramId: telegramId.toString() })
+      });
+
+      if (confirmRes.status === 404) {
         await sendTelegramMessage(
           chatId,
           '❌ <b>Код не найден</b>\n\n' +
@@ -254,22 +233,16 @@ export async function POST(request: NextRequest) {
         );
         return NextResponse.json({ ok: true });
       }
-      
-      if (new Date(authCode.expiresAt) < new Date()) {
+
+      if (!confirmRes.ok) {
         await sendTelegramMessage(
           chatId,
-          '⏰ <b>Код истёк</b>\n\n' +
-          'Срок действия этого кода истёк.\n' +
-          'Запросите новый код на странице входа.',
+          '⚠️ <b>Ошибка подтверждения</b>\n\n' +
+          'Не удалось подтвердить код. Попробуйте ещё раз через минуту.',
           settings.botToken
         );
         return NextResponse.json({ ok: true });
       }
-      
-      // Подтверждаем код
-      authCode.authenticated = true;
-      authCode.userId = user.id;
-      await writeAuthData(authData);
       
       await sendTelegramMessage(
         chatId,
