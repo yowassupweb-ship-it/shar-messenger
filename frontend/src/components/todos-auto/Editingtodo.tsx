@@ -1075,8 +1075,15 @@ const Editingtodo = memo(function Editingtodo({
       hasResponse: !!assigneeResponseEditorRef.current,
       stagesEnabled,
       activeTechSpecTab,
-      editingTodoId: editingTodo?.id
+      editingTodoId: editingTodo?.id,
+      isUpdatingFromInput: isUpdatingFromInputRef.current
     });
+    
+    // Если изменение произошло от пользовательского ввода, не обновляем innerHTML
+    if (isUpdatingFromInputRef.current) {
+      isUpdatingFromInputRef.current = false;
+      return;
+    }
     
     if (!editingTodo || !descriptionEditorRef.current || !assigneeResponseEditorRef.current) return;
     
@@ -1219,6 +1226,7 @@ const Editingtodo = memo(function Editingtodo({
   const titleInputRef = useRef<HTMLInputElement>(null);
   const descriptionEditorRef = useRef<HTMLDivElement>(null);
   const assigneeResponseEditorRef = useRef<HTMLDivElement>(null);
+  const isUpdatingFromInputRef = useRef(false); // Флаг для отслеживания обновлений от пользовательского ввода
   const descriptionFileInputRef = useRef<HTMLInputElement>(null);
   const assigneeResponseFileInputRef = useRef<HTMLInputElement>(null);
   
@@ -2902,6 +2910,7 @@ const Editingtodo = memo(function Editingtodo({
                       suppressContentEditableWarning
                       onInput={(e) => {
                         const html = (e.currentTarget as HTMLDivElement).innerHTML || '';
+                        isUpdatingFromInputRef.current = true; // Устанавливаем флаг перед обновлением
                         if (stagesEnabled) {
                           updateStageMeta(activeTechSpecTab, { description: html });
                         } else {
@@ -3042,6 +3051,7 @@ const Editingtodo = memo(function Editingtodo({
                       suppressContentEditableWarning
                       onInput={(e) => {
                         const html = (e.currentTarget as HTMLDivElement).innerHTML || '';
+                        isUpdatingFromInputRef.current = true; // Устанавливаем флаг перед обновлением
                         if (stagesEnabled) {
                           updateStageMeta(activeTechSpecTab, { assigneeResponse: html });
                         } else {

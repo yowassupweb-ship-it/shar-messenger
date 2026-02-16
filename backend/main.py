@@ -158,7 +158,11 @@ active_parsing_tasks = {}
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "*",
+        "https://vs-travel.shar-os.ru",
+        "http://vs-travel.shar-os.ru",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

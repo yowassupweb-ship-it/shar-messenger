@@ -22,7 +22,6 @@ import {
   TelegramSettings,
   MobileFilters,
   AddList,
-  ListSettings,
   Editingtodo,
   Statusdropdown,
   Executordropdown,
@@ -393,6 +392,7 @@ export default function TodosPage() {
   const [newListName, setNewListName] = useState('');
   const [newListDescription, setNewListDescription] = useState('');
   const [newListColor, setNewListColor] = useState('#6366f1');
+  const [newListStagesEnabled, setNewListStagesEnabled] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryColor, setNewCategoryColor] = useState('#6366f1');
   const [newCategoryIcon, setNewCategoryIcon] = useState('tag');
@@ -543,9 +543,8 @@ export default function TodosPage() {
   const [mobileHeaderMenuOpen, setMobileHeaderMenuOpen] = useState(false);  // Дропдаун в мобильном хедере
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [editingListName, setEditingListName] = useState('');
-  const [showListSettings, setShowListSettings] = useState<string | null>(null);
+  const [editingList, setEditingList] = useState<any | null>(null);
   const [showListMenu, setShowListMenu] = useState<string | null>(null);  // Для выпадающего меню "..."
-  const [listSettingsDropdown, setListSettingsDropdown] = useState<'executor' | 'customer' | null>(null);
   
   // 🚀 PERFORMANCE: Кэшируем ширину окна вместо множественных проверок window.innerWidth
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
@@ -641,7 +640,6 @@ export default function TodosPage() {
       showPeopleManager || 
       showTelegramSettings || 
       showEditPersonModal || 
-      showListSettings !== null || 
       showInbox || 
       showMobileFiltersModal || 
       showMobileArchiveModal;
@@ -656,7 +654,7 @@ export default function TodosPage() {
     return () => {
       document.body.classList.remove('modal-open');
     };
-  }, [editingTodo, showAddList, showAddCategory, showCategoryManager, showPeopleManager, showTelegramSettings, showEditPersonModal, showListSettings, showInbox, showMobileFiltersModal, showMobileArchiveModal]);
+  }, [editingTodo, showAddList, showAddCategory, showCategoryManager, showPeopleManager, showTelegramSettings, showEditPersonModal, showInbox, showMobileFiltersModal, showMobileArchiveModal]);
   
   // Save column widths to localStorage
   useEffect(() => {
@@ -2289,6 +2287,7 @@ export default function TodosPage() {
     console.log('[addList] myAccountId:', myAccountId);
     console.log('[addList] newListColor:', newListColor);
     console.log('[addList] newListAssigneeId:', newListAssigneeId);
+    console.log('[addList] newListStagesEnabled:', newListStagesEnabled);
     
     if (!newListName.trim()) {
       console.log('[addList] Name is empty, returning');
@@ -2305,6 +2304,7 @@ export default function TodosPage() {
         color: newListColor,
         icon: 'folder',
         creatorId: myAccountId,
+        stagesEnabled: newListStagesEnabled,
         // Добавляем исполнителя по умолчанию если выбран
         ...(selectedAssignee && { defaultAssigneeId: selectedAssignee.id, defaultAssignee: selectedAssignee.name })
       };
@@ -2335,9 +2335,11 @@ export default function TodosPage() {
         
         setNewListName('');
         setNewListAssigneeId(null);
+        setNewListStagesEnabled(false);
         setShowAddList(false);
         // Сразу открываем настройки нового списка
-        setShowListSettings(newList.id);
+        setEditingList(newList);
+        setShowAddList(true);
         console.log('[addList] === SUCCESS ===');
       } else {
         const errorText = await res.text();
@@ -3286,7 +3288,7 @@ export default function TodosPage() {
                             </div>
                             <div className="border-t border-[var(--border-color)] my-1" />
                             <button
-                              onClick={() => { setShowListMenu(null); setShowListSettings(list.id); }}
+                              onClick={() => { setShowListMenu(null); setEditingList(list); setShowAddList(true); }}
                               className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-blue-400 hover:bg-blue-500/10 transition-colors"
                             >
                               <Settings className="w-4 h-4" />
@@ -3394,7 +3396,7 @@ export default function TodosPage() {
           {/* Add List Form - оптимизировано для мобильных */}
           <AddList
             isOpen={showAddList}
-            onClose={() => setShowAddList(false)}
+            onClose={() => { setShowAddList(false); setEditingList(null); }}
             newListName={newListName}
             setNewListName={setNewListName}
             newListDescription={newListDescription}
@@ -3405,10 +3407,17 @@ export default function TodosPage() {
             setNewListAssigneeId={setNewListAssigneeId}
             showNewListAssigneeDropdown={showNewListAssigneeDropdown}
             setShowNewListAssigneeDropdown={setShowNewListAssigneeDropdown}
+            newListStagesEnabled={newListStagesEnabled}
+            setNewListStagesEnabled={setNewListStagesEnabled}
             people={people}
             myAccountId={myAccountId || ''}
             addList={addList}
             LIST_COLORS={LIST_COLORS}
+            editingList={editingList}
+            updateList={(updatedList) => {
+              updateList(updatedList);
+              setLists(prev => prev.map(l => l.id === updatedList.id ? updatedList : l));
+            }}
           />
         </div>
 
@@ -3862,25 +3871,6 @@ export default function TodosPage() {
         telegramEnabled={telegramEnabled}
         setTelegramEnabled={setTelegramEnabled}
         updateTelegramSettings={updateTelegramSettings}
-      />
-
-      {/* List Settings Modal */}
-      <ListSettings
-        list={lists.find(l => l.id === showListSettings) || null}
-        isOpen={showListSettings !== null}
-        onClose={() => {
-          setShowListSettings(null);
-          setListSettingsDropdown(null);
-        }}
-        people={people}
-        updateList={(updatedList) => {
-          updateList(updatedList);
-          setLists(prev => prev.map(l => l.id === updatedList.id ? updatedList : l));
-        }}
-        setLists={setLists}
-        listSettingsDropdown={listSettingsDropdown}
-        setListSettingsDropdown={setListSettingsDropdown}
-        LIST_COLORS={LIST_COLORS}
       />
 
       {/* Toast Notifications - Боковые уведомления справа */}

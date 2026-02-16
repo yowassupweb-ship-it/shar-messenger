@@ -6,7 +6,7 @@ import BottomNav from '@/components/layout/BottomNav';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export const metadata: Metadata = {
-  title: 'Shar Messenger',
+  title: 'Shar OS',
   description: 'Task and content management system',
   manifest: '/manifest.webmanifest',
   icons: {
