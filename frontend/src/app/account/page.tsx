@@ -381,12 +381,13 @@ export default function AccountPage() {
   useEffect(() => {
     const checkChatOpen = () => {
       if (typeof window !== 'undefined') {
-        // Проверяем только URL: localStorage может содержать устаревший selectedChatId
+        // Проверяем URL + localStorage (URL иногда обновляется не сразу)
         const url = new URL(window.location.href);
         const chatIdFromUrl = url.searchParams.get('chat');
+        const chatIdFromStorage = localStorage.getItem('selectedChatId');
         // Считаем чат открытым только если мы на вкладке messages и chat есть в URL
         const isMessagesTab = activeTab === 'messages';
-        const hasChatSelected = !!chatIdFromUrl;
+        const hasChatSelected = !!(chatIdFromUrl || chatIdFromStorage);
         setIsChatOpen(isMessagesTab && hasChatSelected);
       }
     };

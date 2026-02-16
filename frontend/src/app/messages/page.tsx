@@ -434,11 +434,11 @@ export default function MessagesPage() {
       if (chatId) {
         const chat = chats.find(c => c.id === chatId);
         if (chat) {
-          setSelectedChat(chat); // Используем setSelectedChat напрямую чтобы избежать обновления URL
+          selectChat(chat);
         }
       }
     }
-  }, [chats]);
+  }, [chats, selectedChat, selectChat]);
   
   // Отслеживание глобальной активности пользователя для предотвращения обновлений
   useEffect(() => {
