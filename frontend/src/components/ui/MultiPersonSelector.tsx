@@ -41,17 +41,34 @@ const MultiPersonSelector = memo(function MultiPersonSelector({
     return person?.name || person?.id || id;
   };
 
+  const normalizeSelection = () => {
+    const used = new Set<string>();
+    const ids: string[] = [];
+    const names: string[] = [];
+
+    selectedIds.forEach((id, idx) => {
+      if (!id || used.has(id)) return;
+      used.add(id);
+      ids.push(id);
+      names.push(selectedNames[idx] || resolveNameById(id));
+    });
+
+    return { ids, names };
+  };
+
+  const normalizedSelection = normalizeSelection();
+
   const buildNamesByIds = (ids: string[]) => {
     return ids.map((id) => {
-      const oldIndex = selectedIds.indexOf(id);
-      const oldName = oldIndex >= 0 ? selectedNames[oldIndex] : undefined;
+      const oldIndex = normalizedSelection.ids.indexOf(id);
+      const oldName = oldIndex >= 0 ? normalizedSelection.names[oldIndex] : undefined;
       return oldName || resolveNameById(id);
     });
   };
 
-  const selectedEntries = selectedIds.map((id, idx) => ({
+  const selectedEntries = normalizedSelection.ids.map((id, idx) => ({
     id,
-    name: selectedNames[idx] || resolveNameById(id)
+    name: normalizedSelection.names[idx] || resolveNameById(id)
   }));
 
   const fallbackNameEntries = selectedEntries.length === 0
@@ -85,16 +102,16 @@ const MultiPersonSelector = memo(function MultiPersonSelector({
   }, [isOpen]);
   
   const handleToggle = (person: Person) => {
-    const isSelected = selectedIds.includes(person.id);
+    const isSelected = normalizedSelection.ids.includes(person.id);
     
     if (isSelected) {
-      const nextIds = selectedIds.filter(id => id !== person.id);
+      const nextIds = normalizedSelection.ids.filter(id => id !== person.id);
       onChange(
         nextIds,
         buildNamesByIds(nextIds)
       );
     } else {
-      const nextIds = [...selectedIds, person.id];
+      const nextIds = [...normalizedSelection.ids, person.id];
       onChange(
         nextIds,
         buildNamesByIds(nextIds)
@@ -111,7 +128,7 @@ const MultiPersonSelector = memo(function MultiPersonSelector({
       return;
     }
 
-    const nextIds = selectedIds.filter(id => id !== personId);
+    const nextIds = normalizedSelection.ids.filter(id => id !== personId);
     onChange(
       nextIds,
       buildNamesByIds(nextIds)
@@ -166,7 +183,7 @@ const MultiPersonSelector = memo(function MultiPersonSelector({
           </div>
 
           {filteredPeople.length > 0 ? filteredPeople.map((person) => {
-            const isSelected = selectedIds.includes(person.id);
+            const isSelected = normalizedSelection.ids.includes(person.id);
             
             return (
               <button
