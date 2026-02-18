@@ -2015,6 +2015,8 @@ export default function MessagesPage() {
         isSelectionMode={isSelectionMode}
         messages={messages}
         chats={chats}
+        currentUser={currentUser}
+        users={users}
         selectedChat={selectedChat}
         selectedChatsForForward={selectedChatsForForward}
         setSelectedChatsForForward={setSelectedChatsForForward}

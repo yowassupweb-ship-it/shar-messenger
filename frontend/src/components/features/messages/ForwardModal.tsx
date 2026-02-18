@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Check } from 'lucide-react';
 import Avatar from '@/components/common/data-display/Avatar';
-import type { Message, Chat } from './types';
+import type { Message, Chat, User } from './types';
 import { getChatTitle, getChatAvatarData } from './utils';
 
 interface ForwardModalProps {
@@ -13,6 +13,8 @@ interface ForwardModalProps {
   isSelectionMode: boolean;
   messages: Message[];
   chats: Chat[];
+  currentUser: User | null;
+  users: User[];
   selectedChat: Chat | null;
   selectedChatsForForward: string[];
   setSelectedChatsForForward: (chats: string[] | ((prev: string[]) => string[])) => void;
@@ -27,6 +29,8 @@ export default function ForwardModal({
   isSelectionMode,
   messages,
   chats,
+  currentUser,
+  users,
   selectedChat,
   selectedChatsForForward,
   setSelectedChatsForForward,
@@ -90,7 +94,7 @@ export default function ForwardModal({
                 return 0;
               })
               .map(chat => {
-                const avatarData = getChatAvatarData(chat);
+                const avatarData = getChatAvatarData(chat, currentUser, users);
                 return (
                   <button
                     key={chat.id}
@@ -115,7 +119,7 @@ export default function ForwardModal({
                     />
                     <div className="flex-1 text-left min-w-0">
                       <p className="text-sm font-medium text-[var(--text-primary)] truncate">
-                        {getChatTitle(chat)}
+                        {getChatTitle(chat, currentUser, users)}
                       </p>
                     </div>
                     {selectedChatsForForward.includes(chat.id) && (
