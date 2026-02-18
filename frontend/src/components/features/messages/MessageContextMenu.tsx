@@ -3,7 +3,7 @@
 import React, { useRef, useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Message, User } from './types';
-import { Reply, Edit3, Forward, CheckSquare, CalendarPlus } from 'lucide-react';
+import { Reply, Edit3, Forward, CheckSquare, CalendarPlus, Trash2 } from 'lucide-react';
 
 interface MessageContextMenuProps {
   message: Message | null;
@@ -14,6 +14,7 @@ interface MessageContextMenuProps {
   onReply: (message: Message) => void;
   onForward: (message: Message) => void;
   onEdit: (messageId: string, content: string) => void;
+  onDelete: (messageId: string) => void;
   onShowTaskSelector: (message: Message) => void;
   onLoadTodoLists: () => Promise<void>;
   onShowEventSelector: (message: Message) => void;
@@ -29,6 +30,7 @@ export default function MessageContextMenu({
   onReply,
   onForward,
   onEdit,
+  onDelete,
   onShowTaskSelector,
   onLoadTodoLists,
   onShowEventSelector,
@@ -85,6 +87,7 @@ export default function MessageContextMenu({
   };
 
   const canEdit = currentUser && message.authorId === currentUser.id;
+  const canDelete = currentUser && message.authorId === currentUser.id;
 
   const content = (
     <div className="fixed inset-0 z-[99999] isolate">
@@ -150,6 +153,22 @@ export default function MessageContextMenu({
           >
             <Edit3 className="w-4 h-4 text-orange-400" />
             Редактировать
+          </button>
+        )}
+
+        {canDelete && (
+          <button
+            type="button"
+            onClick={() => {
+              if (confirm('Удалить это сообщение?')) {
+                onDelete(message.id);
+              }
+              onClose();
+            }}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-red-500"
+          >
+            <Trash2 className="w-4 h-4 text-red-500" />
+            Удалить
           </button>
         )}
 

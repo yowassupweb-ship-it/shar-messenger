@@ -85,6 +85,40 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
     return currentUserInvolved && otherUserInvolved;
   });
 
+  const downloadAttachment = async (url?: string, filename?: string) => {
+    if (!url) return;
+
+    const normalizedUrl = url.startsWith('http://') || url.startsWith('https://')
+      ? url
+      : url.startsWith('/')
+        ? url
+        : `/${url}`;
+
+    try {
+      const response = await fetch(normalizedUrl);
+      if (!response.ok) throw new Error(`Failed to fetch file: ${response.status}`);
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename || 'file';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      const fallbackLink = document.createElement('a');
+      fallbackLink.href = normalizedUrl;
+      fallbackLink.download = filename || 'file';
+      fallbackLink.target = '_blank';
+      fallbackLink.rel = 'noopener noreferrer';
+      document.body.appendChild(fallbackLink);
+      fallbackLink.click();
+      document.body.removeChild(fallbackLink);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 lg:relative lg:inset-auto lg:z-auto w-full lg:w-80 lg:min-w-[320px] border-l-0 lg:border-l border-[var(--border-color)] flex flex-col bg-[var(--bg-secondary)] flex-shrink-0 overflow-hidden">
       {/* Header */}
@@ -417,9 +451,11 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
                   {fileItems.map((item, idx) => (
                     <button
                       key={idx}
-                      onClick={() => {
+                      onClick={async () => {
                         if (item.type === 'task' && (item.taskId || item.id)) {
                           window.location.href = `/todos?task=${item.taskId || item.id}`;
+                        } else if (item.type === 'file' && item.url) {
+                          await downloadAttachment(item.url, item.name);
                         } else if (item.messageId) {
                           scrollToMessage(item.messageId);
                         }

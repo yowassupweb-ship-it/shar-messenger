@@ -145,9 +145,9 @@ export default function BottomNav() {
       </div>
 
       {/* Desktop Bottom Status Bar */}
-      <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-[48px] backdrop-blur-xl border-t z-40 items-center justify-between px-4 bg-[var(--bg-glass)] border-[var(--border-glass)]" style={{ fontSize: '12px' }}>
+      <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-[46px] backdrop-blur-xl border-t z-40 items-center justify-between px-4 bg-[var(--bg-glass)] border-[var(--border-glass)] overflow-visible" style={{ fontSize: '12px' }}>
         {/* Left side - Navigation */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 px-1">
           {visibleTabs.messages && (
             <button
               onClick={() => handleNavClick('/messages')}

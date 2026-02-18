@@ -38,7 +38,7 @@ interface MessageInputProps {
   handleMessageChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   handleMessageKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   scrollToMessage: (messageId: string) => void;
-  updateMessage: (messageId: string, content: string) => void;
+  updateMessage: (messageId: string, content: string) => Promise<boolean>;
   sendMessage: () => void;
 }
 
@@ -75,6 +75,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
   updateMessage,
   sendMessage
 }) => {
+  const actionButtonClass = 'w-10 h-10 md:w-11 md:h-11 rounded-full bg-gradient-to-br from-white/15 to-white/5 flex items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] border border-white/20 backdrop-blur-sm flex-shrink-0 text-[var(--text-secondary)]';
+
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
@@ -246,12 +248,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
         <div className="flex gap-1 md:gap-2 items-center relative bg-transparent">
           {/* Emoji button */}
           {!selectedChat?.isNotificationsChat && (
-            <div className="relative hidden md:block">
+            <div className="relative">
               <button
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="hidden md:flex w-11 h-11 rounded-full bg-gradient-to-br from-white/15 to-white/5 items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] border border-white/20 backdrop-blur-sm flex-shrink-0 text-gray-400/90"
+                className={actionButtonClass}
               >
-                <Smile className="w-5 h-5" />
+                <Smile className="w-4 h-4" />
               </button>
               
               {showEmojiPicker && (
@@ -279,7 +281,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           {!selectedChat?.isNotificationsChat && (
             <button
               onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-              className="w-10 h-10 md:w-11 md:h-11 rounded-full bg-gradient-to-br from-white/15 to-white/5 flex items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] border border-white/20 backdrop-blur-sm flex-shrink-0 text-[var(--text-secondary)]"
+              className={actionButtonClass}
             >
               <Paperclip className="w-4 h-4" />
             </button>
@@ -463,11 +465,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             <button
               onClick={() => {
                 const messageText = messageInputRef.current?.value || '';
-                updateMessage(editingMessageId, messageText);
-                if (messageInputRef.current) {
-                  messageInputRef.current.value = savedMessageText;
-                }
-                setSavedMessageText('');
+                void updateMessage(editingMessageId, messageText);
               }}
               className="w-11 h-11 rounded-full backdrop-blur-2xl bg-gradient-to-br from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 border border-white/30 flex items-center justify-center text-white transition-all flex-shrink-0 shadow-[0_8px_32px_-8px_rgba(34,197,94,0.6),inset_0_1px_2px_rgba(255,255,255,0.2)] hover:shadow-[0_8px_40px_-8px_rgba(34,197,94,0.8),inset_0_1px_2px_rgba(255,255,255,0.25)]"
             >

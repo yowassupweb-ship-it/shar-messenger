@@ -1168,14 +1168,23 @@ export default function MessagesPage() {
     }
   }, [messageInputRef, selectedChat, currentUser, attachments, replyToMessage, messagesListRef, loadChats]);
 
-  const updateMessage = useCallback(async (messageId: string, content: string) => {
-    if (!selectedChat) return;
+  const updateMessage = useCallback(async (messageId: string, content: string): Promise<boolean> => {
+    if (!selectedChat) return false;
 
-    // Если текст не изменился - просто закрываем редактирование без обновления
-    if (content.trim() === editingMessageText.trim()) {
+    const sourceMessage = messages.find(m => m.id === messageId);
+    const sourceContent = sourceMessage?.content || editingMessageText || '';
+
+    // Если текст не изменился - просто закрываем редактирование без запроса
+    if (content.trim() === sourceContent.trim()) {
       setEditingMessageId(null);
       setEditingMessageText('');
-      return;
+      setNewMessage(savedMessageText);
+      if (messageInputRef.current) {
+        messageInputRef.current.value = savedMessageText;
+        messageInputRef.current.blur();
+      }
+      setSavedMessageText('');
+      return true;
     }
 
     try {
@@ -1188,12 +1197,24 @@ export default function MessagesPage() {
       if (res.ok) {
         setEditingMessageId(null);
         setEditingMessageText('');
+        setNewMessage(savedMessageText);
+        if (messageInputRef.current) {
+          messageInputRef.current.value = savedMessageText;
+          messageInputRef.current.blur();
+        }
+        setSavedMessageText('');
         loadMessages(selectedChat.id, true); // Не скроллим при редактировании
+        return true;
       }
+
+      const errorText = await res.text();
+      console.error('Error updating message:', errorText);
+      return false;
     } catch (error) {
       console.error('Error updating message:', error);
+      return false;
     }
-  }, [selectedChat, editingMessageText, loadMessages]);
+  }, [selectedChat, editingMessageText, messages, savedMessageText, loadMessages, messageInputRef]);
 
   const handleMessageChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const target = e.target;
@@ -1304,11 +1325,7 @@ export default function MessagesPage() {
         e.preventDefault();
         if (editingMessageId) {
           const messageText = messageInputRef.current?.value || '';
-          updateMessage(editingMessageId, messageText);
-          if (messageInputRef.current) {
-            messageInputRef.current.value = savedMessageText;
-          }
-          setSavedMessageText('');
+          void updateMessage(editingMessageId, messageText);
         } else {
           sendMessage();
         }
@@ -1318,6 +1335,7 @@ export default function MessagesPage() {
       setEditingMessageId(null);
       if (messageInputRef.current) {
         messageInputRef.current.value = savedMessageText;
+        messageInputRef.current.blur();
       }
       setSavedMessageText('');
     }
@@ -1472,7 +1490,11 @@ export default function MessagesPage() {
       // Пересылаем каждое сообщение
       for (const message of messagesToForward) {
         // Используем ID чата сообщения, так как пересылаемое сообщение может быть из другого чата
-        const sourceChatId = message.chatId;
+        const sourceChatId = message.chatId || selectedChat?.id;
+        if (!sourceChatId) {
+          throw new Error('Не удалось определить исходный чат для пересылки');
+        }
+
         const res = await fetch(
           `/api/chats/${sourceChatId}/messages/${message.id}/forward`,
           {
@@ -1483,8 +1505,17 @@ export default function MessagesPage() {
         );
         
         if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.detail || 'Ошибка при пересылке');
+          let errorMessage = 'Ошибка при пересылке';
+          try {
+            const data = await res.json();
+            errorMessage = data.detail || data.error || errorMessage;
+          } catch {
+            const rawText = await res.text();
+            if (rawText) {
+              errorMessage = rawText;
+            }
+          }
+          throw new Error(errorMessage);
         }
       }
       
@@ -1503,7 +1534,8 @@ export default function MessagesPage() {
       alert(`Успешно переслано ${messagesToForward.length} сообщени${messagesToForward.length === 1 ? 'е' : messagesToForward.length < 5 ? 'я' : 'й'}`);
     } catch (error) {
       console.error('Error forwarding message:', error);
-      alert('Ошибка при пересылке сообщения: ' + error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      alert(`Ошибка при пересылке сообщения: ${errorMessage}`);
     }
   };
 
@@ -1648,6 +1680,9 @@ export default function MessagesPage() {
   // Используем direct DOM manipulation чтобы избежать ре-рендеров при ресайзе (клавиатура)
   // Это предотвращает закрытие клавиатуры
   useEffect(() => {
+    document.body.style.cursor = '';
+    document.documentElement.style.cursor = '';
+
     let prevHeight = window.innerHeight;
     
     // Функция обновления высоты
@@ -1724,8 +1759,10 @@ export default function MessagesPage() {
       document.body.style.height = originalBodyHeight;
       document.body.style.top = originalBodyTop;
       document.body.style.background = originalBodyBackground;
+      document.body.style.cursor = '';
       document.documentElement.style.overflow = originalHtmlOverflow;
       document.documentElement.style.background = originalHtmlBackground;
+      document.documentElement.style.cursor = '';
 
       if (window.visualViewport) {
         window.visualViewport.removeEventListener('resize', updateHeight);
@@ -1738,7 +1775,7 @@ export default function MessagesPage() {
   return (
     <div 
       ref={messagesContainerRef}
-      className="bg-[var(--bg-primary)] text-[var(--text-primary)] flex w-full max-w-full overflow-hidden overflow-x-hidden rounded-none overscroll-none min-w-0"
+      className="bg-[var(--bg-primary)] text-[var(--text-primary)] flex w-full max-w-full overflow-hidden overflow-x-hidden rounded-none overscroll-none min-w-0 cursor-default"
       style={{ height: '100dvh', maxHeight: '100dvh' }}
     >
       {/* Левая панель - список чатов (единый блок с разными состояниями) */}
@@ -2022,13 +2059,17 @@ export default function MessagesPage() {
           setNewMessage(content);
           messageInputRef.current?.focus();
         }}
+        onDelete={(messageId) => {
+          void deleteMessage(messageId);
+        }}
         onShowTaskSelector={(msg) => {
           setCreatingTaskFromMessage(msg);
           setShowTaskListSelector(true);
         }}
         onLoadTodoLists={async () => {
           try {
-            const res = await fetch('/api/todos');
+            const userIdQuery = currentUser?.id ? `?userId=${encodeURIComponent(currentUser.id)}` : '';
+            const res = await fetch(`/api/todos${userIdQuery}`);
             if (res.ok) {
               const data = await res.json();
               setTodoLists(Array.isArray(data.lists) ? data.lists : []);

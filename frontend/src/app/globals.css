@@ -200,6 +200,17 @@ body {
     font: inherit;
     color: inherit;
   }
+
+  body {
+    caret-color: transparent;
+  }
+
+  input,
+  textarea,
+  select,
+  [contenteditable='true'] {
+    caret-color: auto;
+  }
 }
 
 /* Scrollbar */

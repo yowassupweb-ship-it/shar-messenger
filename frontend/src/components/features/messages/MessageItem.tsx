@@ -108,6 +108,25 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const imageUrls = urls.filter(url => imageExtPattern.test(url));
   const otherUrls = urls.filter(url => !imageExtPattern.test(url));
 
+  const downloadAttachment = (attachment: any) => {
+    if (!attachment?.url) return;
+
+    const normalizedUrl = attachment.url.startsWith('http://') || attachment.url.startsWith('https://')
+      ? attachment.url
+      : attachment.url.startsWith('/')
+        ? attachment.url
+        : `/${attachment.url}`;
+
+    const link = document.createElement('a');
+    link.href = normalizedUrl;
+    link.download = attachment.name || 'file';
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <React.Fragment key={message.id}>
       {/* Разделитель даты */}
@@ -260,7 +279,15 @@ const MessageItem: React.FC<MessageItemProps> = ({
                         <File className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
                       </div>
                       <span className="text-xs font-medium text-[var(--text-primary)] truncate flex-1 min-w-0">{att.name}</span>
-                      <button className="text-[10px] font-medium text-orange-600 dark:text-orange-400 hover:text-orange-500 dark:hover:text-orange-300 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          downloadAttachment(att);
+                        }}
+                        className="text-[10px] font-medium text-orange-600 dark:text-orange-400 hover:text-orange-500 dark:hover:text-orange-300 flex-shrink-0"
+                      >
                         Скачать
                       </button>
                     </div>
@@ -484,7 +511,15 @@ const MessageItem: React.FC<MessageItemProps> = ({
                                     <File className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
                                   </div>
                                   <span className="text-xs font-medium text-[var(--text-primary)] truncate flex-1 min-w-0">{att.name}</span>
-                                  <button className="text-[10px] font-medium text-orange-600 dark:text-orange-400 hover:text-orange-500 dark:hover:text-orange-300 flex-shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      downloadAttachment(att);
+                                    }}
+                                    className="text-[10px] font-medium text-orange-600 dark:text-orange-400 hover:text-orange-500 dark:hover:text-orange-300 flex-shrink-0"
+                                  >
                                     Скачать
                                   </button>
                                 </div>

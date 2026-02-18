@@ -206,10 +206,17 @@ export default function ContactsPage() {
       });
       
       if (res.ok) {
+        const createdList = await res.json();
         await loadLists();
         setNewListName('');
         setNewListColor('#3b82f6');
         setShowNewListForm(false);
+
+        if (createdList?.id && selectedContact) {
+          createTaskInList(createdList.id);
+          setShowListModal(false);
+          setSelectedContact(null);
+        }
       }
     } catch (error) {
       console.error('Error creating list:', error);

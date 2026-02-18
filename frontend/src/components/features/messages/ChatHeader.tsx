@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { ArrowLeft, X, MoreVertical, Search, Pin, PinOff, Bell, Trash2 } from 'lucide-react';
 import Avatar from '@/components/common/data-display/Avatar';
 import type { Chat, User, Message } from '@/components/messages/types';
@@ -66,6 +67,35 @@ export default function ChatHeader({
   deleteChat,
 }: ChatHeaderProps) {
   const isMobileView = typeof window !== 'undefined' && (window.innerWidth <= 785 || window.matchMedia('(pointer: coarse)').matches);
+  const chatMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showChatMenu) return;
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (chatMenuRef.current && !chatMenuRef.current.contains(target)) {
+        setShowChatMenu(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowChatMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [showChatMenu, setShowChatMenu]);
 
   return (
     <>
@@ -228,7 +258,7 @@ export default function ChatHeader({
             {/* Кнопка прокрутки к непрочитанным - СКРЫТА, мешала UI */}
             
             {/* Кнопка меню чата */}
-            <div className="relative -mr-1">
+            <div ref={chatMenuRef} className="relative -mr-1">
               <button
                 onClick={() => setShowChatMenu(!showChatMenu)}
                 className="no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] transition-all border border-[var(--border-color)]"

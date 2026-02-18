@@ -4319,13 +4319,24 @@ def get_chats(user_id: Optional[str] = None):
     user_chats = filtered_chats
     
     # Добавляем информацию о последнем сообщении и непрочитанных
+    def parse_message_time(value):
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str) and value:
+            try:
+                return datetime.fromisoformat(value.replace('Z', '+00:00'))
+            except Exception:
+                return datetime.min
+        return datetime.min
+
     for chat in user_chats:
         chat_messages = db.get_chat_messages(chat['id'])
         
         if chat_messages:
-            # Сообщения уже отсортированы по created_at DESC из базы
-            chat['lastMessage'] = chat_messages[0]
-            last_msg_time = chat_messages[0].get('created_at', '')
+            # Берем реально последнее сообщение по времени, независимо от порядка выдачи из БД
+            last_message = max(chat_messages, key=lambda msg: parse_message_time(msg.get('created_at', '')))
+            chat['lastMessage'] = last_message
+            last_msg_time = parse_message_time(last_message.get('created_at', ''))
         else:
             chat['unreadCount'] = 0
             continue
@@ -4334,12 +4345,6 @@ def get_chats(user_id: Optional[str] = None):
         last_read_at = chat.get('read_messages_by_user', {}).get(user_id)
         
         # Парсим даты для сравнения
-        if isinstance(last_msg_time, str):
-            try:
-                last_msg_time = datetime.fromisoformat(last_msg_time.replace('Z', '+00:00'))
-            except:
-                pass
-        
         if isinstance(last_read_at, str):
             try:
                 last_read_at = datetime.fromisoformat(last_read_at.replace('Z', '+00:00'))
@@ -4355,12 +4360,12 @@ def get_chats(user_id: Optional[str] = None):
             if is_system_chat:
                 # Для системных чатов считаем ВСЕ сообщения после last_read_at
                 unread = sum(1 for msg in chat_messages 
-                            if msg.get('created_at', '') > last_read_at)
+                            if parse_message_time(msg.get('created_at', '')) > last_read_at)
             else:
                 # Для обычных чатов - только сообщения от других пользователей
                 unread = sum(1 for msg in chat_messages 
                             if msg.get('author_id') != user_id 
-                            and msg.get('created_at', '') > last_read_at)
+                            and parse_message_time(msg.get('created_at', '')) > last_read_at)
             chat['unreadCount'] = unread
         else:
             # Если не читал - считаем непрочитанные
@@ -4548,28 +4553,38 @@ def update_message(chat_id: str, message_id: str, update_data: dict):
     """Обновить сообщение"""
     if 'content' not in update_data:
         raise HTTPException(status_code=400, detail="No content to update")
-    
-    # Пытаемся найти сообщение с проверкой chat_id
-    messages = db.data.get('messages', [])
-    message = next((msg for msg in messages if msg['id'] == message_id and msg['chatId'] == chat_id), None)
-    
-    if not message:
-        # Fallback: ищем только по message_id
-        message = next((msg for msg in messages if msg['id'] == message_id), None)
-        if not message:
+
+    # PostgreSQL path: обновляем и возвращаем запись атомарно
+    if hasattr(db, 'conn'):
+        row = db.conn.fetch_one(
+            """
+            UPDATE messages
+            SET content = %s, is_edited = true, updated_at = NOW()
+            WHERE id = %s
+            RETURNING *
+            """,
+            (update_data['content'], message_id)
+        )
+        if not row:
             raise HTTPException(status_code=404, detail="Message not found")
-    
-    # Обновляем сообщение
+        return snake_to_camel(dict(row))
+
+    # JSON fallback path
+    chat_messages = db.get_chat_messages(chat_id) or []
+    message = next((msg for msg in chat_messages if str(msg.get('id')) == message_id), None)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+
     success = db.update_message(message_id, update_data['content'])
     if not success:
         raise HTTPException(status_code=404, detail="Message not found")
-    
-    # Возвращаем обновленное сообщение
-    updated_message = next((msg for msg in db.data.get('messages', []) if msg['id'] == message_id), None)
+
+    refreshed_messages = db.get_chat_messages(chat_id) or []
+    updated_message = next((msg for msg in refreshed_messages if str(msg.get('id')) == message_id), None)
     if not updated_message:
         raise HTTPException(status_code=404, detail="Message not found")
-    
-    return updated_message
+
+    return snake_to_camel(updated_message)
 
 @app.post("/api/chats/{chat_id}/messages/{message_id}/forward")
 def forward_message(chat_id: str, message_id: str, forward_data: dict = Body(...)):
@@ -4580,22 +4595,24 @@ def forward_message(chat_id: str, message_id: str, forward_data: dict = Body(...
     print(f"DEBUG - Forward request: chat_id={chat_id}, message_id={message_id}")
     print(f"DEBUG - Target chats: {forward_data.get('targetChatIds', [])}")
     
-    # Получаем оригинальное сообщение
-    messages = db.data.get('messages', [])
-    print(f"DEBUG - Total messages in DB: {len(messages)}")
-    
-    original_message = next((msg for msg in messages if msg['id'] == message_id and msg['chatId'] == chat_id), None)
-    
+    # Получаем оригинальное сообщение (PostgreSQL/JSON совместимо)
+    chat_messages = db.get_chat_messages(chat_id) or []
+    print(f"DEBUG - Messages in source chat: {len(chat_messages)}")
+
+    original_message = next((msg for msg in chat_messages if str(msg.get('id')) == message_id), None)
+
+    if not original_message and hasattr(db, 'conn'):
+        row = db.conn.fetch_one("SELECT * FROM messages WHERE id = %s", (message_id,))
+        original_message = dict(row) if row else None
+
     if not original_message:
-        # Ищем сообщение только по ID без привязки к чату
-        message_by_id = next((msg for msg in messages if msg['id'] == message_id), None)
-        if message_by_id:
-            print(f"DEBUG - Message found but in different chat: {message_by_id['chatId']}")
-            # Используем правильный chatId из сообщения
-            original_message = message_by_id
-        else:
-            print(f"DEBUG - Message not found at all. Available message IDs: {[m['id'] for m in messages[:5]]}")
-            raise HTTPException(status_code=404, detail="Message not found")
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    def pick(msg: dict, snake_key: str, camel_key: str, default=None):
+        value = msg.get(snake_key)
+        if value is None:
+            value = msg.get(camel_key)
+        return default if value is None else value
     
     target_chat_ids = forward_data.get('targetChatIds', [])
     if not target_chat_ids:
@@ -4607,42 +4624,40 @@ def forward_message(chat_id: str, message_id: str, forward_data: dict = Body(...
     for target_chat_id in target_chat_ids:
         new_message = {
             'id': str(uuid.uuid4()),
-            'chatId': target_chat_id,
-            'authorId': original_message['authorId'],
-            'authorName': original_message['authorName'],
-            'content': original_message['content'],
-            'mentions': original_message.get('mentions', []),
+            'chat_id': target_chat_id,
+            'author_id': pick(original_message, 'author_id', 'authorId'),
+            'author_name': pick(original_message, 'author_name', 'authorName', 'Unknown'),
+            'content': pick(original_message, 'content', 'content', ''),
+            'mentions': pick(original_message, 'mentions', 'mentions', []),
             'createdAt': datetime.now().isoformat(),
             'isEdited': False,
             'isDeleted': False,
-            'attachments': original_message.get('attachments', []),
+            'attachments': pick(original_message, 'attachments', 'attachments', []),
             'isSystemMessage': False
         }
-        
-        db.add_message(new_message)
-        forwarded_messages.append(new_message)
+
+        saved_message = db.add_message(new_message)
+        forwarded_messages.append(snake_to_camel(saved_message) if saved_message else snake_to_camel(new_message))
     
     return {"success": True, "forwardedMessages": forwarded_messages}
 
 @app.delete("/api/chats/{chat_id}/messages/{message_id}")
 def delete_message(chat_id: str, message_id: str):
     """Мягкое удаление сообщения - помечает как удаленное"""
-    messages = db.data.get('messages', [])
-    
-    # Пытаемся найти сообщение с проверкой chat_id
-    message = next((msg for msg in messages if msg['id'] == message_id and msg['chatId'] == chat_id), None)
-    
+    chat_messages = db.get_chat_messages(chat_id) or []
+    message = next((msg for msg in chat_messages if str(msg.get('id')) == message_id), None)
+
+    if not message and hasattr(db, 'conn'):
+        row = db.conn.fetch_one("SELECT id FROM messages WHERE id = %s", (message_id,))
+        message = dict(row) if row else None
+
     if not message:
-        # Fallback: ищем только по message_id
-        message = next((msg for msg in messages if msg['id'] == message_id), None)
-        if not message:
-            raise HTTPException(status_code=404, detail="Message not found")
-    
-    message['isDeleted'] = True
-    message['content'] = 'Сообщение удалено'
-    message['deletedAt'] = datetime.now().isoformat()
-    db._save()
-    
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    success = db.delete_message(message_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Message not found")
+
     return {"success": True}
 
 @app.post("/api/chats/{chat_id}/mark-read")

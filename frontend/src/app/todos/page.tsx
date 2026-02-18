@@ -1024,39 +1024,35 @@ export default function TodosPage() {
       setReturnUrl(from);
     }
     
-    if (createTask === 'true' && listId && assignTo && people.length > 0 && lists.length > 0) {
-      // Убираем параметры из URL
+    if (createTask === 'true' && listId && assignTo && lists.length > 0 && !editingTodo) {
+      const targetList = lists.find(l => l.id === listId);
+      if (!targetList) {
+        return;
+      }
+
+      const assignedByPerson = people.find(p => p.id === (authorId || myAccountId));
+      const assignedToPerson = people.find(p => p.id === assignTo);
+
+      const newTodo: Todo = {
+        id: `temp-${Date.now()}`,
+        title: taskTitle || '',
+        description: '',
+        listId: listId,
+        status: 'todo',
+        priority: 'medium',
+        completed: false,
+        order: 0,
+        assignedToId: assignTo,
+        assignedTo: assignedToPerson?.name || assignToName || '',
+        assignedById: authorId || myAccountId || undefined,
+        assignedBy: assignedByPerson?.name || authorName || '',
+        tags: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      setEditingTodo(newTodo);
       router.replace('/todos', { scroll: false });
-      
-      // Находим список и открываем полную модалку создания
-      setTimeout(() => {
-        const targetList = lists.find(l => l.id === listId);
-        if (targetList && !editingTodo) {
-          // Находим имена для заказчика и исполнителя
-          const assignedByPerson = people.find(p => p.id === (authorId || myAccountId));
-          const assignedToPerson = people.find(p => p.id === assignTo);
-          
-          // Создаём новую задачу с предзаполненными данными
-          const newTodo: Todo = {
-            id: `temp-${Date.now()}`,
-            title: taskTitle || '',
-            description: '',
-            listId: listId,
-            status: 'todo',
-            priority: 'medium',
-            completed: false,
-            order: 0,
-            assignedToId: assignTo,
-            assignedTo: assignedToPerson?.name || assignToName || '',
-            assignedById: authorId || myAccountId || undefined,
-            assignedBy: assignedByPerson?.name || authorName || '',
-            tags: [],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          };
-          setEditingTodo(newTodo);
-        }
-      }, 200);
     }
   }, [searchParams, people, router, lists, myAccountId, editingTodo]);
 

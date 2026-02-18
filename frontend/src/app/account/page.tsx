@@ -671,7 +671,7 @@ export default function AccountPage() {
 
       {/* Desktop Bottom Status Bar - glassmorphism style with drop zone */}
       <div 
-        className={`desktop-navigation fixed bottom-0 left-0 right-0 h-[48px] backdrop-blur-xl border-t z-[101] items-center justify-between px-4 transition-all duration-200 overflow-visible ${shouldUseMobileNav || hideBottomNavInOpenedChat ? 'hidden' : 'flex'} ${
+        className={`desktop-navigation fixed bottom-0 left-0 right-0 h-[46px] backdrop-blur-xl border-t z-[101] items-center justify-between px-4 transition-all duration-200 overflow-visible ${shouldUseMobileNav || hideBottomNavInOpenedChat ? 'hidden' : 'flex'} ${
           isDragOverBar 
             ? 'bg-[#007aff]/20 border-[#007aff]/50' 
             : 'bg-[var(--bg-glass)] border-[var(--border-glass)]'
@@ -683,7 +683,7 @@ export default function AccountPage() {
         onDrop={handleDrop}
       >
         {/* Left side - Navigation */}
-        <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto overflow-y-visible no-scrollbar select-none" onCopy={(e) => e.preventDefault()}>
+        <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto no-scrollbar select-none py-1 px-1" onCopy={(e) => e.preventDefault()}>
           {visibleTabs.messages && (
           <button
             onClick={() => handleTabChange('messages')}

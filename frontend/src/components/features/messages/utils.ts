@@ -75,15 +75,18 @@ export function formatMessageText(text: string): string {
 /**
  * Получение заголовка чата
  */
-export function getChatTitle(chat: any, currentUser: any, users: any[]): string {
+export function getChatTitle(chat: any, currentUser: any = null, users: any[] = []): string {
+  const safeUsers = Array.isArray(users) ? users : [];
+  const participantIds = Array.isArray(chat?.participantIds) ? chat.participantIds : [];
+
   if (chat.isFavoritesChat) return 'Избранное';
   if (chat.isNotificationsChat) return 'Уведомления';
   if (chat.isSystemChat) return 'Системный чат';
   if (chat.title) return chat.title;
   
-  if (!chat.isGroup && chat.participantIds) {
-    const otherParticipantId = chat.participantIds.find((id: string) => id !== currentUser?.id);
-    const otherUser = users.find((u) => u.id === otherParticipantId);
+  if (!chat.isGroup && participantIds.length > 0) {
+    const otherParticipantId = participantIds.find((id: string) => id !== currentUser?.id);
+    const otherUser = safeUsers.find((u) => u.id === otherParticipantId);
     return otherUser?.name || otherUser?.username || 'Пользователь';
   }
   
@@ -93,25 +96,37 @@ export function getChatTitle(chat: any, currentUser: any, users: any[]): string 
 /**
  * Получение данных аватара чата
  */
-export function getChatAvatarData(chat: any, currentUser: any, users: any[]): {
+export function getChatAvatarData(chat: any, currentUser: any = null, users: any[] = []): {
   type: 'user' | 'group' | 'favorites' | 'notifications' | 'system';
   name: string;
   avatar: string | undefined;
 } {
+  const safeUsers = Array.isArray(users) ? users : [];
+  const participantIds = Array.isArray(chat?.participantIds) ? chat.participantIds : [];
+
   if (chat.isFavoritesChat) {
     return { type: 'favorites', name: 'Избранное', avatar: undefined };
   }
   
-  if (chat.isNotificationsChat || chat.isSystemChat) {
-    return { type: chat.isSystemChat ? 'system' : 'notifications', name: 'Уведомления', avatar: undefined };
+  const isNotificationsLike = Boolean(
+    chat?.isNotificationsChat ||
+    (chat?.isSystemChat && (chat?.title === 'Уведомления' || String(chat?.id || '').startsWith('notifications-')))
+  );
+
+  if (isNotificationsLike) {
+    return { type: 'notifications', name: 'Уведомления', avatar: undefined };
+  }
+
+  if (chat?.isSystemChat) {
+    return { type: 'system', name: chat?.title || 'Системный чат', avatar: undefined };
   }
   
   if (chat.isGroup) {
     return { type: 'group', name: chat.title || 'Группа', avatar: chat.avatar };
   }
   
-  const otherParticipantId = chat.participantIds?.find((id: string) => id !== currentUser?.id);
-  const otherUser = users.find((u) => u.id === otherParticipantId);
+  const otherParticipantId = participantIds.find((id: string) => id !== currentUser?.id);
+  const otherUser = safeUsers.find((u) => u.id === otherParticipantId);
   
   return {
     type: 'user',

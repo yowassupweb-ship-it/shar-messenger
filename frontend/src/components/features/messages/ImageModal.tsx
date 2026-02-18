@@ -23,14 +23,37 @@ export default function ImageModal({
     setZoom(1);
   };
 
-  const handleDownload = (e: React.MouseEvent) => {
+  const handleDownload = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const link = document.createElement('a');
-    link.href = imageUrl;
-    link.download = 'image.jpg';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const normalizedUrl = imageUrl.startsWith('http://') || imageUrl.startsWith('https://')
+      ? imageUrl
+      : imageUrl.startsWith('/')
+        ? imageUrl
+        : `/${imageUrl}`;
+
+    try {
+      const response = await fetch(normalizedUrl);
+      if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = 'image.jpg';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      const link = document.createElement('a');
+      link.href = normalizedUrl;
+      link.download = 'image.jpg';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   return (
