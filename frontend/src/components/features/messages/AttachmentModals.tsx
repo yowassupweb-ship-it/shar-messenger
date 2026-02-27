@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, FileText, Calendar, Paperclip, Upload, Image, File } from 'lucide-react';
+import { X, FileText, Calendar, Paperclip, Upload, Image, File, Loader2 } from 'lucide-react';
 import { Task } from './types';
 
 interface Event {
@@ -32,6 +32,8 @@ interface AttachmentModalsProps {
   events: Event[];
   currentUser: { id: string } | null;
   setAttachments: React.Dispatch<React.SetStateAction<Attachment[]>>;
+  isUploadingAttachments: boolean;
+  setIsUploadingAttachments: (value: boolean) => void;
   fileInputRef: React.RefObject<HTMLInputElement>;
 }
 
@@ -46,8 +48,61 @@ const AttachmentModals: React.FC<AttachmentModalsProps> = ({
   events,
   currentUser,
   setAttachments,
+  isUploadingAttachments,
+  setIsUploadingAttachments,
   fileInputRef,
 }) => {
+  const DESKTOP_MENU_WIDTH = 220;
+  const DESKTOP_MENU_HEIGHT = 300;
+  const [isMobileView, setIsMobileView] = React.useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth <= 785 : false
+  );
+  const [desktopAnchor, setDesktopAnchor] = React.useState<{ left: number; top: number } | null>(null);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateMobileView = () => {
+      setIsMobileView(window.innerWidth <= 785);
+    };
+
+    updateMobileView();
+    window.addEventListener('resize', updateMobileView);
+
+    return () => {
+      window.removeEventListener('resize', updateMobileView);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleAttachmentAnchor = (event: globalThis.Event) => {
+      const customEvent = event as CustomEvent<{ x?: number; y?: number }>;
+      const x = customEvent.detail?.x;
+      const y = customEvent.detail?.y;
+      if (typeof x !== 'number' || typeof y !== 'number') return;
+
+      const nextLeft = Math.max(0, Math.min(window.innerWidth - DESKTOP_MENU_WIDTH, x - 36));
+      const nextTop = Math.max(8, Math.min(window.innerHeight - DESKTOP_MENU_HEIGHT - 8, y - DESKTOP_MENU_HEIGHT + 34));
+      setDesktopAnchor({ left: nextLeft, top: nextTop });
+    };
+
+    window.addEventListener('attachment-menu-anchor', handleAttachmentAnchor as EventListener);
+    return () => {
+      window.removeEventListener('attachment-menu-anchor', handleAttachmentAnchor as EventListener);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!showAttachmentMenu || isMobileView || desktopAnchor || typeof window === 'undefined') return;
+
+    setDesktopAnchor({
+      left: Math.max(0, Math.min(window.innerWidth - DESKTOP_MENU_WIDTH, 72)),
+      top: Math.max(8, window.innerHeight - DESKTOP_MENU_HEIGHT - 120),
+    });
+  }, [showAttachmentMenu, isMobileView, desktopAnchor]);
+
   return (
     <>
       {/* Task Picker Modal */}
@@ -190,11 +245,11 @@ const AttachmentModals: React.FC<AttachmentModalsProps> = ({
                           }]);
                           setShowEventPicker(false);
                         }}
-                        className="w-full text-left p-3 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition-colors"
+                        className="w-full text-left p-3 bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] rounded-lg border border-[var(--border-color)] transition-colors"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-medium text-white truncate">{event.title}</h4>
+                            <h4 className="text-sm font-medium text-[var(--text-primary)] truncate">{event.title}</h4>
                             {event.description && (
                               <p className="text-xs text-[var(--text-secondary)] mt-1 line-clamp-2">{event.description}</p>
                             )}
@@ -233,154 +288,229 @@ const AttachmentModals: React.FC<AttachmentModalsProps> = ({
       {/* Attachment Modal - Модалка выбора вложений */}
       {showAttachmentMenu && (
         <div 
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+          className={`fixed inset-0 z-50 ${isMobileView ? 'flex items-end sm:items-center justify-center' : ''}`}
           onClick={() => setShowAttachmentMenu(false)}
         >
           {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          {isMobileView && <div className="absolute inset-0 bg-black/35 backdrop-blur-sm" />}
           
-          {/* Modal */}
+          {/* Modal / Popup */}
           <div 
-            className="relative w-full sm:w-auto sm:min-w-[360px] max-w-md bg-gradient-to-br from-[#1e293b]/95 to-[#0f172a]/95 backdrop-blur-xl border border-white/10 rounded-t-[25px] sm:rounded-[25px] shadow-2xl overflow-hidden pb-safe min-h-[50vh] sm:min-h-0"
+            className={`bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] backdrop-blur-xl border border-[var(--border-light)] shadow-[var(--shadow-card)] overflow-hidden ${isMobileView ? 'relative w-full sm:w-auto sm:min-w-[360px] max-w-md rounded-t-[25px] sm:rounded-[25px] pb-safe min-h-[50vh] sm:min-h-0' : 'absolute w-[220px] rounded-[14px] min-h-0'}`}
+            style={!isMobileView && desktopAnchor ? { left: `${desktopAnchor.left}px`, top: `${desktopAnchor.top}px` } : undefined}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Handle для мобильных */}
             <div className="flex justify-center pt-3 pb-2 sm:hidden">
-              <div className="w-10 h-1 rounded-full bg-white/20" />
+              <div className="w-10 h-1 rounded-full bg-[var(--border-light)]" />
             </div>
             
             {/* Header */}
-            <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-              <h3 className="font-semibold text-sm flex items-center gap-2 text-white/90">
-                <Paperclip className="w-4 h-4 text-cyan-400" />
-                Добавить вложение
+            <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
+              <h3 className="font-semibold text-sm flex items-center gap-2 text-[var(--text-primary)]">
+                <Paperclip className="w-4 h-4 text-[var(--accent-primary)]" />
+                Добавить
               </h3>
               <button
                 onClick={() => setShowAttachmentMenu(false)}
-                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"
+                className="w-8 h-8 rounded-full hover:bg-[var(--bg-glass-hover)] flex items-center justify-center transition-colors"
               >
-                <X className="w-4 h-4 text-white/60" />
+                <X className="w-4 h-4 text-[var(--text-muted)]" />
               </button>
             </div>
-            
-            {/* Drop Zone - только на десктопе */}
-            <div 
-              className="hidden md:block mx-4 mt-4 p-6 border-2 border-dashed border-white/10 rounded-[20px] hover:border-cyan-400/50 hover:bg-cyan-500/5 transition-all cursor-pointer"
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.currentTarget.classList.add('border-cyan-400', 'bg-cyan-500/10');
-              }}
-              onDragLeave={(e) => {
-                e.currentTarget.classList.remove('border-cyan-400', 'bg-cyan-500/10');
-              }}
-              onDrop={async (e) => {
-                e.preventDefault();
-                e.currentTarget.classList.remove('border-cyan-400', 'bg-cyan-500/10');
-                const files = Array.from(e.dataTransfer.files);
-                if (files.length > 0) {
-                  // Загружаем файлы на сервер
-                  for (const file of files) {
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    
-                    try {
-                      const uploadRes = await fetch('/api/upload', {
-                        method: 'POST',
-                        body: formData
-                      });
-                      
-                      if (uploadRes.ok) {
-                        const uploadData = await uploadRes.json();
-                        setAttachments(prev => [...prev, {
-                          type: file.type.startsWith('image/') ? 'image' : 'file',
-                          name: file.name,
-                          url: uploadData.url
-                        }]);
-                      }
-                    } catch (error) {
-                      console.error('Error uploading file:', error);
-                    }
-                  }
-                  setShowAttachmentMenu(false);
-                }
-              }}
-            >
-              <div className="flex flex-col items-center gap-3 text-center">
-                <div className="w-14 h-14 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center">
-                  <Upload className="w-7 h-7 text-[var(--text-muted)]" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-[var(--text-secondary)]">Перетащите файл сюда</p>
-                  <p className="text-xs text-[var(--text-muted)] mt-1">или нажмите для выбора</p>
+
+            {isUploadingAttachments && (
+              <div className="px-3 py-2 border-b border-[var(--border-color)] bg-[var(--bg-glass)]">
+                <div className="inline-flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent-primary)]" />
+                  <span>Загрузка вложений...</span>
                 </div>
               </div>
-            </div>
+            )}
+            
+            {/* Drop Zone - только на мобильных */}
+            {isMobileView && (
+              <div 
+                className="hidden md:block mx-3 mt-3 p-3 border-2 border-dashed border-[var(--border-color)] rounded-[14px] hover:border-[var(--accent-primary)]/60 hover:bg-[var(--bg-glass-hover)] transition-all cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.add('border-blue-500');
+                }}
+                onDragLeave={(e) => {
+                  e.currentTarget.classList.remove('border-blue-500');
+                }}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.remove('border-blue-500');
+                  const files = Array.from(e.dataTransfer.files);
+                  if (files.length > 0) {
+                    setIsUploadingAttachments(true);
+                    for (const file of files) {
+                      const formData = new FormData();
+                      formData.append('file', file);
+                      
+                      try {
+                        const uploadRes = await fetch('/api/upload', {
+                          method: 'POST',
+                          body: formData
+                        });
+                        
+                        if (uploadRes.ok) {
+                          const uploadData = await uploadRes.json();
+                          setAttachments(prev => [...prev, {
+                            type: file.type.startsWith('image/') ? 'image' : 'file',
+                            name: file.name,
+                            url: uploadData.url
+                          }]);
+                        }
+                      } catch (error) {
+                        console.error('Error uploading file:', error);
+                      }
+                    }
+                    setIsUploadingAttachments(false);
+                    setShowAttachmentMenu(false);
+                  }
+                }}
+              >
+                <div className="flex items-center gap-3 text-left">
+                  <div className="w-10 h-10 rounded-full bg-[var(--bg-glass-hover)] border border-[var(--border-color)] flex items-center justify-center flex-shrink-0">
+                    <Upload className="w-5 h-5 text-[var(--text-muted)]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-[var(--text-primary)] leading-tight">Перетащите файл</p>
+                    <p className="text-xs text-[var(--text-muted)] mt-0.5">или нажмите для выбора</p>
+                  </div>
+                </div>
+              </div>
+            )}
             
             {/* Options grid */}
+            {isMobileView ? (
             <div className="p-4 grid grid-cols-3 gap-3">
               <button
+                disabled={isUploadingAttachments}
                 onClick={() => {
                   setShowTaskPicker(true);
                   setShowAttachmentMenu(false);
                 }}
-                className="flex flex-col items-center gap-2 p-4 rounded-[20px] bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] transition-colors group"
+                className="flex flex-col items-center gap-2 p-4 rounded-[20px] bg-[var(--bg-glass)] border border-[var(--border-color)] hover:bg-[var(--bg-glass-hover)] transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <FileText className="w-6 h-6 text-cyan-400" />
+                  <FileText className="w-6 h-6 text-cyan-500" />
                 </div>
-                <span className="text-xs text-[var(--text-secondary)]">Задача</span>
+                <span className="text-xs text-[var(--text-primary)]">Задача</span>
               </button>
               
               <button
+                disabled={isUploadingAttachments}
                 onClick={() => {
                   setShowEventPicker(true);
                   setShowAttachmentMenu(false);
                 }}
-                className="flex flex-col items-center gap-2 p-4 rounded-[20px] bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] transition-colors group"
+                className="flex flex-col items-center gap-2 p-4 rounded-[20px] bg-[var(--bg-glass)] border border-[var(--border-color)] hover:bg-[var(--bg-glass-hover)] transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Calendar className="w-6 h-6 text-green-400" />
+                  <Calendar className="w-6 h-6 text-green-500" />
                 </div>
-                <span className="text-xs text-[var(--text-secondary)]">Событие</span>
+                <span className="text-xs text-[var(--text-primary)]">Событие</span>
               </button>
               
               <button
+                disabled={isUploadingAttachments}
                 onClick={() => {
                   fileInputRef.current?.click();
                   setShowAttachmentMenu(false);
                 }}
-                className="flex flex-col items-center gap-2 p-4 rounded-[20px] bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] transition-colors group"
+                className="flex flex-col items-center gap-2 p-4 rounded-[20px] bg-[var(--bg-glass)] border border-[var(--border-color)] hover:bg-[var(--bg-glass-hover)] transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="w-12 h-12 rounded-full bg-pink-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Image className="w-6 h-6 text-pink-400" />
+                  <Image className="w-6 h-6 text-pink-500" />
                 </div>
-                <span className="text-xs text-[var(--text-secondary)]">Фото</span>
+                <span className="text-xs text-[var(--text-primary)]">Фото</span>
               </button>
               
               <button
+                disabled={isUploadingAttachments}
                 onClick={() => {
                   fileInputRef.current?.click();
                   setShowAttachmentMenu(false);
                 }}
-                className="flex flex-col items-center gap-2 p-4 rounded-[20px] bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] transition-colors group"
+                className="flex flex-col items-center gap-2 p-4 rounded-[20px] bg-[var(--bg-glass)] border border-[var(--border-color)] hover:bg-[var(--bg-glass-hover)] transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <File className="w-6 h-6 text-orange-400" />
+                  <File className="w-6 h-6 text-orange-500" />
                 </div>
-                <span className="text-xs text-[var(--text-secondary)]">Файл</span>
+                <span className="text-xs text-[var(--text-primary)]">Файл</span>
               </button>
               
               <button
+                disabled={isUploadingAttachments}
                 onClick={() => setShowAttachmentMenu(false)}
-                className="flex flex-col items-center gap-2 p-4 rounded-[20px] bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] transition-colors group"
+                className="flex flex-col items-center gap-2 p-4 rounded-[20px] bg-[var(--bg-glass)] border border-[var(--border-color)] hover:bg-[var(--bg-glass-hover)] transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="w-12 h-12 rounded-full bg-gray-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <X className="w-6 h-6 text-gray-400" />
                 </div>
-                <span className="text-xs text-[var(--text-secondary)]">Отмена</span>
+                <span className="text-xs text-[var(--text-primary)]">Отмена</span>
               </button>
             </div>
+            ) : (
+            <div className="p-1.5 space-y-0.5">
+              <button
+                disabled={isUploadingAttachments}
+                onClick={() => {
+                  setShowTaskPicker(true);
+                  setShowAttachmentMenu(false);
+                }}
+                className="w-full px-3 py-2 text-sm text-left flex items-center gap-2.5 text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] rounded-[10px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FileText className="w-4 h-4 text-cyan-500" />
+                Задача
+              </button>
+              <button
+                disabled={isUploadingAttachments}
+                onClick={() => {
+                  setShowEventPicker(true);
+                  setShowAttachmentMenu(false);
+                }}
+                className="w-full px-3 py-2 text-sm text-left flex items-center gap-2.5 text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] rounded-[10px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Calendar className="w-4 h-4 text-green-500" />
+                Событие
+              </button>
+              <button
+                disabled={isUploadingAttachments}
+                onClick={() => {
+                  fileInputRef.current?.click();
+                  setShowAttachmentMenu(false);
+                }}
+                className="w-full px-3 py-2 text-sm text-left flex items-center gap-2.5 text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] rounded-[10px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Image className="w-4 h-4 text-pink-500" />
+                Фото
+              </button>
+              <button
+                disabled={isUploadingAttachments}
+                onClick={() => {
+                  fileInputRef.current?.click();
+                  setShowAttachmentMenu(false);
+                }}
+                className="w-full px-3 py-2 text-sm text-left flex items-center gap-2.5 text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] rounded-[10px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <File className="w-4 h-4 text-orange-500" />
+                Файл
+              </button>
+              <div className="border-t border-[var(--border-color)] my-1" />
+              <button
+                onClick={() => setShowAttachmentMenu(false)}
+                className="w-full px-3 py-2 text-sm text-left flex items-center gap-2.5 text-[var(--text-secondary)] hover:bg-[var(--bg-glass-hover)] rounded-[10px] transition-colors"
+              >
+                <X className="w-4 h-4" />
+                Отмена
+              </button>
+            </div>
+            )}
           </div>
         </div>
       )}

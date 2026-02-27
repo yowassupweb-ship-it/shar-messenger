@@ -132,7 +132,8 @@ export function useMessagesData() {
       if (!response.ok) throw new Error('Failed to fetch events');
       
       const data = await response.json();
-      setEvents(data.events || []);
+      const eventsArray = Array.isArray(data) ? data : (data.events || []);
+      setEvents(eventsArray);
     } catch (error) {
       console.error('[loadEvents] Error:', error);
     }

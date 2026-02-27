@@ -28,11 +28,17 @@ export interface Message {
   linkedMessageId?: string;
   linkedTaskId?: string;
   linkedPostId?: string;
+  linkedEventId?: string;
   notificationType?: string;
   metadata?: {
     taskTitle?: string;
     postTitle?: string;
     fromUserName?: string;
+    linkedEventId?: string;
+    linkedEventTitle?: string;
+    oldStatus?: string;
+    newStatus?: string;
+    executorName?: string;
   };
 }
 

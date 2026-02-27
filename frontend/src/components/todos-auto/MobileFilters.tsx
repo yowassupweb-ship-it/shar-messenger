@@ -16,6 +16,9 @@ interface MobileFiltersProps {
   setFilterStatus: Dispatch<SetStateAction<'all' | 'stages' | 'todo' | 'pending' | 'in-progress' | 'review' | 'cancelled' | 'stuck'>>;
   filterExecutor: string | null;
   setFilterExecutor: Dispatch<SetStateAction<string | null>>;
+  filterDepartment: string;
+  setFilterDepartment: Dispatch<SetStateAction<string>>;
+  departments: string[];
   searchQuery: string;
   setSearchQuery: (query: string) => void;
 }
@@ -28,6 +31,9 @@ const MobileFilters = memo(function MobileFilters({
   setFilterStatus,
   filterExecutor,
   setFilterExecutor,
+  filterDepartment,
+  setFilterDepartment,
+  departments,
   searchQuery,
   setSearchQuery
 }: MobileFiltersProps) {
@@ -36,6 +42,7 @@ const MobileFilters = memo(function MobileFilters({
   const resetFilters = () => {
     setFilterStatus('all');
     setFilterExecutor(null);
+    setFilterDepartment('all');
     setSearchQuery('');
   };
 
@@ -48,7 +55,7 @@ const MobileFilters = memo(function MobileFilters({
             Фильтры
           </h3>
           <div className="flex items-center gap-2">
-            {(filterStatus !== 'all' || filterExecutor !== null || searchQuery) && (
+            {(filterStatus !== 'all' || filterExecutor !== null || filterDepartment !== 'all' || searchQuery) && (
               <button 
                 onClick={resetFilters}
                 className="text-xs text-[var(--text-muted)] hover:text-white transition-colors"
@@ -142,6 +149,44 @@ const MobileFilters = memo(function MobileFilters({
                       >
                         <span>{person.name || person.username}</span>
                         {filterExecutor === person.id && <Check className="w-4 h-4" />}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Отдел */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Отдел</label>
+                <div className="space-y-1 max-h-40 overflow-y-auto p-1 custom-scrollbar">
+                  <button
+                    onClick={() => setFilterDepartment('all')}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all ${
+                      filterDepartment === 'all'
+                        ? 'bg-blue-500/20 text-blue-300'
+                        : 'hover:bg-[var(--bg-glass)] text-[var(--text-secondary)]'
+                    }`}
+                  >
+                    <span>Все отделы</span>
+                    {filterDepartment === 'all' && <Check className="w-4 h-4" />}
+                  </button>
+                  {departments.length === 0 ? (
+                    <div className="px-3 py-4 text-center text-sm text-[var(--text-muted)] bg-[var(--bg-secondary)] rounded-lg border border-dashed border-[var(--border-color)]">
+                      Отделы не найдены
+                    </div>
+                  ) : (
+                    departments.map(department => (
+                      <button
+                        key={department}
+                        onClick={() => setFilterDepartment(department)}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all ${
+                          filterDepartment === department
+                            ? 'bg-blue-500/20 text-blue-300'
+                            : 'hover:bg-[var(--bg-glass)] text-[var(--text-secondary)]'
+                        }`}
+                      >
+                        <span>{department}</span>
+                        {filterDepartment === department && <Check className="w-4 h-4" />}
                       </button>
                     ))
                   )}

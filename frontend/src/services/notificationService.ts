@@ -87,6 +87,10 @@ export async function sendNotificationToUsers(
     
     if (response.ok) {
       const result = await response.json();
+      if (!result?.count || Number(result.count) <= 0) {
+        console.error('[Notifications] No recipients were successfully notified:', result);
+        return { success: false, count: 0 };
+      }
       console.log('[Notifications] Sent successfully:', result);
       return { success: true, count: result.count };
     }
@@ -106,19 +110,19 @@ function generateNotificationContent(type: NotificationType, data: NotificationD
   const title = taskTitle || postTitle || 'Без названия';
   
   const templates: Record<NotificationType, string> = {
-    new_task: `<b>Новая задача</b>\n\n${fromUserName} назначил вам задачу:\n<i>${title}</i>`,
-    task_updated: `<b>Задача изменена</b>\n\n${fromUserName} обновил задачу:\n<i>${title}</i>`,
-    task_status_changed: `<b>Изменение статуса</b>\n\n${fromUserName} изменил статус задачи:\n<i>${title}</i>\n\n${oldStatus} → ${newStatus}`,
-    new_executor: `<b>Новый исполнитель</b>\n\n${executorName} добавлен в задачу:\n<i>${title}</i>`,
-    removed_executor: `<b>Исполнитель удалён</b>\n\n${executorName} удалён из задачи:\n<i>${title}</i>`,
-    new_comment: `<b>Новый комментарий</b>\n\n${fromUserName} прокомментировал задачу:\n<i>${title}</i>`,
-    mention: `<b>Вас упомянули</b>\n\n${fromUserName} упомянул вас в комментарии:\n<i>${title}</i>`,
-    post_updated: `<b>Публикация изменена</b>\n\n${fromUserName} обновил публикацию:\n<i>${title}</i>`,
-    post_status_changed: `<b>Изменение статуса публикации</b>\n\n${fromUserName} изменил статус:\n<i>${title}</i>\n\n${oldStatus} → ${newStatus}`,
-    post_new_comment: `<b>Комментарий к публикации</b>\n\n${fromUserName} прокомментировал публикацию:\n<i>${title}</i>`,
+    new_task: `Новая задача\n${fromUserName} назначил вам задачу: ${title}`,
+    task_updated: `Задача изменена\n${fromUserName} обновил задачу: ${title}`,
+    task_status_changed: `Изменение статуса\n${fromUserName} изменил статус задачи: ${title}\n${oldStatus} → ${newStatus}`,
+    new_executor: `Новый исполнитель\n${executorName} добавлен в задачу: ${title}`,
+    removed_executor: `Исполнитель удалён\n${executorName} удалён из задачи: ${title}`,
+    new_comment: `Новый комментарий\n${fromUserName} прокомментировал задачу: ${title}`,
+    mention: `Вас упомянули\n${fromUserName} упомянул вас в комментарии: ${title}`,
+    post_updated: `Публикация изменена\n${fromUserName} обновил публикацию: ${title}`,
+    post_status_changed: `Изменение статуса публикации\n${fromUserName} изменил статус: ${title}\n${oldStatus} → ${newStatus}`,
+    post_new_comment: `Комментарий к публикации\n${fromUserName} прокомментировал публикацию: ${title}`,
   };
   
-  return templates[type] || `<b>Уведомление</b>\n\n${fromUserName}: ${title}`;
+  return templates[type] || `Уведомление\n${fromUserName}: ${title}`;
 }
 
 /**
@@ -127,6 +131,8 @@ function generateNotificationContent(type: NotificationType, data: NotificationD
 export const statusLabels: Record<string, string> = {
   // Статусы задач
   'todo': 'К выполнению',
+  'pending': 'В ожидании',
+  'in-progress': 'В работе',
   'in_progress': 'В работе',
   'stuck': 'Застряла',
   'review': 'На проверке',
@@ -145,7 +151,15 @@ export const statusLabels: Record<string, string> = {
  * Получить локализованное название статуса
  */
 export function getStatusLabel(status: string): string {
-  return statusLabels[status] || status;
+  const raw = String(status || '').trim();
+  if (!raw) return raw;
+
+  const direct = statusLabels[raw];
+  if (direct) return direct;
+
+  const normalized = raw.toLowerCase().replace(/\s+/g, '-');
+  const normalizedHit = statusLabels[normalized] || statusLabels[normalized.replace(/-/g, '_')];
+  return normalizedHit || raw;
 }
 
 /**
@@ -215,9 +229,10 @@ export class TaskNotificationManager {
     taskId: string,
     taskTitle: string,
     oldStatus: string,
-    newStatus: string
+    newStatus: string,
+    includeInitiator: boolean = false
   ): Promise<void> {
-    const recipients = relatedUserIds.filter(id => id !== this.currentUserId);
+    const recipients = relatedUserIds.filter(id => includeInitiator || id !== this.currentUserId);
     
     if (recipients.length > 0) {
       await sendNotificationToUsers(recipients, 'task_status_changed', {
@@ -415,6 +430,7 @@ export function getTaskRelatedUsers(task: {
   authorId?: string | null;
   assignedById?: string | null;
   assignedToId?: string | string[] | null;
+  assignedToIds?: string[] | null;
 }): string[] {
   const users = new Set<string>();
   
@@ -427,6 +443,12 @@ export function getTaskRelatedUsers(task: {
     } else {
       users.add(task.assignedToId);
     }
+  }
+
+  if (task.assignedToIds && Array.isArray(task.assignedToIds)) {
+    task.assignedToIds.forEach(id => {
+      if (id) users.add(id);
+    });
   }
   
   return Array.from(users);

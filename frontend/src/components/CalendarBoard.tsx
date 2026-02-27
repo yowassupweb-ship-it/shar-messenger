@@ -10,12 +10,16 @@ interface CalendarEvent {
   title: string;
   date: string;
   time?: string;
+  remind?: boolean;
   description?: string;
   type: 'work' | 'meeting' | 'event' | 'holiday' | 'task' | 'tz';
   listId?: string;
   participants?: string[];
   recurrence?: 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
   sourceId?: string;
+  createdBy?: string;
+  createdByName?: string;
+  assignedBy?: string;
 }
 
 interface CalendarList {
@@ -41,6 +45,9 @@ interface Department {
 interface UserAccount {
   id: string;
   name: string;
+  username?: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
   role?: string;
   avatar?: string;
@@ -108,6 +115,7 @@ export default function CalendarBoard() {
   const [newEvent, setNewEvent] = useState({
     title: '',
     time: '',
+    remind: false,
     description: '',
     type: 'work' as 'work' | 'meeting' | 'event' | 'holiday',
     recurrence: 'once' as 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
@@ -129,6 +137,105 @@ export default function CalendarBoard() {
   const [newListAllowedUsers, setNewListAllowedUsers] = useState<string[]>([]);
   const [newListAllowedDepartments, setNewListAllowedDepartments] = useState<string[]>([]);
   const [editListAccess, setEditListAccess] = useState<{listId: string, users: string[], departments: string[]} | null>(null);
+
+  const sendCalendarEventUpdateNotification = useCallback(async (event: CalendarEvent, previousEvent?: CalendarEvent | null) => {
+    const eventId = String(event?.id || '').trim();
+    if (!eventId) return;
+
+    let userId = '';
+    try {
+      const myAccountRaw = localStorage.getItem('myAccount');
+      const myAccount = myAccountRaw ? JSON.parse(myAccountRaw) : null;
+      userId = String(myAccount?.id || localStorage.getItem('username') || '').trim();
+    } catch {
+      userId = String(localStorage.getItem('username') || '').trim();
+    }
+
+    if (!userId) return;
+
+    const title = String(event?.title || 'Событие').trim() || 'Событие';
+    const formatType = (value?: string) => {
+      switch (value) {
+        case 'work':
+          return 'Работа';
+        case 'meeting':
+          return 'Встреча';
+        case 'event':
+          return 'Событие';
+        case 'holiday':
+          return 'Праздник';
+        case 'task':
+          return 'Задача';
+        case 'tz':
+          return 'ТЗ';
+        default:
+          return value || 'Не указан';
+      }
+    };
+
+    const buildChanges = (): string[] => {
+      const changes: string[] = [];
+      if (!previousEvent) {
+        if (event.date) changes.push(`Дата: ${event.date}`);
+        if (event.time) changes.push(`Время: ${event.time}`);
+        if (event.type) changes.push(`Тип: ${formatType(event.type)}`);
+        changes.push(`Напоминание: ${event.remind ? 'включено' : 'выключено'}`);
+        if (event.description) changes.push(`Описание: ${event.description}`);
+        return changes;
+      }
+
+      const pushChange = (label: string, before?: string | boolean, after?: string | boolean) => {
+        const beforeText = typeof before === 'boolean' ? (before ? 'включено' : 'выключено') : String(before || '').trim();
+        const afterText = typeof after === 'boolean' ? (after ? 'включено' : 'выключено') : String(after || '').trim();
+        if (beforeText === afterText) return;
+        changes.push(`${label}: ${beforeText || '—'} → ${afterText || '—'}`);
+      };
+
+      pushChange('Название', previousEvent.title, event.title);
+      pushChange('Дата', previousEvent.date, event.date);
+      pushChange('Время', previousEvent.time, event.time);
+      pushChange('Тип', formatType(previousEvent.type), formatType(event.type));
+      pushChange('Напоминание', Boolean(previousEvent.remind), Boolean(event.remind));
+      pushChange('Описание', previousEvent.description, event.description);
+
+      if (changes.length === 0) {
+        changes.push('Обновлены параметры события');
+      }
+
+      return changes;
+    };
+
+    const changeLines = buildChanges();
+    const body = [`«${title}»`, ...changeLines].join('\n');
+    const browserBody = changeLines.length > 0 ? `${title} • ${changeLines[0]}` : title;
+
+    try {
+      await fetch(`/api/chats/notifications/${encodeURIComponent(userId)}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: `Событие обновлено\n${body}`,
+          notificationType: 'event_update',
+          linkedEventId: eventId,
+          linkedEventTitle: title,
+        }),
+      });
+
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        try {
+          new Notification('Событие обновлено', {
+            body: browserBody,
+            tag: `calendar-event-${eventId}`,
+            icon: '/favicon.png',
+          });
+        } catch {
+          // ignore browser notification errors
+        }
+      }
+    } catch (error) {
+      console.warn('[CalendarBoard] Failed to send direct event update notification:', error);
+    }
+  }, []);
   
   // Advanced access management states
   const [accessPermission, setAccessPermission] = useState<'viewer' | 'editor'>('viewer');
@@ -144,6 +251,31 @@ export default function CalendarBoard() {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showPermissionDropdown, setShowPermissionDropdown] = useState(false);
   const [showShareTargetDropdown, setShowShareTargetDropdown] = useState(false);
+  const [showSharedCalendarToast, setShowSharedCalendarToast] = useState(false);
+  const [calendarToastType, setCalendarToastType] = useState<'shared' | 'personal'>('shared');
+
+  const isMainSharedList = useCallback((list?: CalendarList | null) => {
+    if (!list) return false;
+    return list.id === 'shared-main' || list.isDefault || list.name.toLowerCase().includes('общ');
+  }, []);
+
+  const activeCalendarList = calendarLists.find(l => l.id === activeListId) || null;
+
+  useEffect(() => {
+    if (!activeCalendarList) {
+      setShowSharedCalendarToast(false);
+      return;
+    }
+
+    setCalendarToastType(isMainSharedList(activeCalendarList) ? 'shared' : 'personal');
+
+    setShowSharedCalendarToast(true);
+    const timeoutId = setTimeout(() => {
+      setShowSharedCalendarToast(false);
+    }, 4000);
+
+    return () => clearTimeout(timeoutId);
+  }, [activeCalendarList, isMainSharedList]);
 
   // Управление классом modal-open для скрытия нижнего меню
   useEffect(() => {
@@ -330,27 +462,14 @@ export default function CalendarBoard() {
 
   const getEventsForDay = (date: Date) => {
     const dateKey = formatDateKey(date);
-    
-    // Фильтруем только события текущего месяца
-    const monthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-    const monthEnd = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
-    const eventDate = new Date(dateKey);
-    
+
     return events
       .filter(e => {
-        // Проверка даты
-        if (e.date !== dateKey) return false;
-        
-        // Фильтр по текущему месяцу
-        const evDate = new Date(e.date);
-        if (evDate < monthStart || evDate > monthEnd) return false;
-        
+        if (normalizeDateKey(e.date) !== dateKey) return false;
         // Если нет активного листа, показываем все события
         if (!activeListId) return true;
-        
         // Если у события нет listId (старые события), показываем их
         if (!e.listId) return true;
-        
         // Иначе проверяем совпадение листов
         return e.listId === activeListId;
       })
@@ -376,18 +495,25 @@ export default function CalendarBoard() {
     const monthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
     const monthEnd = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
 
-    const isWithinMonth = (dateStr: string) => {
-      const date = new Date(dateStr);
+    const isWithinMonth = (dateStr?: string) => {
+      const normalized = normalizeDateKey(dateStr);
+      if (!normalized) return false;
+      const date = new Date(normalized);
       return date >= monthStart && date <= monthEnd;
     };
 
     events
-      .filter(e => e.date && isWithinMonth(e.date) && (!e.listId || e.listId === activeListId))
+      .filter(e => {
+        if (!e.date || !isWithinMonth(e.date)) return false;
+        if (!activeListId) return true;
+        if (!e.listId) return true;
+        return e.listId === activeListId;
+      })
       .forEach(e => {
         items.push({
           id: `event-${e.id}`,
           kind: 'event',
-          date: e.date,
+          date: normalizeDateKey(e.date),
           time: e.time,
           title: e.title,
           description: e.description,
@@ -398,10 +524,12 @@ export default function CalendarBoard() {
     todos
       .filter(t => t.dueDate && isWithinMonth(t.dueDate) && !t.archived)
       .forEach(t => {
+        const normalizedDueDate = normalizeDateKey(t.dueDate);
+        if (!normalizedDueDate) return;
         items.push({
           id: `todo-${t.id}`,
           kind: 'todo',
-          date: t.dueDate as string,
+          date: normalizedDueDate,
           title: t.title,
           description: t.description,
           completed: t.completed,
@@ -437,6 +565,31 @@ export default function CalendarBoard() {
     return person?.name || '';
   };
 
+  const resolveEventAuthorName = useCallback((event: CalendarEvent) => {
+    const authorKey = event.createdBy || event.assignedBy || '';
+
+    const matchedUser = users.find(user =>
+      user.id === authorKey ||
+      user.username === authorKey ||
+      user.id === event.createdByName ||
+      user.username === event.createdByName
+    );
+
+    if (matchedUser) {
+      const composedName = [matchedUser.firstName, matchedUser.lastName].filter(Boolean).join(' ').trim();
+      return composedName || matchedUser.name;
+    }
+
+    const matchedPerson = people.find(person =>
+      person.id === authorKey ||
+      person.username === authorKey ||
+      person.id === event.createdByName ||
+      person.username === event.createdByName
+    );
+
+    return matchedPerson?.name || event.createdByName || authorKey || 'Не указан';
+  }, [users, people]);
+
   const getListColor = (listId?: string) => {
     if (!listId) return 'bg-gray-100 dark:bg-white/5';
     const list = lists.find(l => l.id === listId);
@@ -453,6 +606,11 @@ export default function CalendarBoard() {
 
   const handleAddEvent = async () => {
     if (!newEvent.title.trim() || !selectedDate) return;
+
+    if (isMainSharedList(activeCalendarList)) {
+      const shouldCreate = confirm('Вы создаёте событие в основном общем календаре. Его увидят все пользователи. Продолжить?');
+      if (!shouldCreate) return;
+    }
 
     try {
       const datesToAdd: Date[] = [];
@@ -507,15 +665,21 @@ export default function CalendarBoard() {
       console.log('[CalendarBoard] Dates to create:', datesToAdd.map(d => formatDateKey(d)));
 
       const responses = await Promise.all(datesToAdd.map(async (date, index) => {
+        const myAccountRaw = localStorage.getItem('myAccount');
+        const myAccount = myAccountRaw ? JSON.parse(myAccountRaw) : null;
         const eventData = {
           title: newEvent.title,
           date: formatDateKey(date),
           time: newEvent.time || undefined,
+          remind: newEvent.remind || undefined,
           description: newEvent.description || undefined,
           type: newEvent.type,
           listId: activeListId || undefined,
           recurrence: 'once',
-          sourceId: sourceId // Добавляем sourceId для связи повторяющихся событий
+          sourceId: sourceId,
+          createdBy: myAccount?.id || localStorage.getItem('username') || undefined,
+          createdByName: myAccount?.name || localStorage.getItem('username') || undefined,
+          assignedBy: localStorage.getItem('username') || undefined
         };
 
         console.log(`[CalendarBoard] Creating event ${index + 1}/${datesToAdd.length}:`, eventData);
@@ -548,7 +712,7 @@ export default function CalendarBoard() {
       }
       
       setShowAddEvent(false);
-      setNewEvent({ title: '', time: '', description: '', type: 'work', recurrence: 'once' });
+      setNewEvent({ title: '', time: '', remind: false, description: '', type: 'work', recurrence: 'once' });
       setSelectedDate(null);
     } catch (error) {
       console.error('Error adding event:', error);
@@ -569,7 +733,7 @@ export default function CalendarBoard() {
             await handleDeleteRecurringSeries(editingEvent);
             setEditingEvent(null);
             setShowAddEvent(false);
-            setNewEvent({ title: '', time: '', description: '', type: 'work', recurrence: 'once' });
+            setNewEvent({ title: '', time: '', remind: false, description: '', type: 'work', recurrence: 'once' });
             return;
           }
         }
@@ -579,6 +743,7 @@ export default function CalendarBoard() {
         title: newEvent.title,
         date: editingEvent.date,
         time: newEvent.time || undefined,
+        remind: newEvent.remind || undefined,
         description: newEvent.description || undefined,
         type: newEvent.type,
         listId: editingEvent.listId,
@@ -593,11 +758,13 @@ export default function CalendarBoard() {
       });
 
       if (res.ok) {
+        const previousEventSnapshot = { ...editingEvent };
         const updated = await res.json();
         setEvents(prev => prev.map(e => e.id === updated.id ? updated : e));
+        await sendCalendarEventUpdateNotification(updated, previousEventSnapshot);
         setEditingEvent(null);
         setShowAddEvent(false);
-        setNewEvent({ title: '', time: '', description: '', type: 'work', recurrence: 'once' });
+        setNewEvent({ title: '', time: '', remind: false, description: '', type: 'work', recurrence: 'once' });
       }
     } catch (error) {
       console.error('Error updating event:', error);
@@ -736,6 +903,7 @@ export default function CalendarBoard() {
     setNewEvent({
       title: event.title,
       time: event.time || '',
+      remind: !!event.remind,
       description: event.description || '',
       type: (event.type === 'task' || event.type === 'tz') ? 'work' : event.type,
       recurrence: event.recurrence || 'once'
@@ -753,33 +921,57 @@ export default function CalendarBoard() {
       className="h-full flex flex-col bg-gradient-to-br from-white/90 to-white/80 dark:from-white/10 dark:to-white/5 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden select-none"
       onCopy={(e) => e.preventDefault()}
     >
+      {showSharedCalendarToast && (
+        <div className="fixed top-[56px] right-4 z-[120] max-w-xs rounded-xl border border-blue-300/70 dark:border-blue-400/40 bg-white/95 dark:bg-[#1a1a1a]/95 px-3 py-2 shadow-lg backdrop-blur-sm">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <div className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                {calendarToastType === 'shared' ? 'Основной общий календарь' : 'Личный календарь'}
+              </div>
+              <div className="text-[11px] text-gray-600 dark:text-white/70">
+                {calendarToastType === 'shared'
+                  ? 'События в этом календаре увидят все пользователи.'
+                  : 'События в этом календаре видите только вы.'}
+              </div>
+            </div>
+            <button
+              onClick={() => setShowSharedCalendarToast(false)}
+              className="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+              title="Закрыть"
+            >
+              <X className="w-3.5 h-3.5 text-gray-500 dark:text-white/60" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex-shrink-0 h-12 px-2 sm:px-4 border-b border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[var(--bg-secondary)] flex items-center">
+      <div className="flex-shrink-0 px-3 py-2 border-b border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[var(--bg-secondary)]">
         {/* Desktop */}
-        <div className="hidden sm:flex items-center justify-between gap-3 w-full">
+        <div className="hidden sm:flex items-center justify-between gap-2 w-full">
           <div className="flex items-center gap-2 flex-1 min-w-0">            
             {/* Calendar List Selector */}
             <div className="relative">
               <button
                 onClick={() => setShowListSelector(!showListSelector)}
-                className="flex items-center gap-2 px-3 h-8 bg-white/10 dark:bg-white/5 hover:bg-white/20 dark:hover:bg-white/10 rounded-lg transition-all text-sm font-medium border border-white/10"
+                className="flex items-center gap-2 px-3 h-10 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all text-sm font-medium border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] backdrop-blur-xl"
                 style={{ borderLeftWidth: '3px', borderLeftColor: calendarLists.find(l => l.id === activeListId)?.color || '#3B82F6' }}
               >
                 <CalendarIcon className="w-4 h-4 text-gray-600 dark:text-white/70" />
                 <span className="max-w-[150px] truncate text-gray-900 dark:text-white">
                   {calendarLists.find(l => l.id === activeListId)?.name || (calendarLists.length > 0 ? calendarLists[0].name : 'Нет календарей')}
                 </span>
+                {isMainSharedList(activeCalendarList) && (
+                  <span className="px-1.5 py-0.5 rounded bg-blue-500/15 text-[10px] font-semibold text-blue-600 dark:text-blue-300">
+                    ОБЩИЙ
+                  </span>
+                )}
                 <ChevronDown className="w-3.5 h-3.5 text-gray-500 dark:text-white/50" style={{ transform: showListSelector ? 'rotate(180deg)' : 'rotate(0)' }} />
               </button>
               
               {showListSelector && (
                 <>
-                  {/* Backdrop на мобилке */}
-                  <div 
-                    className="sm:hidden fixed inset-0 bg-black/50 z-40"
-                    onClick={() => setShowListSelector(false)}
-                  />
-                  <div className="fixed sm:absolute top-1/2 sm:top-full left-1/2 sm:left-0 -translate-x-1/2 sm:translate-x-0 -translate-y-1/2 sm:translate-y-0 sm:right-auto mt-0 sm:mt-2 w-[90vw] sm:w-72 max-w-[400px] sm:max-w-none bg-white/95 dark:bg-[var(--bg-secondary)]/95 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-2xl shadow-xl z-50 overflow-hidden ring-1 ring-black/5">
+                  <div className="hidden sm:block sm:absolute top-full left-0 mt-2 w-72 max-w-none bg-white/95 dark:bg-[var(--bg-secondary)]/95 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-2xl shadow-xl z-50 overflow-hidden ring-1 ring-black/5">
                   <div className="p-3 border-b border-gray-100 dark:border-white/10 flex items-center justify-between bg-gray-50/50 dark:bg-white/5">
                     <span className="text-xs text-gray-500 dark:text-white/50 font-bold uppercase tracking-wider px-2">Календари</span>
                   </div>
@@ -842,6 +1034,13 @@ export default function CalendarBoard() {
                               >
                                 {list.name}
                               </div>
+                              <div className="mt-0.5 flex items-center gap-1.5">
+                                {isMainSharedList(list) ? (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-600 dark:text-blue-300 font-medium">Основной общий</span>
+                                ) : (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 font-medium">Личный</span>
+                                )}
+                              </div>
                               {list.description && (
                                 <div className="text-xs text-gray-500 dark:text-white/40 truncate" title={list.description}>{list.description}</div>
                               )}
@@ -855,12 +1054,19 @@ export default function CalendarBoard() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
+                              if (isMainSharedList(list)) {
+                                return;
+                              }
                               setListSettingsData(list);
                               setShowListSettings(true);
                               setShowListSelector(false);
                             }}
-                            className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg transition-colors text-gray-400 dark:text-white/30 hover:text-gray-600 dark:hover:text-white"
-                            title="Настройки доступа"
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              isMainSharedList(list)
+                                ? 'text-gray-300 dark:text-white/20 cursor-not-allowed'
+                                : 'hover:bg-gray-200 dark:hover:bg-white/10 text-gray-400 dark:text-white/30 hover:text-gray-600 dark:hover:text-white'
+                            }`}
+                            title={isMainSharedList(list) ? 'Доступ основного общего календаря нельзя редактировать' : 'Настройки доступа'}
                           >
                             <Settings className="w-3.5 h-3.5" />
                           </button>
@@ -886,16 +1092,16 @@ export default function CalendarBoard() {
             </div>
           </div>
           
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             <button
               onClick={goToPreviousMonth}
-              className="p-1.5 text-gray-600 dark:text-white/70 hover:bg-white/10 dark:hover:bg-white/10 rounded-lg transition-all"
+              className="w-10 h-10 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl text-gray-600 dark:text-white/70 transition-all flex items-center justify-center"
               title="Предыдущий месяц"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            
-            <div className="px-3 flex items-center justify-center min-w-[140px]">
+
+            <div className="px-4 h-10 min-w-[220px] rounded-[20px] bg-gradient-to-br from-white/15 to-white/5 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl flex items-center justify-center">
               <span className="text-sm font-semibold text-gray-900 dark:text-white whitespace-nowrap">
                 {currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).charAt(0).toUpperCase() + currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).slice(1)}
               </span>
@@ -903,7 +1109,7 @@ export default function CalendarBoard() {
 
             <button
               onClick={goToNextMonth}
-              className="p-1.5 text-gray-600 dark:text-white/70 hover:bg-white/10 dark:hover:bg-white/10 rounded-lg transition-all"
+              className="w-10 h-10 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl text-gray-600 dark:text-white/70 transition-all flex items-center justify-center"
               title="Следующий месяц"
             >
               <ChevronRight className="w-4 h-4" />
@@ -912,15 +1118,15 @@ export default function CalendarBoard() {
 
           <button
             onClick={goToCurrentMonth}
-            className="px-3 h-8 text-xs font-medium rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-all whitespace-nowrap"
+            className="px-3 h-10 text-sm font-medium rounded-[20px] bg-gradient-to-br from-blue-500/20 to-blue-500/10 text-blue-600 dark:text-blue-400 hover:from-blue-500/24 hover:to-blue-500/16 border border-blue-500/30 backdrop-blur-xl transition-all whitespace-nowrap"
           >
             Сегодня
           </button>
 
-          <div className="flex items-center gap-1 p-1 rounded-lg bg-white/10 dark:bg-white/5 border border-white/10">
+          <div className="flex items-center gap-1 p-1 h-10 rounded-[20px] bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl">
             <button
               onClick={() => setViewMode('grid')}
-              className={`w-7 h-7 rounded-md flex items-center justify-center transition-all ${
+              className={`w-8 h-8 rounded-[14px] flex items-center justify-center transition-all ${
                 viewMode === 'grid'
                   ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
                   : 'text-gray-500 dark:text-white/50 hover:bg-white/10'
@@ -931,7 +1137,7 @@ export default function CalendarBoard() {
             </button>
             <button
               onClick={() => setViewMode('timeline')}
-              className={`w-7 h-7 rounded-md flex items-center justify-center transition-all ${
+              className={`w-8 h-8 rounded-[14px] flex items-center justify-center transition-all ${
                 viewMode === 'timeline'
                   ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
                   : 'text-gray-500 dark:text-white/50 hover:bg-white/10'
@@ -948,7 +1154,7 @@ export default function CalendarBoard() {
           <div className="relative flex-1 min-w-0">
             <button
               onClick={() => setShowListSelector(!showListSelector)}
-              className="w-full flex items-center justify-between gap-2 px-2 h-8 bg-white/10 dark:bg-white/5 rounded-lg transition-all text-xs border border-white/10"
+              className="w-full flex items-center justify-between gap-2 px-3 h-9 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all text-xs border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
               style={{ borderLeft: `3px solid ${calendarLists.find(l => l.id === activeListId)?.color || '#3B82F6'}` }}
             >
               <span className="truncate flex-1 text-left font-medium text-gray-900 dark:text-white">
@@ -956,6 +1162,67 @@ export default function CalendarBoard() {
               </span>
               <ChevronDown className="w-3 h-3 text-gray-500 dark:text-white/50" />
             </button>
+
+            {showListSelector && (
+              <>
+                <div
+                  className="fixed inset-0 bg-black/50 z-40 sm:hidden"
+                  onClick={() => setShowListSelector(false)}
+                />
+                <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 sm:hidden w-[90vw] max-w-[400px] bg-white/95 dark:bg-[var(--bg-secondary)]/95 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-2xl shadow-xl overflow-hidden ring-1 ring-black/5">
+                  <div className="p-3 border-b border-gray-100 dark:border-white/10 flex items-center justify-between bg-gray-50/50 dark:bg-white/5">
+                    <span className="text-xs text-gray-500 dark:text-white/50 font-bold uppercase tracking-wider px-2">Календари</span>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto py-1">
+                    {calendarLists.map(list => (
+                      <div
+                        key={list.id}
+                        onClick={() => {
+                          if (editingListId !== list.id) {
+                            setActiveListId(list.id);
+                            localStorage.setItem('calendar_active_list_id', list.id);
+                            fetch('/api/calendar-lists', {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ activeListId: list.id })
+                            });
+                            setShowListSelector(false);
+                          }
+                        }}
+                        className="px-3 py-2.5 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer flex items-center gap-3 transition-colors"
+                        style={{ borderLeft: `3px solid ${list.color}` }}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm text-gray-900 dark:text-white truncate" title={list.name}>
+                            {list.name}
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-1.5">
+                            {isMainSharedList(list) ? (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-600 dark:text-blue-300 font-medium">Основной общий</span>
+                            ) : (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 font-medium">Личный</span>
+                            )}
+                          </div>
+                        </div>
+                        {list.id === activeListId && <Check className="w-4 h-4 text-blue-500" />}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-2 border-t border-gray-100 dark:border-white/10 bg-gray-50/50 dark:bg-white/5">
+                    <button
+                      onClick={() => {
+                        setShowCreateList(true);
+                        setShowListSelector(false);
+                      }}
+                      className="w-full px-3 py-2 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-500/10 rounded-xl transition-colors flex items-center gap-2 justify-center font-semibold"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Создать календарь
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -964,26 +1231,29 @@ export default function CalendarBoard() {
       <div className="sm:hidden flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-white/10 bg-white/50 dark:bg-[var(--bg-secondary)]/70">
         <button
           onClick={goToPreviousMonth}
-          className="p-1.5 text-gray-600 dark:text-white/70 hover:bg-white/20 dark:hover:bg-white/10 rounded-md"
+          className="w-9 h-9 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl text-gray-600 dark:text-white/70 flex items-center justify-center"
+          title="Предыдущий месяц"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
-        
-        <div className="text-sm font-semibold text-gray-900 dark:text-white">
-          {currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).charAt(0).toUpperCase() + currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).slice(1)}
+
+        <div className="flex-1 mx-2 h-9 rounded-[20px] bg-gradient-to-br from-white/15 to-white/5 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl flex items-center justify-center min-w-0">
+          <div className="text-sm font-semibold text-gray-900 dark:text-white truncate px-2">
+            {currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).charAt(0).toUpperCase() + currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).slice(1)}
+          </div>
         </div>
-        
-        <div className="flex items-center gap-1">
+
+        <div className="flex items-center gap-1 px-1 py-0.5 rounded-[20px] bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl">
           <button
             onClick={goToCurrentMonth}
-            className="px-2 py-1 text-xs font-medium rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20"
+            className="h-8 px-2.5 text-xs font-medium rounded-[20px] bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20"
           >
             Сегодня
           </button>
-          <div className="flex items-center gap-1 p-0.5 rounded-md bg-white/10 dark:bg-white/5 border border-white/10">
+          <div className="flex items-center gap-1 p-0.5 rounded-[20px] bg-white/10 dark:bg-white/5 border border-white/10">
             <button
               onClick={() => setViewMode('grid')}
-              className={`w-6 h-6 rounded-md flex items-center justify-center transition-all ${
+              className={`w-7 h-7 rounded-[12px] flex items-center justify-center transition-all ${
                 viewMode === 'grid'
                   ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
                   : 'text-gray-500 dark:text-white/50'
@@ -994,7 +1264,7 @@ export default function CalendarBoard() {
             </button>
             <button
               onClick={() => setViewMode('timeline')}
-              className={`w-6 h-6 rounded-md flex items-center justify-center transition-all ${
+              className={`w-7 h-7 rounded-[12px] flex items-center justify-center transition-all ${
                 viewMode === 'timeline'
                   ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
                   : 'text-gray-500 dark:text-white/50'
@@ -1004,13 +1274,15 @@ export default function CalendarBoard() {
               <List className="w-3.5 h-3.5" />
             </button>
           </div>
-          <button
-            onClick={goToNextMonth}
-            className="p-1.5 text-gray-600 dark:text-white/70 hover:bg-white/20 dark:hover:bg-white/10 rounded-md"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
         </div>
+
+        <button
+          onClick={goToNextMonth}
+          className="w-9 h-9 ml-2 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl text-gray-600 dark:text-white/70 flex items-center justify-center"
+          title="Следующий месяц"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
 
       {viewMode === 'grid' ? (
@@ -1032,10 +1304,9 @@ export default function CalendarBoard() {
             <div className="grid grid-cols-7 border-l border-gray-200 dark:border-white/10 pb-[calc(env(safe-area-inset-bottom)+88px)] md:pb-[calc(env(safe-area-inset-bottom)+56px)]">
               {getCalendarDays().map(({ date, isCurrentMonth }, idx) => {
                 const dateKey = formatDateKey(date);
-                const dayTodos = getTodosForDay(date);
                 const dayEvents = getEventsForDay(date);
                 const isToday = dateKey === formatDateKey(new Date());
-                const totalItems = dayTodos.length + dayEvents.length;
+                const totalItems = dayEvents.length;
 
                 return (
                   <div
@@ -1117,39 +1388,9 @@ export default function CalendarBoard() {
                         );
                       })}
 
-                      {/* Todos */}
-                      {dayTodos.slice(0, Math.max(0, 3 - dayEvents.length)).map(todo => {
-                        const list = lists.find(l => l.id === todo.listId);
-                        return (
-                          <div
-                            key={todo.id}
-                            onClick={() => router.push(`/account?tab=tasks&task=${todo.id}&from=${encodeURIComponent('/account?tab=calendar')}`, { scroll: false })}
-                            className={`
-                              text-[8px] sm:text-[9px] px-1 sm:px-1.5 py-0.5 sm:py-1 rounded cursor-pointer transition-all
-                              border-l-2 ${PRIORITY_COLORS[todo.priority]}
-                              ${todo.completed 
-                                ? 'opacity-60 line-through bg-gray-100 dark:bg-white/5' 
-                                : 'bg-gray-200 dark:bg-white/10'
-                              }
-                              hover:shadow-md
-                            `}
-                            title={todo.title}
-                          >
-                            <div className="flex items-center gap-1">
-                              {todo.completed && (
-                                <Check className="w-2.5 h-2.5 flex-shrink-0 text-green-500" />
-                              )}
-                              <span className="truncate font-medium text-gray-900 dark:text-white">
-                                {todo.title}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {totalItems > 3 && (
+                      {totalItems > 2 && (
                         <div className="text-[8px] text-gray-500 dark:text-white/40 px-1.5 py-0.5 bg-gray-100 dark:bg-white/5 rounded text-center font-medium">
-                          +{totalItems - 3}
+                          +{totalItems - 2}
                         </div>
                       )}
                     </div>
@@ -1233,9 +1474,9 @@ export default function CalendarBoard() {
       {/* Add/Edit Event Modal */}
       {showAddEvent && (selectedDate || editingEvent) && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 sm:p-4">
-          <div className="bg-white dark:bg-[var(--bg-secondary)] rounded-t-2xl sm:rounded-xl border-t sm:border border-gray-200 dark:border-white/10 w-full sm:max-w-md shadow-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 dark:border-white/10 flex-shrink-0">
-              <h3 className="font-semibold text-sm sm:text-base text-gray-900 dark:text-white">
+          <div className="bg-gradient-to-br from-white/96 to-white/90 dark:from-[var(--bg-secondary)] dark:to-[var(--bg-secondary)]/90 rounded-t-2xl sm:rounded-2xl border-t sm:border border-gray-200/80 dark:border-white/10 w-full sm:max-w-md shadow-[0_20px_60px_rgba(0,0,0,0.28)] max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200/80 dark:border-white/10 flex-shrink-0 bg-white/70 dark:bg-white/[0.03] backdrop-blur-sm">
+              <h3 className="font-semibold text-sm sm:text-base text-gray-900 dark:text-white tracking-tight">
                 {editingEvent ? (
                   <>Редактировать событие</>
                 ) : (
@@ -1246,15 +1487,15 @@ export default function CalendarBoard() {
                 onClick={() => {
                   setShowAddEvent(false);
                   setEditingEvent(null);
-                  setNewEvent({ title: '', time: '', description: '', type: 'work', recurrence: 'once' });
+                  setNewEvent({ title: '', time: '', remind: false, description: '', type: 'work', recurrence: 'once' });
                 }}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
+                className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl transition-colors"
               >
                 <X className="w-5 h-5 text-gray-500 dark:text-white/60" />
               </button>
             </div>
 
-            <div className="p-3 sm:p-4 space-y-3 overflow-y-auto flex-1 min-h-0">
+            <div className="p-3 sm:p-4 space-y-3 overflow-y-auto flex-1 min-h-0 bg-gradient-to-b from-white/20 to-transparent dark:from-transparent">
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-white/60 mb-1">Название</label>
                 <input
@@ -1262,8 +1503,19 @@ export default function CalendarBoard() {
                   value={newEvent.title}
                   onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
                   placeholder="Встреча, звонок, дедлайн..."
-                  className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-900 dark:text-white"
+                  className="w-full px-4 py-2.5 bg-gradient-to-r from-white/75 to-white/55 dark:from-white/10 dark:to-white/5 border border-gray-200/80 dark:border-white/15 rounded-[20px] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-900 dark:text-white backdrop-blur-xl"
                   autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-white/60 mb-1">Описание</label>
+                <textarea
+                  value={newEvent.description}
+                  onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
+                  placeholder="Детали события..."
+                  rows={3}
+                  className="w-full px-4 py-2.5 bg-gradient-to-r from-white/75 to-white/55 dark:from-white/10 dark:to-white/5 border border-gray-200/80 dark:border-white/15 rounded-[20px] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-900 dark:text-white resize-none backdrop-blur-xl"
                 />
               </div>
 
@@ -1273,8 +1525,21 @@ export default function CalendarBoard() {
                   type="time"
                   value={newEvent.time}
                   onChange={(e) => setNewEvent({ ...newEvent, time: e.target.value })}
-                  className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-900 dark:text-white"
+                  className="w-full px-4 py-2.5 bg-gradient-to-r from-white/75 to-white/55 dark:from-white/10 dark:to-white/5 border border-gray-200/80 dark:border-white/15 rounded-[20px] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-900 dark:text-white backdrop-blur-xl"
                 />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  id="event-remind"
+                  type="checkbox"
+                  checked={newEvent.remind}
+                  onChange={(e) => setNewEvent({ ...newEvent, remind: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="event-remind" className="text-xs font-medium text-gray-600 dark:text-white/60">
+                  Напомнить
+                </label>
               </div>
 
               <div>
@@ -1343,10 +1608,10 @@ export default function CalendarBoard() {
                       key={option.value}
                       type="button"
                       onClick={() => setNewEvent({ ...newEvent, recurrence: option.value as any })}
-                      className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                      className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${
                         newEvent.recurrence === option.value
                           ? 'bg-blue-500 text-white shadow-md'
-                          : 'bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-white/70 hover:bg-gray-200 dark:hover:bg-white/10'
+                          : 'bg-white/70 dark:bg-white/5 text-gray-700 dark:text-white/70 border border-gray-200/70 dark:border-white/10 hover:bg-white dark:hover:bg-white/10'
                       }`}
                     >
                       {option.label}
@@ -1355,19 +1620,17 @@ export default function CalendarBoard() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-white/60 mb-1">Описание</label>
-                <textarea
-                  value={newEvent.description}
-                  onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
-                  placeholder="Детали события..."
-                  rows={3}
-                  className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-[20px] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-900 dark:text-white resize-none"
-                />
-              </div>
+              {editingEvent && (
+                <div className="rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 px-3 py-2">
+                  <div className="text-[11px] text-gray-500 dark:text-white/50">Автор события</div>
+                  <div className="text-sm font-medium text-gray-900 dark:text-white">
+                    {resolveEventAuthorName(editingEvent)}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="flex gap-2 p-3 sm:p-4 border-t border-gray-200 dark:border-white/10 flex-shrink-0">
+            <div className="flex gap-2 p-3 sm:p-4 border-t border-gray-200/80 dark:border-white/10 flex-shrink-0 bg-white/75 dark:bg-white/[0.03] backdrop-blur-sm">
               {editingEvent && (
                 <>
                   <button
@@ -1375,7 +1638,7 @@ export default function CalendarBoard() {
                     onClick={() => {
                       handleDeleteEvent(editingEvent.id);
                     }}
-                    className="px-3 sm:px-4 py-2 sm:py-2.5 bg-red-500 text-white hover:bg-red-600 rounded-lg text-sm font-medium transition-colors"
+                    className="px-3 sm:px-4 py-2 sm:py-2.5 bg-red-500 text-white hover:bg-red-600 rounded-xl text-sm font-medium transition-colors"
                   >
                     Удалить
                   </button>
@@ -1387,10 +1650,10 @@ export default function CalendarBoard() {
                           await handleDeleteRecurringSeries(editingEvent);
                           setShowAddEvent(false);
                           setEditingEvent(null);
-                          setNewEvent({ title: '', time: '', description: '', type: 'work', recurrence: 'once' });
+                          setNewEvent({ title: '', time: '', remind: false, description: '', type: 'work', recurrence: 'once' });
                         }
                       }}
-                      className="px-3 sm:px-4 py-2 sm:py-2.5 bg-orange-500 text-white hover:bg-orange-600 rounded-lg text-sm font-medium transition-colors"
+                      className="px-3 sm:px-4 py-2 sm:py-2.5 bg-orange-500 text-white hover:bg-orange-600 rounded-xl text-sm font-medium transition-colors"
                     >
                       Удалить серию ({editingRecurringGroupSize})
                     </button>
@@ -1400,7 +1663,7 @@ export default function CalendarBoard() {
               <button
                 onClick={editingEvent ? handleUpdateEvent : handleAddEvent}
                 disabled={!newEvent.title.trim()}
-                className="flex-1 py-2 sm:py-2.5 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors disabled:cursor-not-allowed"
+                className="flex-1 py-2 sm:py-2.5 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white rounded-xl text-sm font-medium transition-colors disabled:cursor-not-allowed"
               >
                 {editingEvent ? 'Сохранить' : 'Добавить'}
               </button>
@@ -1408,9 +1671,9 @@ export default function CalendarBoard() {
                 onClick={() => {
                   setShowAddEvent(false);
                   setEditingEvent(null);
-                  setNewEvent({ title: '', time: '', description: '', type: 'work', recurrence: 'once' });
+                  setNewEvent({ title: '', time: '', remind: false, description: '', type: 'work', recurrence: 'once' });
                 }}
-                className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-700 dark:text-white rounded-lg text-sm font-medium transition-colors"
+                className="px-3 sm:px-4 py-2 sm:py-2.5 bg-white dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/20 border border-gray-200/80 dark:border-white/10 text-gray-700 dark:text-white rounded-xl text-sm font-medium transition-colors"
               >
                 Отмена
               </button>
@@ -1618,6 +1881,7 @@ export default function CalendarBoard() {
               </div>
 
               {/* Advanced Access Management */}
+              {!isMainSharedList(listSettingsData) && (
               <div className="space-y-3 rounded-2xl p-3 bg-white dark:bg-[var(--bg-tertiary)] border border-gray-200 dark:border-white/10">
                 <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-white/50">Управление доступом</div>
 
@@ -1937,6 +2201,13 @@ export default function CalendarBoard() {
                   </div>
                 )}
               </div>
+              )}
+
+              {isMainSharedList(listSettingsData) && (
+                <div className="rounded-2xl p-3 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 text-xs text-blue-700 dark:text-blue-300">
+                  Основной общий календарь: права доступа фиксированы и не редактируются.
+                </div>
+              )}
             </div>
             
             <div className="border-t border-gray-200 dark:border-white/10 px-4 sm:px-5 py-3 sm:py-4 flex justify-between flex-shrink-0">

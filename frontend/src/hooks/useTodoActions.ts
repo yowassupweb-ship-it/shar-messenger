@@ -13,6 +13,13 @@ export function useTodoActions(
   closeTodoModal: () => void,
   TZ_LIST_ID: string
 ) {
+  const isSharedCalendarList = (list?: CalendarList | null) => {
+    if (!list) return false;
+    return list.id === 'shared-main' || !!list.isDefault || list.name.toLowerCase().includes('общ');
+  };
+
+  const personalCalendarLists = calendarLists.filter(list => !isSharedCalendarList(list));
+
   const addTodo = useCallback(async (
     listId: string,
     newTodoTitle: string,
@@ -81,6 +88,16 @@ export function useTodoActions(
     try {
       const list = lists.find(l => l.id === todo.listId);
       const isTZ = todo.listId === TZ_LIST_ID;
+      const selectedCalendar = calendarLists.find(cl => cl.id === todo.calendarListId);
+      const targetCalendar = selectedCalendar && !isSharedCalendarList(selectedCalendar)
+        ? selectedCalendar
+        : (personalCalendarLists[0] || null);
+
+      if (!targetCalendar) {
+        alert('Для задачи нужно выбрать личный календарь. Общий календарь для задач недоступен.');
+        return null;
+      }
+
       const baseDate = todo.dueDate || new Date().toISOString().split('T')[0];
       const datesToAdd: string[] = [baseDate];
 
@@ -118,7 +135,7 @@ export function useTodoActions(
           date,
           priority: todo.priority || 'medium',
           type: isTZ ? 'tz' : 'task',
-          listId: todo.calendarListId || (calendarLists.length > 0 ? calendarLists[0].id : undefined),
+          listId: targetCalendar.id,
           sourceId: todo.id,
           assignedTo: todo.assignedTo,
           assignedBy: todo.assignedBy,

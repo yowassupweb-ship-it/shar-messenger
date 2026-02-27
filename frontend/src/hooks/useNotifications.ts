@@ -44,7 +44,7 @@ export function useNotifications({
             ? 'Новая задача'
             : 'Уведомление';
     const noun = firstNotif.type === 'comment' ? 'комментариев' : 'уведомлений';
-    const content = `<b>${title}</b>\n\n${firstNotif.fromUserName}: +${groupNotifs.length} ${noun}`;
+    const content = `${title}\n${firstNotif.fromUserName}: +${groupNotifs.length} ${noun}`;
 
     fetch(`/api/chats/notifications/${myAccountId}/send`, {
       method: 'POST',

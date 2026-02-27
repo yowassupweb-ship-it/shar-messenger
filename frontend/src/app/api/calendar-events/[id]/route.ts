@@ -7,15 +7,19 @@ interface CalendarEvent {
   description: string;
   date: string;
   time?: string;
+  remind?: boolean;
   type: 'work' | 'meeting' | 'event' | 'holiday';
   recurrence?: 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
   listId?: string;
   sourceId?: string; // ID задачи, если событие связано с задачей
   assignedTo?: string;
   assignedBy?: string;
+  createdBy?: string;
+  createdByName?: string;
   linkUrl?: string;
   linkTitle?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 interface CalendarData {
@@ -72,14 +76,18 @@ export async function PUT(
       description: body.description ?? originalEvent.description,
       date: body.date ?? originalEvent.date,
       time: body.time ?? originalEvent.time,
+      remind: body.remind ?? originalEvent.remind,
       type: body.type ?? originalEvent.type,
       recurrence: body.recurrence ?? originalEvent.recurrence,
       listId: body.listId ?? originalEvent.listId,
       sourceId: body.sourceId ?? originalEvent.sourceId,
       assignedTo: body.assignedTo ?? originalEvent.assignedTo,
       assignedBy: body.assignedBy ?? originalEvent.assignedBy,
+      createdBy: body.createdBy ?? originalEvent.createdBy,
+      createdByName: body.createdByName ?? originalEvent.createdByName,
       linkUrl: body.linkUrl ?? originalEvent.linkUrl,
       linkTitle: body.linkTitle ?? originalEvent.linkTitle,
+      updatedAt: new Date().toISOString(),
     };
 
     data.events[eventIndex] = updatedEvent;

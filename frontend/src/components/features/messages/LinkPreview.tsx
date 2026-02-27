@@ -18,6 +18,11 @@ interface PreviewData {
 export default function LinkPreview({ url, isMyMessage }: LinkPreviewProps) {
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(true);
+  const containerClass = isMyMessage
+    ? 'bg-gradient-to-b from-white/28 to-white/14 dark:from-white/10 dark:to-white/5 border-white/40 dark:border-white/20'
+    : 'bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border-[var(--border-light)]';
+  const titleClass = isMyMessage ? 'text-white dark:text-[var(--text-primary)]' : 'text-[var(--text-primary)]';
+  const secondaryClass = isMyMessage ? 'text-white/80 dark:text-[var(--text-muted)]' : 'text-[var(--text-muted)]';
 
   useEffect(() => {
     const fetchPreview = async () => {
@@ -39,9 +44,9 @@ export default function LinkPreview({ url, isMyMessage }: LinkPreviewProps) {
 
   if (loading) {
     return (
-      <div className={`mt-2 mb-5 block p-3 rounded-lg border ${isMyMessage ? 'bg-blue-600/20 border-blue-500/30' : 'bg-[var(--bg-secondary)] border-[var(--border-color)]'} animate-pulse`}>
-        <div className="h-4 bg-white/10 rounded w-3/4 mb-2"></div>
-        <div className="h-3 bg-white/10 rounded w-1/2"></div>
+      <div className={`mt-2 mb-5 block p-3 rounded-xl border backdrop-blur-md shadow-[var(--shadow-glass)] ${containerClass} animate-pulse`}>
+        <div className="h-4 bg-black/10 dark:bg-white/10 rounded w-3/4 mb-2"></div>
+        <div className="h-3 bg-black/10 dark:bg-white/10 rounded w-1/2"></div>
       </div>
     );
   }
@@ -52,11 +57,11 @@ export default function LinkPreview({ url, isMyMessage }: LinkPreviewProps) {
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className={`mt-2 mb-5 block p-3 rounded-lg border ${isMyMessage ? 'bg-blue-600/20 border-blue-500/30' : 'bg-[var(--bg-secondary)] border-[var(--border-color)]'} hover:opacity-80 transition-opacity`}
+        className={`mt-2 mb-5 block p-3 rounded-xl border backdrop-blur-md shadow-[var(--shadow-glass)] ${containerClass} hover:opacity-90 transition-opacity`}
       >
         <div className="flex items-start gap-2">
-          <LinkIcon className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-[var(--text-primary)] truncate">{url}</p>
+          <LinkIcon className="w-4 h-4 text-[var(--accent-primary)] flex-shrink-0 mt-0.5" />
+          <p className={`text-xs truncate ${titleClass}`}>{url}</p>
         </div>
       </a>
     );
@@ -67,10 +72,10 @@ export default function LinkPreview({ url, isMyMessage }: LinkPreviewProps) {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className={`mt-2 mb-5 block rounded-lg border overflow-hidden ${isMyMessage ? 'bg-blue-600/20 border-blue-500/30' : 'bg-[var(--bg-secondary)] border-[var(--border-color)]'} hover:opacity-90 transition-opacity`}
+      className={`mt-2 mb-5 block rounded-xl border overflow-hidden backdrop-blur-md shadow-[var(--shadow-glass)] ${containerClass} hover:opacity-95 transition-opacity`}
     >
       {preview.image && (
-        <div className="w-full h-32 bg-black/20 overflow-hidden">
+        <div className="w-full h-32 bg-[var(--bg-glass)] overflow-hidden">
           <img 
             src={preview.image} 
             alt={preview.title}
@@ -86,17 +91,17 @@ export default function LinkPreview({ url, isMyMessage }: LinkPreviewProps) {
       )}
       <div className="p-3">
         <div className="flex items-start gap-2 mb-1">
-          <LinkIcon className="w-3.5 h-3.5 text-purple-400 flex-shrink-0 mt-0.5" />
+          <LinkIcon className="w-3.5 h-3.5 text-[var(--accent-primary)] flex-shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-[var(--text-primary)] line-clamp-2 mb-1">
+            <p className={`text-xs font-semibold line-clamp-2 mb-1 ${titleClass}`}>
               {preview.title}
             </p>
             {preview.description && (
-              <p className="text-[10px] text-[var(--text-muted)] line-clamp-2 mb-1">
+              <p className={`text-[10px] line-clamp-2 mb-1 ${secondaryClass}`}>
                 {preview.description}
               </p>
             )}
-            <p className="text-[9px] text-purple-400/70 truncate">
+            <p className={`text-[9px] truncate ${secondaryClass}`}>
               {preview.siteName}
             </p>
           </div>

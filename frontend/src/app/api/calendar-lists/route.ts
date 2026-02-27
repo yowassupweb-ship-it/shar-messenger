@@ -34,6 +34,72 @@ const DEFAULT_DATA: CalendarListsData = {
   activeListId: ''
 };
 
+const normalizeKey = (value?: string | null): string => {
+  if (!value) return '';
+  return value.toString().trim().toLowerCase().replace(/\s+/g, '_');
+};
+
+const ensureBaseLists = (data: CalendarListsData, ownerKey?: string | null): { changed: boolean; ensuredActiveId: string } => {
+  let changed = false;
+  const normalizedOwnerKey = normalizeKey(ownerKey);
+
+  let sharedMain = data.lists.find((list) => list.id === 'shared-main' || list.isDefault);
+  if (!sharedMain) {
+    sharedMain = {
+      id: 'shared-main',
+      name: 'Основной общий календарь',
+      description: 'Общий календарь компании. События видны всем пользователям.',
+      color: '#3B82F6',
+      createdBy: 'system',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      isDefault: true,
+      allowedUsers: [],
+      allowedDepartments: []
+    };
+    data.lists.unshift(sharedMain);
+    changed = true;
+  } else if (!sharedMain.isDefault || sharedMain.id !== 'shared-main') {
+    sharedMain.id = 'shared-main';
+    sharedMain.isDefault = true;
+    sharedMain.updatedAt = new Date().toISOString();
+    changed = true;
+  }
+
+  if (normalizedOwnerKey) {
+    const personalId = `personal-${normalizedOwnerKey}`;
+    const personalName = `Личный календарь (${ownerKey})`;
+    const existingPersonal = data.lists.find(
+      (list) =>
+        list.id === personalId ||
+        normalizeKey(list.createdBy) === normalizedOwnerKey ||
+        normalizeKey(list.name) === normalizeKey(personalName)
+    );
+
+    if (!existingPersonal) {
+      data.lists.push({
+        id: personalId,
+        name: personalName,
+        description: 'Личный календарь пользователя. События доступны владельцу.',
+        color: '#10B981',
+        createdBy: ownerKey || normalizedOwnerKey,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        allowedUsers: ownerKey ? [ownerKey] : [normalizedOwnerKey],
+        allowedDepartments: []
+      });
+      changed = true;
+    }
+  }
+
+  if (!data.activeListId || !data.lists.some((list) => list.id === data.activeListId)) {
+    data.activeListId = 'shared-main';
+    changed = true;
+  }
+
+  return { changed, ensuredActiveId: data.activeListId };
+};
+
 // GET - получить календарные листы с фильтрацией по пользователю
 export async function GET(request: NextRequest) {
   try {
@@ -44,6 +110,11 @@ export async function GET(request: NextRequest) {
     const normalizedDepartment = normalizeDepartment(department);
     
     const data = readJsonFile<CalendarListsData>('calendar-lists.json', DEFAULT_DATA);
+    const ownerKey = username || userId;
+    const { changed, ensuredActiveId } = ensureBaseLists(data, ownerKey);
+    if (changed) {
+      writeJsonFile('calendar-lists.json', data);
+    }
     
     // Фильтрация календарей по пользователю
     let filteredLists = data.lists;
@@ -80,7 +151,7 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({
       lists: filteredLists,
-      activeListId: filteredLists.length > 0 ? (data.activeListId || filteredLists[0].id) : ''
+      activeListId: filteredLists.length > 0 ? (ensuredActiveId || filteredLists[0].id) : ''
     });
   } catch (error) {
     console.error('Error reading calendar lists:', error);
@@ -128,12 +199,28 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Calendar list not found' }, { status: 404 });
     }
 
+    const current = data.lists[index];
+    const isSharedMain = current.id === 'shared-main' || current.isDefault;
+
+    const sanitizedBody = { ...body };
+    if (isSharedMain) {
+      delete (sanitizedBody as any).allowedUsers;
+      delete (sanitizedBody as any).allowedDepartments;
+      sanitizedBody.isDefault = true;
+      sanitizedBody.id = 'shared-main';
+    }
+
     // Обновляем поля
     data.lists[index] = {
-      ...data.lists[index],
-      ...body,
+      ...current,
+      ...sanitizedBody,
       updatedAt: new Date().toISOString()
     };
+
+    if (isSharedMain) {
+      data.lists[index].allowedUsers = [];
+      data.lists[index].allowedDepartments = [];
+    }
 
     // Если изменился activeListId
     if (body.activeListId) {

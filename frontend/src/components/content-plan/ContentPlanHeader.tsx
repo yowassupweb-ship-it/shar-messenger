@@ -10,6 +10,7 @@ import {
   Filter,
   ChevronDown,
   Check,
+  Globe,
   Mail,
   Search
 } from 'lucide-react';
@@ -61,16 +62,24 @@ export default function ContentPlanHeader({
   handleGoToCurrentMonth,
   handleGoToNextMonth
 }: ContentPlanHeaderProps) {
+  const [isSearchOpen, setIsSearchOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (searchQuery) {
+      setIsSearchOpen(true);
+    }
+  }, [searchQuery]);
+
   return (
     <>
       {/* View Mode Toggle */}
-      <div className="flex items-center bg-gray-200 dark:bg-white/5 rounded-lg p-0.5 mr-2 sm:mr-4">
+      <div className="flex items-center p-1 h-10 bg-gradient-to-br from-white/15 to-white/5 border border-white/20 rounded-[20px] shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl mr-2 sm:mr-3">
         <button
           onClick={() => setViewMode('columns')}
-          className={`p-1.5 sm:p-2 rounded-md transition-all ${
+          className={`w-8 h-8 rounded-[14px] flex items-center justify-center transition-all ${
             viewMode === 'columns' 
               ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' 
-              : 'text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/70'
+              : 'text-gray-500 dark:text-white/50 hover:bg-white/10'
           }`}
           title="Колонки"
         >
@@ -78,10 +87,10 @@ export default function ContentPlanHeader({
         </button>
         <button
           onClick={() => setViewMode('calendar')}
-          className={`p-1.5 sm:p-2 rounded-md transition-all ${
+          className={`w-8 h-8 rounded-[14px] flex items-center justify-center transition-all ${
             viewMode === 'calendar' 
               ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' 
-              : 'text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/70'
+              : 'text-gray-500 dark:text-white/50 hover:bg-white/10'
           }`}
           title="Календарь"
         >
@@ -92,22 +101,22 @@ export default function ContentPlanHeader({
       {/* Navigation - depends on view mode */}
       {viewMode === 'columns' ? (
         <>
-          <div className="hidden sm:flex items-center gap-2 mr-4 bg-gray-200 dark:bg-white/5 rounded-xl p-1">
+          <div className="hidden sm:flex items-center gap-2 mr-3 p-1 h-10 bg-gradient-to-br from-white/15 to-white/5 border border-white/20 rounded-[20px] shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl">
             <button
               onClick={handleGoToPreviousWeek}
-              className="p-2 hover:bg-gray-300 dark:hover:bg-white/10 rounded-lg transition-colors"
+              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={handleGoToCurrentWeek}
-              className="px-4 py-1.5 text-xs font-medium bg-purple-500/20 text-purple-600 dark:text-purple-400 hover:bg-purple-500/30 rounded-lg transition-colors"
+              className="px-3 h-8 text-xs font-medium rounded-[14px] bg-purple-500/20 text-purple-600 dark:text-purple-400 hover:bg-purple-500/30 transition-colors"
             >
               Сегодня
             </button>
             <button
               onClick={handleGoToNextWeek}
-              className="p-2 hover:bg-gray-300 dark:hover:bg-white/10 rounded-lg transition-colors"
+              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -118,22 +127,22 @@ export default function ContentPlanHeader({
         </>
       ) : (
         <>
-          <div className="hidden sm:flex items-center gap-2 mr-4 bg-gray-200 dark:bg-white/5 rounded-xl p-1">
+          <div className="hidden sm:flex items-center gap-2 mr-3 p-1 h-10 bg-gradient-to-br from-white/15 to-white/5 border border-white/20 rounded-[20px] shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl">
             <button
               onClick={handleGoToPreviousMonth}
-              className="p-2 hover:bg-gray-300 dark:hover:bg-white/10 rounded-lg transition-colors"
+              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={handleGoToCurrentMonth}
-              className="px-4 py-1.5 text-xs font-medium bg-purple-500/20 text-purple-600 dark:text-purple-400 hover:bg-purple-500/30 rounded-lg transition-colors"
+              className="px-3 h-8 text-xs font-medium rounded-[14px] bg-purple-500/20 text-purple-600 dark:text-purple-400 hover:bg-purple-500/30 transition-colors"
             >
               Сегодня
             </button>
             <button
               onClick={handleGoToNextMonth}
-              className="p-2 hover:bg-gray-300 dark:hover:bg-white/10 rounded-lg transition-colors"
+              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -150,10 +159,10 @@ export default function ContentPlanHeader({
       <div className="relative mr-2 sm:mr-3" data-filter-menu>
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg transition-all ${
+          className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 h-10 rounded-[20px] transition-all border backdrop-blur-xl ${
             selectedPlatformFilters.length > 0 
               ? 'bg-purple-500/20 border border-purple-500/30 text-purple-600 dark:text-purple-400' 
-              : 'bg-gray-200 dark:bg-white/5 border border-gray-300 dark:border-white/10 hover:bg-gray-300 dark:hover:bg-white/10 text-gray-600 dark:text-white/70'
+              : 'bg-gradient-to-br from-white/15 to-white/5 border-white/20 hover:from-white/20 hover:to-white/10 text-gray-600 dark:text-white/70 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)]'
           }`}
         >
           <Filter className="w-3.5 h-3.5" />
@@ -191,7 +200,11 @@ export default function ContentPlanHeader({
                   }`}
                 >
                   <div className={`w-5 h-5 flex items-center justify-center flex-shrink-0 ${config.iconBg ? 'bg-white rounded-full p-0.5' : ''}`}>
-                    {config.icon ? (
+                    {platform === 'mailing' ? (
+                      <Mail className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                    ) : platform === 'site' ? (
+                      <Globe className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+                    ) : config.icon ? (
                       <Image src={config.icon} alt={config.name} width={16} height={16} className="w-4 h-4 object-contain" />
                     ) : (
                       <Mail className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
@@ -209,15 +222,33 @@ export default function ContentPlanHeader({
       </div>
 
       {/* Search */}
-      <div className="relative mr-2 sm:mr-3 hidden sm:block">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-white/30" />
-        <input
-          type="text"
-          placeholder="Поиск..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9 pr-4 py-1.5 bg-gray-100 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-lg w-40 text-sm focus:outline-none focus:border-gray-400 dark:focus:border-white/20 transition-colors"
-        />
+      <div className="relative mr-2 sm:mr-3 hidden sm:flex items-center">
+        {isSearchOpen ? (
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 z-10 pointer-events-none text-gray-600 dark:text-white/40" />
+            <input
+              type="text"
+              placeholder="Поиск..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onBlur={() => {
+                if (!searchQuery.trim()) {
+                  setIsSearchOpen(false);
+                }
+              }}
+              className="pl-9 pr-4 h-10 bg-gradient-to-br from-white/15 to-white/5 border border-gray-300/70 dark:border-white/20 rounded-[20px] w-40 text-sm focus:outline-none focus:border-purple-500/40 dark:focus:border-white/30 transition-colors shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
+              autoFocus
+            />
+          </div>
+        ) : (
+          <button
+            onClick={() => setIsSearchOpen(true)}
+            className="w-10 h-10 rounded-[20px] flex items-center justify-center bg-gradient-to-br from-white/15 to-white/5 border border-white/20 hover:from-white/20 hover:to-white/10 text-gray-600 dark:text-white/70 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl transition-all"
+            title="Поиск"
+          >
+            <Search className="w-4 h-4" />
+          </button>
+        )}
       </div>
     </>
   );

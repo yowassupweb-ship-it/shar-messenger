@@ -1,6 +1,7 @@
 // ✅ Интегрированные компоненты (все 12 успешно используются в page.tsx)
 export { default as Statusdropdown } from './Statusdropdown';
 export { default as Executordropdown } from './Executordropdown';
+export { default as Departmentdropdown } from './Departmentdropdown';
 export { default as NewTodoAssigneeDropdown } from './NewTodoAssigneeDropdown';
 export { default as Mobileheadermenu } from './Mobileheadermenu';
 export { default as MobileArchiveModal } from './MobileArchiveModal';

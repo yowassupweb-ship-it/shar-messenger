@@ -729,18 +729,20 @@ export default function AdminPage() {
                 />
               </div>
 
-              <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10">
-                <input
-                  type="checkbox"
-                  id="editCanSeeAllTasks"
-                  checked={editingUser.canSeeAllTasks || false}
-                  onChange={(e) => setEditingUser({...editingUser, canSeeAllTasks: e.target.checked})}
-                  className="w-4 h-4 rounded border-gray-300 dark:border-white/20 text-blue-600 focus:ring-blue-500"
-                />
-                <label htmlFor="editCanSeeAllTasks" className="text-sm text-gray-700 dark:text-white/70 cursor-pointer">
-                  Может видеть все задачи
-                </label>
-              </div>
+              {(editingUser.canSeeAllTasks || editingUser.role === 'admin') && (
+                <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10">
+                  <input
+                    type="checkbox"
+                    id="editCanSeeAllTasks"
+                    checked={editingUser.canSeeAllTasks || false}
+                    onChange={(e) => setEditingUser({...editingUser, canSeeAllTasks: e.target.checked})}
+                    className="w-4 h-4 rounded border-gray-300 dark:border-white/20 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="editCanSeeAllTasks" className="text-sm text-gray-700 dark:text-white/70 cursor-pointer">
+                    Может видеть все задачи
+                  </label>
+                </div>
+              )}
 
               <div className="flex items-center gap-3 p-4 bg-purple-50 dark:bg-purple-500/10 rounded-xl border border-purple-200 dark:border-purple-500/20">
                 <input

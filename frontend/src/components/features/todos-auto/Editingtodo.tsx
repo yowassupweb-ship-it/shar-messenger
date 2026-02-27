@@ -1,6 +1,6 @@
 'use client';
 
-import React, { memo, useRef, useState, useEffect, Dispatch, SetStateAction } from 'react';
+import React, { memo, useRef, useState, useEffect, useMemo, Dispatch, SetStateAction } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Calendar, 
@@ -51,6 +51,7 @@ interface CalendarList {
   id: string;
   name: string;
   color?: string;
+  isDefault?: boolean;
 }
 
 interface ChecklistItem {
@@ -202,6 +203,11 @@ const Editingtodo = memo(function Editingtodo({
   };
   
   if (!isOpen || !editingTodo) return null;
+
+  const personalCalendarLists = useMemo(
+    () => calendarLists.filter(list => !(list.id === 'shared-main' || !!list.isDefault || list.name.toLowerCase().includes('общ'))),
+    [calendarLists]
+  );
   
   return (
         <div className="fixed inset-0 bg-black flex items-start justify-center z-[100]">
@@ -487,17 +493,17 @@ const Editingtodo = memo(function Editingtodo({
                   {editingTodo.addToCalendar && (
                     <div className="mt-2 ml-7">
                       <label className="text-[10px] text-[var(--text-muted)] mb-1 block select-none">Календарь</label>
-                      {calendarLists.length === 0 ? (
-                        <p className="text-[10px] text-[var(--text-muted)] italic">Нет доступных календарей</p>
+                      {personalCalendarLists.length === 0 ? (
+                        <p className="text-[10px] text-[var(--text-muted)] italic">Нет доступных личных календарей</p>
                       ) : (
                         <div className="flex flex-wrap gap-1.5">
-                          {calendarLists.map(list => (
+                          {personalCalendarLists.map(list => (
                             <button
                               key={list.id}
                               type="button"
                               onClick={() => setEditingTodo({ ...editingTodo, calendarListId: list.id })}
                               className={`px-2.5 py-1.5 rounded-full text-[11px] font-medium transition-[background-color,color] select-none whitespace-nowrap ${
-                                editingTodo.calendarListId === list.id || (!editingTodo.calendarListId && list.id === calendarLists[0]?.id)
+                                editingTodo.calendarListId === list.id || (!editingTodo.calendarListId && list.id === personalCalendarLists[0]?.id)
                                   ? 'bg-purple-500 text-white shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)]'
                                   : 'bg-gradient-to-br from-white/5 to-white/10 border border-white/10 text-[var(--text-secondary)] hover:border-purple-500/30'
                               }`}

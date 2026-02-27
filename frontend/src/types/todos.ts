@@ -10,7 +10,7 @@ export interface Comment {
 
 export interface Notification {
   id: string;
-  type: 'new_task' | 'comment' | 'status_change' | 'assignment' | 'mention' | 'event_invite' | 'event_reminder' | 'event_update';
+  type: 'new_task' | 'comment' | 'status_change' | 'assignment' | 'mention' | 'event_invite' | 'event_reminder' | 'event_update' | 'assignee_response' | 'task_updated';
   todoId?: string;
   todoTitle?: string;
   eventId?: string;

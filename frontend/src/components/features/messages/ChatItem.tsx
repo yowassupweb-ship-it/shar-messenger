@@ -37,6 +37,7 @@ const ChatItem = React.memo<ChatItemProps>(({
   isPinned
 }) => {
   const avatarData = getChatAvatarData(chat);
+  const chatTitle = getChatTitle(chat);
   const otherParticipantId = !chat.isGroup ? chat.participantIds?.find(id => id !== currentUser?.id) : undefined;
   const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : undefined;
   const hasUnread = !chat.isFavoritesChat && (chat.unreadCount || 0) > 0;
@@ -52,7 +53,7 @@ const ChatItem = React.memo<ChatItemProps>(({
       >
         <button
           onClick={() => onSelect(chat)}
-          className={`w-full flex justify-center py-2 relative ${isSelected ? 'bg-[var(--bg-tertiary)]' : 'hover:bg-[var(--bg-tertiary)]/50'}`}
+          className={`w-full flex justify-center py-2 relative touch-manipulation ${isSelected ? 'bg-[var(--bg-tertiary)]' : 'hover:bg-[var(--bg-tertiary)]/50'}`}
         >
           <div className="relative">
             <Avatar
@@ -80,7 +81,7 @@ const ChatItem = React.memo<ChatItemProps>(({
             <div className="flex items-center gap-2 mb-2">
               {chat.pinnedByUser?.[currentUser?.id || ''] && <Pin className="w-3 h-3 text-cyan-400 flex-shrink-0" />}
               {chat.isGroup && <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />}
-              <span className="font-medium text-sm text-[var(--text-primary)] truncate select-none">{getChatTitle(chat)}</span>
+              <span className="font-medium text-sm text-[var(--text-primary)] truncate select-none">{chatTitle}</span>
             </div>
             {chat.lastMessage && (
               <p className="text-xs text-[var(--text-muted)] line-clamp-2 mb-1">
@@ -107,11 +108,12 @@ const ChatItem = React.memo<ChatItemProps>(({
       <div
         key={chat.id}
         className={`relative group ${isSelected ? 'bg-[var(--bg-tertiary)]' : ''}`}
+        style={{ contentVisibility: 'auto', containIntrinsicSize: '72px 72px' }}
         onContextMenu={(e) => onContextMenu(e, chat)}
       >
         <button
           onClick={() => onSelect(chat)}
-          className="w-full px-3 py-2.5 hover:bg-[var(--bg-tertiary)] transition-all text-left"
+          className="w-full px-3 py-2.5 hover:bg-[var(--bg-tertiary)] transition-all text-left touch-manipulation"
         >
           <div className="flex gap-2 items-center">
             <Avatar
@@ -129,7 +131,7 @@ const ChatItem = React.memo<ChatItemProps>(({
                 {chat.isGroup && (
                   <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />
                 )}
-                <h3 className="font-medium text-[15px] leading-tight truncate select-none">{getChatTitle(chat)}</h3>
+                <h3 className="font-medium text-[15px] leading-tight truncate select-none">{chatTitle}</h3>
               </div>
               {chatDrafts[chat.id] ? (
                 <div className="flex items-center gap-2">
@@ -173,11 +175,12 @@ const ChatItem = React.memo<ChatItemProps>(({
           ? 'bg-gradient-to-br from-[#007aff]/30 to-[#007aff]/10 border border-[#007aff]/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_3px_8px_rgba(59,130,246,0.2)]' 
           : 'bg-gradient-to-br from-white/10 to-white/5 hover:from-white/15 hover:to-white/8 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_2px_8px_rgba(0,0,0,0.2)]'
       }`}
+      style={{ contentVisibility: 'auto', containIntrinsicSize: '76px 76px' }}
       onContextMenu={(e) => onContextMenu(e, chat)}
     >
       <button
         onClick={() => onSelect(chat)}
-        className="w-full px-2 py-2 transition-all text-left"
+        className="w-full px-2 py-2 transition-all text-left touch-manipulation"
       >
         <div className="flex gap-2 items-center">
           <Avatar
@@ -195,7 +198,7 @@ const ChatItem = React.memo<ChatItemProps>(({
               {chat.isGroup && (
                 <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />
               )}
-              <h3 className="font-medium text-sm truncate">{getChatTitle(chat)}</h3>
+              <h3 className="font-medium text-sm truncate">{chatTitle}</h3>
             </div>
             {chatDrafts[chat.id] ? (
               <div className="flex items-center gap-2">

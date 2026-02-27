@@ -1450,7 +1450,7 @@ const Editingtodo = memo(function Editingtodo({
       link.href = attachment.url;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
-      link.className = 'inline-flex items-center gap-1.5 text-blue-400 hover:text-blue-300 underline break-all';
+      link.className = 'inline text-blue-400 hover:text-blue-300 underline break-all [overflow-wrap:anywhere] max-w-full';
       link.textContent = attachment.name || attachment.url || 'Вложение';
       wrapper.appendChild(link);
     }

@@ -8,6 +8,7 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 import sys
 import os
+import re
 import secrets
 import asyncio
 import logging
@@ -1972,7 +1973,7 @@ def get_users():
     # Вычисляем isOnline динамически на основе last_seen
     for user in users:
         is_online = False
-        last_seen = user.get("last_seen")
+        last_seen = user.get("last_seen") or user.get("lastSeen")
         
         if last_seen:
             try:
@@ -1998,7 +1999,7 @@ def get_user_statuses():
     
     for user in users:
         is_online = False
-        last_seen = user.get("last_seen")
+        last_seen = user.get("last_seen") or user.get("lastSeen")
         
         # Проверяем онлайн ли пользователь (если last_seen был в последние 60 секунд)
         if last_seen:
@@ -2045,7 +2046,7 @@ def get_user(user_id: str):
     
     # Вычисляем isOnline динамически
     is_online = False
-    last_seen = user.get("last_seen")
+    last_seen = user.get("last_seen") or user.get("lastSeen")
     
     if last_seen:
         try:
@@ -2097,13 +2098,60 @@ def delete_user(user_id: str):
 @app.post("/api/users/{user_id}/status")
 def update_user_status(user_id: str, status_data: Dict[str, Any]):
     """Обновить статус пользователя (онлайн/оффлайн и lastSeen)"""
+    existing_user = db.get_user_by_id(user_id)
+
+    if not existing_user:
+        all_users = db.get_users()
+        existing_user = next((u for u in all_users if u.get("telegramId") == user_id), None)
+
+    if not existing_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    def parse_dt(value: Any) -> Optional[datetime]:
+        if not value:
+            return None
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            try:
+                return datetime.fromisoformat(value.replace('Z', '+00:00'))
+            except Exception:
+                return None
+        return None
+
+    now_dt = datetime.now()
     update_data = {}
+
     if "isOnline" in status_data:
         update_data["isOnline"] = status_data["isOnline"]
+    elif "is_online" in status_data:
+        update_data["isOnline"] = status_data["is_online"]
+
+    incoming_last_seen = None
     if "lastSeen" in status_data:
-        update_data["lastSeen"] = status_data["lastSeen"]
+        incoming_last_seen = status_data["lastSeen"]
+    elif "last_seen" in status_data:
+        incoming_last_seen = status_data["last_seen"]
+
+    existing_last_seen = existing_user.get("lastSeen") or existing_user.get("last_seen")
+    existing_dt = parse_dt(existing_last_seen)
+    incoming_dt = parse_dt(incoming_last_seen)
+
+    # Защитная логика: lastSeen никогда не уходит назад во времени,
+    # а при активности online фиксируется не раньше времени текущего запроса.
+    candidate_dt = incoming_dt or existing_dt
+    if update_data.get("isOnline") is True:
+        if not candidate_dt or candidate_dt < now_dt:
+            candidate_dt = now_dt
+
+    if existing_dt and candidate_dt and candidate_dt < existing_dt:
+        candidate_dt = existing_dt
+
+    if candidate_dt:
+        update_data["lastSeen"] = candidate_dt.isoformat()
     
-    result = db.update_user(user_id, update_data)
+    target_user_id = existing_user.get("id") or user_id
+    result = db.update_user(target_user_id, update_data)
     if not result:
         raise HTTPException(status_code=404, detail="User not found")
     return result
@@ -4687,31 +4735,45 @@ def mark_messages_as_read(chat_id: str, data_payload: dict):
 def pin_chat(chat_id: str, data_payload: dict):
     """Закрепить/открепить чат для пользователя"""
     user_id = data_payload.get('userId')
-    is_pinned = data_payload.get('isPinned', True)
+    raw_is_pinned = data_payload.get('isPinned', True)
+    if isinstance(raw_is_pinned, str):
+        is_pinned = raw_is_pinned.strip().lower() in ('1', 'true', 'yes', 'on')
+    else:
+        is_pinned = bool(raw_is_pinned)
     
     if not user_id:
         raise HTTPException(status_code=400, detail="userId is required")
-    
-    chats = db.data.get('chats', [])
-    
-    chat = next((c for c in chats if c['id'] == chat_id), None)
+
+    chat = db.get_chat(chat_id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
-    
-    if 'pinnedByUser' not in chat:
-        chat['pinnedByUser'] = {}
-    
-    chat['pinnedByUser'][user_id] = is_pinned
-    db._save()
+
+    pinned_by_user = chat.get('pinned_by_user')
+    if pinned_by_user is None:
+        pinned_by_user = chat.get('pinnedByUser')
+    if not isinstance(pinned_by_user, dict):
+        pinned_by_user = {}
+
+    pinned_by_user[user_id] = is_pinned
+
+    updated = db.update_chat(chat_id, {'pinned_by_user': pinned_by_user})
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to update chat pin state")
     
     return {"success": True, "isPinned": is_pinned}
 
 @app.get("/api/chats/notifications/{user_id}")
 def get_or_create_notifications_chat(user_id: str):
     """Получить или создать чат уведомлений для пользователя"""
-    import uuid
-    
-    chats = db.get_user_chats(user_id)
+    resolved_user_id = user_id
+    try:
+        user = db.get_user(user_id)
+        if user and user.get('id'):
+            resolved_user_id = user['id']
+    except Exception as exc:
+        print(f"[notifications] Failed to resolve user id for {user_id}: {exc}")
+
+    chats = db.get_user_chats(resolved_user_id)
     
     # Ищем существующий чат уведомлений для этого пользователя
     notifications_chat = next(
@@ -4721,25 +4783,25 @@ def get_or_create_notifications_chat(user_id: str):
     )
     
     if notifications_chat:
-        return notifications_chat
+        return snake_to_camel(notifications_chat)
     
     # Создаем новый чат уведомлений
     new_chat = {
-        "id": f"notifications-{user_id}",
+        "id": f"notifications-{resolved_user_id}",
         "title": "Уведомления",
         "is_group": False,
         "is_notifications_chat": True,
         "is_system_chat": True,
-        "participant_ids": [user_id],
-        "creator_id": user_id,
+        "participant_ids": [resolved_user_id],
+        "creator_id": resolved_user_id,
         "created_at": datetime.now().isoformat(),
         "read_messages_by_user": {},
-        "pinned_by_user": {user_id: True}  # Автоматически закрепляем
+        "pinned_by_user": {resolved_user_id: True}  # Автоматически закрепляем
     }
     
     db.create_chat(new_chat)
     
-    return new_chat
+    return snake_to_camel(new_chat)
 
 @app.post("/api/chats/notifications/{user_id}/send")
 def send_notification_message(user_id: str, notification_data: dict):
@@ -4749,29 +4811,79 @@ def send_notification_message(user_id: str, notification_data: dict):
     # Получаем или создаем чат уведомлений
     notifications_chat = get_or_create_notifications_chat(user_id)
     
+    content = str(notification_data.get('content', '') or '').strip()
+    content = re.sub(r'<[^>]*>', '', content)
+    content = content.replace('\r\n', '\n')
+    content = re.sub(r'[ \t]+', ' ', content)
+    content = re.sub(r'\n{3,}', '\n\n', content).strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="content is required")
+
+    notification_type = notification_data.get('notificationType') or notification_data.get('notification_type') or 'info'
+
+    message_author_id = user_id
+    try:
+        resolved_user = db.get_user(user_id)
+        if resolved_user and resolved_user.get('id'):
+            message_author_id = resolved_user['id']
+        else:
+            fallback_author_id = notifications_chat.get('creator_id')
+            if fallback_author_id and db.get_user(fallback_author_id):
+                message_author_id = fallback_author_id
+            else:
+                users = db.get_users() or []
+                first_valid_user = next((u for u in users if u and u.get('id')), None)
+                if first_valid_user:
+                    message_author_id = first_valid_user['id']
+    except Exception as exc:
+        print(f"[notifications] author resolve failed for {user_id}: {exc}")
+
     new_message = {
         "id": str(uuid.uuid4()),
-        "chatId": notifications_chat['id'],
-        "authorId": "system",
-        "authorName": "Система",
-        "content": notification_data.get('content', ''),
+        "chat_id": notifications_chat['id'],
+        "author_id": message_author_id,
+        "author_name": "Система",
+        "content": content,
         "mentions": [],
-        "replyToId": None,
-        "createdAt": datetime.now().isoformat(),
-        "updatedAt": None,
-        "isEdited": False,
-        "isSystemMessage": True,
-        # Дополнительные данные для перехода
-        "linkedChatId": notification_data.get('linkedChatId'),
-        "linkedMessageId": notification_data.get('linkedMessageId'),
-        "linkedTaskId": notification_data.get('linkedTaskId'),
-        "linkedPostId": notification_data.get('linkedPostId'),
-        "notificationType": notification_data.get('notificationType', 'info')  # info, task, comment, status, assignment
+        "reply_to_id": None,
+        "created_at": datetime.now().isoformat(),
+        "updated_at": None,
+        "is_edited": False,
+        "is_system_message": True,
+        "linked_chat_id": notification_data.get('linkedChatId') or notification_data.get('linked_chat_id'),
+        "linked_message_id": notification_data.get('linkedMessageId') or notification_data.get('linked_message_id'),
+        "linked_task_id": notification_data.get('linkedTaskId') or notification_data.get('linked_task_id'),
+        "linked_post_id": notification_data.get('linkedPostId') or notification_data.get('linked_post_id'),
+        "linked_event_id": notification_data.get('linkedEventId') or notification_data.get('linked_event_id'),
+        "notification_type": notification_type,
+        "metadata": {
+            "linkedEventId": notification_data.get('linkedEventId') or notification_data.get('linked_event_id'),
+            "linkedEventTitle": notification_data.get('linkedEventTitle') or notification_data.get('linked_event_title'),
+            "fromUserName": notification_data.get('fromUserName') or notification_data.get('from_user_name'),
+        }
     }
-    
-    db.add_message(new_message)
-    
-    return new_message
+
+    saved_message = None
+    try:
+        saved_message = db.add_message(new_message)
+    except Exception as exc:
+        if new_message.get("linked_event_id"):
+            print(f"[notifications] add_message failed with linked_event_id, fallback without it: {exc}")
+            fallback_message = dict(new_message)
+            fallback_message.pop("linked_event_id", None)
+            saved_message = db.add_message(fallback_message)
+        else:
+            raise
+
+    if not saved_message and new_message.get("linked_event_id"):
+        fallback_message = dict(new_message)
+        fallback_message.pop("linked_event_id", None)
+        saved_message = db.add_message(fallback_message)
+
+    if not saved_message:
+        raise HTTPException(status_code=500, detail="Failed to save notification message")
+
+    return snake_to_camel(saved_message)
 
 
 # Типы уведомлений
@@ -4798,19 +4910,19 @@ def create_notification_content(notification_type: str, data: dict) -> str:
     executor_name = data.get('executorName', '')
     
     templates = {
-        NotificationType.NEW_TASK: f"📋 <b>Новая задача</b>\n\n{from_user} назначил(а) вам задачу:\n«{task_title}»",
-        NotificationType.TASK_UPDATED: f"✏️ <b>Задача изменена</b>\n\n{from_user} изменил(а) задачу:\n«{task_title}»",
-        NotificationType.TASK_STATUS_CHANGED: f"🔄 <b>Статус изменён</b>\n\n{from_user} изменил(а) статус задачи «{task_title}»:\n{old_status} → {new_status}",
-        NotificationType.NEW_EXECUTOR: f"👥 <b>Новый исполнитель</b>\n\n{executor_name} добавлен в задачу:\n«{task_title}»",
-        NotificationType.REMOVED_EXECUTOR: f"👤 <b>Исполнитель удалён</b>\n\n{executor_name} удалён из задачи:\n«{task_title}»",
-        NotificationType.NEW_COMMENT: f"💬 <b>Новый комментарий</b>\n\n{from_user} прокомментировал(а) задачу:\n«{task_title}»",
-        NotificationType.MENTION: f"📢 <b>Вас упомянули</b>\n\n{from_user} упомянул(а) вас в комментарии к задаче:\n«{task_title}»",
-        NotificationType.POST_UPDATED: f"✏️ <b>Публикация изменена</b>\n\n{from_user} изменил(а) публикацию:\n«{task_title}»",
-        NotificationType.POST_STATUS_CHANGED: f"🔄 <b>Статус публикации</b>\n\n{from_user} изменил(а) статус публикации «{task_title}»:\n{old_status} → {new_status}",
-        NotificationType.POST_NEW_COMMENT: f"💬 <b>Комментарий к публикации</b>\n\n{from_user} прокомментировал(а) публикацию:\n«{task_title}»",
+        NotificationType.NEW_TASK: f"Новая задача — {from_user}: «{task_title}»",
+        NotificationType.TASK_UPDATED: f"Задача изменена — {from_user}: «{task_title}»",
+        NotificationType.TASK_STATUS_CHANGED: f"Статус изменён — {from_user}: «{task_title}» ({old_status} → {new_status})",
+        NotificationType.NEW_EXECUTOR: f"Новый исполнитель — {executor_name}: «{task_title}»",
+        NotificationType.REMOVED_EXECUTOR: f"Исполнитель удалён — {executor_name}: «{task_title}»",
+        NotificationType.NEW_COMMENT: f"Новый комментарий — {from_user}: «{task_title}»",
+        NotificationType.MENTION: f"Вас упомянули — {from_user}: «{task_title}»",
+        NotificationType.POST_UPDATED: f"Публикация изменена — {from_user}: «{task_title}»",
+        NotificationType.POST_STATUS_CHANGED: f"Статус публикации — {from_user}: «{task_title}» ({old_status} → {new_status})",
+        NotificationType.POST_NEW_COMMENT: f"Комментарий к публикации — {from_user}: «{task_title}»",
     }
-    
-    return templates.get(notification_type, f"🔔 {from_user}: {task_title}")
+
+    return templates.get(notification_type, f"Уведомление — {from_user}: {task_title}")
 
 
 @app.post("/api/notifications/send-to-users")
@@ -4829,15 +4941,27 @@ def send_notification_to_multiple_users(notification_data: dict = Body(...)):
     print(f"[Notifications] Content: {content}")
     
     results = []
+    success_count = 0
     for user_id in user_ids:
         try:
             notifications_chat = get_or_create_notifications_chat(user_id)
             print(f"[Notifications] Chat for {user_id}: {notifications_chat.get('id', 'NO ID')}")
+
+            message_author_id = user_id
+            resolved_user = db.get_user(user_id)
+            if resolved_user and resolved_user.get('id'):
+                message_author_id = resolved_user['id']
+            else:
+                fallback_author_id = notifications_chat.get('creatorId') or notifications_chat.get('creator_id')
+                if fallback_author_id:
+                    fallback_user = db.get_user(fallback_author_id)
+                    if fallback_user and fallback_user.get('id'):
+                        message_author_id = fallback_user['id']
             
             new_message = {
                 "id": str(uuid.uuid4()),
                 "chatId": notifications_chat['id'],
-                "authorId": "system",
+                "authorId": message_author_id,
                 "authorName": "Система",
                 "content": content,
                 "mentions": [],
@@ -4848,18 +4972,30 @@ def send_notification_to_multiple_users(notification_data: dict = Body(...)):
                 "isSystemMessage": True,
                 "linkedTaskId": data.get('taskId'),
                 "linkedPostId": data.get('postId'),
-                "notificationType": notification_type
+                "notificationType": notification_type,
+                "metadata": {
+                    "fromUserName": data.get('fromUserName'),
+                    "taskTitle": data.get('taskTitle'),
+                    "postTitle": data.get('postTitle'),
+                    "oldStatus": data.get('oldStatus'),
+                    "newStatus": data.get('newStatus'),
+                    "executorName": data.get('executorName'),
+                }
             }
             
             db.add_message(new_message)
             print(f"[Notifications] Message sent: {new_message['id']}")
+            success_count += 1
             results.append({"userId": user_id, "success": True, "messageId": new_message['id']})
         except Exception as e:
             print(f"[Notifications] Error for {user_id}: {str(e)}")
             results.append({"userId": user_id, "success": False, "error": str(e)})
     
     print(f"[Notifications] Results: {results}")
-    return {"results": results, "count": len([r for r in results if r['success']])}
+    if success_count == 0:
+        raise HTTPException(status_code=500, detail={"results": results, "count": 0, "error": "No notifications were sent"})
+
+    return {"results": results, "count": success_count}
 
 
 # ==================== SHARED LINKS ====================

@@ -1,10 +1,36 @@
 'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
-import { MessageCircle, CheckSquare, Calendar, Users, Globe, MoreVertical, Sun, Moon, Settings } from 'lucide-react';
+import { MessageCircle, CheckSquare, Calendar, Users, Globe, MoreVertical, Sun, Moon, Settings, Type, Zap, Hash, Package2, PenTool, Shield, Code2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import Avatar from '@/components/Avatar';
+
+const STANDARD_TOOL_IDS = ['messages', 'tasks', 'calendar', 'links', 'settings'];
+
+const ALL_TOOLS = [
+  { id: 'feed-editor', name: 'Редактор фидов', href: '/feed-editor' },
+  { id: 'transliterator', name: 'Транслитератор', href: '/transliterator' },
+  { id: 'slovolov', name: 'Словолов', href: '/slovolov' },
+  { id: 'utm-generator', name: 'Генератор UTM', href: '/utm-generator' },
+  { id: 'slovolov-pro', name: 'Словолов PRO', href: '/slovolov-pro' },
+  { id: 'content-plan', name: 'Контент-план', href: '/content-plan' },
+  { id: 'links', name: 'Ссылки', href: '/links' },
+  { id: 'admin', name: 'Админка', href: '/admin', adminOnly: true },
+  { id: 'settings', name: 'Настройки', href: '/settings', standard: true },
+] as const;
+
+const renderPinnedToolIcon = (toolId: string) => {
+  if (toolId === 'feed-editor') return <Code2 className="w-2.5 h-2.5 text-white" strokeWidth={2} />;
+  if (toolId === 'transliterator') return <Type className="w-2.5 h-2.5 text-white" strokeWidth={2} />;
+  if (toolId === 'slovolov') return <Zap className="w-2.5 h-2.5 text-white" strokeWidth={2} />;
+  if (toolId === 'utm-generator') return <Hash className="w-2.5 h-2.5 text-white" strokeWidth={2} />;
+  if (toolId === 'slovolov-pro') return <Package2 className="w-2.5 h-2.5 text-white" strokeWidth={2} />;
+  if (toolId === 'content-plan') return <PenTool className="w-2.5 h-2.5 text-white" strokeWidth={2} />;
+  if (toolId === 'links') return <Globe className="w-2.5 h-2.5 text-white" strokeWidth={2} />;
+  if (toolId === 'admin') return <Shield className="w-2.5 h-2.5 text-white" strokeWidth={2} />;
+  return <Settings className="w-2.5 h-2.5 text-white" strokeWidth={2} />;
+};
 
 export default function BottomNav() {
   const router = useRouter();
@@ -13,6 +39,9 @@ export default function BottomNav() {
   const [unreadChatsCount, setUnreadChatsCount] = useState(0);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const [pinnedTools, setPinnedTools] = useState<string[]>([]);
+  const [isTouchDevice, setIsTouchDevice] = useState(() => (typeof window !== 'undefined' ? window.matchMedia('(pointer: coarse)').matches : false));
+  const [isBelow773, setIsBelow773] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 773 : false));
   const [visibleTabs, setVisibleTabs] = useState({
     messages: true,
     tasks: true,
@@ -52,6 +81,9 @@ export default function BottomNav() {
           if (user.visible_tabs || user.visibleTabs) {
             setVisibleTabs(user.visible_tabs || user.visibleTabs);
           }
+          if (Array.isArray(user.pinnedTools)) {
+            setPinnedTools(user.pinnedTools);
+          }
         }
       } catch (error) {
         // Игнорируем ошибки
@@ -61,7 +93,19 @@ export default function BottomNav() {
     loadUnreadCount();
     loadCurrentUser();
     const interval = setInterval(loadUnreadCount, 5000);
-    return () => clearInterval(interval);
+
+    const updateViewportFlags = () => {
+      setIsBelow773(window.innerWidth < 773);
+      setIsTouchDevice(window.matchMedia('(pointer: coarse)').matches);
+    };
+
+    updateViewportFlags();
+    window.addEventListener('resize', updateViewportFlags);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('resize', updateViewportFlags);
+    };
   }, []);
 
   const handleNavClick = (path: string) => {
@@ -72,9 +116,27 @@ export default function BottomNav() {
   const isInChat = typeof window !== 'undefined' && pathname === '/messages' && new URLSearchParams(window.location.search).has('chat');
   const shouldHideMobile = isInChat;
 
-  // Показываем только на /content-plan и /utm-generator
-  const allowedPaths = ['/content-plan', '/utm-generator'];
-  const shouldShow = allowedPaths.includes(pathname);
+  const shouldUseMobileNav = isBelow773 || isTouchDevice;
+
+  // Показываем только на /content-plan и /utm-generator (+ вложенные страницы)
+  const shouldShow = pathname.startsWith('/content-plan') || pathname.startsWith('/utm-generator');
+
+  const removePinnedTool = async (toolId: string) => {
+    const updated = pinnedTools.filter((id) => id !== toolId);
+    setPinnedTools(updated);
+
+    if (!currentUser?.id) return;
+
+    try {
+      await fetch(`/api/users/${currentUser.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pinnedTools: updated }),
+      });
+    } catch (error) {
+      // Игнорируем ошибки сохранения
+    }
+  };
   
   if (!shouldShow) {
     return null;
@@ -83,7 +145,7 @@ export default function BottomNav() {
   return (
     <>
       {/* Mobile Bottom Navigation */}
-      <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 flex justify-center pb-4 px-3 z-40 pointer-events-none select-none ${shouldHideMobile ? 'hidden' : 'block md:hidden'}`} style={{ background: 'transparent' }}>
+      <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-3 pb-[max(env(safe-area-inset-bottom),12px)] px-3 z-40 pointer-events-none select-none overflow-visible ${shouldHideMobile || !shouldUseMobileNav ? 'hidden' : 'flex'}`} style={{ background: 'transparent' }}>
         <div className="flex items-center gap-2 pointer-events-auto backdrop-blur-xl bg-gradient-to-b from-white/10 to-white/5 border border-white/20 rounded-full px-3 py-1.5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_4px_20px_rgba(0,0,0,0.3)]">
           {visibleTabs.messages && (
             <button
@@ -145,7 +207,7 @@ export default function BottomNav() {
       </div>
 
       {/* Desktop Bottom Status Bar */}
-      <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-[46px] backdrop-blur-xl border-t z-40 items-center justify-between px-4 bg-[var(--bg-glass)] border-[var(--border-glass)] overflow-visible" style={{ fontSize: '12px' }}>
+      <div className={`fixed bottom-0 left-0 right-0 h-[46px] backdrop-blur-xl border-t z-40 items-center justify-between px-4 bg-[var(--bg-glass)] border-[var(--border-glass)] overflow-visible ${shouldUseMobileNav ? 'hidden' : 'flex'}`} style={{ fontSize: '12px' }}>
         {/* Left side - Navigation */}
         <div className="flex items-center gap-1.5 px-1">
           {visibleTabs.messages && (
@@ -231,6 +293,55 @@ export default function BottomNav() {
             <MoreVertical className="w-4 h-4" strokeWidth={2} />
           </button>
         </div>
+
+        {pinnedTools.length > 0 && (
+          <div className="flex items-center gap-1 overflow-visible max-w-[calc(100%-320px)] xl:max-w-none">
+            {pinnedTools.slice(0, 6).map((toolId, index) => {
+              const tool = ALL_TOOLS.find((item) => item.id === toolId);
+              if (!tool) return null;
+
+              const hasAccess = currentUser?.role === 'admin' ||
+                tool.standard ||
+                STANDARD_TOOL_IDS.includes(tool.id) ||
+                currentUser?.enabledTools?.includes(tool.id);
+
+              if (!hasAccess) return null;
+
+              return (
+                <div
+                  key={toolId}
+                  className={`relative group flex-shrink-0 ${index >= 5 ? 'hidden xl:block' : ''} ${index >= 4 ? 'hidden lg:block' : ''}`}
+                >
+                  <button
+                    onClick={() => handleNavClick(tool.href)}
+                    className="flex items-center gap-1.5 text-[10px] font-medium transition-all px-2 py-1.5 rounded-xl bg-gradient-to-b from-white/10 to-white/5 border border-white/20 hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]"
+                  >
+                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#3f51b5] to-[#7c4dff] flex items-center justify-center relative overflow-hidden shadow-sm backdrop-blur-sm">
+                      <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent opacity-80 rounded-full" />
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/10 rounded-full" />
+                      <div className="absolute top-[8%] left-[12%] right-[12%] h-[25%] bg-white/50 rounded-full blur-sm" />
+                      <div className="relative z-10 drop-shadow-[0_1px_4px_rgba(0,0,0,0.3)]">
+                        {renderPinnedToolIcon(tool.id)}
+                      </div>
+                    </div>
+                    <span className="hidden md:inline text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">{tool.name}</span>
+                  </button>
+                  <button
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void removePinnedTool(toolId);
+                    }}
+                    className="hidden lg:flex absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Открепить"
+                  >
+                    <X className="w-2.5 h-2.5" strokeWidth={3} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Right side - Avatar */}
         <div className="flex items-center gap-3">

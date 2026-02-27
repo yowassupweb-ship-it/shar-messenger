@@ -3,7 +3,7 @@ import { readJsonFile, writeJsonFile } from '@/lib/dataStore';
 
 export interface Notification {
   id: string;
-  type: 'new_task' | 'assignment' | 'comment' | 'mention' | 'status_change' | 'event_invite' | 'event_reminder' | 'event_update';
+  type: 'new_task' | 'assignment' | 'comment' | 'mention' | 'status_change' | 'event_invite' | 'event_reminder' | 'event_update' | 'assignee_response' | 'task_updated';
   todoId?: string;
   todoTitle?: string;
   eventId?: string;

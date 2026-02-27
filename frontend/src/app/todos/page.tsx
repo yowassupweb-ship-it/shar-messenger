@@ -25,13 +25,13 @@ import {
   Editingtodo,
   Statusdropdown,
   Executordropdown,
+  Departmentdropdown,
   NewTodoAssigneeDropdown,
   Mobileheadermenu,
   MobileArchiveModal
 } from '@/components/todos-auto';
 import TodoItem from '@/components/todos/TodoItem';
 import AddTodoForm from '@/components/todos/AddTodoForm';
-import AccessButton from '@/components/AccessButton';
 import { 
   Plus, 
   Check, 
@@ -114,7 +114,7 @@ interface Comment {
 
 interface Notification {
   id: string;
-  type: 'new_task' | 'comment' | 'status_change' | 'assignment' | 'mention' | 'event_invite' | 'event_reminder' | 'event_update' | 'assignee_response';
+  type: 'new_task' | 'comment' | 'status_change' | 'assignment' | 'mention' | 'event_invite' | 'event_reminder' | 'event_update' | 'assignee_response' | 'task_updated';
   todoId?: string;
   todoTitle?: string;
   eventId?: string;
@@ -277,6 +277,7 @@ interface CalendarList {
   id: string;
   name: string;
   color?: string;
+  isDefault?: boolean;
   allowedUsers?: string[];
   allowedDepartments?: string[];
 }
@@ -378,6 +379,14 @@ export default function TodosPage() {
   const [categories, setCategories] = useState<TodoCategory[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [calendarLists, setCalendarLists] = useState<CalendarList[]>([]);
+  const isSharedCalendarList = useCallback((list?: CalendarList | null) => {
+    if (!list) return false;
+    return list.id === 'shared-main' || !!list.isDefault || list.name.toLowerCase().includes('общ');
+  }, []);
+  const personalCalendarLists = useMemo(
+    () => calendarLists.filter(list => !isSharedCalendarList(list)),
+    [calendarLists, isSharedCalendarList]
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [returnUrl, setReturnUrl] = useState<string>('/account?tab=tasks');
   const [showAddList, setShowAddList] = useState(false);
@@ -413,10 +422,18 @@ export default function TodosPage() {
   const [showArchive, setShowArchive] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'stages' | 'todo' | 'pending' | 'in-progress' | 'review' | 'cancelled' | 'stuck'>('all');
   const [filterExecutor, setFilterExecutor] = useState<string | null>(null);
+  const [filterDepartment, setFilterDepartment] = useState<string>('all');
 
   // 🚀 PERFORMANCE: Мемоизация filteredAndSortedTodos должна быть ВЫШЕ headerPeople!
   // Перенесено из строки 2795 сюда для правильного порядка зависимостей
   const filteredAndSortedTodos = useMemo(() => {
+    const personDepartmentById = new Map<string, string>();
+    people.forEach(person => {
+      if (person.department?.trim()) {
+        personDepartmentById.set(person.id, person.department.trim());
+      }
+    });
+
     return lists.map(list => {
       if (list.archived && !showArchive) return { listId: list.id, todos: [] };
       
@@ -451,7 +468,6 @@ export default function TodosPage() {
           
           // Проверяем исполнителей в этапах
           const stageMeta = (t.stageMeta || (t.metadata as any)?.stageMeta) as Todo['stageMeta'] | undefined;
-          const stageAssignees = stageMeta ? Object.values(stageMeta).map(m => m.assigneeId).filter(Boolean) : [];
           const matchesStageAssignee = stageMeta && Object.values(stageMeta).some(meta => 
             meta.assigneeId === filterExecutor
           );
@@ -459,6 +475,26 @@ export default function TodosPage() {
           const matches = matchesFilter || matchesStageAssignee;
           
           if (!matches) return false;
+        }
+
+        // Фильтр по отделу
+        if (filterDepartment !== 'all') {
+          const stageMeta = (t.stageMeta || (t.metadata as any)?.stageMeta) as Todo['stageMeta'] | undefined;
+          const taskAssigneeIds = new Set<string>();
+
+          if (t.assignedToId) taskAssigneeIds.add(t.assignedToId);
+          if (Array.isArray(t.assignedToIds)) {
+            t.assignedToIds.forEach(id => taskAssigneeIds.add(id));
+          }
+          if (t.stageDefaultAssigneeId) taskAssigneeIds.add(t.stageDefaultAssigneeId);
+          if (stageMeta) {
+            Object.values(stageMeta).forEach(meta => {
+              if (meta.assigneeId) taskAssigneeIds.add(meta.assigneeId);
+            });
+          }
+
+          const matchesDepartment = Array.from(taskAssigneeIds).some(assigneeId => personDepartmentById.get(assigneeId) === filterDepartment);
+          if (!matchesDepartment) return false;
         }
         
         return true;
@@ -472,7 +508,15 @@ export default function TodosPage() {
       
       return { listId: list.id, todos: listTodos };
     });
-  }, [todos, lists, searchQuery, filterStatus, filterExecutor, showCompleted, showArchive]);
+  }, [todos, lists, people, searchQuery, filterStatus, filterExecutor, filterDepartment, showCompleted, showArchive]);
+
+  const filteredTodosByListId = useMemo(() => {
+    const map: Record<string, Todo[]> = {};
+    filteredAndSortedTodos.forEach((entry) => {
+      map[entry.listId] = entry.todos;
+    });
+    return map;
+  }, [filteredAndSortedTodos]);
 
   const headerPeople = useMemo(() => {
     const now = new Date().toISOString();
@@ -518,6 +562,17 @@ export default function TodosPage() {
     { value: 'cancelled', label: 'Отменена', color: 'red' },
     { value: 'stuck', label: 'Застряла', color: 'yellow' },
   ];
+
+  const availableDepartments = useMemo(() => {
+    const departmentSet = new Set<string>();
+    people.forEach(person => {
+      const department = person.department?.trim();
+      if (department) {
+        departmentSet.add(department);
+      }
+    });
+    return Array.from(departmentSet).sort((a, b) => a.localeCompare(b, 'ru'));
+  }, [people]);
   
   // 🚀 PERFORMANCE: Мемоизированный обработчик обновления - изолирует ре-рендеры компонентов
   const handleUpdate = useCallback((updates: Partial<Todo>) => {
@@ -537,6 +592,7 @@ export default function TodosPage() {
   const [showNewListAssigneeDropdown, setShowNewListAssigneeDropdown] = useState(false);
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [executorDropdownOpen, setExecutorDropdownOpen] = useState(false);
+  const [departmentDropdownOpen, setDepartmentDropdownOpen] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [showMobileFiltersModal, setShowMobileFiltersModal] = useState(false);  // Модаль для фильтров
   const [showMobileArchiveModal, setShowMobileArchiveModal] = useState(false);  // Модаль для архива
@@ -612,8 +668,10 @@ export default function TodosPage() {
   const [hoveredTodo, setHoveredTodo] = useState<Todo | null>(null);
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const dragPayloadRef = useRef<{ type: 'todo' | 'list' | null; id: string | null }>({ type: null, id: null });
   const statusFilterRef = useRef<HTMLDivElement>(null);
   const executorFilterRef = useRef<HTMLDivElement>(null);
+  const departmentFilterRef = useRef<HTMLDivElement>(null);
   const isClosingModalRef = useRef(false);
   const hasOpenedFromUrlRef = useRef(false);
   
@@ -713,6 +771,7 @@ export default function TodosPage() {
   const [draggedTodo, setDraggedTodo] = useState<Todo | null>(null);
   const [dragOverListId, setDragOverListId] = useState<string | null>(null);
   const [dragOverTodoId, setDragOverTodoId] = useState<string | null>(null);
+  const dragOverTodoInsertAfterRef = useRef(false);
   const dragCounter = useRef(0);
   
   // Drag and Drop state for lists
@@ -721,10 +780,86 @@ export default function TodosPage() {
   
   // Drag to scroll state
   const boardRef = useRef<HTMLDivElement>(null);
+  const bottomScrollbarRef = useRef<HTMLDivElement>(null);
+  const scrollSyncRef = useRef(false);
+  const [boardScrollWidth, setBoardScrollWidth] = useState(0);
+  const [boardClientWidth, setBoardClientWidth] = useState(0);
   const [isDraggingBoard, setIsDraggingBoard] = useState(false);
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
   const settingsRef = useRef<HTMLDivElement>(null);
+
+  const syncBoardMetrics = useCallback(() => {
+    if (!boardRef.current) return;
+    setBoardScrollWidth(boardRef.current.scrollWidth);
+    setBoardClientWidth(boardRef.current.clientWidth);
+  }, []);
+
+  const handleBoardScroll = useCallback(() => {
+    const board = boardRef.current;
+    const bottom = bottomScrollbarRef.current;
+    if (!board || !bottom) return;
+
+    if (scrollSyncRef.current) return;
+    scrollSyncRef.current = true;
+    bottom.scrollLeft = board.scrollLeft;
+    requestAnimationFrame(() => {
+      scrollSyncRef.current = false;
+    });
+  }, []);
+
+  const handleBottomScrollbarScroll = useCallback(() => {
+    const board = boardRef.current;
+    const bottom = bottomScrollbarRef.current;
+    if (!board || !bottom) return;
+
+    if (scrollSyncRef.current) return;
+    scrollSyncRef.current = true;
+    board.scrollLeft = bottom.scrollLeft;
+    requestAnimationFrame(() => {
+      scrollSyncRef.current = false;
+    });
+  }, []);
+
+  const handleBottomScrollbarTrackClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const board = boardRef.current;
+    const bottom = bottomScrollbarRef.current;
+    if (!board || !bottom) return;
+
+    const rect = bottom.getBoundingClientRect();
+    if (rect.width <= 0) return;
+
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const maxScroll = Math.max(0, bottom.scrollWidth - bottom.clientWidth);
+    const nextScrollLeft = ratio * maxScroll;
+
+    scrollSyncRef.current = true;
+    bottom.scrollLeft = nextScrollLeft;
+    board.scrollLeft = nextScrollLeft;
+    requestAnimationFrame(() => {
+      scrollSyncRef.current = false;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (windowWidth < 550) return;
+
+    syncBoardMetrics();
+    const board = boardRef.current;
+    if (!board) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      syncBoardMetrics();
+    });
+
+    resizeObserver.observe(board);
+    window.addEventListener('resize', syncBoardMetrics);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', syncBoardMetrics);
+    };
+  }, [syncBoardMetrics, windowWidth, lists.length, showAddList, showArchive]);
 
   // Проверка авторизации - редирект на /login если не авторизован
   useEffect(() => {
@@ -854,11 +989,15 @@ export default function TodosPage() {
         ? 'Вас упомянули'
         : firstNotif.type === 'status_change'
           ? 'Статус изменен'
+          : firstNotif.type === 'task_updated'
+            ? 'Задача изменена'
+            : firstNotif.type === 'assignee_response'
+              ? 'Ответ по задаче'
           : firstNotif.type === 'new_task'
             ? 'Новая задача'
             : 'Уведомление';
     const noun = firstNotif.type === 'comment' ? 'комментариев' : 'уведомлений';
-    const content = `<b>${title}</b>\n\n${firstNotif.fromUserName}: +${groupNotifs.length} ${noun}`;
+    const content = `${title}\n${firstNotif.fromUserName}: +${groupNotifs.length} ${noun}`;
 
     fetch(`/api/chats/notifications/${myAccountId}/send`, {
       method: 'POST',
@@ -924,6 +1063,8 @@ export default function TodosPage() {
                 title: firstNotif.type === 'comment' ? '💬 Новый комментарий' :
                        firstNotif.type === 'mention' ? '📢 Вас упомянули' :
                        firstNotif.type === 'status_change' ? '✅ Статус изменён' :
+                    firstNotif.type === 'task_updated' ? '✏️ Задача изменена' :
+                    firstNotif.type === 'assignee_response' ? '💬 Ответ по задаче' :
                        firstNotif.type === 'new_task' ? '📋 Новая задача' :
                        '🔔 Уведомление',
                 message: count > 1 
@@ -1536,7 +1677,11 @@ export default function TodosPage() {
   }, [myAccountId, people]);
 
   // Создание уведомления о новой задаче
-  const createTaskNotification = useCallback(async (todo: Todo, type: 'new_task' | 'assignment' | 'status_change' | 'assignee_response', oldStatus?: string) => {
+  const createTaskNotification = useCallback(async (
+    todo: Todo,
+    type: 'new_task' | 'assignment' | 'status_change' | 'assignee_response' | 'task_updated',
+    changes?: { oldStatus?: string; oldAssignee?: string; newAssignee?: string; responseFrom?: 'assignee' | 'customer' }
+  ) => {
     if (!myAccountId) return;
     
     const author = people.find(p => p.id === myAccountId);
@@ -1549,69 +1694,55 @@ export default function TodosPage() {
     const relatedUsers = getTaskRelatedUsers({
       authorId: todo.assignedById,
       assignedById: todo.assignedById,
-      assignedToId: todo.assignedToId
+      assignedToId: todo.assignedToId,
+      assignedToIds: todo.assignedToIds
     });
 
-    // Уведомляем исполнителя (если назначен и это не автор)
-    if (todo.assignedToId && todo.assignedToId !== myAccountId) {
-      const notification: Notification = {
-        id: `notif-${Date.now()}`,
+    const statusBefore = getStatusLabel(changes?.oldStatus || 'todo');
+    const statusAfter = getStatusLabel(todo.status || 'todo');
+    const assigneeBefore = (changes?.oldAssignee || 'Не назначен').trim() || 'Не назначен';
+    const assigneeAfter = (changes?.newAssignee || todo.assignedTo || 'Не назначен').trim() || 'Не назначен';
+
+    const includeInitiator = type === 'status_change';
+    const recipients = (type === 'assignee_response'
+      ? changes?.responseFrom === 'customer'
+        ? [todo.assignedToId, ...(todo.assignedToIds || [])]
+        : [todo.assignedById]
+      : relatedUsers
+    ).filter((id): id is string => !!id && (includeInitiator || id !== myAccountId));
+
+    const uniqueRecipients = Array.from(new Set(recipients));
+
+    if (uniqueRecipients.length > 0) {
+      const baseMessage =
+        type === 'new_task'
+          ? `${author.name} создал задачу`
+          : type === 'assignment'
+            ? `${author.name} изменил исполнителя: ${assigneeBefore} → ${assigneeAfter}`
+            : type === 'status_change'
+              ? `${author.name} изменил статус: ${statusBefore} → ${statusAfter}`
+              : type === 'task_updated'
+                ? `${author.name} изменил текст задачи`
+                : changes?.responseFrom === 'customer'
+                  ? `${author.name} изменил ответ заказчика`
+              : `${author.name} ответил по задаче`;
+
+      const nowIso = new Date().toISOString();
+      const localNotifications: Notification[] = uniqueRecipients.map((toUserId, idx) => ({
+        id: `notif-${Date.now()}-${idx}`,
         type,
         todoId: todo.id,
         todoTitle: todo.title,
         fromUserId: myAccountId,
         fromUserName: author.name,
-        toUserId: todo.assignedToId,
-        message: type === 'new_task' 
-          ? `${author.name} создал задачу для вас`
-          : type === 'assignment'
-            ? `${author.name} назначил вас исполнителем`
-            : `${author.name} изменил статус задачи`,
+        toUserId,
+        message: baseMessage,
         read: false,
-        createdAt: new Date().toISOString()
-      };
-      // Сохраняем в API и локальный state
-      saveNotification(notification);
-      setNotifications(prev => [notification, ...prev]);
-      playNotificationSound();
-    }
+        createdAt: nowIso
+      }));
 
-    // Уведомляем заказчика если статус "Готово к проверке" (review)
-    if (type === 'status_change' && todo.status === 'review' && todo.assignedById && todo.assignedById !== myAccountId) {
-      const notification: Notification = {
-        id: `notif-${Date.now()}-customer`,
-        type: 'status_change',
-        todoId: todo.id,
-        todoTitle: todo.title,
-        fromUserId: myAccountId,
-        fromUserName: author.name,
-        toUserId: todo.assignedById,
-        message: `${author.name} завершил задачу и ждёт проверки`,
-        read: false,
-        createdAt: new Date().toISOString()
-      };
-      // Сохраняем в API и локальный state
-      saveNotification(notification);
-      setNotifications(prev => [notification, ...prev]);
-      playNotificationSound();
-    }
-
-    // Уведомляем заказчика об ответе исполнителя
-    if (type === 'assignee_response' && todo.assignedById && todo.assignedById !== myAccountId) {
-      const notification: Notification = {
-        id: `notif-${Date.now()}-response`,
-        type: 'assignee_response',
-        todoId: todo.id,
-        todoTitle: todo.title,
-        fromUserId: myAccountId,
-        fromUserName: author.name,
-        toUserId: todo.assignedById,
-        message: `${author.name} ответил по задаче`,
-        read: false,
-        createdAt: new Date().toISOString()
-      };
-      saveNotification(notification);
-      setNotifications(prev => [notification, ...prev]);
+      await Promise.all(localNotifications.map((notification) => saveNotification(notification)));
+      setNotifications(prev => [...localNotifications, ...prev]);
       playNotificationSound();
     }
 
@@ -1630,8 +1761,9 @@ export default function TodosPage() {
           relatedUsers,
           todo.id,
           todo.title,
-          oldStatus || 'todo',
-          todo.status || 'todo'
+          changes?.oldStatus || 'todo',
+          todo.status || 'todo',
+          true
         );
         break;
       case 'assignment':
@@ -1640,6 +1772,13 @@ export default function TodosPage() {
           todo.id,
           todo.title,
           todo.assignedById ?? undefined
+        );
+        break;
+      case 'task_updated':
+        await manager.notifyTaskUpdated(
+          relatedUsers,
+          todo.id,
+          todo.title
         );
         break;
     }
@@ -1848,6 +1987,9 @@ export default function TodosPage() {
       }
       if (executorFilterRef.current && !executorFilterRef.current.contains(event.target as Node)) {
         setExecutorDropdownOpen(false);
+      }
+      if (departmentFilterRef.current && !departmentFilterRef.current.contains(event.target as Node)) {
+        setDepartmentDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -2073,6 +2215,8 @@ export default function TodosPage() {
       const currentTodo = !isNewTodo ? todos.find(t => t.id === todo.id) : null;
       const statusChanged = currentTodo && currentTodo.status !== todo.status;
       const oldStatus = currentTodo?.status;
+      const oldAssigneeName = currentTodo?.assignedTo || 'Не назначен';
+      const newAssigneeName = todo.assignedTo || 'Не назначен';
       
       console.log('[updateTodo] Sending ' + (isNewTodo ? 'POST' : 'PUT') + ' request');
       
@@ -2124,19 +2268,37 @@ export default function TodosPage() {
         
         // Отправляем уведомление при изменении статуса
         if (statusChanged) {
-          createTaskNotification(todo, 'status_change', oldStatus);
+          createTaskNotification(todo, 'status_change', { oldStatus: oldStatus || undefined });
+        }
+
+        // Отправляем уведомление при изменении текста задачи
+        const taskTextChanged = currentTodo && (
+          String(currentTodo.title || '').trim() !== String(todo.title || '').trim()
+          || String(currentTodo.description || '').trim() !== String(todo.description || '').trim()
+        );
+        if (taskTextChanged) {
+          createTaskNotification(todo, 'task_updated');
         }
         
         // Отправляем уведомление при назначении/смене исполнителя
         const assigneeChanged = currentTodo && currentTodo.assignedToId !== todo.assignedToId;
         if (assigneeChanged && todo.assignedToId) {
-          createTaskNotification(todo, 'assignment');
+          createTaskNotification(todo, 'assignment', {
+            oldAssignee: oldAssigneeName,
+            newAssignee: newAssigneeName
+          });
         }
 
         // Отправляем уведомление при ответе исполнителя
         const responseChanged = currentTodo && currentTodo.assigneeResponse !== todo.assigneeResponse;
-        if (responseChanged && todo.assigneeResponse) {
-          createTaskNotification(todo, 'assignee_response');
+        if (responseChanged) {
+          createTaskNotification(todo, 'assignee_response', { responseFrom: 'assignee' });
+        }
+
+        // Отправляем уведомление при изменении ответа заказчика
+        const customerResponseChanged = currentTodo && currentTodo.reviewComment !== todo.reviewComment;
+        if (customerResponseChanged) {
+          createTaskNotification(todo, 'assignee_response', { responseFrom: 'customer' });
         }
         
         // Для новых задач - добавляем, для существующих - обновляем
@@ -2162,6 +2324,16 @@ export default function TodosPage() {
     try {
       const list = lists.find(l => l.id === todo.listId);
       const isTZ = todo.listId === TZ_LIST_ID;
+      const selectedCalendar = calendarLists.find(cl => cl.id === todo.calendarListId);
+      const targetCalendar = selectedCalendar && !isSharedCalendarList(selectedCalendar)
+        ? selectedCalendar
+        : (personalCalendarLists[0] || null);
+
+      if (!targetCalendar) {
+        alert('Для задачи нужно выбрать личный календарь. Общий календарь для задач недоступен.');
+        return null;
+      }
+
       const baseDate = todo.dueDate || new Date().toISOString().split('T')[0];
       const datesToAdd: string[] = [baseDate];
 
@@ -2201,7 +2373,7 @@ export default function TodosPage() {
           priority: todo.priority || 'medium',
           type: isTZ ? 'tz' : 'task',
           recurrence: todo.recurrence || 'once',
-          listId: todo.calendarListId || (calendarLists.length > 0 ? calendarLists[0].id : undefined),
+          listId: targetCalendar.id,
           sourceId: todo.id,
           assignedTo: todo.assignedTo,
           assignedBy: todo.assignedBy,
@@ -2239,31 +2411,6 @@ export default function TodosPage() {
       return null;
     }
   };
-
-  // Перемещение задачи в другой список
-  const moveTodo = useCallback(async (todoId: string, newListId: string) => {
-    const todo = todos.find(t => t.id === todoId);
-    if (!todo || todo.listId === newListId) return;
-    
-    try {
-      const res = await fetch('/api/todos', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: todoId,
-          listId: newListId
-        })
-      });
-      
-      if (res.ok) {
-        setTodos(prev => prev.map(t => 
-          t.id === todoId ? { ...t, listId: newListId } : t
-        ));
-      }
-    } catch (error) {
-      console.error('Error moving todo:', error);
-    }
-  }, [todos]);
 
   // Удаление задачи
   const deleteTodo = useCallback(async (id: string) => {
@@ -2599,12 +2746,26 @@ export default function TodosPage() {
   // Обновление порядка списков
   const updateListsOrder = useCallback(async (reorderedLists: TodoList[]) => {
     try {
-      // Обновляем локально сразу
-      setLists(reorderedLists);
+      const orderedIds = reorderedLists.map((list) => list.id);
+
+      setLists((prevLists) => {
+        const reorderedMap = new Map(reorderedLists.map((list) => [list.id, list]));
+        const archivedLists = prevLists.filter((list) => list.archived);
+
+        const activeLists = orderedIds
+          .map((id, index) => {
+            const list = reorderedMap.get(id);
+            if (!list) return null;
+            return { ...list, order: index };
+          })
+          .filter((list): list is TodoList => Boolean(list));
+
+        return [...activeLists, ...archivedLists];
+      });
       
       // Отправляем обновления на сервер
-      await Promise.all(reorderedLists.map((list, index) => 
-        fetch('/api/todos', {
+      await Promise.all(reorderedLists.map(async (list, index) => {
+        const response = await fetch('/api/todos', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2612,13 +2773,33 @@ export default function TodosPage() {
             type: 'list',
             order: index
           })
-        })
-      ));
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to update list order for ${list.id}`);
+        }
+      }));
     } catch (error) {
       console.error('Error updating lists order:', error);
       loadData(); // Перезагружаем при ошибке
     }
   }, [loadData]);
+
+  const moveListByOffset = useCallback((listId: string, offset: -1 | 1) => {
+    const currentNonArchivedLists = lists.filter((list) => !list.archived).sort((a, b) => a.order - b.order);
+    const currentIndex = currentNonArchivedLists.findIndex((list) => list.id === listId);
+    if (currentIndex === -1) return;
+
+    const nextIndex = currentIndex + offset;
+    if (nextIndex < 0 || nextIndex >= currentNonArchivedLists.length) return;
+
+    const reordered = [...currentNonArchivedLists];
+    const [movedList] = reordered.splice(currentIndex, 1);
+    reordered.splice(nextIndex, 0, movedList);
+
+    const updated = reordered.map((list, index) => ({ ...list, order: index }));
+    updateListsOrder(updated);
+  }, [lists, updateListsOrder]);
 
   // Обновление настроек Telegram
   const updateTelegramSettings = async () => {
@@ -2643,23 +2824,23 @@ export default function TodosPage() {
 
   // Drag and Drop handlers for todos
   const handleDragStart = useCallback((e: React.DragEvent, todo: Todo) => {
+    setDraggedList(null);
     setDraggedTodo(todo);
+    dragPayloadRef.current = { type: 'todo', id: todo.id };
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', todo.id);
+    e.dataTransfer.setData('text/plain', `todo:${todo.id}`);
+    e.dataTransfer.setData('application/x-shar-dnd-type', 'todo');
     e.dataTransfer.setData('type', 'todo');
-    // Добавляем задержку для красивой анимации
-    setTimeout(() => {
-      (e.target as HTMLElement).style.opacity = '0.5';
-    }, 0);
   }, []);
 
   const handleDragEnd = useCallback((e: React.DragEvent) => {
-    (e.target as HTMLElement).style.opacity = '1';
+    dragPayloadRef.current = { type: null, id: null };
     setDraggedTodo(null);
     setDragOverListId(null);
     setDragOverTodoId(null);
     setDraggedList(null);
     setDragOverListOrder(null);
+    dragOverTodoInsertAfterRef.current = false;
     dragCounter.current = 0;
     // Сбрасываем состояние скролла доски
     setIsDraggingBoard(false);
@@ -2692,139 +2873,204 @@ export default function TodosPage() {
     e.dataTransfer.dropEffect = 'move';
   }, []);
 
+  const getDragPayload = useCallback((e: React.DragEvent) => {
+    const raw = e.dataTransfer.getData('text/plain');
+    const explicitType =
+      e.dataTransfer.getData('application/x-shar-dnd-type') ||
+      e.dataTransfer.getData('type');
+
+    let parsedType: 'todo' | 'list' | null = null;
+    let parsedId: string | null = null;
+
+    if (raw) {
+      if (raw.startsWith('todo:')) {
+        parsedType = 'todo';
+        parsedId = raw.slice(5);
+      } else if (raw.startsWith('list:')) {
+        parsedType = 'list';
+        parsedId = raw.slice(5);
+      } else {
+        parsedId = raw;
+      }
+    }
+
+    const type =
+      (explicitType as 'todo' | 'list' | '') ||
+      parsedType ||
+      dragPayloadRef.current.type;
+
+    const id =
+      parsedId ||
+      dragPayloadRef.current.id;
+
+    return { type: type || null, id: id || null };
+  }, []);
+
   // Обработчик перетаскивания над задачей (для вертикального изменения порядка)
   const handleTodoDragOver = useCallback((e: React.DragEvent, todoId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    if (draggedTodo && draggedTodo.id !== todoId) {
+
+    const payload = getDragPayload(e);
+    const dragType = payload.type;
+    const draggedTodoId = draggedTodo?.id || payload.id;
+
+    if (dragType === 'todo' && draggedTodoId && draggedTodoId !== todoId) {
+      const targetRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      dragOverTodoInsertAfterRef.current = e.clientY > targetRect.top + targetRect.height / 2;
       setDragOverTodoId(todoId);
     }
-  }, [draggedTodo]);
+  }, [draggedTodo, getDragPayload]);
+
+  const persistTodos = useCallback(async (updatedItems: Todo[]) => {
+    await Promise.all(
+      updatedItems.map((item) =>
+        fetch('/api/todos', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(item),
+        })
+      )
+    );
+  }, []);
+
+  const reorderTodoRelativeToTarget = useCallback(async (draggedTodoId: string, targetTodo: Todo, insertAfter: boolean) => {
+    const sourceTodo = todos.find((item) => item.id === draggedTodoId);
+    if (!sourceTodo || sourceTodo.id === targetTodo.id) return;
+
+    const targetListTodos = todos
+      .filter((item) => item.listId === targetTodo.listId && !item.archived && item.id !== draggedTodoId)
+      .sort((a, b) => a.order - b.order);
+
+    const targetIndex = targetListTodos.findIndex((item) => item.id === targetTodo.id);
+    if (targetIndex === -1) return;
+
+    const insertIndex = Math.min(targetListTodos.length, Math.max(0, targetIndex + (insertAfter ? 1 : 0)));
+
+    const destinationWithMoved = [...targetListTodos];
+    destinationWithMoved.splice(insertIndex, 0, { ...sourceTodo, listId: targetTodo.listId });
+
+    const reindexedDestination = destinationWithMoved.map((item, index) => ({
+      ...item,
+      listId: targetTodo.listId,
+      order: index,
+    }));
+
+    const sourceListChanged = sourceTodo.listId !== targetTodo.listId;
+    const reindexedSource = sourceListChanged
+      ? todos
+          .filter((item) => item.listId === sourceTodo.listId && !item.archived && item.id !== draggedTodoId)
+          .sort((a, b) => a.order - b.order)
+          .map((item, index) => ({ ...item, order: index }))
+      : [];
+
+    const updatedMap = new Map<string, Todo>();
+    [...reindexedDestination, ...reindexedSource].forEach((item) => updatedMap.set(item.id, item));
+
+    setTodos((prev) => prev.map((item) => updatedMap.get(item.id) || item));
+
+    try {
+      await persistTodos(Array.from(updatedMap.values()));
+    } catch (error) {
+      console.error('Error reordering todos:', error);
+      loadData();
+    }
+
+    setDraggedTodo(null);
+    setDragOverTodoId(null);
+    setDragOverListId(null);
+    dragOverTodoInsertAfterRef.current = false;
+    dragPayloadRef.current = { type: null, id: null };
+  }, [loadData, persistTodos, todos]);
 
   // Обработчик drop на задачу (для вертикального изменения порядка)
   const handleTodoDrop = useCallback(async (e: React.DragEvent, targetTodo: Todo) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    if (!draggedTodo || draggedTodo.id === targetTodo.id) return;
-    
-    // Получаем все задачи этого списка
-    const listTodos = todos
-      .filter(t => t.listId === targetTodo.listId && !t.archived)
-      .sort((a, b) => a.order - b.order);
-    
-    const draggedIndex = listTodos.findIndex(t => t.id === draggedTodo.id);
-    const targetIndex = listTodos.findIndex(t => t.id === targetTodo.id);
-    
-    if (draggedIndex === -1) {
-      // Задача из другого списка - перемещаем в новый список на позицию targetIndex
-      const newOrder = targetTodo.order;
-      const updatedTodo = { ...draggedTodo, listId: targetTodo.listId, order: newOrder };
-      
-      // Получаем задачи, которые нужно сдвинуть
-      const todosToShift = todos.filter(
-        t => t.listId === targetTodo.listId && t.order >= newOrder && t.id !== draggedTodo.id && !t.archived
-      ).map(t => ({ ...t, order: t.order + 1 }));
-      
-      // Обновляем порядок остальных задач
-      const updatedTodos = todos.map(t => {
-        if (t.id === draggedTodo.id) {
-          return updatedTodo;
-        }
-        const shiftedTodo = todosToShift.find(st => st.id === t.id);
-        if (shiftedTodo) {
-          return shiftedTodo;
-        }
-        return t;
-      });
-      
-      setTodos(updatedTodos);
-      
-      // Сохраняем на сервер все изменённые задачи
-      try {
-        await Promise.all([
-          fetch('/api/todos', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatedTodo)
-          }),
-          ...todosToShift.map(todo =>
-            fetch('/api/todos', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(todo)
-            })
-          )
-        ]);
-      } catch (error) {
-        console.error('Error moving todo:', error);
-      }
-    } else {
-      // Задача из того же списка - меняем порядок
-      const newListTodos = [...listTodos];
-      const [removed] = newListTodos.splice(draggedIndex, 1);
-      newListTodos.splice(targetIndex, 0, removed);
-      
-      // Обновляем order для всех задач в списке
-      const updatedListTodos = newListTodos.map((t, index) => ({ ...t, order: index }));
-      
-      const updatedTodos = todos.map(t => {
-        const updatedTodo = updatedListTodos.find(lt => lt.id === t.id);
-        if (updatedTodo) {
-          return updatedTodo;
-        }
-        return t;
-      });
-      
-      setTodos(updatedTodos);
-      
-      // Сохраняем на сервер все задачи списка с новым order
-      try {
-        await Promise.all(
-          updatedListTodos.map(todo =>
-            fetch('/api/todos', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(todo)
-            })
-          )
-        );
-      } catch (error) {
-        console.error('Error reordering todos:', error);
-      }
-    }
-    
-    setDraggedTodo(null);
-    setDragOverTodoId(null);
-    setDragOverListId(null);
-  }, [draggedTodo, todos]);
 
-  const handleDrop = useCallback((e: React.DragEvent, listId: string) => {
+    const payload = getDragPayload(e);
+    const dragType = payload.type;
+    if (dragType !== 'todo') return;
+
+    const draggedTodoId = draggedTodo?.id || payload.id;
+    if (!draggedTodoId || draggedTodoId === targetTodo.id) return;
+
+    const targetRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const insertAfter = e.clientY > targetRect.top + targetRect.height / 2;
+    await reorderTodoRelativeToTarget(draggedTodoId, targetTodo, insertAfter);
+  }, [draggedTodo, getDragPayload, reorderTodoRelativeToTarget]);
+
+  const handleDrop = useCallback(async (e: React.DragEvent, listId: string) => {
     e.preventDefault();
     dragCounter.current = 0;
     setDragOverListId(null);
     setDragOverTodoId(null);
-    
-    if (draggedTodo) {
-      moveTodo(draggedTodo.id, listId);
+
+    const payload = getDragPayload(e);
+    const dragType = payload.type;
+    if (dragType !== 'todo') return;
+
+    const draggedTodoId = draggedTodo?.id || payload.id;
+    if (!draggedTodoId) return;
+
+    if (dragOverTodoId) {
+      const targetTodo = todos.find((item) => item.id === dragOverTodoId && item.listId === listId && !item.archived);
+      if (targetTodo && targetTodo.id !== draggedTodoId) {
+        await reorderTodoRelativeToTarget(draggedTodoId, targetTodo, dragOverTodoInsertAfterRef.current);
+        return;
+      }
     }
+
+    const sourceTodo = todos.find((item) => item.id === draggedTodoId);
+    if (!sourceTodo) return;
+
+    const destinationTodos = todos
+      .filter((item) => item.listId === listId && !item.archived && item.id !== draggedTodoId)
+      .sort((a, b) => a.order - b.order);
+
+    destinationTodos.push({ ...sourceTodo, listId });
+
+    const reindexedDestination = destinationTodos.map((item, index) => ({ ...item, listId, order: index }));
+    const sourceListChanged = sourceTodo.listId !== listId;
+
+    const reindexedSource = sourceListChanged
+      ? todos
+          .filter((item) => item.listId === sourceTodo.listId && !item.archived && item.id !== draggedTodoId)
+          .sort((a, b) => a.order - b.order)
+          .map((item, index) => ({ ...item, order: index }))
+      : [];
+
+    const updatedMap = new Map<string, Todo>();
+    [...reindexedDestination, ...reindexedSource].forEach((item) => updatedMap.set(item.id, item));
+
+    setTodos((prev) => prev.map((item) => updatedMap.get(item.id) || item));
+
+    try {
+      await persistTodos(Array.from(updatedMap.values()));
+    } catch (error) {
+      console.error('Error moving todo to list:', error);
+      loadData();
+    }
+
     setDraggedTodo(null);
-  }, [draggedTodo, moveTodo]);
+    dragOverTodoInsertAfterRef.current = false;
+    dragPayloadRef.current = { type: null, id: null };
+  }, [dragOverTodoId, draggedTodo, getDragPayload, loadData, persistTodos, reorderTodoRelativeToTarget, todos]);
 
   // Drag and Drop handlers for lists
   const handleListDragStart = useCallback((e: React.DragEvent, list: TodoList) => {
     e.stopPropagation();
+    setDraggedTodo(null);
     setDraggedList(list);
+    dragPayloadRef.current = { type: 'list', id: list.id };
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', list.id);
+    e.dataTransfer.setData('text/plain', `list:${list.id}`);
+    e.dataTransfer.setData('application/x-shar-dnd-type', 'list');
     e.dataTransfer.setData('type', 'list');
-    setTimeout(() => {
-      (e.target as HTMLElement).style.opacity = '0.5';
-    }, 0);
   }, []);
 
   const handleListDragEnd = useCallback((e: React.DragEvent) => {
-    (e.target as HTMLElement).style.opacity = '1';
+    dragPayloadRef.current = { type: null, id: null };
     setDraggedList(null);
     setDragOverListOrder(null);
   }, []);
@@ -2832,18 +3078,29 @@ export default function TodosPage() {
   const handleListDragOver = useCallback((e: React.DragEvent, targetList: TodoList) => {
     e.preventDefault();
     e.stopPropagation();
-    if (draggedList && draggedList.id !== targetList.id) {
+
+    const payload = getDragPayload(e);
+    const dragType = payload.type;
+    const draggedListId = draggedList?.id || payload.id;
+
+    if (dragType === 'list' && draggedListId && draggedListId !== targetList.id) {
       setDragOverListOrder(targetList.order);
     }
-  }, [draggedList]);
+  }, [draggedList, getDragPayload]);
 
   const handleListDrop = useCallback((e: React.DragEvent, targetList: TodoList) => {
     e.preventDefault();
     e.stopPropagation();
+
+    const payload = getDragPayload(e);
+    const dragType = payload.type;
+    if (dragType !== 'list') return;
+
+    const draggedListId = draggedList?.id || payload.id;
     
-    if (draggedList && draggedList.id !== targetList.id) {
+    if (draggedListId && draggedListId !== targetList.id) {
       const currentNonArchivedLists = lists.filter(l => !l.archived).sort((a, b) => a.order - b.order);
-      const draggedIndex = currentNonArchivedLists.findIndex(l => l.id === draggedList.id);
+      const draggedIndex = currentNonArchivedLists.findIndex(l => l.id === draggedListId);
       const targetIndex = currentNonArchivedLists.findIndex(l => l.id === targetList.id);
       
       if (draggedIndex !== -1 && targetIndex !== -1) {
@@ -2859,7 +3116,24 @@ export default function TodosPage() {
     
     setDraggedList(null);
     setDragOverListOrder(null);
-  }, [draggedList, lists, updateListsOrder]);
+    dragPayloadRef.current = { type: null, id: null };
+  }, [draggedList, getDragPayload, lists, updateListsOrder]);
+
+  useEffect(() => {
+    const resetListDragState = () => {
+      dragPayloadRef.current = { type: null, id: null };
+      setDraggedList(null);
+      setDragOverListOrder(null);
+    };
+
+    window.addEventListener('dragend', resetListDragState);
+    window.addEventListener('drop', resetListDragState);
+
+    return () => {
+      window.removeEventListener('dragend', resetListDragState);
+      window.removeEventListener('drop', resetListDragState);
+    };
+  }, []);
 
   // Drag to scroll handlers
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -2924,6 +3198,20 @@ export default function TodosPage() {
         const matchesFilter = todo.assignedToId === filterExecutor || todo.assignedToIds?.includes(filterExecutor);
         if (!matchesFilter) return false;
       }
+
+      // Фильтр по отделу
+      if (filterDepartment !== 'all') {
+        const assigneeIds = new Set<string>();
+        if (todo.assignedToId) assigneeIds.add(todo.assignedToId);
+        if (Array.isArray(todo.assignedToIds)) {
+          todo.assignedToIds.forEach(id => assigneeIds.add(id));
+        }
+        const hasDepartmentMatch = Array.from(assigneeIds).some(assigneeId => {
+          const person = people.find(p => p.id === assigneeId);
+          return person?.department?.trim() === filterDepartment;
+        });
+        if (!hasDepartmentMatch) return false;
+      }
       
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -2936,13 +3224,13 @@ export default function TodosPage() {
 
   // Получение задач для списка (исключая архивные) - ИСПОЛЬЗУЕТ МЕМОИЗИРОВАННЫЕ ДАННЫЕ
   const getTodosForList = useCallback((listId: string, includeArchived: boolean = false) => {
-    const cached = filteredAndSortedTodos.find(f => f.listId === listId);
-    if (cached) return cached.todos;
+    const cached = filteredTodosByListId[listId];
+    if (cached) return cached;
     
     // Fallback (не должно использоваться при нормальной работе)
     const listTodos = todos.filter(t => t.listId === listId && (includeArchived || !t.archived));
     return filterTodos(listTodos, listId);
-  }, [filteredAndSortedTodos, todos]);
+  }, [filteredTodosByListId, todos]);
 
   // Получение архивных задач
   const getArchivedTodos = () => {
@@ -2955,17 +3243,52 @@ export default function TodosPage() {
     [lists]
   );
 
+  const peopleNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    people.forEach((person) => {
+      map[person.id] = person.name || person.username || person.id;
+    });
+    return map;
+  }, [people]);
+
+  const hasActiveBoardFilters = useMemo(
+    () => Boolean(searchQuery || filterExecutor || filterDepartment !== 'all' || filterStatus !== 'all'),
+    [searchQuery, filterExecutor, filterDepartment, filterStatus]
+  );
+
+  const visibleNonArchivedLists = useMemo(() => {
+    return nonArchivedLists.filter((list) => {
+      const filteredTodos = filteredTodosByListId[list.id] || [];
+
+      if (!canSeeAllTasks && myAccountId) {
+        const hasFullAccess = list.creatorId === myAccountId ||
+          (list.allowedUsers && list.allowedUsers.includes(myAccountId)) ||
+          (myDepartment && list.allowedDepartments && list.allowedDepartments.includes(myDepartment));
+
+        if (hasFullAccess) {
+          if (!hasActiveBoardFilters) return true;
+          return filteredTodos.length > 0;
+        }
+
+        return filteredTodos.length > 0;
+      }
+
+      if (!hasActiveBoardFilters) return true;
+      return filteredTodos.length > 0;
+    });
+  }, [nonArchivedLists, filteredTodosByListId, canSeeAllTasks, myAccountId, myDepartment, hasActiveBoardFilters]);
+
   // 🚀 CRITICAL FIX: Мемоизируем счетчики задач по спискам (было 2000+ операций!)
   const listCounts = useMemo(() => {
     return lists.reduce((acc, list) => {
-      const listTodos = getTodosForList(list.id, showArchive);
+      const listTodos = filteredTodosByListId[list.id] || [];
       acc[list.id] = {
         completedCount: listTodos.filter(t => t.completed).length,
         totalCount: listTodos.length
       };
       return acc;
     }, {} as Record<string, { completedCount: number; totalCount: number }>);
-  }, [lists, getTodosForList, showArchive]);
+  }, [lists, filteredTodosByListId]);
 
   if (isLoading) {
     return (
@@ -2976,9 +3299,9 @@ export default function TodosPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col text-gray-900 dark:text-white overflow-hidden relative bg-gray-50 dark:bg-transparent">
+    <div className="todos-page h-screen flex flex-col text-gray-900 dark:text-white overflow-hidden relative bg-gray-50 dark:bg-transparent">
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-10 w-full px-3 py-2 flex-shrink-0">
+      <div className="absolute top-0 left-0 right-0 z-40 w-full px-3 py-2 flex-shrink-0">
         {/* Mobile header - all in one line */}
         <div className="flex items-center gap-2 w-full min-[550px]:hidden">
           {/* Левая стрелка */}
@@ -3100,6 +3423,25 @@ export default function TodosPage() {
             />
           </div>
 
+          {/* Department Filter */}
+          <div className="relative hidden min-[550px]:block" ref={departmentFilterRef}>
+            <button
+              onClick={() => setDepartmentDropdownOpen(!departmentDropdownOpen)}
+              className="flex items-center gap-1.5 px-3 h-10 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all duration-200 text-sm border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] backdrop-blur-xl"
+            >
+              <Briefcase className="w-4 h-4 flex-shrink-0" />
+              <span className="truncate max-w-[120px]">{filterDepartment === 'all' ? 'Все отделы' : filterDepartment}</span>
+              <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
+            </button>
+            <Departmentdropdown
+              isOpen={departmentDropdownOpen}
+              onClose={() => setDepartmentDropdownOpen(false)}
+              departments={availableDepartments}
+              filterDepartment={filterDepartment}
+              setFilterDepartment={setFilterDepartment}
+            />
+          </div>
+
           {/* Archive Toggle */}
           <button
             onClick={() => setShowArchive(!showArchive)}
@@ -3121,47 +3463,19 @@ export default function TodosPage() {
           ref={boardRef}
           className="px-0 sm:px-4 py-2 sm:py-4 flex flex-col min-[550px]:flex-row gap-3 sm:gap-4 min-[550px]:overflow-x-auto scrollbar-hide"
           style={{ cursor: windowWidth >= 550 ? 'grab' : 'default' }}
+          onScroll={handleBoardScroll}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseLeave}
         >
-          {nonArchivedLists
-            // При поиске показываем только списки с результатами
-            // Показываем столбцы: свои, с полным доступом (allowedUsers/allowedDepartments), или где есть назначенные задачи
-            .filter(list => {
-              // Получаем отфильтрованные задачи для этого списка
-              const filtered = filteredAndSortedTodos.find(f => f.listId === list.id);
-              
-              if (!canSeeAllTasks && myAccountId) {
-                // Проверяем полный доступ к столбцу
-                const hasFullAccess = list.creatorId === myAccountId || 
-                  (list.allowedUsers && list.allowedUsers.includes(myAccountId)) ||
-                  (myDepartment && list.allowedDepartments && list.allowedDepartments.includes(myDepartment));
-                
-                if (hasFullAccess) {
-                  // Если есть полный доступ и нет фильтров - показываем всегда
-                  if (!searchQuery && !filterExecutor && filterStatus === 'all') return true;
-                  // Если есть фильтры - показываем только если есть задачи
-                  return filtered && filtered.todos.length > 0;
-                }
-                
-                // Если нет полного доступа - показываем только если есть задачи после фильтрации
-                return filtered && filtered.todos.length > 0;
-              }
-              
-              // Для админов - если нет фильтров, показываем все списки
-              if (!searchQuery && !filterExecutor && filterStatus === 'all') return true;
-              // Если есть фильтры - показываем только списки с задачами
-              return filtered && filtered.todos.length > 0;
-            })
-            .map((list, index) => {
+          {visibleNonArchivedLists.map((list, index) => {
             const listTodos = getTodosForList(list.id, showArchive);
             const { completedCount, totalCount } = listCounts[list.id] || { completedCount: 0, totalCount: 0 };
             const isDropTarget = dragOverListId === list.id && draggedTodo?.listId !== list.id;
             const isListDropTarget = dragOverListOrder === list.order && draggedList?.id !== list.id;
             const listCreatorName = list.creatorId
-              ? (list.creatorId === myAccountId ? 'Вы' : getPersonNameById(people, list.creatorId))
+              ? (list.creatorId === myAccountId ? 'Вы' : (peopleNameById[list.creatorId] || 'Неизвестно'))
               : '';
             
             // На мобильных показываем только выбранную колонку (используем CSS для правильного SSR)
@@ -3170,31 +3484,42 @@ export default function TodosPage() {
             return (
               <div
                 key={list.id}
+                data-todo-list="true"
                 onDragOver={(e) => {
                   handleDragOver(e);
-                  if (!draggedTodo) handleListDragOver(e, list);
+                  const dragType = getDragPayload(e).type;
+                  if (dragType === 'list') handleListDragOver(e, list);
                 }}
                 onDrop={(e) => {
-                  if (draggedTodo) {
-                    handleDrop(e, list.id);
-                  } else if (draggedList) {
+                  const payload = getDragPayload(e);
+                  const dragType = payload.type;
+                  const hasDraggedListId = Boolean(payload.id);
+
+                  if (dragType === 'list') {
                     handleListDrop(e, list);
+                  } else if (dragType === 'todo') {
+                    handleDrop(e, list.id);
+                  } else if (draggedList || hasDraggedListId) {
+                    handleListDrop(e, list);
+                  } else if (draggedTodo) {
+                    handleDrop(e, list.id);
                   }
                 }}
-                className={`flex-shrink-0 w-full min-[550px]:w-80 flex flex-col rounded-xl transition-[opacity,transform] ${
+                className={`flex-shrink-0 w-full min-[550px]:w-80 flex flex-col rounded-xl transition-opacity duration-150 ${
                   isNotSelectedOnMobile ? 'hidden min-[550px]:flex' : 'flex'
                 } ${
                   isDropTarget ? '' : ''
-                } ${isListDropTarget ? 'ring-2 ring-blue-500/50' : ''} ${draggedList?.id === list.id ? 'opacity-50 scale-95' : ''} mt-[10px] min-[550px]:mt-0`}
+                } ${isListDropTarget ? 'ring-2 ring-blue-500/50' : ''} ${draggedList?.id === list.id ? 'opacity-50 scale-95' : ''} mt-[10px] min-[550px]:mt-0 group overflow-visible`}
                 onDragEnter={(e) => handleDragEnter(e, list.id)}
                 onDragLeave={handleDragLeave}
               >
                 {/* List Header */}
                 <div 
                   draggable={windowWidth >= 550}
+                  data-list-header-drag="true"
                   onDragStart={(e) => handleListDragStart(e, list)}
                   onDragEnd={handleListDragEnd}
-                  className="bg-[var(--bg-secondary)] border-x border-t border-[var(--border-color)] rounded-t-xl p-2 sm:p-2.5 flex-shrink-0 min-[550px]:cursor-grab min-[550px]:active:cursor-grabbing"
+                  className="relative z-20 overflow-visible bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border-x border-t border-[var(--border-light)] rounded-t-xl p-2 sm:p-2.5 flex-shrink-0 min-[550px]:cursor-grab min-[550px]:active:cursor-grabbing backdrop-blur-xl shadow-[var(--shadow-card)]"
                 >
                   <div className="flex items-center justify-between pointer-events-none">
                     <div className="flex items-center gap-1.5 sm:gap-1.5">
@@ -3282,10 +3607,10 @@ export default function TodosPage() {
                         className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-all bg-gradient-to-br from-white/10 to-white/5 hover:from-green-500/20 hover:to-green-500/10 border border-white/20 hover:border-green-500/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-md text-green-400"
                         title="Добавить задачу"
                       >
-                        <Plus className="w-3.5 h-3.5" />
+                        <Plus className="w-3.5 h-3.5" strokeWidth={2.8} />
                       </button>
                       {/* Меню ... */}
-                      <div className="relative">
+                      <div className="relative z-30">
                         <button
                           onClick={() => setShowListMenu(showListMenu === list.id ? null : list.id)}
                           className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-gradient-to-br from-white/10 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-md text-[var(--text-primary)]"
@@ -3294,19 +3619,23 @@ export default function TodosPage() {
                           <MoreVertical className="w-3.5 h-3.5" />
                         </button>
                         {showListMenu === list.id && (
-                          <div className="absolute right-0 top-full mt-1 w-44 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl z-50 py-1 pointer-events-auto">
-                            <div className="px-1">
-                              <div onClick={(e) => e.stopPropagation()}>
-                                <AccessButton
-                                  resourceType="list"
-                                  resourceId={list.id}
-                                  resourceName={list.name}
-                                  variant="button"
-                                  size="sm"
-                                  className="w-full justify-start"
-                                />
-                              </div>
-                            </div>
+                          <div className="absolute right-0 top-full mt-1 w-44 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg shadow-xl z-[200] py-1 pointer-events-auto">
+                            <button
+                              onClick={() => { moveListByOffset(list.id, -1); setShowListMenu(null); }}
+                              disabled={list.order <= 0}
+                              className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-[var(--text-primary)] hover:bg-white/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                              Сдвинуть влево
+                            </button>
+                            <button
+                              onClick={() => { moveListByOffset(list.id, 1); setShowListMenu(null); }}
+                              disabled={list.order >= nonArchivedLists.length - 1}
+                              className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-[var(--text-primary)] hover:bg-white/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                              Сдвинуть вправо
+                            </button>
                             <div className="border-t border-[var(--border-color)] my-1" />
                             <button
                               onClick={() => { setShowListMenu(null); setEditingList(list); setShowAddList(true); }}
@@ -3339,13 +3668,20 @@ export default function TodosPage() {
 
                 {/* Tasks Container */}
                 <div 
-                  className={`bg-[var(--bg-secondary)] border-x border-b border-[var(--border-color)] rounded-b-xl p-2 flex flex-col gap-2 min-h-[100px] transition-colors ${
+                  className={`relative z-0 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border-x border-b border-[var(--border-light)] rounded-b-xl p-2 flex flex-col gap-2 min-h-[100px] transition-colors backdrop-blur-xl shadow-[var(--shadow-card)] ${
                     isDropTarget ? 'bg-[#eaeaea] dark:bg-[var(--bg-glass)]' : ''
                   }`}
                   onDragEnter={(e) => handleDragEnter(e, list.id)}
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, list.id)}
+                  onDrop={(e) => {
+                    const dragType = getDragPayload(e).type;
+                    if (dragType === 'list') {
+                      handleListDrop(e, list);
+                    } else {
+                      handleDrop(e, list.id);
+                    }
+                  }}
                 >
                   {/* Add Task Form */}
                   {addingToList === list.id && (
@@ -3602,6 +3938,20 @@ export default function TodosPage() {
         )}
       </div>
 
+      {/* Sticky horizontal scrollbar (desktop) */}
+      {windowWidth >= 550 && boardScrollWidth > boardClientWidth + 2 && (
+        <div className="fixed left-0 right-0 bottom-[54px] z-[120] px-4 pointer-events-none">
+          <div
+            ref={bottomScrollbarRef}
+            onScroll={handleBottomScrollbarScroll}
+            onClick={handleBottomScrollbarTrackClick}
+            className="todos-bottom-scrollbar mx-auto w-[56vw] min-w-[280px] max-w-[640px] h-5 overflow-x-auto overflow-y-hidden pointer-events-auto"
+          >
+            <div style={{ width: `${boardScrollWidth}px`, height: '1px' }} />
+          </div>
+        </div>
+      )}
+
       {/* Hover Preview Tooltip - only on desktop */}
       {hoveredTodo && (hoveredTodo.description || hoveredTodo.reviewComment) && (
         <div 
@@ -3686,7 +4036,7 @@ export default function TodosPage() {
         lists={lists}
         nonArchivedLists={nonArchivedLists}
         categories={categories}
-        calendarLists={calendarLists}
+        calendarLists={personalCalendarLists}
         openDropdown={openDropdown}
         setOpenDropdown={setOpenDropdown}
         columnWidths={columnWidths}
@@ -3882,6 +4232,9 @@ export default function TodosPage() {
         setFilterStatus={setFilterStatus}
         filterExecutor={filterExecutor}
         setFilterExecutor={setFilterExecutor}
+        filterDepartment={filterDepartment}
+        setFilterDepartment={setFilterDepartment}
+        departments={availableDepartments}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
       />

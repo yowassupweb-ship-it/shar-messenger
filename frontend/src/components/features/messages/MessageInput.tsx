@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Send, X, Paperclip, FileText, Link as LinkIcon, Calendar, Image, File, Upload, Smile, Check, Edit3, Reply } from 'lucide-react';
+import { Send, X, Paperclip, FileText, Link as LinkIcon, Calendar, Image, File, Upload, Smile, Check, Edit3, Reply, Loader2 } from 'lucide-react';
 import Avatar from '@/components/common/data-display/Avatar';
 import EmojiPicker from '@/components/common/overlays/EmojiPicker';
 import { Chat, User, Message } from './types';
@@ -10,6 +10,7 @@ interface MessageInputProps {
   selectedChat: Chat | null;
   isDragging: boolean;
   attachments: any[];
+  isUploadingAttachments: boolean;
   editingMessageId: string | null;
   replyToMessage: Message | null;
   showEmojiPicker: boolean;
@@ -18,6 +19,7 @@ interface MessageInputProps {
   mentionQuery: string;
   users: User[];
   currentUser: User | null;
+  composerContainerRef: React.RefObject<HTMLDivElement>;
   messageInputRef: React.RefObject<HTMLTextAreaElement>;
   fileInputRef: React.RefObject<HTMLInputElement>;
   isUserActiveRef: React.MutableRefObject<boolean>;
@@ -26,6 +28,7 @@ interface MessageInputProps {
   
   setIsDragging: (value: boolean) => void;
   setAttachments: React.Dispatch<React.SetStateAction<any[]>>;
+  setIsUploadingAttachments: (value: boolean) => void;
   setEditingMessageId: (value: string | null) => void;
   setNewMessage: (value: string) => void;
   setSavedMessageText: (value: string) => void;
@@ -46,6 +49,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   selectedChat,
   isDragging,
   attachments,
+  isUploadingAttachments,
   editingMessageId,
   replyToMessage,
   showEmojiPicker,
@@ -54,6 +58,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   mentionQuery,
   users,
   currentUser,
+  composerContainerRef,
   messageInputRef,
   fileInputRef,
   isUserActiveRef,
@@ -61,6 +66,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   savedMessageText,
   setIsDragging,
   setAttachments,
+  setIsUploadingAttachments,
   setEditingMessageId,
   setNewMessage,
   setSavedMessageText,
@@ -75,13 +81,88 @@ const MessageInput: React.FC<MessageInputProps> = ({
   updateMessage,
   sendMessage
 }) => {
-  const actionButtonClass = 'w-10 h-10 md:w-11 md:h-11 rounded-full bg-gradient-to-br from-white/15 to-white/5 flex items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] border border-white/20 backdrop-blur-sm flex-shrink-0 text-[var(--text-secondary)]';
+  const getCurrentNavOffset = React.useCallback(() => {
+    if (typeof window === 'undefined') return 0;
 
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    const files = Array.from(e.dataTransfer.files);
+    const getVisibleHeight = (selector: string) => {
+      const el = document.querySelector(selector) as HTMLElement | null;
+      if (!el) return 0;
+      const style = window.getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+        return 0;
+      }
+      return Math.max(0, Math.round(el.getBoundingClientRect().height));
+    };
+
+    const mobileNavHeight = getVisibleHeight('.bottom-nav-fixed');
+    const desktopNavHeight = getVisibleHeight('.desktop-navigation');
+    return Math.max(
+      mobileNavHeight > 0 ? mobileNavHeight + 2 : 0,
+      desktopNavHeight > 0 ? desktopNavHeight + 2 : 0
+    );
+  }, []);
+
+  const [composerBottomOffset, setComposerBottomOffset] = React.useState(() => getCurrentNavOffset());
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let lastOffset = -1;
+    const updateBottomOffset = () => {
+      const nextOffset = getCurrentNavOffset();
+
+      if (nextOffset !== lastOffset) {
+        lastOffset = nextOffset;
+        setComposerBottomOffset(nextOffset);
+      }
+    };
+
+    updateBottomOffset();
+    const rafId = requestAnimationFrame(updateBottomOffset);
+    window.addEventListener('resize', updateBottomOffset);
+    window.addEventListener('chat-selection-changed', updateBottomOffset as EventListener);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', updateBottomOffset);
+      window.removeEventListener('chat-selection-changed', updateBottomOffset as EventListener);
+    };
+  }, [getCurrentNavOffset]);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raf = requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('resize'));
+      window.dispatchEvent(new CustomEvent('composer-resize', { detail: { offset: composerBottomOffset } }));
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [composerBottomOffset]);
+
+  const recalculateTextareaHeight = React.useCallback((nextValue?: string) => {
+    const textarea = messageInputRef.current;
+    if (!textarea) return;
+
+    if (typeof nextValue === 'string' && textarea.value !== nextValue) {
+      textarea.value = nextValue;
+    }
+
+    textarea.style.height = 'auto';
+    const minHeight = 44;
+    const maxHeight = 120;
+    const nextHeight = Math.min(Math.max(textarea.scrollHeight, minHeight), maxHeight);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = nextHeight >= maxHeight ? 'auto' : 'hidden';
+  }, [messageInputRef]);
+
+  const actionButtonClass = 'w-11 h-11 rounded-full bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] flex items-center justify-center transition-all duration-200 shadow-[var(--shadow-card)] border border-[var(--border-light)] backdrop-blur-sm flex-shrink-0 text-[var(--text-secondary)]';
+  const attachmentButtonClass = 'w-11 h-11 rounded-full bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] flex items-center justify-center transition-all duration-200 shadow-[var(--shadow-card)] border border-[var(--border-light)] backdrop-blur-sm flex-shrink-0 text-[var(--text-primary)]';
+  const hasComposerContextBlock = Boolean(editingMessageId || replyToMessage);
+  const composerContextBlockClass = 'mb-1 h-[42px] px-3 rounded-[18px] backdrop-blur-xl bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[var(--shadow-card)] flex items-center justify-between gap-2';
+  const composerContextCloseButtonClass = 'w-6 h-6 rounded-full hover:bg-[var(--bg-glass-hover)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0';
+
+  const uploadAndAttachFiles = React.useCallback(async (files: File[]) => {
+    if (files.length === 0) return;
+    setIsUploadingAttachments(true);
     for (const file of files) {
       const formData = new FormData();
       formData.append('file', file);
@@ -103,38 +184,65 @@ const MessageInput: React.FC<MessageInputProps> = ({
       } catch (error) {
         console.error('Error uploading file:', error);
       }
+    }
+    setIsUploadingAttachments(false);
+  }, [setAttachments, setIsUploadingAttachments]);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const hasFiles = (event: DragEvent) => {
+      const types = event.dataTransfer?.types;
+      return Boolean(types && Array.from(types).includes('Files'));
+    };
+
+    const onWindowDragOver = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      setIsDragging(true);
+    };
+
+    const onWindowDrop = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      setIsDragging(false);
+      const droppedFiles = Array.from(event.dataTransfer?.files || []);
+      if (droppedFiles.length > 0) {
+        void uploadAndAttachFiles(droppedFiles);
+      }
+    };
+
+    const onWindowDragLeave = (event: DragEvent) => {
+      if (event.clientX === 0 && event.clientY === 0) {
+        setIsDragging(false);
+      }
+    };
+
+    window.addEventListener('dragover', onWindowDragOver);
+    window.addEventListener('drop', onWindowDrop);
+    window.addEventListener('dragleave', onWindowDragLeave);
+
+    return () => {
+      window.removeEventListener('dragover', onWindowDragOver);
+      window.removeEventListener('drop', onWindowDrop);
+      window.removeEventListener('dragleave', onWindowDragLeave);
+    };
+  }, [setIsDragging, uploadAndAttachFiles]);
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length > 0) {
+      await uploadAndAttachFiles(files);
     }
   };
 
   const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
-    
-    for (const file of files) {
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      try {
-        const uploadRes = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (uploadRes.ok) {
-          const uploadData = await uploadRes.json();
-          setAttachments(prev => [...prev, {
-            type: file.type.startsWith('image/') ? 'image' : 'file',
-            name: file.name,
-            url: uploadData.url
-          }]);
-        } else {
-          alert('Ошибка загрузки файла');
-        }
-      } catch (error) {
-        console.error('Error uploading file:', error);
-        alert('Ошибка загрузки файла');
-      }
-    }
+    await uploadAndAttachFiles(files);
     e.target.value = '';
   };
 
@@ -157,34 +265,16 @@ const MessageInput: React.FC<MessageInputProps> = ({
     if (files.length === 0) return;
     e.preventDefault();
 
-    for (const file of files) {
-      const formData = new FormData();
-      formData.append('file', file, file.name || 'pasted-image');
-      try {
-        const uploadRes = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData
-        });
-
-        if (uploadRes.ok) {
-          const uploadData = await uploadRes.json();
-          setAttachments(prev => [...prev, {
-            type: file.type.startsWith('image/') ? 'image' : 'file',
-            name: file.name || (file.type.startsWith('image/') ? 'pasted-image' : 'file'),
-            url: uploadData.url
-          }]);
-        }
-      } catch (error) {
-        console.error('Error uploading pasted file:', error);
-      }
-    }
+    await uploadAndAttachFiles(files);
   };
 
   return (
     <div
-      className={`absolute bottom-0 max-[785px]:bottom-0 min-[786px]:bottom-[50px] left-0 right-0 z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(env(safe-area-inset-bottom,8px),8px)] ${
+      ref={composerContainerRef}
+      className={`absolute left-0 right-0 z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(env(safe-area-inset-bottom,8px),8px)] ${
         isDragging ? 'scale-[1.02]' : ''
       }`}
+      style={{ bottom: `${composerBottomOffset}px` }}
       onCopy={(e) => e.preventDefault()}
       onDragOver={(e) => {
         e.preventDefault();
@@ -210,10 +300,19 @@ const MessageInput: React.FC<MessageInputProps> = ({
       )}
       
       {/* Attachments preview */}
+      {isUploadingAttachments && (
+        <div className="mb-2 px-2 md:px-4 lg:px-8">
+          <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-[var(--text-secondary)] backdrop-blur-xl bg-[var(--bg-glass)] border border-[var(--border-color)] shadow-[var(--shadow-glass)]">
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent-primary)]" />
+            <span>Загрузка вложений...</span>
+          </div>
+        </div>
+      )}
+
       {!selectedChat?.isNotificationsChat && attachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2 px-2 md:px-4 lg:px-8">
           {attachments.map((att, idx) => (
-            <div key={idx} className="backdrop-blur-xl bg-[var(--bg-secondary)]/80 border border-[var(--border-color)]/30 rounded-lg px-3 py-1.5 text-xs text-[var(--text-secondary)] flex items-center gap-2 shadow-lg">
+            <div key={idx} className="backdrop-blur-xl bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg px-3 py-1.5 text-xs text-[var(--text-secondary)] flex items-center gap-2 shadow-[var(--shadow-glass)]">
               {att.type === 'task' && <FileText className="w-3 h-3" />}
               {att.type === 'link' && <LinkIcon className="w-3 h-3" />}
               {att.type === 'event' && <Calendar className="w-3 h-3" />}
@@ -245,13 +344,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
           </button>
         </div>
       ) : (
-        <div className="flex gap-1 md:gap-2 items-center relative bg-transparent">
+        <div className="flex gap-1 md:gap-2 items-end relative bg-transparent">
           {/* Emoji button */}
           {!selectedChat?.isNotificationsChat && (
             <div className="relative">
               <button
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className={actionButtonClass}
+                className={`${actionButtonClass} hidden md:flex`}
               >
                 <Smile className="w-4 h-4" />
               </button>
@@ -269,6 +368,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                       messageInputRef.current.setSelectionRange(newCursorPos, newCursorPos);
                       messageInputRef.current.focus();
                       setNewMessage(newText);
+                      recalculateTextareaHeight(newText);
                     }
                   }}
                   onClose={() => setShowEmojiPicker(false)}
@@ -280,8 +380,20 @@ const MessageInput: React.FC<MessageInputProps> = ({
           {/* Attachment button */}
           {!selectedChat?.isNotificationsChat && (
             <button
-              onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-              className={actionButtonClass}
+              disabled={isUploadingAttachments}
+              onClick={(e) => {
+                if (typeof window !== 'undefined') {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  window.dispatchEvent(new CustomEvent('attachment-menu-anchor', {
+                    detail: {
+                      x: rect.left,
+                      y: rect.top,
+                    }
+                  }));
+                }
+                setShowAttachmentMenu(!showAttachmentMenu);
+              }}
+              className={`${attachmentButtonClass} disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               <Paperclip className="w-4 h-4" />
             </button>
@@ -300,42 +412,56 @@ const MessageInput: React.FC<MessageInputProps> = ({
           <div className="flex-1 min-w-0 flex flex-col bg-transparent">
             {/* Edit indicator */}
             {editingMessageId && (
-              <div className="mb-1 px-3 py-1.5 backdrop-blur-xl bg-blue-500/20 border border-blue-400/30 rounded-t-[18px] rounded-b-[18px] flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Edit3 className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
-                  <span className="text-[11px] text-blue-400 font-medium">Редактирование сообщения</span>
-                </div>
+              <div className={composerContextBlockClass}>
+                <button
+                  onClick={() => messageInputRef.current?.focus()}
+                  className="flex items-center gap-2 min-w-0 flex-1 text-left"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-blue-500 font-medium leading-[1.1]">Редактирование</p>
+                    <p className="text-[11px] text-[var(--text-secondary)] truncate leading-[1.1]">
+                      {(messageInputRef.current?.value || '').trim() || 'Измените текст сообщения'}
+                    </p>
+                  </div>
+                </button>
                 <button
                   onClick={() => {
                     setEditingMessageId(null);
                     setNewMessage(savedMessageText);
                     setSavedMessageText('');
+                    recalculateTextareaHeight(savedMessageText);
+                    messageInputRef.current?.focus();
                   }}
-                  className="w-5 h-5 rounded-full hover:bg-white/10 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
+                  className={composerContextCloseButtonClass}
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             )}
             
             {/* Reply indicator */}
             {replyToMessage && !editingMessageId && (
-              <div className="mx-1 mb-1 px-3 py-2 backdrop-blur-xl bg-[var(--bg-secondary)]/80 border border-white/10 rounded-[35px] flex items-center justify-between gap-2" style={{ maxHeight: '70%', overflowY: 'auto' }}>
+              <div className={composerContextBlockClass}>
                 <button
                   onClick={() => scrollToMessage(replyToMessage.id)}
-                  className="flex items-center gap-2 text-left hover:opacity-80 transition-opacity min-w-0 flex-1"
+                  className="flex items-center gap-2 text-left hover:opacity-85 transition-opacity min-w-0 flex-1"
                 >
-                  <Reply className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                  <Reply className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
                   <div className="overflow-hidden min-w-0">
-                    <p className="text-[10px] text-blue-400 font-medium truncate">{replyToMessage.authorName}</p>
-                    <p className="text-[11px] text-[var(--text-secondary)] truncate max-w-[200px]">
+                    <p className="text-[11px] text-blue-500 font-medium leading-[1.1] truncate">Ответ: {replyToMessage.authorName}</p>
+                    <p className="text-[11px] text-[var(--text-secondary)] truncate leading-[1.1]">
                       {replyToMessage.content.length > 40 ? replyToMessage.content.substring(0, 40) + '...' : replyToMessage.content}
                     </p>
                   </div>
                 </button>
                 <button
-                  onClick={() => setReplyToMessage(null)}
-                  className="w-6 h-6 rounded-full hover:bg-white/10 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
+                  onClick={() => {
+                    setReplyToMessage(null);
+                    recalculateTextareaHeight(messageInputRef.current?.value || '');
+                    messageInputRef.current?.focus();
+                  }}
+                  className={composerContextCloseButtonClass}
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -377,27 +503,38 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 
                 const files = e.dataTransfer.files;
                 if (files && files.length > 0) {
-                  const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
-                  if (imageFiles.length > 0) {
-                    const newAttachments = imageFiles.map(file => ({
-                      file,
-                      preview: URL.createObjectURL(file),
-                      type: 'image' as const
-                    }));
-                    setAttachments(prev => [...prev, ...newAttachments]);
-                  }
+                  const droppedFiles = Array.from(files);
+                  void uploadAndAttachFiles(droppedFiles);
+                }
+              }}
+              onWheel={(e) => {
+                const textarea = e.currentTarget;
+                if (textarea.scrollHeight <= textarea.clientHeight) return;
+
+                const scrollingDown = e.deltaY > 0;
+                const atTop = textarea.scrollTop <= 0;
+                const atBottom = Math.ceil(textarea.scrollTop + textarea.clientHeight) >= textarea.scrollHeight;
+
+                if ((scrollingDown && !atBottom) || (!scrollingDown && !atTop)) {
+                  e.stopPropagation();
+                }
+              }}
+              onTouchMove={(e) => {
+                const textarea = e.currentTarget;
+                if (textarea.scrollHeight > textarea.clientHeight) {
+                  e.stopPropagation();
                 }
               }}
               placeholder={selectedChat?.isNotificationsChat ? "Чат только для чтения" : editingMessageId ? "Редактируйте сообщение..." : "Сообщение..."}
               disabled={selectedChat?.isNotificationsChat}
-              className={`w-full px-4 py-2.5 bg-gradient-to-br from-white/15 to-white/5 border border-white/20 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-white/30 resize-none overflow-hidden shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl disabled:opacity-50 disabled:cursor-not-allowed ${(replyToMessage && !editingMessageId) || editingMessageId ? 'rounded-b-[22px] rounded-t-none border-t-0' : 'rounded-[22px]'}`}
-              style={{ minHeight: '44px', maxHeight: '120px', lineHeight: '20px', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              className="w-full px-4 py-2.5 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-primary)] resize-none overflow-y-auto shadow-[var(--shadow-card)] backdrop-blur-xl disabled:opacity-50 disabled:cursor-not-allowed rounded-[22px]"
+              style={{ minHeight: '44px', maxHeight: '120px', lineHeight: '20px', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
               rows={1}
             />
 
             {/* Mention suggestions */}
             {showMentionSuggestions && selectedChat?.isGroup && (
-              <div className="absolute bottom-full left-0 right-0 mb-1 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg shadow-xl max-h-48 overflow-y-auto z-50">
+              <div className="absolute bottom-full left-0 right-0 mb-1 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg shadow-[var(--shadow-card)] backdrop-blur-xl max-h-48 overflow-y-auto z-50">
                 {(() => {
                   const participants = users.filter(u => 
                     selectedChat.participantIds?.includes(u.id) && 
@@ -434,6 +571,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
                           textAfterCursor;
                         
                         textarea.value = newText;
+                        setNewMessage(newText);
+                        recalculateTextareaHeight(newText);
                         setShowMentionSuggestions(false);
                         messageInputRef.current?.focus();
                       }}
@@ -467,18 +606,19 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 const messageText = messageInputRef.current?.value || '';
                 void updateMessage(editingMessageId, messageText);
               }}
-              className="w-11 h-11 rounded-full backdrop-blur-2xl bg-gradient-to-br from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 border border-white/30 flex items-center justify-center text-white transition-all flex-shrink-0 shadow-[0_8px_32px_-8px_rgba(34,197,94,0.6),inset_0_1px_2px_rgba(255,255,255,0.2)] hover:shadow-[0_8px_40px_-8px_rgba(34,197,94,0.8),inset_0_1px_2px_rgba(255,255,255,0.25)]"
+              disabled={isUploadingAttachments}
+              className="w-11 h-11 rounded-full backdrop-blur-2xl bg-gradient-to-br from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 border border-white/30 flex items-center justify-center text-white transition-all flex-shrink-0 shadow-[0_8px_32px_-8px_rgba(34,197,94,0.6),inset_0_1px_2px_rgba(255,255,255,0.2)] hover:shadow-[0_8px_40px_-8px_rgba(34,197,94,0.8),inset_0_1px_2px_rgba(255,255,255,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Check className="w-5 h-5" />
+              {isUploadingAttachments ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
             </button>
           ) : (
             <button
               onMouseDown={(e) => e.preventDefault()}
               onClick={sendMessage}
-              disabled={selectedChat?.isNotificationsChat}
-              className="w-10 h-10 md:w-11 md:h-11 rounded-full backdrop-blur-2xl bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 border border-white/30 disabled:from-white/5 disabled:to-white/5 disabled:border-white/10 flex items-center justify-center text-white disabled:text-[var(--text-muted)] transition-all flex-shrink-0 shadow-[0_8px_32px_-8px_rgba(59,130,246,0.6),inset_0_1px_2px_rgba(255,255,255,0.2)] hover:shadow-[0_8px_40px_-8px_rgba(59,130,246,0.8),inset_0_1px_2px_rgba(255,255,255,0.25)] disabled:shadow-none disabled:cursor-not-allowed"
+              disabled={selectedChat?.isNotificationsChat || isUploadingAttachments}
+              className="w-11 h-11 rounded-full backdrop-blur-2xl bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 border border-[var(--border-light)] disabled:from-[var(--bg-glass)] disabled:to-[var(--bg-glass)] disabled:border-[var(--border-color)] flex items-center justify-center text-white disabled:text-[var(--text-muted)] transition-all flex-shrink-0 shadow-[0_8px_32px_-8px_rgba(59,130,246,0.6),inset_0_1px_2px_rgba(255,255,255,0.2)] hover:shadow-[0_8px_40px_-8px_rgba(59,130,246,0.8),inset_0_1px_2px_rgba(255,255,255,0.25)] disabled:shadow-none disabled:cursor-not-allowed"
             >
-              <Send className="w-4 h-4 md:w-5 md:h-5" />
+              {isUploadingAttachments ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </button>
           )}
         </div>

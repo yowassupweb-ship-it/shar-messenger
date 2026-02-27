@@ -1,11 +1,33 @@
 'use client';
 
 import React from 'react';
-import { Check, X, Reply, Edit3, FileText, Calendar, Link as LinkIcon, File, Download, CheckSquare } from 'lucide-react';
+import { Check, CheckCheck, X, Reply, Edit3, FileText, Calendar, Link as LinkIcon, File, Download, CheckSquare } from 'lucide-react';
 import Avatar from '@/components/common/data-display/Avatar';
 import LinkPreview from './LinkPreview';
 import { Message, User, Chat } from './types';
 import { formatMessageDate, shouldShowDateSeparator, formatMessageText } from './utils';
+
+const TASK_STATUS_LABELS: Record<string, string> = {
+  'todo': 'К выполнению',
+  'pending': 'В ожидании',
+  'in-progress': 'В работе',
+  'in_progress': 'В работе',
+  'review': 'На проверке',
+  'cancelled': 'Отменена',
+  'stuck': 'Застряла',
+  'done': 'Готово',
+};
+
+const TASK_STATUS_BADGE_CLASSES: Record<string, string> = {
+  'todo': 'bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30',
+  'pending': 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
+  'in-progress': 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30',
+  'in_progress': 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30',
+  'review': 'bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30',
+  'cancelled': 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30',
+  'stuck': 'bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30',
+  'done': 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
+};
 
 interface MessageItemProps {
   message: Message;
@@ -24,6 +46,7 @@ interface MessageItemProps {
   isDesktopView: boolean;
   myBubbleTextClass: string;
   useDarkTextOnBubble: boolean;
+  isReadByOthers: boolean;
   onSelectMessage: (messageId: string) => void;
   onDoubleClick: (messageId: string) => void;
   onContextMenu: (e: React.MouseEvent, message: Message) => void;
@@ -50,6 +73,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
   isDesktopView,
   myBubbleTextClass,
   useDarkTextOnBubble,
+  isReadByOthers,
   onSelectMessage,
   onDoubleClick,
   onContextMenu,
@@ -58,10 +82,261 @@ const MessageItem: React.FC<MessageItemProps> = ({
   setShowImageModal,
   router
 }) => {
+  const normalizeAuthorValue = (value: unknown): string => String(value ?? '').trim().toLowerCase();
+  const currentUserIdNormalized = normalizeAuthorValue(currentUser?.id);
+  const currentUserUsernameNormalized = normalizeAuthorValue(currentUser?.username);
+  const currentUserNameNormalized = normalizeAuthorValue(currentUser?.name);
+  const isCurrentUserMessageAuthor = (value: unknown): boolean => {
+    const normalizedValue = normalizeAuthorValue(value);
+    if (!normalizedValue) return false;
+
+    return normalizedValue === currentUserIdNormalized
+      || (currentUserUsernameNormalized && normalizedValue === currentUserUsernameNormalized)
+      || (currentUserNameNormalized && normalizedValue === currentUserNameNormalized);
+  };
+
   // Защита от null authorId (для системных сообщений)
   const authorId = message?.authorId || 'system';
-  const isMyMessage = authorId === currentUser?.id;
+  const isMyMessage = isCurrentUserMessageAuthor(authorId);
   const isEditing = editingMessageId === message.id;
+  const isNotificationsChat = Boolean(
+    selectedChat && (
+      selectedChat.isNotificationsChat
+      || String(selectedChat.id || '').startsWith('notifications-')
+      || (selectedChat.isSystemChat && selectedChat.title === 'Уведомления')
+    )
+  );
+  const isNotificationBubble = isNotificationsChat;
+  const recoverMojibake = React.useCallback((value: string): string => {
+    if (!value) return value;
+    if (!/[ÐÑÂ]/.test(value)) return value;
+
+    try {
+      const binary = value
+        .split('')
+        .map((char) => String.fromCharCode(char.charCodeAt(0) & 0xff))
+        .join('');
+
+      return decodeURIComponent(
+        Array.from(binary)
+          .map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`)
+          .join('')
+      );
+    } catch {
+      return value;
+    }
+  }, []);
+  const normalizedNotificationContent = React.useMemo(() => {
+    if (!isNotificationBubble) return message.content;
+    const recovered = recoverMojibake(String(message.content || ''));
+    const hasIrreversibleLoss = /\?{3,}/.test(recovered);
+
+    const metadata = message.metadata || {};
+    const fromUserName = String(metadata.fromUserName || '').trim();
+    const taskTitle = String(metadata.taskTitle || '').trim();
+    const oldStatus = String(metadata.oldStatus || '').trim();
+    const newStatus = String(metadata.newStatus || '').trim();
+    const executorName = String(metadata.executorName || '').trim();
+
+    const fallbackContent = (() => {
+      if (!hasIrreversibleLoss) return '';
+
+      if (message.notificationType === 'task_status_changed' && (fromUserName || taskTitle || oldStatus || newStatus)) {
+        const title = taskTitle || 'Задача';
+        return `Статус изменён — ${fromUserName || 'Пользователь'}: «${title}» (${oldStatus || '—'} → ${newStatus || '—'})`;
+      }
+
+      if (message.notificationType === 'new_task' && (fromUserName || taskTitle)) {
+        return `Новая задача — ${fromUserName || 'Пользователь'}: «${taskTitle || 'Задача'}»`;
+      }
+
+      if (message.notificationType === 'new_executor' && (taskTitle || executorName)) {
+        return `Новый исполнитель — ${executorName || 'Пользователь'}: «${taskTitle || 'Задача'}»`;
+      }
+
+      return '';
+    })();
+
+    const source = fallbackContent || recovered;
+
+    return source
+      .replace(/<[^>]*>/g, '')
+      .replace(/\bОткрыть\s+задачу\b/gi, '')
+      .replace(/изменил\(а\)/gi, 'изменил')
+      .replace(/назначил\(а\)/gi, 'назначил')
+      .replace(/упомянул\(а\)/gi, 'упомянул')
+      .replace(/прокомментировал\(а\)/gi, 'прокомментировал')
+      .replace(/\r\n/g, '\n')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }, [isNotificationBubble, message.content, message.metadata, message.notificationType, recoverMojibake]);
+  const displayContent = isNotificationBubble ? normalizedNotificationContent : message.content;
+  const notificationInlineContent = React.useMemo(() => {
+    if (!isNotificationBubble) return '';
+    return normalizedNotificationContent
+      .replace(/\n+/g, ' • ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }, [isNotificationBubble, normalizedNotificationContent]);
+  const notificationInlineSegments = React.useMemo(() => {
+    if (!isNotificationBubble) return [] as Array<{ text: string; bold: boolean }>;
+
+    const raw = notificationInlineContent || displayContent;
+    const segments: Array<{ text: string; bold: boolean }> = [];
+    const regex = /«[^»]+»/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(raw)) !== null) {
+      const start = match.index;
+      const end = start + match[0].length;
+      if (start > lastIndex) {
+        segments.push({ text: raw.slice(lastIndex, start), bold: false });
+      }
+      segments.push({ text: match[0], bold: true });
+      lastIndex = end;
+    }
+
+    if (lastIndex < raw.length) {
+      segments.push({ text: raw.slice(lastIndex), bold: false });
+    }
+
+    return segments.length > 0 ? segments : [{ text: raw, bold: false }];
+  }, [isNotificationBubble, notificationInlineContent, normalizedNotificationContent, message.content]);
+  const notificationDisplayLines = React.useMemo(() => {
+    if (!isNotificationBubble) return [] as string[];
+
+    const fromNewLines = normalizedNotificationContent
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (fromNewLines.length > 1) return fromNewLines;
+
+    const fromBullets = (notificationInlineContent || normalizedNotificationContent)
+      .split('•')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    return fromBullets.length > 0 ? fromBullets : [normalizedNotificationContent];
+  }, [isNotificationBubble, normalizedNotificationContent, notificationInlineContent]);
+  const normalizeStatusKey = React.useCallback((value: string) => value.trim().toLowerCase().replace(/\s+/g, '-'), []);
+  const getStatusLabel = React.useCallback((value: string) => {
+    const normalized = normalizeStatusKey(value);
+    return TASK_STATUS_LABELS[normalized] || value;
+  }, [normalizeStatusKey]);
+  const getStatusBadgeClass = React.useCallback((value: string) => {
+    const normalized = normalizeStatusKey(value);
+    return TASK_STATUS_BADGE_CLASSES[normalized] || 'bg-[var(--bg-secondary)] text-[var(--text-primary)] border-[var(--border-color)]';
+  }, [normalizeStatusKey]);
+  const taskStatusTransition = React.useMemo(() => {
+    if (!isNotificationBubble) return null;
+    if (message.notificationType !== 'task_status_changed') return null;
+
+    const fromMetaOld = String(message.metadata?.oldStatus || '').trim();
+    const fromMetaNew = String(message.metadata?.newStatus || '').trim();
+
+    if (fromMetaOld && fromMetaNew) {
+      return { oldStatus: fromMetaOld, newStatus: fromMetaNew };
+    }
+
+    const parenthesizedMatch = normalizedNotificationContent.match(/\(([^()]+?)\s*(?:→|->)\s*([^()]+?)\)/);
+    if (parenthesizedMatch) {
+      return {
+        oldStatus: String(parenthesizedMatch[1] || '').trim(),
+        newStatus: String(parenthesizedMatch[2] || '').trim(),
+      };
+    }
+
+    const inlineStatusMatch = normalizedNotificationContent.match(/(?:статус\s*:?\s*)([a-z\-\s]+|[а-яё\-\s]+)\s*(?:→|->)\s*([a-z\-\s]+|[а-яё\-\s]+)/i);
+    if (inlineStatusMatch) {
+      return {
+        oldStatus: String(inlineStatusMatch[1] || '').trim(),
+        newStatus: String(inlineStatusMatch[2] || '').trim(),
+      };
+    }
+
+    return null;
+  }, [isNotificationBubble, message.notificationType, message.metadata?.oldStatus, message.metadata?.newStatus, normalizedNotificationContent]);
+  const taskStatusHeadline = React.useMemo(() => {
+    if (!taskStatusTransition) return '';
+    const firstLine = notificationDisplayLines[0] || normalizedNotificationContent;
+    return firstLine.replace(/\s*\(([^()]+?)\s*→\s*([^()]+?)\)\s*$/, '').trim();
+  }, [taskStatusTransition, notificationDisplayLines, normalizedNotificationContent]);
+  const notificationActorName = React.useMemo(() => {
+    if (!isNotificationBubble) return null;
+
+    const source = `${normalizedNotificationContent} ${notificationInlineContent}`;
+    const normalizeName = (value: string) => value
+      .toLowerCase()
+      .replace(/[^\p{L}\s-]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const pickLastFullName = (value: string): string | null => {
+      const fullNameRegex = /([\p{Lu}][\p{Ll}]+(?:-[\p{Lu}][\p{Ll}]+)?\s+[\p{Lu}][\p{Ll}]+(?:-[\p{Lu}][\p{Ll}]+)?)/gu;
+      const matches = Array.from(value.matchAll(fullNameRegex));
+      if (matches.length === 0) return null;
+      return matches[matches.length - 1]?.[1] || null;
+    };
+
+    const patterns = [
+      /(?:^|•\s*)([^•\n:]{2,80}?)\s+изменил\s+задачу/i,
+      /(?:^|•\s*)([^•\n:]{2,80}?)\s+обновил\s+задачу/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = source.match(pattern);
+      if (match?.[1]) {
+        const cleaned = match[1].trim();
+        const extractedFullName = pickLastFullName(cleaned);
+        if (extractedFullName) return extractedFullName;
+        if (cleaned && !/задача\s+изменена/i.test(cleaned)) {
+          const normalized = normalizeName(cleaned);
+          const normalizedWords = normalized.split(' ').filter(Boolean);
+          if (normalizedWords.length >= 2) {
+            const lastTwoWords = normalizedWords.slice(-2).join(' ');
+            return lastTwoWords
+              .split(' ')
+              .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(' ');
+          }
+        }
+      }
+    }
+
+    const fallbackName = pickLastFullName(source);
+    if (fallbackName) return fallbackName;
+
+    return null;
+  }, [isNotificationBubble, normalizedNotificationContent, notificationInlineContent]);
+  const notificationActorUser = React.useMemo(() => {
+    if (!notificationActorName) return null;
+    const normalizeName = (value: string) => value
+      .toLowerCase()
+      .replace(/[^\p{L}\s-]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const actorNormalized = normalizeName(notificationActorName);
+
+    const exactMatch = users.find((user) => normalizeName(String(user.name || '')) === actorNormalized);
+    if (exactMatch) return exactMatch;
+
+    const actorWords = actorNormalized.split(' ').filter(Boolean);
+    if (actorWords.length >= 2) {
+      const actorShort = actorWords.slice(0, 2).join(' ');
+      const shortMatch = users.find((user) => {
+        const userWords = normalizeName(String(user.name || '')).split(' ').filter(Boolean);
+        return userWords.length >= 2 && userWords.slice(0, 2).join(' ') === actorShort;
+      });
+      if (shortMatch) return shortMatch;
+    }
+
+    return null;
+  }, [notificationActorName, users]);
+  const effectiveLinkedEventId = message.linkedEventId || message.metadata?.linkedEventId;
   const replyTo = message.replyToId 
     ? messages.find(m => m.id === message.replyToId)
     : null;
@@ -78,11 +353,11 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const previousMessage = index > 0 ? filteredMessages[index - 1] : undefined;
   const showDateSeparator = shouldShowDateSeparator(message, previousMessage);
   const previousAuthorId = previousMessage?.authorId || 'system';
-  const wasPreviousMyMessage = previousAuthorId === currentUser?.id;
+  const wasPreviousMyMessage = isCurrentUserMessageAuthor(previousAuthorId);
   const isSideSwitch = Boolean(previousMessage) && wasPreviousMyMessage !== isMyMessage;
 
   // Определяем тип контента: только эмоджи или текст
-  const content = message.content.trim();
+  const content = displayContent.trim();
   const hasBasicChars = /[0-9a-zA-Zа-яА-ЯёЁ#*\-_+=<>!?@$%^&()\[\]{}|\\/:;"'.,`~]/.test(content);
   const realEmojis = content.match(/(?:\p{Emoji_Presentation}|\p{Extended_Pictographic})(?:\u{FE0F})?(?:\u{200D}(?:\p{Emoji_Presentation}|\p{Extended_Pictographic})(?:\u{FE0F})?)*/gu) || [];
   const isOnlyEmojis = !hasBasicChars && realEmojis.length > 0 && realEmojis.join('') === content.replace(/\s/g, '');
@@ -95,18 +370,57 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const isLargeEmoji = emojiCount === 1;
   const isMediumEmoji = emojiCount >= 2 && emojiCount <= 5;
   const hasBackground = !isOnlyEmojis && !hasOnlyImages && !hasOnlyAttachments;
+  const ownMessageAlignClass = isNotificationBubble
+    ? 'justify-start'
+    : isMyMessage
+      ? (isDesktopView ? 'justify-start' : 'justify-end')
+      : 'justify-start';
+  const rowPaddingClass = isNotificationBubble ? 'mx-0' : (isDesktopView ? 'md:px-2 md:-mx-2' : 'mx-0');
+  const avatarVisibilityClass = isNotificationBubble ? 'hidden' : (isDesktopView ? 'flex' : 'hidden');
+  const bubbleBoxClass = isNotificationBubble
+    ? 'w-full max-w-[94%] md:max-w-[82%]'
+    : (isDesktopView ? 'max-w-[75%] lg:max-w-[65%]' : 'max-w-[80%]');
+  const bubbleOverflowClass = isNotificationBubble ? 'overflow-visible' : 'overflow-hidden';
+  const notificationSurfaceClass = 'bg-[var(--bg-tertiary)] border-[var(--border-color)]';
+  const notificationTextClass = 'text-[var(--text-primary)]';
+  const notificationActionClass = theme === 'dark'
+    ? 'bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-primary)]'
+    : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] border-[var(--border-color)] text-[var(--text-primary)]';
   
   // Настройки стилей
-  const bubbleRadius = chatSettings.bubbleStyle === 'minimal' ? 'rounded-lg' : chatSettings.bubbleStyle === 'classic' ? 'rounded-2xl' : 'rounded-[18px]';
+  const bubbleRadius = chatSettings.bubbleStyle === 'minimal' ? 'rounded-lg' : chatSettings.bubbleStyle === 'classic' ? 'rounded-2xl' : 'rounded-[12px]';
   const mobileFontSize = chatSettings.fontSizeMobile || 15;
   const desktopFontSize = chatSettings.fontSize || 13;
   const fontSizeStyle = { fontSize: `${isDesktopView ? desktopFontSize : mobileFontSize}px`, lineHeight: isDesktopView ? '1.5' : '1.3' };
   
   // URL extraction
-  const urls = message.content.match(/(https?:\/\/[^\s<>"']+)/gi) || [];
+  const urls = displayContent.match(/(https?:\/\/[^\s<>"']+)/gi) || [];
   const imageExtPattern = /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|tiff?)(\?|$|#)/i;
   const imageUrls = urls.filter(url => imageExtPattern.test(url));
   const otherUrls = urls.filter(url => !imageExtPattern.test(url));
+  const imageAttachments = React.useMemo(
+    () => (message.attachments || []).filter(att => att.type === 'image'),
+    [message.attachments]
+  );
+  const nonImageAttachments = React.useMemo(
+    () => (message.attachments || []).filter(att => att.type !== 'image'),
+    [message.attachments]
+  );
+  const needsRichTextFormatting = !isNotificationBubble && /(\*\*.+?\*\*|\*.+?\*|__.+?__|\[[^\]]+\]\([^)]+\)|https?:\/\/|@[a-zA-Zа-яА-ЯёЁ0-9_]+)/.test(displayContent);
+
+  const formattedMessageHtml = React.useMemo(() => {
+    if (!needsRichTextFormatting) return '';
+
+    return formatMessageText(displayContent)
+      .replace(
+        /(https?:\/\/[^\s<>"']+)/gi,
+        `<a href="$1" target="_blank" rel="noopener noreferrer" class="${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-700 hover:text-gray-900' : 'text-white/80 hover:text-white') : 'text-blue-400 hover:text-blue-300'} underline">$1</a>`
+      )
+      .replace(
+        /@([a-zA-Zа-яА-ЯёЁ0-9_]+(?:\s+[a-zA-Zа-яА-ЯёЁ0-9_]+)?)/g,
+        `<span class="${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-900 font-medium' : 'text-white font-medium') : 'text-blue-400 font-medium'}">@$1</span>`
+      );
+  }, [displayContent, needsRichTextFormatting, isMyMessage, useDarkTextOnBubble]);
 
   const downloadAttachment = (attachment: any) => {
     if (!attachment?.url) return;
@@ -142,9 +456,9 @@ const MessageItem: React.FC<MessageItemProps> = ({
       <div
         key={message.id}
         ref={(el) => { messageRefs.current[message.id] = el; }}
-        className={`flex ${isMyMessage ? 'justify-end md:justify-start' : 'justify-start'} group transition-all duration-200 mx-0 md:px-2 md:-mx-2 ${
+        className={`flex ${ownMessageAlignClass} group ${rowPaddingClass} ${
           selectedMessages.has(message.id) ? 'bg-[var(--accent-primary)]/20' : ''
-        } ${isMyMessage ? 'message-animation-right md:message-animation-left' : 'message-animation-left'} ${isSideSwitch ? 'mt-[9px] md:mt-[12px]' : ''}`}
+        } ${!isNotificationBubble && isSideSwitch ? 'mt-[9px] md:mt-[12px]' : ''}`}
         onClick={(e) => {
           if (isSelectionMode && !message.isDeleted) {
             e.stopPropagation();
@@ -189,7 +503,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
         )}
         
         {/* Avatar - только на десктопе */}
-        <div className="hidden md:flex flex-shrink-0 mr-2 self-start">
+        <div className={`${avatarVisibilityClass} flex-shrink-0 mr-2 self-start`}>
           <Avatar
             src={messageAuthor?.avatar}
             name={message.authorName || 'User'}
@@ -225,7 +539,11 @@ const MessageItem: React.FC<MessageItemProps> = ({
                     </div>
                     <span className="text-[9px] md:text-[10px] text-[var(--text-muted)] flex-shrink-0 self-end ml-2">
                       {new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                      {isMyMessage && <Check className="w-2.5 h-2.5 md:w-3 md:h-3 inline ml-0.5" />}
+                      {isMyMessage && (
+                        isReadByOthers
+                          ? <CheckCheck className="w-2.5 h-2.5 md:w-3 md:h-3 inline ml-0.5" />
+                          : <Check className="w-2.5 h-2.5 md:w-3 md:h-3 inline ml-0.5" />
+                      )}
                     </span>
                   </button>
                 )}
@@ -260,14 +578,20 @@ const MessageItem: React.FC<MessageItemProps> = ({
                         });
                       }
                     }}
-                    className="flex flex-col items-start gap-1 px-3 py-2 bg-purple-500/10 dark:bg-purple-500/10 rounded-xl border-2 border-purple-500/50 dark:border-purple-500/30 hover:bg-purple-500/20 dark:hover:bg-purple-500/20 transition-colors w-full"
+                    className={`flex flex-col items-start gap-1 px-3 py-2 rounded-xl border transition-colors w-full shadow-[var(--shadow-glass)] ${
+                      isMyMessage
+                        ? 'bg-white/22 border-white/40 hover:bg-white/30'
+                        : 'bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border-[var(--border-light)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)]'
+                    }`}
                   >
-                    <span className="text-[10px] text-purple-600 dark:text-purple-400/70">Ссылка</span>
+                    <span className={`text-[10px] ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-800/80' : 'text-white/90') : 'text-[var(--accent-primary)]'}`}>Ссылка</span>
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-purple-500/20 dark:bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                        <LinkIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      <div className={`w-8 h-8 rounded-lg border flex items-center justify-center flex-shrink-0 ${
+                        isMyMessage ? 'bg-white/20 border-white/35' : 'bg-[var(--bg-glass-hover)] border-[var(--border-color)]'
+                      }`}>
+                        <LinkIcon className={`w-4 h-4 ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-800' : 'text-white') : 'text-[var(--accent-primary)]'}`} />
                       </div>
-                      <span className="text-sm font-medium text-purple-700 dark:text-purple-300 truncate max-w-[160px] md:max-w-[240px]">{att.name}</span>
+                      <span className={`text-sm font-medium truncate max-w-[160px] md:max-w-[240px] ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-900' : 'text-white') : 'text-[var(--text-primary)]'}`}>{att.name}</span>
                     </div>
                   </button>
                 )}
@@ -299,7 +623,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
         )}
 
         <div 
-          className={`max-w-[80%] md:max-w-[75%] lg:max-w-[65%] relative flex flex-col overflow-hidden ${message.linkedChatId && !isSelectionMode ? 'cursor-pointer' : ''}`}
+          className={`${bubbleBoxClass} relative flex flex-col ${bubbleOverflowClass} ${message.linkedChatId && !isSelectionMode ? 'cursor-pointer' : ''}`}
           onClick={(e) => {
             if (!isSelectionMode && message.linkedChatId) {
               // Клик на системное сообщение с ссылкой на чат - переход к чату
@@ -327,18 +651,24 @@ const MessageItem: React.FC<MessageItemProps> = ({
           <div
             className={`${
               hasBackground
-                ? `${bubbleRadius} px-2.5 py-1.5 md:px-3 md:py-2 relative w-fit max-w-full ${
-                    isMyMessage
-                      ? `text-white ${isLastInGroup ? 'rounded-br-sm md:rounded-br-[18px] md:rounded-bl-sm' : ''}`
-                      : message.isSystemMessage
+                ? `${
+                    isNotificationBubble
+                      ? `rounded-2xl px-3 py-2 md:px-4 relative w-full max-w-full border ${notificationSurfaceClass}`
+                      : `${bubbleRadius} px-2.5 py-1.5 md:px-3 md:py-2 relative w-fit max-w-full`
+                  } ${
+                    isNotificationBubble
+                      ? ''
+                      : isMyMessage
+                      ? `text-white ${isLastInGroup ? 'rounded-br-sm md:rounded-br-[12px] md:rounded-bl-sm' : ''}`
+                      : !isNotificationBubble && message.isSystemMessage
                         ? `bg-gradient-to-r from-orange-100 to-amber-100 dark:from-blue-500/10 dark:to-purple-500/10 border border-orange-200 dark:border-blue-500/20 hover:border-orange-300 dark:hover:border-blue-500/40 transition-colors ${isLastInGroup ? 'rounded-bl-sm' : ''}`
                         : `bg-[var(--bg-tertiary)] ${isLastInGroup ? 'rounded-bl-sm' : ''}`
                   } ${message.isDeleted ? 'opacity-60' : ''}`
                 : ''
             }`}
-            style={isMyMessage && hasBackground ? { backgroundColor: theme === 'dark' ? chatSettings.bubbleColor : chatSettings.bubbleColorLight } : undefined}
+            style={isMyMessage && hasBackground && !isNotificationBubble ? { backgroundColor: theme === 'dark' ? chatSettings.bubbleColor : chatSettings.bubbleColorLight } : undefined}
           >
-            {!isMyMessage && hasBackground && (
+            {!isMyMessage && hasBackground && !isNotificationBubble && (
               <p className={`text-[10px] font-medium mb-0.5 select-none ${message.isSystemMessage ? 'text-orange-600 dark:text-purple-400' : 'text-[var(--accent-primary)] dark:text-gray-300'} flex items-center gap-1.5`}>
                 <span>{message.authorName}</span>
                 {selectedChat?.isGroup && authorId === selectedChat.creatorId && (
@@ -360,22 +690,20 @@ const MessageItem: React.FC<MessageItemProps> = ({
               <>
                 {isLargeEmoji ? (
                   <div className="relative">
-                    <p 
-                      className="text-5xl md:text-7xl my-1 emoji-content emoji-native message-content"
-                      dangerouslySetInnerHTML={{ __html: message.content }}
-                    />
-                    <span className={`block text-right text-[9px] md:text-[11px] mt-1 ${isMyMessage ? 'text-[var(--text-muted)]' : 'text-[var(--text-muted)]'}`}>
+                    <p className={`${isDesktopView ? 'text-7xl' : 'text-5xl'} my-1 emoji-content emoji-native message-content`}>
+                      {message.content}
+                    </p>
+                    <span className={`block text-right ${isDesktopView ? 'text-[11px]' : 'text-[9px]'} mt-1 ${isMyMessage ? 'text-[var(--text-muted)]' : 'text-[var(--text-muted)]'}`}>
                       {new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
                       {message.isEdited && <span className="ml-1">(изм.)</span>}
                     </span>
                   </div>
                 ) : isMediumEmoji ? (
                   <div className="relative">
-                    <p 
-                      className="text-3xl md:text-4xl my-1 emoji-content emoji-native message-content"
-                      dangerouslySetInnerHTML={{ __html: message.content }}
-                    />
-                    <span className={`block text-right text-[9px] md:text-[11px] mt-1 ${isMyMessage ? 'text-[var(--text-muted)]' : 'text-[var(--text-muted)]'}`}>
+                    <p className={`${isDesktopView ? 'text-4xl' : 'text-3xl'} my-1 emoji-content emoji-native message-content`}>
+                      {message.content}
+                    </p>
+                    <span className={`block text-right ${isDesktopView ? 'text-[11px]' : 'text-[9px]'} mt-1 ${isMyMessage ? 'text-[var(--text-muted)]' : 'text-[var(--text-muted)]'}`}>
                       {new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
                       {message.isEdited && <span className="ml-1">(изм.)</span>}
                     </span>
@@ -383,40 +711,123 @@ const MessageItem: React.FC<MessageItemProps> = ({
                 ) : (
                   <>
                     <span className="inline">
-                      <span
-                        className={`message-content ${isMyMessage ? myBubbleTextClass : 'text-[var(--text-primary)]'} whitespace-pre-wrap [overflow-wrap:anywhere] ${isEditing ? 'bg-blue-500/10 -mx-2 -my-1 px-2 py-1 rounded border border-blue-400/30' : ''}`}
-                        style={fontSizeStyle}
-                        dangerouslySetInnerHTML={{
-                          __html: formatMessageText(message.content)
-                            .replace(
-                              /(https?:\/\/[^\s<>"']+)/gi,
-                              `<a href="$1" target="_blank" rel="noopener noreferrer" class="${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-700 hover:text-gray-900' : 'text-white/80 hover:text-white') : 'text-blue-400 hover:text-blue-300'} underline">$1</a>`
-                            )
-                            .replace(
-                              /@([a-zA-Zа-яА-ЯёЁ0-9_]+(?:\s+[a-zA-Zа-яА-ЯёЁ0-9_]+)?)/g,
-                              `<span class="${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-900 font-medium' : 'text-white font-medium') : 'text-blue-400 font-medium'}">@$1</span>`
-                            )
-                        }}
-                      />
-                      <span className="inline-block w-[80px] md:w-[90px]">&nbsp;</span>
+                      {isNotificationBubble ? (
+                        <span className="flex w-full min-w-0 items-start gap-2 flex-wrap">
+                          <div className="flex-shrink-0 mt-0.5">
+                            {notificationActorUser ? (
+                              <Avatar
+                                src={notificationActorUser.avatar}
+                                name={notificationActorUser.name || notificationActorName || 'Пользователь'}
+                                size="xs"
+                                type="user"
+                              />
+                            ) : (
+                              <Avatar
+                                name="Уведомление"
+                                size="xs"
+                                type="notifications"
+                              />
+                            )}
+                          </div>
+                          <span
+                            className={`block flex-1 min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] text-left leading-tight ${notificationTextClass}`}
+                          >
+                            {taskStatusTransition ? (
+                              <>
+                                <span className="block text-[13px] md:text-sm font-semibold leading-tight">
+                                  {taskStatusHeadline || 'Статус изменён'}
+                                </span>
+                                <span className="mt-1 inline-flex items-center gap-1.5 flex-wrap text-[11px] md:text-xs font-medium">
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full border ${getStatusBadgeClass(taskStatusTransition.oldStatus)}`}>
+                                    {getStatusLabel(taskStatusTransition.oldStatus)}
+                                  </span>
+                                  <span className="opacity-70">→</span>
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full border ${getStatusBadgeClass(taskStatusTransition.newStatus)}`}>
+                                    {getStatusLabel(taskStatusTransition.newStatus)}
+                                  </span>
+                                </span>
+                              </>
+                            ) : notificationDisplayLines.length > 0 ? (
+                              <>
+                                <span className="block text-[13px] md:text-sm font-semibold leading-tight">
+                                  {notificationDisplayLines[0]}
+                                </span>
+                                {notificationDisplayLines.slice(1).map((line, idx) => (
+                                  <span key={idx} className="block text-[11px] md:text-xs font-medium opacity-90 leading-snug mt-0.5">
+                                    {line}
+                                  </span>
+                                ))}
+                              </>
+                            ) : (
+                              notificationInlineSegments.map((segment, idx) => (
+                                <span key={idx} className={segment.bold ? 'font-semibold' : 'font-medium'}>
+                                  {segment.text}
+                                </span>
+                              ))
+                            )}
+                          </span>
+                          {(message.linkedTaskId || message.linkedPostId || message.linkedChatId || effectiveLinkedEventId) && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (message.linkedTaskId) {
+                                  window.location.href = `/account?tab=tasks&task=${message.linkedTaskId}`;
+                                } else if (effectiveLinkedEventId) {
+                                  window.location.href = `/account?tab=calendar&event=${effectiveLinkedEventId}`;
+                                } else if (message.linkedPostId) {
+                                  window.location.href = `/content-plan?post=${message.linkedPostId}`;
+                                } else if (message.linkedChatId) {
+                                  window.location.href = `/account?tab=messages&chat=${message.linkedChatId}`;
+                                }
+                              }}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border flex-shrink-0 md:ml-0 ${notificationActionClass}`}
+                            >
+                              <CheckSquare className="w-3 h-3" />
+                              {message.linkedTaskId ? 'Открыть' : effectiveLinkedEventId ? 'Перейти' : message.linkedPostId ? 'Пост' : 'Чат'}
+                            </button>
+                          )}
+                        </span>
+                      ) : needsRichTextFormatting ? (
+                        <span
+                          className={`message-content ${isMyMessage ? myBubbleTextClass : 'text-[var(--text-primary)]'} whitespace-pre-wrap [overflow-wrap:anywhere] ${isEditing ? 'bg-blue-500/10 -mx-2 -my-1 px-2 py-1 rounded border border-blue-400/30' : ''}`}
+                          style={fontSizeStyle}
+                          dangerouslySetInnerHTML={{ __html: formattedMessageHtml }}
+                        />
+                      ) : (
+                        <span
+                          className={`message-content ${isMyMessage ? myBubbleTextClass : 'text-[var(--text-primary)]'} ${isNotificationBubble ? 'block max-w-full whitespace-pre-wrap [overflow-wrap:anywhere] text-left text-[13px] md:text-sm leading-relaxed' : 'whitespace-pre-wrap [overflow-wrap:anywhere]'} ${isEditing ? 'bg-blue-500/10 -mx-2 -my-1 px-2 py-1 rounded border border-blue-400/30' : ''}`}
+                          style={fontSizeStyle}
+                        >
+                          {displayContent}
+                        </span>
+                      )}
+                      {!isNotificationBubble && <span className={`inline-block ${isDesktopView ? 'w-[90px]' : 'w-[80px]'}`}>&nbsp;</span>}
                     </span>
 
                     {/* Кнопка перехода к задаче/публикации */}
-                    {message.isSystemMessage && (message.linkedTaskId || message.linkedPostId) && (
+                    {!isNotificationBubble && message.isSystemMessage && (message.linkedTaskId || message.linkedPostId || message.linkedChatId || effectiveLinkedEventId) && (
                       <div className="mt-3 mb-1">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             if (message.linkedTaskId) {
-                              window.location.href = `/todos?task=${message.linkedTaskId}`;
+                              window.location.href = `/account?tab=tasks&task=${message.linkedTaskId}`;
+                            } else if (effectiveLinkedEventId) {
+                              window.location.href = `/account?tab=calendar&event=${effectiveLinkedEventId}`;
                             } else if (message.linkedPostId) {
                               window.location.href = `/content-plan?post=${message.linkedPostId}`;
+                            } else if (message.linkedChatId) {
+                              window.location.href = `/account?tab=messages&chat=${message.linkedChatId}`;
                             }
                           }}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-600 dark:text-blue-400 text-xs font-medium transition-colors"
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                            isMyMessage
+                              ? 'bg-white/15 hover:bg-white/25 border border-white/30 text-white'
+                              : 'bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-600 dark:text-blue-400'
+                          }`}
                         >
                           <CheckSquare className="w-3.5 h-3.5" />
-                          {message.linkedTaskId ? 'Открыть задачу' : 'Открыть публикацию'}
+                          {message.linkedTaskId ? 'Открыть задачу' : effectiveLinkedEventId ? 'Открыть событие' : message.linkedPostId ? 'Открыть публикацию' : 'Открыть чат'}
                         </button>
                       </div>
                     )}
@@ -427,7 +838,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                         {imageUrls.map((url, idx) => (
                           <div 
                             key={idx} 
-                            className="relative group rounded-lg overflow-hidden bg-black/20 cursor-pointer"
+                            className="relative group rounded-lg overflow-hidden bg-black/20 cursor-pointer aspect-[4/3]"
                             onClick={() => {
                               setCurrentImageUrl(url);
                               setShowImageModal(true);
@@ -436,7 +847,10 @@ const MessageItem: React.FC<MessageItemProps> = ({
                             <img 
                               src={url} 
                               alt="Изображение"
-                              className="w-full h-auto max-h-64 object-cover hover:opacity-90 transition-opacity"
+                              loading="lazy"
+                              decoding="async"
+                              fetchPriority="low"
+                              className="absolute inset-0 w-full h-full object-cover hover:opacity-90 transition-opacity"
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement;
                                 target.parentElement!.style.display = 'none';
@@ -454,9 +868,9 @@ const MessageItem: React.FC<MessageItemProps> = ({
                     {otherUrls.length > 0 && <LinkPreview url={otherUrls[0]} isMyMessage={isMyMessage} />}
 
                     {/* Attachments внутри bubble */}
-                    {message.attachments && message.attachments.length > 0 && message.attachments.filter(att => att.type !== 'image').length > 0 && message.content.trim() && (
+                    {message.attachments && message.attachments.length > 0 && nonImageAttachments.length > 0 && message.content.trim() && (
                       <div className="flex flex-col gap-2 mt-2 mb-5 w-full">
-                        {message.attachments.filter(att => att.type !== 'image').map((att, idx) => (
+                        {nonImageAttachments.map((att, idx) => (
                           <div key={idx} className="w-full">
                             {att.type === 'task' && (
                               <button 
@@ -492,14 +906,20 @@ const MessageItem: React.FC<MessageItemProps> = ({
                             {att.type === 'link' && (
                               <button 
                                 onClick={() => { if (att.url) window.open(att.url, '_blank'); }}
-                                className="w-full flex flex-col items-start gap-1 px-3 py-2 bg-purple-500/10 dark:bg-purple-500/10 rounded-xl border-2 border-purple-500/50 dark:border-purple-500/30 hover:bg-purple-500/20 dark:hover:bg-purple-500/20 transition-colors"
+                                className={`w-full flex flex-col items-start gap-1 px-3 py-2 rounded-xl border transition-colors shadow-[var(--shadow-glass)] ${
+                                  isMyMessage
+                                    ? 'bg-white/22 border-white/40 hover:bg-white/30'
+                                    : 'bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border-[var(--border-light)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)]'
+                                }`}
                               >
-                                <span className="text-[10px] text-purple-600 dark:text-purple-400/70">Ссылка</span>
+                                <span className={`text-[10px] ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-800/80' : 'text-white/90') : 'text-[var(--accent-primary)]'}`}>Ссылка</span>
                                 <div className="flex items-center gap-2">
-                                  <div className="w-8 h-8 rounded-lg bg-purple-500/20 dark:bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                                    <LinkIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                                  <div className={`w-8 h-8 rounded-lg border flex items-center justify-center flex-shrink-0 ${
+                                    isMyMessage ? 'bg-white/20 border-white/35' : 'bg-[var(--bg-glass-hover)] border-[var(--border-color)]'
+                                  }`}>
+                                    <LinkIcon className={`w-4 h-4 ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-800' : 'text-white') : 'text-[var(--accent-primary)]'}`} />
                                   </div>
-                                  <span className="text-sm font-medium text-purple-700 dark:text-purple-300 truncate flex-1">{att.name}</span>
+                                  <span className={`text-sm font-medium truncate flex-1 ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-900' : 'text-white') : 'text-[var(--text-primary)]'}`}>{att.name}</span>
                                 </div>
                               </button>
                             )}
@@ -531,13 +951,13 @@ const MessageItem: React.FC<MessageItemProps> = ({
                     )}
 
                     {/* Изображения из attachments */}
-                    {message.attachments && message.attachments.filter(att => att.type === 'image').length > 0 && (
+                    {message.attachments && imageAttachments.length > 0 && (
                       <div className="mt-2 mb-1">
-                        <div className={`grid gap-1 ${message.attachments.filter(att => att.type === 'image').length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                          {message.attachments.filter(att => att.type === 'image').map((att, idx) => (
+                        <div className={`grid gap-1 ${imageAttachments.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                          {imageAttachments.map((att, idx) => (
                             <div 
                               key={idx}
-                              className="relative group rounded-lg overflow-hidden bg-black/20 cursor-pointer"
+                              className="relative group rounded-lg overflow-hidden bg-black/20 cursor-pointer aspect-[4/3]"
                               onClick={() => {
                                 setCurrentImageUrl(att.url);
                                 setShowImageModal(true);
@@ -546,8 +966,11 @@ const MessageItem: React.FC<MessageItemProps> = ({
                               <img 
                                 src={att.url} 
                                 alt={att.name || 'Изображение'}
-                                className="w-full h-auto max-h-64 object-cover hover:opacity-90 transition-opacity rounded-lg"
-                                style={{ maxWidth: message.attachments!.filter(a => a.type === 'image').length === 1 ? '300px' : '200px' }}
+                                loading="lazy"
+                                decoding="async"
+                                fetchPriority="low"
+                                className="absolute inset-0 w-full h-full object-cover hover:opacity-90 transition-opacity rounded-lg"
+                                style={{ maxWidth: imageAttachments.length === 1 ? '300px' : '200px' }}
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
                                   target.style.display = 'none';
@@ -563,9 +986,9 @@ const MessageItem: React.FC<MessageItemProps> = ({
                     )}
                     
                     {/* Время и галочки */}
-                    {!hasOnlyImages && !isOnlyEmojis && !hasOnlyAttachments && (
+                    {!isNotificationBubble && !hasOnlyImages && !isOnlyEmojis && !hasOnlyAttachments && (
                       <span className="absolute bottom-0.5 right-2 flex items-center gap-0.5 select-none pointer-events-auto">
-                        <span className={`text-[9px] md:text-[11px] select-none ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80') : 'text-[var(--text-muted)]'}`}>
+                        <span className={`${isDesktopView ? 'text-[11px]' : 'text-[9px]'} select-none ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80') : 'text-[var(--text-muted)]'}`}>
                           {new Date(message.createdAt).toLocaleTimeString('ru-RU', {
                             hour: '2-digit',
                             minute: '2-digit'
@@ -573,7 +996,9 @@ const MessageItem: React.FC<MessageItemProps> = ({
                           {message.isEdited && <span className="ml-1">(изм.)</span>}
                         </span>
                         {isMyMessage && !message.isDeleted && (
-                          <Check className={`w-2.5 h-2.5 md:w-3.5 md:h-3.5 ${useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80'}`} />
+                          isReadByOthers
+                            ? <CheckCheck className={`${isDesktopView ? 'w-3.5 h-3.5' : 'w-2.5 h-2.5'} ${useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80'}`} />
+                            : <Check className={`${isDesktopView ? 'w-3.5 h-3.5' : 'w-2.5 h-2.5'} ${useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80'}`} />
                         )}
                       </span>
                     )}

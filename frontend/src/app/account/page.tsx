@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, Suspense, lazy, useCallback } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MessageCircle, CheckSquare, Calendar, Users, MoreVertical, Shield, FileText, Languages, Sparkles, Link2, Box, Globe, Megaphone, Sun, Moon, GripVertical, X, Settings, User, ChevronUp, Type, MessageSquare, CheckCircle, Info, Zap, Code2, PenTool, Hash, Package2 } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
 import Avatar from '@/components/Avatar';
 import AvatarUpload from '@/components/AvatarUpload';
+import { BrowserPushService } from '@/services/browserPushService';
 
 // Типы для инструментов
 interface Tool {
@@ -86,9 +87,11 @@ export default function AccountPage() {
   const [draggingTool, setDraggingTool] = useState<string | null>(null);
   const [isDragOverBar, setIsDragOverBar] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
-  const [isCompactViewport, setIsCompactViewport] = useState(() => typeof window !== 'undefined' ? window.innerWidth <= 540 : false);
   const [isTouchDevice, setIsTouchDevice] = useState(() => typeof window !== 'undefined' ? window.matchMedia('(pointer: coarse)').matches : false);
   const [isBelow768, setIsBelow768] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 773 : false);
+  const browserPushRef = useRef<BrowserPushService | null>(null);
+  const activeTabRef = useRef<TabType>('messages');
+  const isChatOpenRef = useRef(false);
   
   // Состояния видимости вкладок навигации
   const [visibleTabs, setVisibleTabs] = useState({
@@ -379,13 +382,12 @@ export default function AccountPage() {
   useEffect(() => {
     const checkChatOpen = () => {
       if (typeof window !== 'undefined') {
-        // Проверяем URL + localStorage (URL иногда обновляется не сразу)
+        // Проверяем только URL и текущую вкладку
         const url = new URL(window.location.href);
         const chatIdFromUrl = url.searchParams.get('chat');
-        const chatIdFromStorage = localStorage.getItem('selectedChatId');
         // Считаем чат открытым только если мы на вкладке messages и chat есть в URL
         const isMessagesTab = activeTab === 'messages';
-        const hasChatSelected = !!(chatIdFromUrl || chatIdFromStorage);
+        const hasChatSelected = !!chatIdFromUrl;
         setIsChatOpen(isMessagesTab && hasChatSelected);
       }
     };
@@ -409,7 +411,6 @@ export default function AccountPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const updateViewport = () => {
-      setIsCompactViewport(window.innerWidth <= 540);
       setIsTouchDevice(window.matchMedia('(pointer: coarse)').matches);
       setIsBelow768(window.innerWidth < 773);
     };
@@ -420,7 +421,7 @@ export default function AccountPage() {
     };
   }, []);
 
-  const shouldUseMobileNav = isCompactViewport || isTouchDevice;
+  const shouldUseMobileNav = isBelow768;
   // На мобильной версии полностью скрываем нижнее меню на вкладке чатов,
   // когда открыт конкретный чат (видна кнопка "Назад")
   const hideBottomNavInOpenedChat = activeTab === 'messages' && isBelow768 && isChatOpen;
@@ -430,7 +431,45 @@ export default function AccountPage() {
     router.push(`/account?tab=${tab}`, { scroll: false });
   };
 
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  useEffect(() => {
+    isChatOpenRef.current = isChatOpen;
+  }, [isChatOpen]);
+
+  useEffect(() => {
+    const userId = currentUser?.id;
+    if (!userId) {
+      browserPushRef.current?.stop();
+      browserPushRef.current = null;
+      return;
+    }
+
+    const service = new BrowserPushService();
+    browserPushRef.current = service;
+
+    void service.start({
+      userId: String(userId),
+      userName: currentUser?.name,
+      getContext: () => ({
+        activeTab: activeTabRef.current,
+        isChatOpen: isChatOpenRef.current,
+      }),
+    });
+
+    return () => {
+      service.stop();
+      if (browserPushRef.current === service) {
+        browserPushRef.current = null;
+      }
+    };
+  }, [currentUser?.id, currentUser?.name]);
+
   const handleLogout = () => {
+    browserPushRef.current?.stop();
+    browserPushRef.current = null;
     localStorage.removeItem('username');
     localStorage.removeItem('userRole');
     localStorage.removeItem('myAccount');
@@ -578,7 +617,7 @@ export default function AccountPage() {
     <div className={`h-screen w-full max-w-full min-w-0 theme-text flex flex-col transition-colors duration-300 overflow-hidden overflow-x-hidden ${activeTab === 'messages' ? '' : 'theme-bg'}`}>
       {/* Main Content */}
       <div className="flex-1 min-w-0 overflow-hidden overflow-x-hidden">
-        <div className={`h-full min-w-0 ${activeTab === 'tasks' ? '' : 'overflow-y-auto'} overflow-x-hidden`}>
+        <div className={`h-full min-w-0 ${activeTab === 'tasks' || activeTab === 'messages' ? '' : 'overflow-y-auto'} overflow-x-hidden`}>
           {renderContent()}
         </div>
       </div>

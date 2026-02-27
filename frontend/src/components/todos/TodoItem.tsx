@@ -1,6 +1,6 @@
 'use client';
 
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { Archive, Check, Clock, Edit3, Link2, Tag, Trash2 } from 'lucide-react';
 
 const PRIORITY_COLORS = {
@@ -98,9 +98,15 @@ const TodoItem = memo(function TodoItem({
   onArchive,
   onDelete
 }: TodoItemProps) {
-  const category = todo.categoryId ? categories.find(c => c.id === todo.categoryId) : null;
-  const stageCount = todo.technicalSpecTabs?.length ? Math.max(1, todo.technicalSpecTabs.length) : (todo.stagesEnabled ? 1 : 0);
-  const allAssigneeNames = (() => {
+  const category = useMemo(
+    () => (todo.categoryId ? categories.find(c => c.id === todo.categoryId) : null),
+    [categories, todo.categoryId]
+  );
+  const stageCount = useMemo(
+    () => (todo.technicalSpecTabs?.length ? Math.max(1, todo.technicalSpecTabs.length) : (todo.stagesEnabled ? 1 : 0)),
+    [todo.technicalSpecTabs, todo.stagesEnabled]
+  );
+  const allAssigneeNames = useMemo(() => {
     const map = new Map<string, string>();
     const add = (id?: string | null, name?: string | null) => {
       if (!id) return;
@@ -124,10 +130,16 @@ const TodoItem = memo(function TodoItem({
     add(todo.stageDefaultAssigneeId, todo.stageDefaultAssigneeName);
 
     return Array.from(map.values());
-  })();
+  }, [people, todo.assignedToId, todo.assignedToIds, todo.assignedTo, todo.assignedToNames, todo.stageMeta, todo.stageDefaultAssigneeId, todo.stageDefaultAssigneeName]);
+
+  const shortDescription = useMemo(() => {
+    if (!todo.description) return '';
+    return todo.description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150);
+  }, [todo.description]);
 
   return (
     <div
+      data-todo-item="true"
       draggable={isDraggable}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
@@ -169,12 +181,13 @@ const TodoItem = memo(function TodoItem({
       </div>
       
       {/* Description */}
-      {todo.description && (
-        <p 
+      {shortDescription && (
+        <p
           className="text-[10px] text-gray-600 dark:text-white/60 line-clamp-3 pointer-events-auto cursor-pointer"
-          dangerouslySetInnerHTML={{ __html: todo.description.replace(/<[^>]*>/g, ' ').slice(0, 150) }}
           onClick={onEdit}
-        />
+        >
+          {shortDescription}
+        </p>
       )}
       
       {/* Badges */}

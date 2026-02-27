@@ -7,15 +7,19 @@ interface CalendarEvent {
   description: string;
   date: string;
   time?: string;
+  remind?: boolean;
   type: 'work' | 'meeting' | 'event' | 'holiday';
   recurrence?: 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
   listId?: string; // ID календарного листа
   sourceId?: string; // ID задачи, если событие связано с задачей
   assignedTo?: string;
   assignedBy?: string;
+  createdBy?: string;
+  createdByName?: string;
   linkUrl?: string;
   linkTitle?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 interface CalendarData {
@@ -49,15 +53,19 @@ export async function POST(request: NextRequest) {
       description: body.description || '',
       date: body.date || new Date().toISOString().split('T')[0],
       time: body.time,
+      remind: body.remind,
       type: body.type || 'work',
       recurrence: body.recurrence || 'once',
       listId: body.listId, // Не используем fallback - если нет listId, значит undefined
       sourceId: body.sourceId,
       assignedTo: body.assignedTo,
       assignedBy: body.assignedBy,
+      createdBy: body.createdBy,
+      createdByName: body.createdByName,
       linkUrl: body.linkUrl,
       linkTitle: body.linkTitle,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
     data.events.push(newEvent);

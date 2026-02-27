@@ -8,6 +8,7 @@ interface CalendarList {
   id: string;
   name: string;
   color: string;
+  isDefault?: boolean;
 }
 
 interface EventCalendarSelectorProps {
@@ -55,7 +56,16 @@ export default function EventCalendarSelector({
   const handleCreateEvent = async () => {
     if (!selectedList || !title.trim() || !date) return;
 
+    const isMainShared = selectedList.id === 'shared-main' || selectedList.isDefault || selectedList.name.toLowerCase().includes('общ');
+    if (isMainShared) {
+      const shouldContinue = confirm('Событие будет создано в основном общем календаре и станет видимым для всех пользователей. Продолжить?');
+      if (!shouldContinue) return;
+    }
+
     setCreating(true);
+    const currentUsername = localStorage.getItem('username') || undefined;
+    const myAccountRaw = localStorage.getItem('myAccount');
+    const myAccount = myAccountRaw ? JSON.parse(myAccountRaw) : null;
     try {
       const res = await fetch('/api/calendar-events', {
         method: 'POST',
@@ -68,7 +78,9 @@ export default function EventCalendarSelector({
           time: time || undefined,
           listId: selectedList.id,
           sourceId: message.id,
-          assignedBy: localStorage.getItem('username') || undefined
+          assignedBy: currentUsername,
+          createdBy: myAccount?.id || currentUsername,
+          createdByName: myAccount?.name || currentUsername
         })
       });
       

@@ -94,6 +94,8 @@ export default function ChatSettingsPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [notifications, setNotifications] = useState(true);
+  const [canSeeAllTasks, setCanSeeAllTasks] = useState(false);
+  const [canManageAllTasksVisibility, setCanManageAllTasksVisibility] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editForm, setEditForm] = useState({
     personalPhone: '',
@@ -131,6 +133,9 @@ export default function ChatSettingsPage() {
           if (res.ok) {
             const user = await res.json();
             setCurrentUser(user);
+            const hasPermission = user.role === 'admin' || user.canSeeAllTasks === true;
+            setCanManageAllTasksVisibility(hasPermission);
+            setCanSeeAllTasks(user.role === 'admin' ? (user.canSeeAllTasks ?? true) : user.canSeeAllTasks === true);
             
             // Загружаем visible tabs
             if (user.visible_tabs || user.visibleTabs) {
@@ -256,6 +261,37 @@ export default function ChatSettingsPage() {
     const newVisibleTabs = { ...visibleTabs, [tabId]: checked };
     setVisibleTabs(newVisibleTabs);
     saveNavigationSettings(newVisibleTabs);
+  };
+
+  const updateCanSeeAllTasks = async (value: boolean) => {
+    const myAccountStr = localStorage.getItem('myAccount');
+    if (!myAccountStr) return;
+
+    const previousValue = canSeeAllTasks;
+    setCanSeeAllTasks(value);
+
+    try {
+      const myAccount = JSON.parse(myAccountStr);
+      const response = await fetch(`/api/users/${myAccount.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ canSeeAllTasks: value })
+      });
+
+      if (!response.ok) {
+        setCanSeeAllTasks(previousValue);
+        return;
+      }
+
+      const updatedUser = await response.json();
+      setCurrentUser((prev: any) => ({ ...prev, ...updatedUser }));
+      if (typeof updatedUser.canSeeAllTasks === 'boolean') {
+        setCanSeeAllTasks(updatedUser.canSeeAllTasks);
+      }
+    } catch (error) {
+      setCanSeeAllTasks(previousValue);
+      console.error('Failed to update canSeeAllTasks:', error);
+    }
   };
 
   return (
@@ -640,6 +676,20 @@ export default function ChatSettingsPage() {
               })}
             </div>
           </Section>
+
+          {canManageAllTasksVisibility && (
+            <Section title="Задачи">
+              <Row
+                icon={<CheckSquare className="w-4 h-4 text-white" />}
+                iconBg="bg-[#34c759]"
+                label="Видеть все задачи"
+                toggle
+                toggleValue={canSeeAllTasks}
+                onToggle={updateCanSeeAllTasks}
+                isLast
+              />
+            </Section>
+          )}
 
           {/* Уведомления */}
           <Section title="Уведомления">

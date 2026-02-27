@@ -41,7 +41,8 @@ export function useTodoNotifications({
     const relatedUsers = getTaskRelatedUsers({
       authorId: todo.assignedById,
       assignedById: todo.assignedById,
-      assignedToId: todo.assignedToId
+      assignedToId: todo.assignedToId,
+      assignedToIds: todo.assignedToIds
     });
 
     // Уведомляем исполнителя (если назначен и это не автор)

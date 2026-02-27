@@ -160,15 +160,89 @@ export default function ContactsPage() {
     }
   }, [coloredBackgrounds]);
 
+  const buildStatusMap = (rawStatuses: any) => {
+    const statusEntries = Array.isArray(rawStatuses)
+      ? rawStatuses
+      : Array.isArray(rawStatuses?.statuses)
+      ? rawStatuses.statuses
+      : Array.isArray(rawStatuses?.users)
+      ? rawStatuses.users
+      : [];
+
+    return statusEntries.reduce((acc: Record<string, { isOnline: boolean; lastSeen?: string }>, entry: any) => {
+      const userId = entry?.id ?? entry?.userId ?? entry?.user_id;
+      if (!userId) return acc;
+
+      const normalizedId = String(userId);
+      const isOnline = entry?.isOnline === true || entry?.is_online === true;
+      const lastSeenRaw = entry?.lastSeen ?? entry?.last_seen;
+
+      acc[normalizedId] = {
+        isOnline,
+        lastSeen: lastSeenRaw ? String(lastSeenRaw) : undefined,
+      };
+
+      return acc;
+    }, {});
+  };
+
+  const applyStatuses = (
+    contactsSource: Contact[],
+    statusMap: Record<string, { isOnline: boolean; lastSeen?: string }>
+  ) => {
+    return contactsSource.map((contact) => {
+      const nextStatus = statusMap[contact.id];
+      if (!nextStatus) return contact;
+
+      return {
+        ...contact,
+        isOnline: nextStatus.isOnline,
+        lastSeen: nextStatus.lastSeen ?? contact.lastSeen,
+      };
+    });
+  };
+
+  const fetchAndApplyUserStatuses = async (baseContacts?: Contact[]) => {
+    try {
+      const res = await fetch('/api/users/statuses', { cache: 'no-store' });
+      if (!res.ok) return;
+
+      const statusData = await res.json();
+      const statusMap = buildStatusMap(statusData);
+
+      if (baseContacts) {
+        setContacts(applyStatuses(baseContacts, statusMap));
+      } else {
+        setContacts((prev) => applyStatuses(prev, statusMap));
+      }
+
+      setViewingContact((prev) => {
+        if (!prev) return prev;
+        const nextStatus = statusMap[prev.id];
+        if (!nextStatus) return prev;
+
+        return {
+          ...prev,
+          isOnline: nextStatus.isOnline,
+          lastSeen: nextStatus.lastSeen ?? prev.lastSeen,
+        };
+      });
+    } catch (error) {
+      console.error('Error loading users statuses:', error);
+    }
+  };
+
   const loadContacts = async () => {
     try {
       console.log('[Contacts] Loading contacts...');
-      const res = await fetch('/api/users');
+      const res = await fetch('/api/users', { cache: 'no-store' });
       console.log('[Contacts] Response status:', res.status);
       if (res.ok) {
         const data = await res.json();
         console.log('[Contacts] Loaded users:', data);
-        setContacts(data);
+        const users = Array.isArray(data) ? data : [];
+        setContacts(users);
+        await fetchAndApplyUserStatuses(users);
       } else {
         console.error('[Contacts] Failed to load:', await res.text());
       }
@@ -178,6 +252,18 @@ export default function ContactsPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      fetchAndApplyUserStatuses();
+    }, 15000);
+
+    fetchAndApplyUserStatuses();
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   const loadLists = async () => {
     try {
@@ -637,14 +723,14 @@ export default function ContactsPage() {
       {/* Модалка карточки контакта */}
       {showContactCard && viewingContact && (
         <div 
-          className="fixed !inset-0 !p-0 !m-0 bg-black/60 backdrop-blur-sm md:flex md:items-center md:justify-center z-[100] !overflow-hidden md:p-4"
+          className="fixed !inset-0 !p-0 !m-0 bg-black/50 backdrop-blur-sm md:flex md:items-center md:justify-center z-[100] !overflow-hidden md:p-4"
           onClick={() => {
             setShowContactCard(false);
             setViewingContact(null);
           }}
         >
           <div 
-            className="w-full h-full md:h-auto md:relative md:inset-auto bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl md:border md:border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_4px_24px_rgba(0,0,0,0.4)] rounded-none md:rounded-[24px] md:max-w-md overflow-hidden relative md:max-h-[85vh] flex flex-col"
+            className="w-full h-full md:h-auto md:relative md:inset-auto bg-gradient-to-br from-white/96 to-white/88 dark:from-white/15 dark:to-white/5 backdrop-blur-xl md:border border-gray-200/80 dark:border-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.7),0_10px_32px_rgba(0,0,0,0.18)] rounded-none md:rounded-[24px] md:max-w-md overflow-hidden relative md:max-h-[85vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -652,13 +738,13 @@ export default function ContactsPage() {
                 setShowContactCard(false);
                 setViewingContact(null);
               }}
-              className="absolute top-4 right-4 z-20 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-all backdrop-blur-sm"
+              className="absolute top-4 right-4 z-20 p-2 rounded-full bg-white/80 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 border border-gray-200 dark:border-white/10 transition-all backdrop-blur-sm"
             >
-              <X className="w-4 h-4 text-gray-900 dark:text-white" />
+              <X className="w-4 h-4 text-gray-700 dark:text-white" />
             </button>
 
             {/* Header with Avatar */}
-            <div className="relative bg-gradient-to-br from-white/10 to-white/5 border-b border-white/10 px-6 pt-6 pb-4">
+            <div className="relative bg-gradient-to-br from-white/75 to-white/45 dark:from-white/10 dark:to-white/5 border-b border-gray-200/70 dark:border-white/10 px-6 pt-6 pb-4">
               <div className="flex justify-center">
                 <Avatar
                   type="user"
@@ -674,23 +760,23 @@ export default function ContactsPage() {
             <div className="pb-6 px-6 flex-1 min-h-0 overflow-y-auto custom-scrollbar">
               {/* Name & Status */}
               <div className="text-center mb-6">
-                <h2 className="text-xl font-semibold text-white">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                   {viewingContact.name || viewingContact.username || 'Без имени'}
                 </h2>
                 {viewingContact.position && (
-                  <p className="text-sm text-white/70 mt-1">{viewingContact.position}</p>
+                  <p className="text-sm text-gray-600 dark:text-white/70 mt-1">{viewingContact.position}</p>
                 )}
                 <div className="flex items-center justify-center gap-2 mt-2">
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${
                     viewingContact.isOnline 
-                      ? 'bg-green-500/20 text-green-400' 
-                      : 'bg-gray-500/20 text-gray-400'
+                      ? 'bg-green-500/20 text-green-700 dark:text-green-400' 
+                      : 'bg-gray-500/20 text-gray-600 dark:text-gray-400'
                   }`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${viewingContact.isOnline ? 'bg-green-400' : 'bg-gray-400'}`} />
                     {viewingContact.isOnline ? 'В сети' : 'Не в сети'}
                   </span>
                   {viewingContact.role === 'admin' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-500/20 text-amber-400">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-500/20 text-amber-700 dark:text-amber-400">
                       <Shield className="w-3 h-3" />
                       Админ
                     </span>
@@ -701,25 +787,25 @@ export default function ContactsPage() {
               {/* Info Grid */}
               <div className="space-y-3">
                 {viewingContact.email && (
-                  <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-[20px] backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">
-                    <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <div className="flex items-center gap-3 p-3 bg-white/65 dark:bg-white/5 border border-gray-200/80 dark:border-white/10 rounded-[20px] backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.35)]">
+                    <div className="w-9 h-9 rounded-lg bg-blue-500/15 dark:bg-blue-500/20 flex items-center justify-center">
                       <Mail className="w-4 h-4 text-[var(--text-secondary)]" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-white/60">Email</p>
-                      <p className="text-sm text-white truncate">{viewingContact.email}</p>
+                      <p className="text-xs text-gray-500 dark:text-white/60">Email</p>
+                      <p className="text-sm text-gray-900 dark:text-white truncate">{viewingContact.email}</p>
                     </div>
                     <a 
                       href={`mailto:${viewingContact.email}`}
-                      className="p-2 hover:bg-blue-500/20 rounded-lg transition-colors"
+                      className="p-2 hover:bg-blue-500/15 rounded-lg transition-colors"
                     >
-                      <Mail className="w-4 h-4 text-blue-400" />
+                      <Mail className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                     </a>
                   </div>
                 )}
 
                 {viewingContact.phone && (
-                  <div className="flex items-center gap-3 p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-[16px] backdrop-blur-sm">
+                  <div className="flex items-center gap-3 p-3 bg-white/65 dark:bg-[var(--bg-glass)] border border-gray-200/80 dark:border-[var(--border-color)] rounded-[16px] backdrop-blur-sm">
                     <div className="w-9 h-9 rounded-lg bg-[var(--bg-secondary)] flex items-center justify-center border border-[var(--border-color)]">
                       <Phone className="w-4 h-4 text-[var(--text-secondary)]" />
                     </div>
@@ -737,7 +823,7 @@ export default function ContactsPage() {
                 )}
 
                 {viewingContact.department && (
-                  <div className="flex items-center gap-3 p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-[16px] backdrop-blur-sm">
+                  <div className="flex items-center gap-3 p-3 bg-white/65 dark:bg-[var(--bg-glass)] border border-gray-200/80 dark:border-[var(--border-color)] rounded-[16px] backdrop-blur-sm">
                     <div className="w-9 h-9 rounded-lg bg-[var(--bg-secondary)] flex items-center justify-center border border-[var(--border-color)]">
                       <Briefcase className="w-4 h-4 text-[var(--text-secondary)]" />
                     </div>
@@ -749,7 +835,7 @@ export default function ContactsPage() {
                 )}
 
                 {viewingContact.workSchedule && (
-                  <div className="flex items-center gap-3 p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-[16px] backdrop-blur-sm">
+                  <div className="flex items-center gap-3 p-3 bg-white/65 dark:bg-[var(--bg-glass)] border border-gray-200/80 dark:border-[var(--border-color)] rounded-[16px] backdrop-blur-sm">
                     <div className="w-9 h-9 rounded-lg bg-[var(--bg-secondary)] flex items-center justify-center border border-[var(--border-color)]">
                       <Calendar className="w-4 h-4 text-[var(--text-secondary)]" />
                     </div>
@@ -761,7 +847,7 @@ export default function ContactsPage() {
                 )}
 
                 {viewingContact.telegramUsername && (
-                  <div className="flex items-center gap-3 p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-[16px] backdrop-blur-sm">
+                  <div className="flex items-center gap-3 p-3 bg-white/65 dark:bg-[var(--bg-glass)] border border-gray-200/80 dark:border-[var(--border-color)] rounded-[16px] backdrop-blur-sm">
                     <div className="w-9 h-9 rounded-lg bg-[var(--bg-secondary)] flex items-center justify-center border border-[var(--border-color)]">
                       <MessageCircle className="w-4 h-4 text-[var(--text-secondary)]" />
                     </div>
@@ -796,7 +882,7 @@ export default function ContactsPage() {
                       return (
                         <div
                           key={todo.id}
-                          className="p-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-[16px] backdrop-blur-sm"
+                          className="p-3 bg-white/65 dark:bg-[var(--bg-glass)] border border-gray-200/80 dark:border-[var(--border-color)] rounded-[16px] backdrop-blur-sm"
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0">

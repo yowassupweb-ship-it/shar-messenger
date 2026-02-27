@@ -1,3 +1,4 @@
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { MessageCircle } from 'lucide-react';
 import MessageItem from './MessageItem';
 import type { Message, User, Chat } from './types';
@@ -18,8 +19,8 @@ interface MessagesAreaProps {
   isDesktopView: boolean;
   myBubbleTextClass: string;
   useDarkTextOnBubble: boolean;
+  composerContainerRef: React.RefObject<HTMLDivElement | null>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
-  textareaHeight: number;
   router: any;
   setSelectedMessages: (value: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   setIsSelectionMode: (value: boolean) => void;
@@ -47,8 +48,8 @@ export default function MessagesArea({
   isDesktopView,
   myBubbleTextClass,
   useDarkTextOnBubble,
+  composerContainerRef,
   messagesEndRef,
-  textareaHeight,
   router,
   setSelectedMessages,
   setIsSelectionMode,
@@ -59,9 +60,213 @@ export default function MessagesArea({
   setCurrentImageUrl,
   setShowImageModal,
 }: MessagesAreaProps) {
+  const [hasRealOverflow, setHasRealOverflow] = useState(false);
+  const [showAllMessages, setShowAllMessages] = useState(false);
+  const dockOffsetRef = useRef(96);
+  const previousDockOffsetRef = useRef(96);
+  const initialRenderLimit = 40;
+  const containerClass = isDesktopView
+    ? 'flex-1 min-h-[260px] overflow-x-hidden overscroll-contain p-4 pt-16 pb-0 bg-transparent scrollbar-hide-mobile'
+    : 'flex-1 min-h-[220px] overflow-x-hidden overscroll-contain p-[3px] pt-[120px] pb-0 bg-transparent scrollbar-hide-mobile';
+  const innerClass = isDesktopView
+    ? 'px-4 lg:px-8 h-full min-w-0'
+    : 'px-0 h-full min-w-0';
+  const listSpacingClass = isDesktopView ? 'space-y-[3px]' : 'space-y-1.5';
+
+  const filteredMessages = messages.filter(message => {
+    if (!message) return false;
+    if (!messageSearchQuery.trim()) return true;
+    return message.content.toLowerCase().includes(messageSearchQuery.toLowerCase());
+  });
+  const visibleMessages = useMemo(() => {
+    if (messageSearchQuery.trim()) return filteredMessages;
+    if (showAllMessages) return filteredMessages;
+    return filteredMessages.slice(-initialRenderLimit);
+  }, [filteredMessages, messageSearchQuery, showAllMessages]);
+
+  const chronologicallySortedMessages = useMemo(() => {
+    return [...messages].sort((a, b) => {
+      const aTime = new Date(a.createdAt || 0).getTime();
+      const bTime = new Date(b.createdAt || 0).getTime();
+      if (!Number.isFinite(aTime) && !Number.isFinite(bTime)) return String(a.id).localeCompare(String(b.id));
+      if (!Number.isFinite(aTime)) return -1;
+      if (!Number.isFinite(bTime)) return 1;
+      if (aTime !== bTime) return aTime - bTime;
+      return String(a.id).localeCompare(String(b.id));
+    });
+  }, [messages]);
+
+  const messageOrderById = useMemo(() => {
+    return chronologicallySortedMessages.reduce((acc, message, index) => {
+      acc[message.id] = index;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [chronologicallySortedMessages]);
+
+  const readBoundaryIndexByUser = useMemo(() => {
+    const readMap = selectedChat?.readMessagesByUser || {};
+    const boundary: Record<string, number> = {};
+
+    Object.entries(readMap).forEach(([participantId, rawReadMarker]) => {
+      if (!rawReadMarker) {
+        boundary[participantId] = -1;
+        return;
+      }
+
+      const readMarker = String(rawReadMarker);
+
+      if (messageOrderById[readMarker] !== undefined) {
+        boundary[participantId] = messageOrderById[readMarker];
+        return;
+      }
+
+      const readTimestamp = new Date(readMarker).getTime();
+      if (!Number.isFinite(readTimestamp)) {
+        boundary[participantId] = -1;
+        return;
+      }
+
+      let maxReadIndex = -1;
+      for (let index = 0; index < chronologicallySortedMessages.length; index++) {
+        const messageTimestamp = new Date(chronologicallySortedMessages[index].createdAt || 0).getTime();
+        if (!Number.isFinite(messageTimestamp)) continue;
+        if (messageTimestamp <= readTimestamp) {
+          maxReadIndex = index;
+        }
+      }
+
+      boundary[participantId] = maxReadIndex;
+    });
+
+    return boundary;
+  }, [selectedChat?.readMessagesByUser, messageOrderById, chronologicallySortedMessages]);
+
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateDockOffset = () => {
+      const composerEl = composerContainerRef.current;
+      const spacerEl = messagesEndRef.current;
+      if (!composerEl || !spacerEl) return;
+
+      const rect = composerEl.getBoundingClientRect();
+      const composerStyle = window.getComputedStyle(composerEl);
+      const composerBottom = Math.max(0, parseFloat(composerStyle.bottom || '0') || 0);
+      const composerHeight = Math.max(0, Math.round(rect.height));
+      const nextOffset = Math.max(44, Math.round(composerHeight + composerBottom + 10));
+      const previousOffset = previousDockOffsetRef.current;
+      const offsetDelta = nextOffset - previousOffset;
+      const container = messagesListRef.current;
+
+      let shouldKeepBottomAnchor = false;
+      if (!isDesktopView && container && offsetDelta !== 0) {
+        const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+        shouldKeepBottomAnchor = distanceToBottom <= Math.max(120, previousOffset + 24);
+      }
+
+      if (dockOffsetRef.current !== nextOffset) {
+        dockOffsetRef.current = nextOffset;
+      }
+
+      previousDockOffsetRef.current = nextOffset;
+
+      spacerEl.style.height = `${dockOffsetRef.current}px`;
+
+      if (!isDesktopView && container && shouldKeepBottomAnchor && offsetDelta !== 0) {
+        container.scrollTop += offsetDelta;
+      }
+    };
+
+    updateDockOffset();
+
+    const composerEl = composerContainerRef.current;
+    const resizeObserver = composerEl ? new ResizeObserver(updateDockOffset) : null;
+    if (composerEl && resizeObserver) {
+      resizeObserver.observe(composerEl);
+    }
+
+    window.addEventListener('composer-resize', updateDockOffset as EventListener);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('composer-resize', updateDockOffset as EventListener);
+    };
+  }, [composerContainerRef, messagesEndRef, selectedChat.id, isDesktopView]);
+
+  useEffect(() => {
+    setShowAllMessages(false);
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let idleId: number | null = null;
+
+    const promote = () => setShowAllMessages(true);
+
+    if (typeof window !== 'undefined' && typeof (window as any).requestIdleCallback === 'function') {
+      idleId = (window as any).requestIdleCallback(promote, { timeout: 300 });
+    }
+
+    timeoutId = setTimeout(promote, 180);
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (idleId !== null && typeof window !== 'undefined' && typeof (window as any).cancelIdleCallback === 'function') {
+        (window as any).cancelIdleCallback(idleId);
+      }
+    };
+  }, [selectedChat.id, messageSearchQuery]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const checkOverflow = () => {
+      const container = messagesListRef.current;
+      const spacerEl = messagesEndRef.current;
+      if (!container) return;
+      const contentHeightWithoutSpacer = spacerEl
+        ? Math.max(0, spacerEl.offsetTop)
+        : Math.max(0, container.scrollHeight - dockOffsetRef.current);
+      const overflowDelta = contentHeightWithoutSpacer - container.clientHeight;
+      const overflowThreshold = typeof window !== 'undefined' && window.innerWidth >= 768 ? 2 : 1;
+      const overflow = overflowDelta > overflowThreshold;
+      setHasRealOverflow(overflow);
+    };
+
+    checkOverflow();
+    const rafId = requestAnimationFrame(checkOverflow);
+    const rafId2 = requestAnimationFrame(checkOverflow);
+    window.addEventListener('resize', checkOverflow);
+    window.addEventListener('composer-resize', checkOverflow as EventListener);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      cancelAnimationFrame(rafId2);
+      window.removeEventListener('resize', checkOverflow);
+      window.removeEventListener('composer-resize', checkOverflow as EventListener);
+    };
+  }, [messagesListRef, messagesEndRef, selectedChat.id, messages.length, messageSearchQuery]);
+
+  const shouldScroll = hasRealOverflow;
+  const scrollBehaviorClass = shouldScroll ? 'overflow-y-auto' : 'overflow-y-hidden';
+
+  const isMessageReadByOthers = (message: Message): boolean => {
+    if (!currentUser || !selectedChat?.readMessagesByUser) return false;
+    if (message.authorId !== currentUser.id) return false;
+
+    const messageOrderIndex = messageOrderById[message.id];
+    if (messageOrderIndex === undefined || messageOrderIndex < 0) return false;
+
+    const otherParticipantIds = (selectedChat.participantIds || []).filter((participantId) => participantId !== currentUser.id);
+    if (otherParticipantIds.length === 0) return false;
+
+    return otherParticipantIds.some((participantId) => {
+      const readBoundaryIndex = readBoundaryIndexByUser[participantId];
+      return readBoundaryIndex !== undefined && readBoundaryIndex >= messageOrderIndex;
+    });
+  };
+
   return (
-    <div ref={messagesListRef} className={`flex-1 min-h-0 overflow-x-hidden overscroll-contain p-4 pt-20 md:pt-16 pb-0 md:pb-64 bg-transparent scrollbar-hide-mobile ${messages.length === 0 ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-      <div className="px-2 md:px-4 lg:px-8 h-full min-w-0">
+    <div ref={messagesListRef} className={`${containerClass} ${scrollBehaviorClass}`}>
+      <div className={innerClass}>
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)] select-none">
             <MessageCircle className="w-16 h-16 mb-4 opacity-30" />
@@ -69,17 +274,13 @@ export default function MessagesArea({
             <p className="text-sm mt-1 opacity-70">Начните общение</p>
           </div>
         ) : (
-          <div className="space-y-1.5 md:space-y-[3px]">
-            {messages.filter(message => {
-              if (!message) return false;
-              if (!messageSearchQuery.trim()) return true;
-              return message.content.toLowerCase().includes(messageSearchQuery.toLowerCase());
-            }).map((message, index, filteredMessages) => (
+          <div className={listSpacingClass}>
+            {visibleMessages.map((message, index) => (
               <MessageItem
                 key={message.id}
                 message={message}
                 index={index}
-                filteredMessages={filteredMessages}
+                filteredMessages={visibleMessages}
                 messages={messages}
                 users={users}
                 currentUser={currentUser}
@@ -93,6 +294,7 @@ export default function MessagesArea({
                 isDesktopView={isDesktopView}
                 myBubbleTextClass={myBubbleTextClass}
                 useDarkTextOnBubble={useDarkTextOnBubble}
+                isReadByOthers={isMessageReadByOthers(message)}
                 onSelectMessage={(messageId) => {
                   setSelectedMessages(prev => {
                     const newSet = new Set(prev);
@@ -124,8 +326,8 @@ export default function MessagesArea({
         )}
         <div 
           ref={messagesEndRef} 
-          className={`${messages.length === 0 ? 'h-0' : 'h-16 md:h-auto'} transition-all duration-150`} 
-          style={messages.length === 0 ? undefined : { height: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${Math.max(141, 97 + textareaHeight)}px` : undefined }} 
+          className="h-0" 
+          style={messages.length === 0 ? undefined : { height: `${dockOffsetRef.current}px` }} 
         />
       </div>
     </div>

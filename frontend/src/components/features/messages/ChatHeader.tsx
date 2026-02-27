@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, X, MoreVertical, Search, Pin, PinOff, Bell, Trash2 } from 'lucide-react';
 import Avatar from '@/components/common/data-display/Avatar';
 import type { Chat, User, Message } from '@/components/messages/types';
@@ -31,6 +31,12 @@ interface ChatHeaderProps {
   getChatAvatarData: (chat: Chat) => { avatar: string | undefined; name: string; type: 'user' | 'group' | 'system' | 'favorites' | 'notifications' };
   setShowChatMenu: (value: boolean) => void;
   setShowMessageSearch: (value: boolean) => void;
+  showMessageSearch: boolean;
+  messageSearchQuery: string;
+  setMessageSearchQuery: (value: string) => void;
+  linkedTaskId?: string | null;
+  linkedTaskTitle?: string | null;
+  openLinkedTask: (taskId: string) => void;
   togglePinChat: (chatId: string) => void;
   deleteChat: (chatId: string) => void;
 }
@@ -63,11 +69,54 @@ export default function ChatHeader({
   getChatAvatarData,
   setShowChatMenu,
   setShowMessageSearch,
+  showMessageSearch,
+  messageSearchQuery,
+  setMessageSearchQuery,
+  linkedTaskId,
+  linkedTaskTitle,
+  openLinkedTask,
   togglePinChat,
   deleteChat,
 }: ChatHeaderProps) {
-  const isMobileView = typeof window !== 'undefined' && (window.innerWidth <= 785 || window.matchMedia('(pointer: coarse)').matches);
+  const [viewportWidth, setViewportWidth] = useState(() => {
+    if (typeof window === 'undefined') return 1200;
+    return window.innerWidth;
+  });
+  const isTouchPointer = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+  const isMobileView = viewportWidth < 773 || isTouchPointer;
+  const showBackButton = isMobileView;
+  const isMiniTaskHeaderView = isMobileView && viewportWidth < 944;
+  const useCompactLinkedTaskButton = isMobileView || viewportWidth < 1180;
   const chatMenuRef = useRef<HTMLDivElement>(null);
+  const resizeRafRef = useRef<number | null>(null);
+  const glassRoundButtonClass = 'no-mobile-scale flex-shrink-0 flex items-center justify-center w-[42px] h-[42px] rounded-full bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] backdrop-blur-xl border border-[var(--border-light)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] transition-all shadow-[var(--shadow-card)]';
+  const glassPillClass = 'bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] backdrop-blur-xl border border-[var(--border-light)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] transition-all shadow-[var(--shadow-card)]';
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateWidth = () => {
+      const nextWidth = window.innerWidth;
+      setViewportWidth((prev) => (prev === nextWidth ? prev : nextWidth));
+    };
+
+    const handleResize = () => {
+      if (resizeRafRef.current !== null) {
+        cancelAnimationFrame(resizeRafRef.current);
+      }
+      resizeRafRef.current = requestAnimationFrame(updateWidth);
+    };
+
+    window.addEventListener('resize', handleResize);
+    updateWidth();
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (resizeRafRef.current !== null) {
+        cancelAnimationFrame(resizeRafRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!showChatMenu) return;
@@ -101,7 +150,7 @@ export default function ChatHeader({
     <>
       {/* Chat header */}
       <div 
-        className={`absolute top-2 left-2 right-2 z-20 h-[56px] md:h-12 bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border border-white/20 rounded-[50px] flex items-center px-3 md:px-4 py-[10px] gap-2 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] md:absolute md:top-2 md:left-2 md:right-2`}
+        className={`absolute top-0 left-0 right-0 z-20 h-[56px] md:h-[58px] flex items-center px-[2px] md:px-4 lg:px-8 py-[10px] gap-2`}
         onCopy={(e) => e.preventDefault()}
       >
         {isSelectionMode ? (
@@ -140,7 +189,7 @@ export default function ChatHeader({
                   <button
                     onClick={() => {
                       if (selectedMessage) {
-                        setSavedMessageText(newMessage);
+                        setSavedMessageText(messageInputRef.current?.value || newMessage);
                         setEditingMessageId(selectedMessage.id);
                         setEditingMessageText(selectedMessage.content);
                         setNewMessage(selectedMessage.content);
@@ -192,28 +241,31 @@ export default function ChatHeader({
           <>
             <button
               onClick={() => selectChat(null)}
-              className={`no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-all border border-[var(--border-glass)] backdrop-blur-sm -ml-1 ${isMobileView ? 'flex' : 'hidden'}`}
+              className={`${glassRoundButtonClass} text-[var(--text-primary)] ${showBackButton ? 'flex ml-[2px]' : 'hidden'}`}
             >
               <ArrowLeft className="w-4 h-4" strokeWidth={2} />
             </button>
             {/* Кликабельный аватар и имя собеседника */}
+            {(!showMessageSearch || !isMobileView) && (
             <button
               onClick={() => {
                 setShowChatInfo(true);
                 setChatInfoTab('profile');
               }}
-              className="no-mobile-scale flex items-center gap-3 flex-1 min-w-0 hover:bg-[var(--bg-tertiary)] -ml-2 px-2 py-1.5 rounded-lg transition-all h-12"
+              className={`no-mobile-scale flex items-center gap-3 min-w-0 px-[14px] py-[6px] rounded-full transition-all h-[46px] ${glassPillClass} ${isMobileView ? 'flex-1 w-0 max-w-none' : 'w-fit shrink-0 max-w-[calc(100%-104px)]'}`}
             >
               {(() => {
                 const avatarData = getChatAvatarData(selectedChat);
                 const avatarType = avatarData.type === 'system' ? 'group' : avatarData.type;
                 return (
-                  <Avatar
-                    src={avatarData.avatar}
-                    name={avatarData.name}
-                    type={avatarType}
-                    size="sm"
-                  />
+                  <div className="-ml-[8px] scale-[1.15] origin-left">
+                    <Avatar
+                      src={avatarData.avatar}
+                      name={avatarData.name}
+                      type={avatarType}
+                      size="sm"
+                    />
+                  </div>
                 );
               })()}
               <div className="flex-1 min-w-0 text-left">
@@ -254,26 +306,83 @@ export default function ChatHeader({
                 )}
               </div>
             </button>
+            )}
+
+            {showMessageSearch && (
+              <div className={`${isMobileView ? 'flex flex-1 min-w-0 ml-1' : 'hidden md:flex items-center w-[180px] ml-1'}`}>
+                <div className="relative w-full">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-10 text-[var(--text-primary)]">
+                    <Search className="w-4.5 h-4.5" strokeWidth={2.6} />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Поиск..."
+                    value={messageSearchQuery}
+                    onChange={(e) => setMessageSearchQuery(e.target.value)}
+                    autoFocus
+                    className="w-full h-[46px] pl-10 pr-9 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] rounded-full text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--border-primary)] shadow-[var(--shadow-card)] backdrop-blur-xl"
+                  />
+                  <button
+                    onClick={() => {
+                      setShowMessageSearch(false);
+                      setMessageSearchQuery('');
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6.5 h-6.5 rounded-full hover:bg-[var(--bg-glass-hover)] flex items-center justify-center transition-all"
+                    title="Закрыть поиск"
+                  >
+                    <X className="w-4.5 h-4.5 text-[var(--text-primary)]" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!showMessageSearch && linkedTaskId && !isMiniTaskHeaderView && (
+              <>
+              {useCompactLinkedTaskButton ? (
+                <button
+                  onClick={() => openLinkedTask(linkedTaskId)}
+                  className={`${glassRoundButtonClass} ml-1 text-[var(--text-primary)]`}
+                  title="Привязано к задаче"
+                >
+                  <Pin className="w-4 h-4" />
+                </button>
+              ) : (
+              <div className="flex items-center ml-1">
+                <button
+                  onClick={() => openLinkedTask(linkedTaskId)}
+                  className={`w-[164px] min-w-[164px] max-w-[164px] h-[46px] px-3 rounded-full flex items-center gap-2 ${glassPillClass}`}
+                  title="Привязано к задаче"
+                >
+                  <Pin className="w-3.5 h-3.5 text-[var(--text-primary)] flex-shrink-0" />
+                  <div className="min-w-0 text-left">
+                    <p className="text-[9px] uppercase tracking-wide text-[var(--text-muted)] leading-none">Привязано к задаче</p>
+                    <p className="text-xs text-[var(--text-primary)] truncate mt-0.5">Привязано к задаче</p>
+                  </div>
+                </button>
+              </div>
+              )}
+              </>
+            )}
             
             {/* Кнопка прокрутки к непрочитанным - СКРЫТА, мешала UI */}
             
             {/* Кнопка меню чата */}
-            <div ref={chatMenuRef} className="relative -mr-1">
+            <div ref={chatMenuRef} className="relative ml-auto">
               <button
                 onClick={() => setShowChatMenu(!showChatMenu)}
-                className="no-mobile-scale flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] transition-all border border-[var(--border-color)]"
+                className={glassRoundButtonClass}
                 title="Действия с чатом"
               >
                 <MoreVertical className="w-4 h-4 text-[var(--text-primary)]" />
               </button>
               {showChatMenu && (
-                <div className="absolute right-0 top-full mt-1 w-48 rounded-lg shadow-2xl z-50 py-1 overflow-hidden" style={{ backgroundColor: '#1a1d24', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <div className="absolute right-0 top-full mt-1 w-48 rounded-lg shadow-2xl z-50 py-1 overflow-hidden bg-[var(--bg-secondary)] border border-[var(--border-color)] backdrop-blur-xl">
                   <button
                     onClick={() => {
                       setShowMessageSearch(true);
                       setShowChatMenu(false);
                     }}
-                    className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-white hover:bg-white/10 transition-colors"
+                    className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors"
                   >
                     <Search className="w-4 h-4" />
                     Поиск по чату
@@ -283,7 +392,7 @@ export default function ChatHeader({
                       togglePinChat(selectedChat.id);
                       setShowChatMenu(false);
                     }}
-                    className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-white hover:bg-white/10 transition-colors"
+                    className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors"
                   >
                     {selectedChat.pinnedByUser?.[currentUser?.id || ''] ? (
                       <>
@@ -292,14 +401,14 @@ export default function ChatHeader({
                       </>
                     ) : (
                       <>
-                        <Pin className="w-4 h-4 text-white" />
+                        <Pin className="w-4 h-4 text-[var(--text-primary)]" />
                         Закрепить чат
                       </>
                     )}
                   </button>
                   
                   {/* Настройки уведомлений */}
-                  <div className="border-t border-white/10 my-1" />
+                  <div className="border-t border-[var(--border-color)] my-1" />
                   <button
                     onClick={() => {
                       const currentState = localStorage.getItem(`chat_notifications_${selectedChat.id}`) !== 'false';
@@ -307,7 +416,7 @@ export default function ChatHeader({
                       setShowChatMenu(false);
                       alert(currentState ? 'Уведомления выключены' : 'Уведомления включены');
                     }}
-                    className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-white hover:bg-white/10 transition-colors"
+                    className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors"
                   >
                     <Bell className="w-4 h-4" />
                     {localStorage.getItem(`chat_notifications_${selectedChat.id}`) === 'false' ? 'Включить уведомления' : 'Выключить уведомления'}
@@ -315,7 +424,7 @@ export default function ChatHeader({
                   
                   {!selectedChat.isSystemChat && !selectedChat.isNotificationsChat && !selectedChat.isFavoritesChat && (
                     <>
-                      <div className="border-t border-white/10 my-1" />
+                      <div className="border-t border-[var(--border-color)] my-1" />
                       <button
                         onClick={() => {
                           deleteChat(selectedChat.id);
@@ -334,6 +443,21 @@ export default function ChatHeader({
           </>
         )}
       </div>
+
+      {!isSelectionMode && !showMessageSearch && linkedTaskId && isMiniTaskHeaderView && (
+        <div className="absolute top-[64px] left-0 right-0 z-20 px-[2px] md:px-4 flex justify-center">
+          <button
+            onClick={() => openLinkedTask(linkedTaskId)}
+            className={`w-full max-w-[200px] h-[22px] px-2 rounded-[11px] flex items-center justify-center gap-1.5 ${glassPillClass}`}
+            title="Привязано к задаче"
+          >
+            <Pin className="w-3 h-3 text-[var(--text-primary)] flex-shrink-0" />
+            <div className="min-w-0 text-center">
+              <p className="text-[11px] leading-none text-[var(--text-primary)] truncate">Привязано к задаче</p>
+            </div>
+          </button>
+        </div>
+      )}
 
     </>
   );

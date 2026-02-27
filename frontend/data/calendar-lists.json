@@ -1,12 +1,12 @@
 {
   "lists": [
     {
-      "id": "default",
+      "id": "shared-main",
       "name": "Основной календарь",
       "description": "Основной календарь событий",
       "color": "#3B82F6",
       "createdAt": "2026-02-06T09:23:17.306Z",
-      "updatedAt": "2026-02-16T11:32:49.199Z",
+      "updatedAt": "2026-02-27T07:52:52.000Z",
       "isDefault": true,
       "allowedUsers": []
     },
@@ -20,7 +20,20 @@
       "allowedDepartments": [
         "бухгалтерия"
       ]
+    },
+    {
+      "id": "personal-admin",
+      "name": "Личный календарь (admin)",
+      "description": "Личный календарь пользователя. События доступны владельцу.",
+      "color": "#10B981",
+      "createdBy": "admin",
+      "createdAt": "2026-02-27T07:52:52.000Z",
+      "updatedAt": "2026-02-27T07:52:52.000Z",
+      "allowedUsers": [
+        "admin"
+      ],
+      "allowedDepartments": []
     }
   ],
-  "activeListId": "default"
+  "activeListId": "shared-main"
 }

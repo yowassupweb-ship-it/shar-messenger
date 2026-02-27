@@ -70,12 +70,18 @@ interface ChatItem {
   title?: string;
   name?: string;
   isGroup?: boolean;
+  participantIds?: string[];
+  isNotificationsChat?: boolean;
+  isFavoritesChat?: boolean;
+  isSystemChat?: boolean;
 }
 
 interface AccessUser {
   id: string;
   name?: string;
   username?: string;
+  fullName?: string;
+  displayName?: string;
   department?: string;
 }
 
@@ -478,24 +484,46 @@ export default function LinksPage() {
     setIsChatDropdownOpen(false);
 
     try {
-      const response = await fetch(`/api/chats?user_id=${encodeURIComponent(currentUserId)}`);
-      if (!response.ok) return;
-      const payload = await response.json();
+      const [chatsResponse, usersResponse] = await Promise.all([
+        fetch(`/api/chats?user_id=${encodeURIComponent(currentUserId)}`),
+        fetch('/api/users'),
+      ]);
+
+      if (!chatsResponse.ok) return;
+
+      const payload = await chatsResponse.json();
       const list = Array.isArray(payload) ? payload : [];
       setChats(list);
       setSelectedChatId(list[0]?.id || '');
+
+      if (usersResponse.ok) {
+        const users = (await usersResponse.json()) as AccessUser[];
+        if (Array.isArray(users)) {
+          setAccessUsers(users);
+        }
+      }
     } catch (error) {
       console.error('Failed to load chats', error);
     }
   };
 
   const getChatLabel = useCallback((chat: ChatItem) => {
+    if (chat.isFavoritesChat || chat.id?.startsWith('favorites_')) return 'Избранное';
+    if (chat.isNotificationsChat) return 'Уведомления';
+    if (chat.isSystemChat && chat.title?.trim()) return chat.title.trim();
     if (chat.title?.trim()) return chat.title.trim();
     if (chat.name?.trim()) return chat.name.trim();
-    if (chat.id?.startsWith('favorites_')) return 'Избранное';
+
+    if (!chat.isGroup && Array.isArray(chat.participantIds) && chat.participantIds.length > 0) {
+      const otherParticipantId = chat.participantIds.find((id) => id !== currentUserId) || chat.participantIds[0];
+      const otherUser = accessUsers.find((user) => user.id === otherParticipantId);
+      const otherName = otherUser?.name || otherUser?.fullName || otherUser?.displayName || otherUser?.username;
+      if (otherName?.trim()) return otherName.trim();
+    }
+
     if (chat.isGroup) return `Групповой чат ${chat.id.slice(0, 6)}`;
     return `Чат ${chat.id.slice(0, 8)}`;
-  }, []);
+  }, [accessUsers, currentUserId]);
 
   const filteredChats = useMemo(() => {
     const query = chatSearchQuery.trim().toLowerCase();

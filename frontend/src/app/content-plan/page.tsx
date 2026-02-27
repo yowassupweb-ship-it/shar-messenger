@@ -482,15 +482,19 @@ export default function ContentPlanPage() {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      // Закрытие меню фильтров при клике вне
       const target = event.target as HTMLElement;
+
       if (showFilters && !target.closest('[data-filter-menu]')) {
         setShowFilters(false);
+      }
+
+      if (showPlanSelector && !target.closest('[data-plan-selector]')) {
+        setShowPlanSelector(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showFilters]);
+  }, [showFilters, showPlanSelector]);
 
   // Навигация по неделям (теперь используем импортированные функции)
   const handleGoToPreviousWeek = () => goToPreviousWeek(currentWeekStart, setCurrentWeekStart);
@@ -1213,27 +1217,23 @@ export default function ContentPlanPage() {
   return (
     <div className="h-screen flex flex-col bg-[#ededed] dark:bg-[#0d0d0d] text-gray-900 dark:text-white overflow-hidden">
       {/* Header */}
-      <header className="h-12 sm:h-14 bg-[#e3e3e3] dark:bg-[#0d0d0d] border-b border-gray-300 dark:border-white/5 flex items-center px-2 sm:px-4 flex-shrink-0">
+      <header className="flex-shrink-0 px-3 py-2 border-b border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[var(--bg-secondary)] backdrop-blur-xl flex items-center gap-2 overflow-visible">
         <Link
           href="/"
-          className="flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 dark:text-white/40 hover:text-gray-700 dark:hover:text-white/70 hover:bg-gray-200 dark:hover:bg-white/5 transition-all mr-2 sm:mr-3"
+          className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl text-gray-600 dark:text-white/70 transition-all mr-2"
           title="На главную"
         >
           <ArrowLeft className="w-4 h-4" strokeWidth={2} />
         </Link>
-        
-        <div className="flex items-center gap-1.5 sm:gap-2 mr-2 sm:mr-6">
-          <span className="font-semibold text-sm sm:text-base">Контент-план</span>
-        </div>
 
         {/* Content Plan Selector */}
-        <div className="relative mr-2 sm:mr-4">
+        <div className="relative mr-2 sm:mr-3" data-plan-selector>
           <button
             onClick={() => setShowPlanSelector(!showPlanSelector)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-gray-200 dark:bg-white/5 hover:bg-gray-300 dark:hover:bg-white/10 rounded-lg transition-all text-sm"
+            className="flex items-center gap-2 px-3 h-10 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all text-sm border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
             style={{ borderLeft: `3px solid ${contentPlans.find(p => p.id === activePlanId)?.color || '#8B5CF6'}` }}
           >
-            <span className="max-w-[120px] truncate">
+            <span className="max-w-[130px] truncate text-gray-900 dark:text-white">
               {contentPlans.find(p => p.id === activePlanId)?.name || 'Основной план'}
             </span>
             <ChevronDown className="w-3.5 h-3.5 text-gray-500 dark:text-white/50" />
@@ -1377,15 +1377,7 @@ export default function ContentPlanPage() {
           handleGoToNextMonth={handleGoToNextMonth}
           togglePlatformFilter={togglePlatformFilter}
         />
-        
-        {/* Share Button */}
-        <button
-          onClick={() => setShowShareModal(true)}
-          className="ml-2 p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg transition-colors"
-          title="Поделиться"
-        >
-          <Share2 className="w-4 h-4 text-gray-600 dark:text-white/70" />
-        </button>
+
       </header>
 
       {/* Main Content */}
@@ -1431,32 +1423,32 @@ export default function ContentPlanPage() {
       {/* Modal - 3-column layout like todos */}
       {showAddPost && (
         <div 
-          className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
           onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
         >
-          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 w-full h-full shadow-2xl flex flex-col overflow-hidden">
+          <div className="content-plan-modal pointer-events-auto bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-2xl w-full h-full max-w-[1700px] shadow-2xl flex flex-col overflow-hidden">
             {/* Header */}
-            <div className="border-b border-gray-200 dark:border-white/10 px-3 sm:px-5 py-2.5 sm:py-3 flex items-center justify-between flex-shrink-0">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-purple-100 dark:bg-purple-500/20 rounded-lg flex items-center justify-center">
-                  <Edit3 className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-purple-600 dark:text-purple-400" />
+            <div className="flex items-center justify-between px-3 sm:px-4 border-b border-gray-200 dark:border-white/20 bg-white/85 dark:bg-[var(--bg-glass)]/85 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_6px_18px_rgba(0,0,0,0.12)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_8px_24px_rgba(0,0,0,0.22)] flex-shrink-0" style={{ minHeight: '40px', maxHeight: '40px' }}>
+              <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-[10px] bg-gradient-to-br from-purple-500/25 to-purple-600/20 border border-purple-400/30 flex items-center justify-center shadow-[inset_0_1px_2px_rgba(255,255,255,0.25)]">
+                  <Edit3 className="w-3.5 h-3.5 text-purple-600 dark:text-purple-300" />
                 </div>
-                <h3 className="text-sm sm:text-base font-semibold">
+                <h3 className="text-sm sm:text-base font-semibold truncate">
                   {editingPost ? 'Редактировать публикацию' : 'Новая публикация'}
                 </h3>
                 {/* Действия с постом */}
                 {editingPost && (
-                  <div className="flex items-center gap-1 ml-2">
+                  <div className="flex items-center gap-1 ml-1 sm:ml-2">
                     <button
                       onClick={() => copyPostLink(editingPost.id)}
-                      className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/70"
+                      className="w-7 h-7 rounded-full border border-gray-300 dark:border-white/20 bg-white/80 dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/20 transition-colors text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white flex items-center justify-center"
                       title="Копировать ссылку"
                     >
                       <Link2 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => copyPost(editingPost)}
-                      className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/70"
+                      className="w-7 h-7 rounded-full border border-gray-300 dark:border-white/20 bg-white/80 dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/20 transition-colors text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white flex items-center justify-center"
                       title="Создать копию"
                     >
                       <Copy className="w-4 h-4" />
@@ -1466,16 +1458,39 @@ export default function ContentPlanPage() {
               </div>
               <button
                 onClick={closeModal}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
+                className="w-8 h-8 rounded-full border border-gray-300 dark:border-white/20 bg-white/80 dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/20 transition-colors flex items-center justify-center"
               >
                 <X className="w-4 h-4 text-gray-500 dark:text-white/50" />
               </button>
+            </div>
+
+            <div className="px-3 py-2 border-b border-[var(--border-color)] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] backdrop-blur-xl">
+              <div className="inline-flex items-center gap-1 p-1 rounded-[18px] bg-gray-100 dark:bg-[var(--bg-tertiary)] border border-gray-200 dark:border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+                <button
+                  onClick={() => document.getElementById('cp-modal-left')?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' })}
+                  className="px-2.5 py-1.5 text-[11px] rounded-[12px] border border-gray-300 dark:border-white/20 bg-white dark:bg-[var(--bg-secondary)] text-gray-900 dark:text-white shadow-[0_1px_2px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.28)]"
+                >
+                  Поля
+                </button>
+                <button
+                  onClick={() => document.getElementById('cp-modal-center')?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })}
+                  className="px-2.5 py-1.5 text-[11px] rounded-[12px] border border-transparent text-gray-600 dark:text-white/75 hover:bg-gray-200 dark:hover:bg-white/10 hover:border-gray-300 dark:hover:border-white/15 transition-all"
+                >
+                  Текст
+                </button>
+                <button
+                  onClick={() => document.getElementById('cp-modal-right')?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'end' })}
+                  className="px-2.5 py-1.5 text-[11px] rounded-[12px] border border-transparent text-gray-600 dark:text-white/75 hover:bg-gray-200 dark:hover:bg-white/10 hover:border-gray-300 dark:hover:border-white/15 transition-all"
+                >
+                  Комментарии
+                </button>
+              </div>
             </div>
             
             {/* 3-column content */}
             <div className="flex flex-1 overflow-y-auto lg:overflow-hidden flex-col lg:flex-row">
               {/* Left column - Fields */}
-              <div className="w-full lg:flex-1 flex-shrink-0 p-3 sm:p-4 overflow-y-auto border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-white/10 space-y-3 sm:space-y-4">
+              <div id="cp-modal-left" className="w-full lg:flex-1 flex-shrink-0 p-3 sm:p-4 overflow-y-auto border-b lg:border-b-0 lg:border-r border-[var(--border-color)] bg-gradient-to-b from-white/5 to-white/10 dark:from-[var(--bg-glass-active)] dark:to-[var(--bg-glass)] space-y-3 sm:space-y-4 lg:rounded-none rounded-t-xl">
                 {/* Title */}
                 <div>
                   <input
@@ -1927,9 +1942,9 @@ export default function ContentPlanPage() {
               </div>
 
               {/* Middle column - Description */}
-              <div className="w-full lg:flex-1 flex flex-col bg-gray-50 dark:bg-[#0d0d0d] border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-white/10">
+              <div id="cp-modal-center" className="w-full lg:flex-1 flex flex-col bg-gradient-to-b from-white/5 to-white/10 dark:from-[var(--bg-glass-active)] dark:to-[var(--bg-glass)] border-b lg:border-b-0 lg:border-r border-[var(--border-color)]">
                 {/* Description Header with Formatting */}
-                <div className="px-3 py-2 border-b border-gray-200 dark:border-white/10">
+                <div className="px-3 py-2 border-b border-[var(--border-color)]">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <FileText className="w-4 h-4 text-purple-600 dark:text-purple-400" />
@@ -2324,9 +2339,9 @@ export default function ContentPlanPage() {
               </div>
 
               {/* Right column - Comments */}
-              <div className="w-full lg:flex-1 flex flex-col bg-gray-50 dark:bg-[#0d0d0d]">
+              <div id="cp-modal-right" className="w-full lg:flex-1 flex flex-col bg-gradient-to-b from-white/5 to-white/10 dark:from-[var(--bg-glass-active)] dark:to-[var(--bg-glass)]">
                 {/* Comments Header */}
-                <div className="px-3 py-2 border-b border-gray-200 dark:border-white/10 flex items-center justify-between">
+                <div className="px-3 py-2 border-b border-[var(--border-color)] flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <MessageCircle className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                     <span className="text-xs font-medium text-gray-600 dark:text-white/70">Комментарии</span>
@@ -2561,7 +2576,7 @@ export default function ContentPlanPage() {
             </div>
             
             {/* Footer with save button */}
-            <div className="flex justify-between items-center px-4 py-2.5 border-t border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02] rounded-b-xl flex-shrink-0">
+            <div className="flex justify-between items-center px-4 py-2.5 border-t border-gray-200 dark:border-white/20 bg-white/85 dark:bg-[var(--bg-glass)]/85 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_-6px_18px_rgba(0,0,0,0.12)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_-8px_24px_rgba(0,0,0,0.22)] rounded-b-2xl flex-shrink-0">
               <div className="text-[10px] text-gray-400 dark:text-white/30">
                 {!editingPost && 'Новая публикация'}
                 {isDirty && <span className="ml-2 text-amber-500 dark:text-amber-400">• Несохранённые изменения</span>}
@@ -2584,7 +2599,7 @@ export default function ContentPlanPage() {
                 <button
                   onClick={editingPost ? updatePost : addPost}
                   disabled={!postForm.title.trim() || !postForm.platform || !postForm.publishDate}
-                  className="px-3 py-1.5 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-white rounded-lg hover:bg-gray-200 dark:hover:bg-white/15 transition-all text-xs font-medium border border-gray-200 dark:border-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-1.5 rounded-2xl bg-gradient-to-br from-blue-500/90 to-blue-600/90 text-white hover:from-blue-500 hover:to-blue-600 transition-all text-xs font-semibold border border-blue-400/40 shadow-[0_6px_16px_rgba(37,99,235,0.35)] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {editingPost ? 'Сохранить изменения' : 'Создать публикацию'}
                 </button>
