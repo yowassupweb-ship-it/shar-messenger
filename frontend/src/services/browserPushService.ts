@@ -36,7 +36,7 @@ type CalendarEventSnapshot = {
   description: string;
 };
 
-const POLL_INTERVAL_MS = 15000;
+const POLL_INTERVAL_MS = 3500;
 const SEEN_LIMIT = 300;
 const CALENDAR_REMINDER_WINDOW_MS = 30 * 60 * 1000;
 
@@ -59,6 +59,8 @@ export class BrowserPushService {
   private isPrimed = false;
   private getContext: (() => PollContext) | null = null;
   private inFlight = false;
+  private visibilityHandler: (() => void) | null = null;
+  private focusHandler: (() => void) | null = null;
 
   private seenTaskIds = new Set<string>();
   private chatSnapshots = new Map<string, ChatSnapshot>();
@@ -66,6 +68,7 @@ export class BrowserPushService {
   private calendarEventVersions = new Map<string, string>();
   private calendarEventSnapshots = new Map<string, CalendarEventSnapshot>();
   private firedCalendarReminders = new Set<string>();
+  private notifiedEventVersions = new Set<string>();
   private shownKeys = new Set<string>();
 
   async start(options: StartOptions): Promise<void> {
@@ -80,6 +83,7 @@ export class BrowserPushService {
     await this.ensurePermissionAndWorker();
 
     this.running = true;
+    this.attachWakeHandlers();
     await this.poll(true);
 
     if (!this.running) return;
@@ -94,9 +98,45 @@ export class BrowserPushService {
     this.isPrimed = false;
     this.inFlight = false;
     this.userName = null;
+    this.detachWakeHandlers();
     if (this.timer !== null) {
       window.clearInterval(this.timer);
       this.timer = null;
+    }
+  }
+
+  private attachWakeHandlers(): void {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    this.detachWakeHandlers();
+
+    this.visibilityHandler = () => {
+      if (document.visibilityState === 'visible') {
+        void this.poll(false);
+      }
+    };
+
+    this.focusHandler = () => {
+      void this.poll(false);
+    };
+
+    document.addEventListener('visibilitychange', this.visibilityHandler);
+    window.addEventListener('focus', this.focusHandler);
+    window.addEventListener('online', this.focusHandler);
+  }
+
+  private detachWakeHandlers(): void {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    if (this.visibilityHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityHandler);
+      this.visibilityHandler = null;
+    }
+
+    if (this.focusHandler) {
+      window.removeEventListener('focus', this.focusHandler);
+      window.removeEventListener('online', this.focusHandler);
+      this.focusHandler = null;
     }
   }
 
@@ -170,6 +210,12 @@ export class BrowserPushService {
         this.calendarEventVersions = new Map(entries);
       }
 
+      const eventNotifiedRaw = localStorage.getItem(this.stateKey('event-notified-versions'));
+      if (eventNotifiedRaw) {
+        const keys: string[] = JSON.parse(eventNotifiedRaw);
+        this.notifiedEventVersions = new Set(keys.slice(0, SEEN_LIMIT));
+      }
+
       const calendarSnapshotsRaw = localStorage.getItem(this.stateKey('calendar-event-snapshots'));
       if (calendarSnapshotsRaw) {
         const entries: [string, CalendarEventSnapshot][] = JSON.parse(calendarSnapshotsRaw);
@@ -182,6 +228,7 @@ export class BrowserPushService {
       this.calendarEventVersions = new Map();
       this.calendarEventSnapshots = new Map();
       this.firedCalendarReminders = new Set();
+      this.notifiedEventVersions = new Set();
     }
   }
 
@@ -195,9 +242,26 @@ export class BrowserPushService {
       localStorage.setItem(this.stateKey('calendar-event-versions'), JSON.stringify(Array.from(this.calendarEventVersions.entries()).slice(0, SEEN_LIMIT)));
       localStorage.setItem(this.stateKey('calendar-event-snapshots'), JSON.stringify(Array.from(this.calendarEventSnapshots.entries()).slice(0, SEEN_LIMIT)));
       localStorage.setItem(this.stateKey('calendar-reminders'), JSON.stringify(Array.from(this.firedCalendarReminders).slice(0, SEEN_LIMIT)));
+      localStorage.setItem(this.stateKey('event-notified-versions'), JSON.stringify(Array.from(this.notifiedEventVersions).slice(0, SEEN_LIMIT)));
     } catch {
       // ignore quota or serialization errors
     }
+  }
+
+  private claimEventVersionNotification(eventId: string, version: string): boolean {
+    const normalizedEventId = String(eventId || '').trim();
+    const normalizedVersion = String(version || '').trim();
+    if (!normalizedEventId || !normalizedVersion) return true;
+
+    const key = `${normalizedEventId}:${normalizedVersion}`;
+    if (this.notifiedEventVersions.has(key)) return false;
+
+    this.notifiedEventVersions.add(key);
+    if (this.notifiedEventVersions.size > SEEN_LIMIT) {
+      const oldest = this.notifiedEventVersions.values().next().value;
+      if (oldest) this.notifiedEventVersions.delete(oldest);
+    }
+    return true;
   }
 
   private async ensurePermissionAndWorker(): Promise<void> {
@@ -223,7 +287,6 @@ export class BrowserPushService {
   private async poll(isInitial: boolean): Promise<void> {
     if (!this.running || !this.userId) return;
     if (this.inFlight) return;
-    if (typeof document !== 'undefined' && document.hidden) return;
 
     this.inFlight = true;
     try {
@@ -304,6 +367,11 @@ export class BrowserPushService {
       const chatId = String(chat?.id || '');
       if (!chatId) continue;
 
+      const isFavoritesChat = Boolean(chat?.isFavoritesChat) || chatId.startsWith('favorites_');
+      if (isFavoritesChat) {
+        continue;
+      }
+
       const unreadCount = Number(chat?.unreadCount || 0);
       const lastMessageId = String(chat?.lastMessage?.id || '');
       const lastAuthorId = String(chat?.lastMessage?.authorId || '');
@@ -320,7 +388,8 @@ export class BrowserPushService {
       if (lastAuthorId === this.userId) continue;
 
       const context = this.getContext?.();
-      if (context?.activeTab === 'messages' && context?.isChatOpen) {
+      const isPageVisible = typeof document !== 'undefined' ? document.visibilityState === 'visible' : true;
+      if (isPageVisible && context?.activeTab === 'messages' && context?.isChatOpen) {
         continue;
       }
 
@@ -350,6 +419,7 @@ export class BrowserPushService {
 
       const isOwn = String(event?.createdBy || '') === this.userId;
       if (isOwn) continue;
+      if (!this.claimEventVersionNotification(eventId, version)) continue;
 
       const title = prevVersion ? 'Событие обновлено' : 'Новое событие';
       const body = String(event?.title || 'Изменение в календаре');
@@ -477,6 +547,10 @@ export class BrowserPushService {
       this.calendarEventVersions.set(eventId, version);
 
       if (!isInitial && this.isPrimed && isRelevant && version && prevVersion !== version) {
+        if (!this.claimEventVersionNotification(eventId, version)) {
+          continue;
+        }
+
         const title = prevVersion ? 'Событие обновлено' : 'Новое событие';
         const eventTitle = snapshot.title || 'Событие';
         const detailLines = prevVersion && prevSnapshot
@@ -645,13 +719,22 @@ export class BrowserPushService {
     if (this.shownKeys.has(dedupeKey)) return;
     this.shownKeys.add(dedupeKey);
 
-    const notificationOptions: NotificationOptions = {
+    const notificationOptions: NotificationOptions & {
+      renotify?: boolean;
+      requireInteraction?: boolean;
+      timestamp?: number;
+      vibrate?: number[];
+    } = {
       body,
       tag: options.tag,
       icon: '/favicon.png',
       badge: '/favicon.png',
       data: { url: options.url },
       silent: false,
+      renotify: true,
+      requireInteraction: true,
+      timestamp: Date.now(),
+      vibrate: [250, 120, 250, 120, 500],
     };
 
     try {

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Chat, User } from './types';
-import { Pin, PinOff } from 'lucide-react';
+import { Archive, Inbox, Pin, PinOff } from 'lucide-react';
 
 interface ChatContextMenuProps {
   chat: Chat | null;
@@ -10,6 +10,7 @@ interface ChatContextMenuProps {
   currentUser: User | null;
   onClose: () => void;
   onTogglePin: (chatId: string) => void;
+  onToggleArchive: (chatId: string, isArchived: boolean) => void;
 }
 
 export default function ChatContextMenu({
@@ -17,11 +18,17 @@ export default function ChatContextMenu({
   position,
   currentUser,
   onClose,
-  onTogglePin
+  onTogglePin,
+  onToggleArchive
 }: ChatContextMenuProps) {
   if (!chat) return null;
 
   const isPinned = chat.pinnedByUser?.[currentUser?.id || ''];
+  const isProtectedSystemChat = Boolean(chat.isFavoritesChat || chat.isNotificationsChat || chat.isSystemChat);
+  const rawArchived = chat.archivedByUser?.[currentUser?.id || ''];
+  const isArchived = typeof rawArchived === 'string'
+    ? String(rawArchived).toLowerCase() === 'true'
+    : Boolean(rawArchived || chat.isArchivedForUser);
 
   return (
     <>
@@ -53,11 +60,32 @@ export default function ChatContextMenu({
             </>
           ) : (
             <>
-              <Pin className="w-4 h-4 text-cyan-400" />
+              <Pin className="w-4 h-4 text-[var(--text-primary)]" />
               Закрепить
             </>
           )}
         </button>
+        {!isProtectedSystemChat && (
+          <button
+            onClick={() => {
+              onToggleArchive(chat.id, !isArchived);
+              onClose();
+            }}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
+          >
+            {isArchived ? (
+              <>
+                <Inbox className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                Вернуть из архива
+              </>
+            ) : (
+              <>
+                <Archive className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                В архив
+              </>
+            )}
+          </button>
+        )}
       </div>
     </>
   );

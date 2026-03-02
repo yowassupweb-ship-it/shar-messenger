@@ -39,6 +39,11 @@ export interface Message {
     oldStatus?: string;
     newStatus?: string;
     executorName?: string;
+    isPinned?: boolean;
+    pinnedBy?: string;
+    pinnedAt?: string;
+    pinnedMessageId?: string;
+    preview?: string;
   };
 }
 
@@ -54,6 +59,11 @@ export interface Chat {
   createdAt: string;
   readMessagesByUser?: Record<string, string>;
   pinnedByUser?: Record<string, boolean>;
+  archivedByUser?: Record<string, boolean>;
+  isArchivedForUser?: boolean;
+  discussionStatus?: string;
+  todoStatus?: string;
+  todoId?: string;
   lastMessage?: Message;
   unreadCount?: number;
 }

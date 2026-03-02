@@ -3,7 +3,7 @@
 import React, { useRef, useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Message, User } from './types';
-import { Reply, Edit3, Forward, CheckSquare, CalendarPlus, Trash2 } from 'lucide-react';
+import { Reply, Edit3, Forward, CheckSquare, CalendarPlus, Trash2, Pin, PinOff } from 'lucide-react';
 
 interface MessageContextMenuProps {
   message: Message | null;
@@ -19,6 +19,8 @@ interface MessageContextMenuProps {
   onLoadTodoLists: () => Promise<void>;
   onShowEventSelector: (message: Message) => void;
   onLoadCalendars: () => Promise<void>;
+  onTogglePin: (message: Message) => void;
+  canPinMessage?: boolean;
 }
 
 export default function MessageContextMenu({
@@ -35,6 +37,8 @@ export default function MessageContextMenu({
   onLoadTodoLists,
   onShowEventSelector,
   onLoadCalendars,
+  onTogglePin,
+  canPinMessage = true,
 }: MessageContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [coords, setCoords] = useState(position);
@@ -88,6 +92,7 @@ export default function MessageContextMenu({
 
   const canEdit = currentUser && message.authorId === currentUser.id;
   const canDelete = currentUser && message.authorId === currentUser.id;
+  const isPinned = Boolean(message.metadata?.isPinned);
 
   const content = (
     <div className="fixed inset-0 z-[99999] isolate">
@@ -169,6 +174,24 @@ export default function MessageContextMenu({
           >
             <Trash2 className="w-4 h-4 text-red-500" />
             Удалить
+          </button>
+        )}
+
+        {canPinMessage && (
+          <button
+            type="button"
+            onClick={() => {
+              onTogglePin(message);
+              onClose();
+            }}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
+          >
+            {isPinned ? (
+              <PinOff className="w-4 h-4 text-amber-400" />
+            ) : (
+              <Pin className="w-4 h-4 text-cyan-400" />
+            )}
+            {isPinned ? 'Открепить сообщение' : 'Закрепить сообщение'}
           </button>
         )}
 

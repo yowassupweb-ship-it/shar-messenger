@@ -347,6 +347,14 @@ export default function AdminPage() {
               <span className="text-sm text-gray-600 dark:text-white/60">Показать пароли</span>
             </label>
             <div className="flex gap-2">
+              <Link
+                href="/admin/settings"
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-white/60 rounded-xl hover:bg-gray-200 dark:hover:bg-white/10 transition-all text-sm"
+                title="Системные настройки"
+              >
+                <Settings className="w-4 h-4" />
+                Системные настройки
+              </Link>
               <button
                 onClick={() => setShowUserModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl hover:bg-cyan-700 transition-all text-sm font-medium"

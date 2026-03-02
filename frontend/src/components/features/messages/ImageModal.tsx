@@ -18,6 +18,12 @@ export default function ImageModal({
 }: ImageModalProps) {
   if (!isOpen || !imageUrl) return null;
 
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      handleClose();
+    }
+  };
+
   const handleClose = () => {
     onClose();
     setZoom(1);
@@ -59,10 +65,10 @@ export default function ImageModal({
   return (
     <div 
       className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center backdrop-blur-sm"
-      onClick={handleClose}
+      onClick={handleBackdropClick}
     >
       {/* Header с кнопками - десктоп версия */}
-      <div className="hidden md:flex absolute top-4 left-4 right-4 items-center justify-between z-10">
+      <div className="hidden md:flex absolute top-4 left-4 right-4 items-center justify-between z-10" onClick={(e) => e.stopPropagation()}>
         {/* Zoom controls - слева */}
         <div className="flex gap-2">
           <button
@@ -121,7 +127,7 @@ export default function ImageModal({
       </div>
 
       {/* Мобильная версия - кнопки НАД хедером */}
-      <div className="md:hidden flex flex-col gap-2 absolute top-2 right-2 z-10">
+      <div className="md:hidden flex flex-col gap-2 absolute top-2 right-2 z-10" onClick={(e) => e.stopPropagation()}>
         <button
           onClick={handleDownload}
           className="w-12 h-12 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all backdrop-blur-sm"
@@ -140,7 +146,7 @@ export default function ImageModal({
       </div>
 
       {/* Мобильная версия - zoom controls внизу */}
-      <div className="md:hidden absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+      <div className="md:hidden absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10" onClick={(e) => e.stopPropagation()}>
         <button
           onClick={(e) => {
             e.stopPropagation();

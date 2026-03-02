@@ -40,6 +40,7 @@ export default function BottomNav() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [pinnedTools, setPinnedTools] = useState<string[]>([]);
+  const [toolContextMenu, setToolContextMenu] = useState<{ x: number; y: number; toolId: string } | null>(null);
   const [isTouchDevice, setIsTouchDevice] = useState(() => (typeof window !== 'undefined' ? window.matchMedia('(pointer: coarse)').matches : false));
   const [isBelow773, setIsBelow773] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 773 : false));
   const [visibleTabs, setVisibleTabs] = useState({
@@ -60,7 +61,11 @@ export default function BottomNav() {
         const res = await fetch(`/api/chats?user_id=${myAccount.id}`);
         if (res.ok) {
           const chats = await res.json();
-          const unreadCount = chats.filter((chat: any) => (chat.unreadCount || 0) > 0).length;
+          const unreadCount = chats.filter((chat: any) => {
+            const chatId = String(chat?.id || '');
+            const isFavoritesChat = Boolean(chat?.isFavoritesChat) || chatId.startsWith('favorites_');
+            return !isFavoritesChat && (chat.unreadCount || 0) > 0;
+          }).length;
           setUnreadChatsCount(unreadCount);
         }
       } catch (error) {
@@ -117,6 +122,8 @@ export default function BottomNav() {
   const shouldHideMobile = isInChat;
 
   const shouldUseMobileNav = isBelow773 || isTouchDevice;
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1024;
+  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 768;
 
   // Показываем только на /content-plan и /utm-generator (+ вложенные страницы)
   const shouldShow = pathname.startsWith('/content-plan') || pathname.startsWith('/utm-generator');
@@ -137,6 +144,21 @@ export default function BottomNav() {
       // Игнорируем ошибки сохранения
     }
   };
+
+  useEffect(() => {
+    if (!toolContextMenu) return;
+
+    const closeMenu = () => setToolContextMenu(null);
+    window.addEventListener('click', closeMenu);
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('resize', closeMenu);
+
+    return () => {
+      window.removeEventListener('click', closeMenu);
+      window.removeEventListener('scroll', closeMenu, true);
+      window.removeEventListener('resize', closeMenu);
+    };
+  }, [toolContextMenu]);
   
   if (!shouldShow) {
     return null;
@@ -146,11 +168,11 @@ export default function BottomNav() {
     <>
       {/* Mobile Bottom Navigation */}
       <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-3 pb-[max(env(safe-area-inset-bottom),12px)] px-3 z-40 pointer-events-none select-none overflow-visible ${shouldHideMobile || !shouldUseMobileNav ? 'hidden' : 'flex'}`} style={{ background: 'transparent' }}>
-        <div className="flex items-center gap-2 pointer-events-auto backdrop-blur-xl bg-gradient-to-b from-white/10 to-white/5 border border-white/20 rounded-full px-3 py-1.5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_4px_20px_rgba(0,0,0,0.3)]">
+        <div className="flex items-center gap-2 pointer-events-auto backdrop-blur-xl bg-gradient-to-b from-white/10 to-white/5 border border-[var(--border-light)] rounded-full px-3 py-1.5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_4px_20px_rgba(0,0,0,0.3)]">
           {visibleTabs.messages && (
             <button
               onClick={() => handleNavClick('/messages')}
-              className="relative w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+              className="relative w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
             >
               <MessageCircle className="w-4 h-4" strokeWidth={2} />
               {unreadChatsCount > 0 && (
@@ -164,7 +186,7 @@ export default function BottomNav() {
           {visibleTabs.tasks && (
             <button
               onClick={() => handleNavClick('/todos')}
-              className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+              className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
             >
               <CheckSquare className="w-4 h-4" strokeWidth={2} />
             </button>
@@ -173,7 +195,7 @@ export default function BottomNav() {
           {visibleTabs.calendar && (
             <button
               onClick={() => handleNavClick('/calendar')}
-              className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+              className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
             >
               <Calendar className="w-4 h-4" strokeWidth={2} />
             </button>
@@ -182,7 +204,7 @@ export default function BottomNav() {
           {visibleTabs.contacts && (
             <button
               onClick={() => handleNavClick('/contacts')}
-              className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+              className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
             >
               <Users className="w-4 h-4" strokeWidth={2} />
             </button>
@@ -191,7 +213,7 @@ export default function BottomNav() {
           {visibleTabs.links && (
             <button
               onClick={() => handleNavClick('/links')}
-              className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+              className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
             >
               <Globe className="w-4 h-4" strokeWidth={2} />
             </button>
@@ -199,7 +221,7 @@ export default function BottomNav() {
 
           <button
             onClick={() => handleNavClick('/account?tab=tools')}
-            className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+            className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
           >
             <MoreVertical className="w-4 h-4" strokeWidth={2} />
           </button>
@@ -301,7 +323,6 @@ export default function BottomNav() {
               if (!tool) return null;
 
               const hasAccess = currentUser?.role === 'admin' ||
-                tool.standard ||
                 STANDARD_TOOL_IDS.includes(tool.id) ||
                 currentUser?.enabledTools?.includes(tool.id);
 
@@ -314,6 +335,11 @@ export default function BottomNav() {
                 >
                   <button
                     onClick={() => handleNavClick(tool.href)}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setToolContextMenu({ x: event.clientX, y: event.clientY, toolId });
+                    }}
                     className="flex items-center gap-1.5 text-[10px] font-medium transition-all px-2 py-1.5 rounded-xl bg-gradient-to-b from-white/10 to-white/5 border border-white/20 hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]"
                   >
                     <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#3f51b5] to-[#7c4dff] flex items-center justify-center relative overflow-hidden shadow-sm backdrop-blur-sm">
@@ -340,6 +366,27 @@ export default function BottomNav() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {toolContextMenu && (
+          <div
+            className="fixed z-[120] min-w-[170px] rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)]/95 backdrop-blur-xl shadow-2xl overflow-hidden"
+            style={{
+              left: `${Math.max(8, Math.min(toolContextMenu.x, viewportWidth - 190))}px`,
+              top: `${Math.max(8, Math.min(toolContextMenu.y, viewportHeight - 70))}px`,
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              onClick={() => {
+                void removePinnedTool(toolContextMenu.toolId);
+                setToolContextMenu(null);
+              }}
+              className="w-full px-3 py-2.5 text-left text-sm text-red-400 hover:bg-[var(--bg-tertiary)] transition-colors"
+            >
+              Открепить инструмент
+            </button>
           </div>
         )}
 

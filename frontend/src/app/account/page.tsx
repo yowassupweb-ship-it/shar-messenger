@@ -210,7 +210,11 @@ export default function AccountPage() {
       const res = await fetch(`/api/chats?user_id=${myAccount.id}`);
       if (res.ok) {
         const chats = await res.json();
-        const unreadCount = chats.filter((chat: any) => (chat.unreadCount || 0) > 0).length;
+        const unreadCount = chats.filter((chat: any) => {
+          const chatId = String(chat?.id || '');
+          const isFavoritesChat = Boolean(chat?.isFavoritesChat) || chatId.startsWith('favorites_');
+          return !isFavoritesChat && (chat.unreadCount || 0) > 0;
+        }).length;
         setUnreadChatsCount(unreadCount);
       }
     } catch (error) {

@@ -30,6 +30,7 @@ interface MessagesAreaProps {
   scrollToMessage: (messageId: string) => void;
   setCurrentImageUrl: (url: string) => void;
   setShowImageModal: (show: boolean) => void;
+  hasPinnedMessage?: boolean;
 }
 
 export default function MessagesArea({
@@ -59,6 +60,7 @@ export default function MessagesArea({
   scrollToMessage,
   setCurrentImageUrl,
   setShowImageModal,
+  hasPinnedMessage = false,
 }: MessagesAreaProps) {
   const [hasRealOverflow, setHasRealOverflow] = useState(false);
   const [showAllMessages, setShowAllMessages] = useState(false);
@@ -66,8 +68,8 @@ export default function MessagesArea({
   const previousDockOffsetRef = useRef(96);
   const initialRenderLimit = 40;
   const containerClass = isDesktopView
-    ? 'flex-1 min-h-[260px] overflow-x-hidden overscroll-contain p-4 pt-16 pb-0 bg-transparent scrollbar-hide-mobile'
-    : 'flex-1 min-h-[220px] overflow-x-hidden overscroll-contain p-[3px] pt-[120px] pb-0 bg-transparent scrollbar-hide-mobile';
+    ? `flex-1 min-h-[260px] overflow-x-hidden overscroll-contain p-4 ${hasPinnedMessage ? 'pt-28' : 'pt-16'} pb-0 bg-transparent scrollbar-hide-mobile`
+    : `flex-1 min-h-[220px] overflow-x-hidden overscroll-contain p-[3px] ${hasPinnedMessage ? 'pt-[164px]' : 'pt-[120px]'} pb-0 bg-transparent scrollbar-hide-mobile`;
   const innerClass = isDesktopView
     ? 'px-4 lg:px-8 h-full min-w-0'
     : 'px-0 h-full min-w-0';
@@ -255,10 +257,15 @@ export default function MessagesArea({
     const messageOrderIndex = messageOrderById[message.id];
     if (messageOrderIndex === undefined || messageOrderIndex < 0) return false;
 
-    const otherParticipantIds = (selectedChat.participantIds || []).filter((participantId) => participantId !== currentUser.id);
-    if (otherParticipantIds.length === 0) return false;
+    const readMapKeys = Object.keys(selectedChat.readMessagesByUser || {});
+    const otherReaderIds = readMapKeys.filter((readerId) => readerId !== currentUser.id);
+    const idsToCheck = otherReaderIds.length > 0
+      ? otherReaderIds
+      : (selectedChat.participantIds || []).filter((participantId) => participantId !== currentUser.id);
 
-    return otherParticipantIds.some((participantId) => {
+    if (idsToCheck.length === 0) return false;
+
+    return idsToCheck.some((participantId) => {
       const readBoundaryIndex = readBoundaryIndexByUser[participantId];
       return readBoundaryIndex !== undefined && readBoundaryIndex >= messageOrderIndex;
     });

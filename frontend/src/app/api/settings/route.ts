@@ -1,66 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
+const BACKEND_URL = process.env.BACKEND_URL || process.env.API_URL || 'http://127.0.0.1:8000';
 
-// Дефолтные настройки
-const defaultSettings = {
-  yandexMetrikaCounterId: '',
-  yandexMetrikaToken: '',
-  telegramBotToken: '',
-  telegramChatId: '',
-  autoSyncInterval: 3600,
-  feedUpdateNotification: true,
-  errorNotification: true,
-};
-
-// Убедимся, что папка data существует
-async function ensureDataDir() {
-  try {
-    await fs.access(DATA_DIR);
-  } catch {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-  }
-}
-
-// Чтение настроек
-async function getSettings() {
-  await ensureDataDir();
-  try {
-    const data = await fs.readFile(SETTINGS_FILE, 'utf-8');
-    return { ...defaultSettings, ...JSON.parse(data) };
-  } catch {
-    return defaultSettings;
-  }
-}
-
-// Сохранение настроек
-async function saveSettings(settings: any) {
-  await ensureDataDir();
-  await fs.writeFile(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf-8');
-}
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET() {
   try {
-    const settings = await getSettings();
-    return NextResponse.json(settings);
+    const response = await fetch(`${BACKEND_URL}/api/settings`, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
-    console.error('Error reading settings:', error);
-    return NextResponse.json({ error: 'Failed to read settings' }, { status: 500 });
+    console.error('Error fetching settings from backend:', error);
+    return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 });
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const response = await fetch(`${BACKEND_URL}/api/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    });
+
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
+  } catch (error) {
+    console.error('Error updating settings in backend:', error);
+    return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const currentSettings = await getSettings();
-    const newSettings = { ...currentSettings, ...body };
-    await saveSettings(newSettings);
-    return NextResponse.json(newSettings);
-  } catch (error) {
-    console.error('Error saving settings:', error);
-    return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 });
-  }
+  return PUT(request);
 }

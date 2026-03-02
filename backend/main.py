@@ -4,11 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, FileResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 import sys
 import os
 import re
+import json
 import secrets
 import asyncio
 import logging
@@ -46,6 +47,11 @@ from telegram_notifier import telegram
 def snake_to_camel(data):
     """Рекурсивно преобразует ключи из snake_case в camelCase"""
     if isinstance(data, dict):
+        preserve_nested_map_keys = {
+            'read_messages_by_user',
+            'pinned_by_user',
+            'archived_by_user',
+        }
         new_dict = {}
         for key, value in data.items():
             # Преобразуем ключ
@@ -55,6 +61,8 @@ def snake_to_camel(data):
             # Специальная обработка для author_id: если None, заменяем на 'system'
             if camel_key == 'authorId' and value is None:
                 new_dict[camel_key] = 'system'
+            elif key in preserve_nested_map_keys and isinstance(value, dict):
+                new_dict[camel_key] = value
             else:
                 new_dict[camel_key] = snake_to_camel(value)
         
@@ -1964,29 +1972,76 @@ def create_users_batch(users: List[Dict[str, Any]] = Body(...)):
     
     return {"created": len(created_users), "users": created_users}
 
+def _normalize_dt(value: Any):
+    if not value:
+        return None
+    dt = None
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, str):
+        try:
+            dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        except Exception:
+            return None
+    if not dt:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+def _get_latest_message_activity_map() -> Dict[str, datetime]:
+    if not hasattr(db, 'conn'):
+        return {}
+
+    try:
+        rows = db.conn.fetch_all(
+            """
+            SELECT author_id, MAX(created_at) AS last_activity
+            FROM messages
+            WHERE author_id IS NOT NULL
+            GROUP BY author_id
+            """
+        )
+    except Exception as e:
+        logger.warning(f"Failed to load message activity map: {e}")
+        return {}
+
+    activity_map: Dict[str, datetime] = {}
+    for row in rows or []:
+        author_id = str(row.get('author_id') or '').strip()
+        if not author_id:
+            continue
+        last_activity = _normalize_dt(row.get('last_activity'))
+        if last_activity:
+            activity_map[author_id] = last_activity
+
+    return activity_map
+
+def _resolve_effective_last_seen(user: Dict[str, Any], message_activity_map: Dict[str, datetime]) -> Optional[datetime]:
+    user_last_seen = _normalize_dt(user.get("last_seen") or user.get("lastSeen"))
+    message_last_seen = _normalize_dt(message_activity_map.get(str(user.get("id") or '')))
+
+    if user_last_seen and message_last_seen:
+        return max(user_last_seen, message_last_seen)
+    return user_last_seen or message_last_seen
+
 @app.get("/api/users")
 def get_users():
     """Получить список всех пользователей с динамическим isOnline"""
     users = db.get_users()
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
+    message_activity_map = _get_latest_message_activity_map()
     
     # Вычисляем isOnline динамически на основе last_seen
     for user in users:
         is_online = False
-        last_seen = user.get("last_seen") or user.get("lastSeen")
-        
-        if last_seen:
-            try:
-                if isinstance(last_seen, str):
-                    last_seen_date = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
-                else:
-                    last_seen_date = last_seen
-                diff = (now - last_seen_date).total_seconds()
-                is_online = diff < 120  # Онлайн если активность была менее 2 минут назад
-            except:
-                pass
+        last_seen_date = _resolve_effective_last_seen(user, message_activity_map)
+        if last_seen_date:
+            diff = (now - last_seen_date).total_seconds()
+            is_online = diff < 120  # Онлайн если активность была менее 2 минут назад
         
         user["is_online"] = is_online
+        user["last_seen"] = last_seen_date.isoformat() if last_seen_date else user.get("last_seen") or user.get("lastSeen")
     
     return [snake_to_camel(user) for user in users]
 
@@ -1995,28 +2050,20 @@ def get_user_statuses():
     """Получить статусы всех пользователей"""
     users = db.get_users()
     statuses = []
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
+    message_activity_map = _get_latest_message_activity_map()
     
     for user in users:
         is_online = False
-        last_seen = user.get("last_seen") or user.get("lastSeen")
-        
-        # Проверяем онлайн ли пользователь (если last_seen был в последние 60 секунд)
-        if last_seen:
-            try:
-                if isinstance(last_seen, str):
-                    last_seen_date = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
-                else:
-                    last_seen_date = last_seen
-                diff = (now - last_seen_date).total_seconds()
-                is_online = diff < 60  # Онлайн если активность была менее минуты назад
-            except:
-                pass
+        last_seen_date = _resolve_effective_last_seen(user, message_activity_map)
+        if last_seen_date:
+            diff = (now - last_seen_date).total_seconds()
+            is_online = diff < 180  # Онлайн если активность была менее 3 минут назад
         
         statuses.append({
             "id": user["id"],
             "isOnline": is_online,
-            "lastSeen": last_seen.isoformat() if isinstance(last_seen, datetime) else last_seen
+            "lastSeen": last_seen_date.isoformat() if last_seen_date else user.get("last_seen") or user.get("lastSeen")
         })
     
     return statuses
@@ -2046,21 +2093,16 @@ def get_user(user_id: str):
     
     # Вычисляем isOnline динамически
     is_online = False
-    last_seen = user.get("last_seen") or user.get("lastSeen")
-    
-    if last_seen:
-        try:
-            now = datetime.now()
-            if isinstance(last_seen, str):
-                last_seen_date = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
-            else:
-                last_seen_date = last_seen
-            diff = (now - last_seen_date).total_seconds()
-            is_online = diff < 120  # Онлайн если активность была менее 2 минут назад
-        except:
-            pass
+    now = datetime.now(timezone.utc)
+    message_activity_map = _get_latest_message_activity_map()
+    last_seen_date = _resolve_effective_last_seen(user, message_activity_map)
+    if last_seen_date:
+        diff = (now - last_seen_date).total_seconds()
+        is_online = diff < 120  # Онлайн если активность была менее 2 минут назад
     
     user["is_online"] = is_online
+    if last_seen_date:
+        user["last_seen"] = last_seen_date.isoformat()
     return snake_to_camel(user)
 
 @app.post("/api/users")
@@ -2111,15 +2153,21 @@ def update_user_status(user_id: str, status_data: Dict[str, Any]):
         if not value:
             return None
         if isinstance(value, datetime):
-            return value
+            dt = value
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc)
         if isinstance(value, str):
             try:
-                return datetime.fromisoformat(value.replace('Z', '+00:00'))
+                dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                if dt.tzinfo is None:
+                    return dt.replace(tzinfo=timezone.utc)
+                return dt.astimezone(timezone.utc)
             except Exception:
                 return None
         return None
 
-    now_dt = datetime.now()
+    now_dt = datetime.now(timezone.utc)
     update_data = {}
 
     if "isOnline" in status_data:
@@ -2148,7 +2196,7 @@ def update_user_status(user_id: str, status_data: Dict[str, Any]):
         candidate_dt = existing_dt
 
     if candidate_dt:
-        update_data["lastSeen"] = candidate_dt.isoformat()
+        update_data["lastSeen"] = candidate_dt.astimezone(timezone.utc).isoformat()
     
     target_user_id = existing_user.get("id") or user_id
     result = db.update_user(target_user_id, update_data)
@@ -2180,6 +2228,256 @@ def update_user_navigation(user_id: str, navigation: Dict[str, Any]):
     if not result:
         raise HTTPException(status_code=404, detail="User not found")
     return result
+
+def _to_iso_date_string(value: Any) -> str:
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, str):
+        return value[:10]
+    return ''
+
+def _get_event_types_settings() -> List[Dict[str, Any]]:
+    settings = db.get_settings() or {}
+    types = settings.get('eventTypes') or settings.get('event_types') or []
+    if isinstance(types, list):
+        return types
+    return []
+
+def _save_event_types_settings(types: List[Dict[str, Any]]):
+    db.update_settings({"eventTypes": types})
+
+@app.get("/api/events")
+def get_events(
+    startDate: Optional[str] = None,
+    endDate: Optional[str] = None,
+    type: Optional[str] = None,
+    tag: Optional[str] = None,
+    userId: Optional[str] = None
+):
+    events = db.get_events(entity='event')
+    filtered = events
+
+    can_see_all = False
+    normalized_user_id = str(userId).strip() if userId else None
+    if normalized_user_id:
+        user = db.get_user_by_id(normalized_user_id) or db.get_user(normalized_user_id)
+        can_see_all = bool(
+            (user or {}).get('can_see_all_tasks')
+            or (user or {}).get('canSeeAllTasks')
+            or (user or {}).get('role') == 'admin'
+        )
+
+    if normalized_user_id and not can_see_all:
+        def visible_for_user(event: Dict[str, Any]) -> bool:
+            created_by = str(event.get('created_by') or event.get('createdBy') or event.get('user_id') or '').strip()
+            participants = event.get('participants') or []
+            participants = [str(p).strip() for p in participants] if isinstance(participants, list) else []
+            if created_by == normalized_user_id:
+                return True
+            if normalized_user_id in participants:
+                return True
+            return len(participants) == 0
+
+        filtered = [event for event in filtered if visible_for_user(event)]
+
+    if startDate:
+        filtered = [
+            event for event in filtered
+            if _to_iso_date_string(event.get('start_date')) >= startDate
+            or (_to_iso_date_string(event.get('end_date')) and _to_iso_date_string(event.get('end_date')) >= startDate)
+        ]
+
+    if endDate:
+        filtered = [
+            event for event in filtered
+            if _to_iso_date_string(event.get('start_date')) <= endDate
+        ]
+
+    if type:
+        filtered = [
+            event for event in filtered
+            if str(event.get('event_type') or event.get('type') or '') == type
+        ]
+
+    if tag:
+        filtered = [
+            event for event in filtered
+            if tag in (event.get('tags') or [])
+        ]
+
+    filtered.sort(key=lambda event: _to_iso_date_string(event.get('start_date')), reverse=True)
+
+    return {
+        "success": True,
+        "events": [snake_to_camel(event) for event in filtered],
+        "types": _get_event_types_settings(),
+        "total": len(filtered)
+    }
+
+@app.post("/api/events")
+def create_event(event_data: Dict[str, Any]):
+    if not event_data.get('title') or not event_data.get('startDate'):
+        raise HTTPException(status_code=400, detail="Missing required fields: title, startDate")
+
+    payload = {
+        **event_data,
+        'id': event_data.get('id') or f"event_{int(datetime.now().timestamp() * 1000)}",
+        'entity': 'event',
+        'start_date': event_data.get('startDate') or event_data.get('start_date'),
+        'end_date': event_data.get('endDate') or event_data.get('end_date'),
+        'user_id': event_data.get('createdBy') or event_data.get('created_by') or event_data.get('userId')
+    }
+    created = db.add_event(payload)
+    if not created:
+        raise HTTPException(status_code=500, detail="Failed to create event")
+    return snake_to_camel(created)
+
+@app.put("/api/events")
+def update_event(event_data: Dict[str, Any]):
+    event_id = event_data.get('id')
+    if not event_id:
+        raise HTTPException(status_code=400, detail="Event ID is required")
+
+    updated = db.update_event(event_id, event_data)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return {"success": True, "event": snake_to_camel(updated)}
+
+@app.delete("/api/events")
+def delete_event(id: Optional[str] = None):
+    if not id:
+        raise HTTPException(status_code=400, detail="Event ID is required")
+
+    event = db.get_event(id, entity='event')
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    if not db.delete_event(id):
+        raise HTTPException(status_code=500, detail="Failed to delete event")
+
+    return {"success": True, "event": snake_to_camel(event)}
+
+@app.get("/api/events/{event_id}")
+def get_event_by_id(event_id: str):
+    event = db.get_event(event_id, entity='event')
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return snake_to_camel(event)
+
+@app.put("/api/events/{event_id}")
+def update_event_by_id(event_id: str, updates: Dict[str, Any]):
+    updated = db.update_event(event_id, updates)
+    if not updated or updated.get('entity') != 'event':
+        raise HTTPException(status_code=404, detail="Event not found")
+    return snake_to_camel(updated)
+
+@app.delete("/api/events/{event_id}")
+def delete_event_by_id(event_id: str):
+    event = db.get_event(event_id, entity='event')
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    if not db.delete_event(event_id):
+        raise HTTPException(status_code=500, detail="Failed to delete event")
+    return {"success": True}
+
+@app.get("/api/event-types")
+def get_event_types():
+    return {"success": True, "types": _get_event_types_settings()}
+
+@app.post("/api/event-types")
+def create_event_type(event_type_data: Dict[str, Any]):
+    type_id = event_type_data.get('id')
+    if not type_id or not event_type_data.get('name') or not event_type_data.get('color') or not event_type_data.get('icon'):
+        raise HTTPException(status_code=400, detail="Missing required fields: id, name, color, icon")
+
+    types = _get_event_types_settings()
+    if any(str(item.get('id')) == str(type_id) for item in types):
+        raise HTTPException(status_code=400, detail="Type with this ID already exists")
+
+    new_type = {
+        "id": type_id,
+        "name": event_type_data.get('name'),
+        "color": event_type_data.get('color'),
+        "icon": event_type_data.get('icon')
+    }
+    types.append(new_type)
+    _save_event_types_settings(types)
+    return {"success": True, "type": new_type}
+
+@app.delete("/api/event-types")
+def delete_event_type(id: Optional[str] = None):
+    if not id:
+        raise HTTPException(status_code=400, detail="Type ID is required")
+
+    types = _get_event_types_settings()
+    next_types = [item for item in types if str(item.get('id')) != str(id)]
+    if len(next_types) == len(types):
+        raise HTTPException(status_code=404, detail="Type not found")
+
+    _save_event_types_settings(next_types)
+    return {"success": True}
+
+@app.get("/api/calendar-events")
+def get_calendar_events():
+    events = db.get_events(entity='calendar_event')
+    return [snake_to_camel(event) for event in events]
+
+@app.post("/api/calendar-events")
+def create_calendar_event(event_data: Dict[str, Any]):
+    payload = {
+        **event_data,
+        'id': event_data.get('id') or str(uuid.uuid4()),
+        'title': event_data.get('title') or 'Без названия',
+        'description': event_data.get('description') or '',
+        'entity': 'calendar_event',
+        'start_date': event_data.get('date') or event_data.get('startDate') or datetime.now().date().isoformat(),
+        'end_date': event_data.get('endDate') or event_data.get('end_date'),
+        'user_id': event_data.get('createdBy') or event_data.get('created_by')
+    }
+    created = db.add_event(payload)
+    if not created:
+        raise HTTPException(status_code=500, detail="Failed to create calendar event")
+    return snake_to_camel(created)
+
+@app.delete("/api/calendar-events")
+def delete_calendar_event(id: Optional[str] = None):
+    if not id:
+        raise HTTPException(status_code=400, detail="Event ID required")
+    event = db.get_event(id, entity='calendar_event')
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    if not db.delete_event(id):
+        raise HTTPException(status_code=500, detail="Failed to delete event")
+    return {"success": True}
+
+@app.get("/api/calendar-events/{event_id}")
+def get_calendar_event_by_id(event_id: str):
+    event = db.get_event(event_id, entity='calendar_event')
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return snake_to_camel(event)
+
+@app.put("/api/calendar-events/{event_id}")
+def update_calendar_event(event_id: str, updates: Dict[str, Any]):
+    payload = {
+        **updates,
+        'entity': 'calendar_event',
+        'start_date': updates.get('date') or updates.get('startDate') or updates.get('start_date'),
+        'end_date': updates.get('endDate') or updates.get('end_date')
+    }
+    updated = db.update_event(event_id, payload)
+    if not updated or updated.get('entity') != 'calendar_event':
+        raise HTTPException(status_code=404, detail="Event not found")
+    return snake_to_camel(updated)
+
+@app.delete("/api/calendar-events/{event_id}")
+def delete_calendar_event_by_id(event_id: str):
+    event = db.get_event(event_id, entity='calendar_event')
+    if not event:
+        return {"success": True, "message": "Event already deleted or not found"}
+    if not db.delete_event(event_id):
+        raise HTTPException(status_code=500, detail="Failed to delete event")
+    return {"success": True}
 
 # Product Health Check
 @app.post("/api/products/check-availability")
@@ -3955,6 +4253,14 @@ def update_todo(todo_data: dict = Body(...)):
             if 'assigned_to_ids' in result:
                 print(f"[PUT /api/todos] 👥 DB returned assigned_to_ids: {result.get('assigned_to_ids')}")
 
+            try:
+                linked_chat = db.find_chat_by_todo(todo_id)
+                if linked_chat and linked_chat.get('id'):
+                    task_status = result.get('status') or ('review' if result.get('is_completed') or result.get('completed') else 'pending')
+                    db.update_chat(linked_chat['id'], {'discussion_status': task_status})
+            except Exception as discussion_sync_error:
+                print(f"[PUT /api/todos] ⚠️ Failed to sync discussion status for task {todo_id}: {discussion_sync_error}")
+
             # Синхронная архивация task-чата при архиве/завершении задачи
             # НЕ удаляем чат при архивировании/завершении задачи
             # Чат остается доступным даже после завершения задачи
@@ -4310,10 +4616,12 @@ class MessageCreate(BaseModel):
     attachments: Optional[List[Dict[str, Any]]] = []
 
 @app.get("/api/chats")
-def get_chats(user_id: Optional[str] = None):
+def get_chats(user_id: Optional[str] = None, include_archived: bool = False):
     """Получить список всех чатов пользователя"""
     if not user_id:
         raise HTTPException(status_code=400, detail="user_id is required")
+
+    user_id = str(user_id).strip()
     
     import uuid
     chats = db.get_user_chats(user_id)
@@ -4355,30 +4663,81 @@ def get_chats(user_id: Optional[str] = None):
     # Фильтрация уже сделана в db.get_user_chats(user_id), не нужно делать заново
     user_chats = chats
 
-    # Скрываем task-чаты для архивных/выполненных задач
-    filtered_chats = []
+    def get_bool_from_map(raw_map: Any, key: str) -> bool:
+        if not isinstance(raw_map, dict):
+            return False
+        value = raw_map.get(key)
+        if isinstance(value, str):
+            return value.strip().lower() in ('1', 'true', 'yes', 'on')
+        return value is True
+
+    # Синхронизируем статус обсуждения с задачей + фильтруем архив чатов
+    prepared_chats = []
     for chat in user_chats:
-        todo_id = chat.get('todo_id')
+        chat_copy = dict(chat)
+        todo_id = chat_copy.get('todo_id') or chat_copy.get('todoId')
+
+        auto_archived_by_task = False
         if todo_id:
             task = db.get_task(todo_id)
-            if task and (task.get('archived') or task.get('completed')):
-                continue
-        filtered_chats.append(chat)
-    user_chats = filtered_chats
+            if task:
+                task_status = task.get('status') or ('review' if task.get('is_completed') or task.get('completed') else 'pending')
+                discussion_status = chat_copy.get('discussion_status') or chat_copy.get('discussionStatus')
+
+                if discussion_status != task_status:
+                    try:
+                        db.update_chat(chat_copy.get('id'), {'discussion_status': task_status})
+                    except Exception as sync_err:
+                        print(f"[GET /api/chats] ⚠️ Failed to sync discussion status for chat {chat_copy.get('id')}: {sync_err}")
+
+                chat_copy['discussion_status'] = task_status
+                chat_copy['todo_status'] = task_status
+                auto_archived_by_task = bool(
+                    task.get('archived')
+                    or task.get('completed')
+                    or task.get('is_completed')
+                    or str(task_status).strip().lower() == 'completed'
+                )
+
+        archived_by_user_map = chat_copy.get('archived_by_user') or chat_copy.get('archivedByUser') or {}
+        archived_by_user = get_bool_from_map(archived_by_user_map, user_id)
+        is_archived_for_user = archived_by_user or auto_archived_by_task
+        chat_copy['is_archived_for_user'] = is_archived_for_user
+
+        if not include_archived and is_archived_for_user:
+            continue
+
+        prepared_chats.append(chat_copy)
+
+    user_chats = prepared_chats
     
     # Добавляем информацию о последнем сообщении и непрочитанных
     def parse_message_time(value):
         if isinstance(value, datetime):
-            return value
+            dt = value
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc)
         if isinstance(value, str) and value:
             try:
-                return datetime.fromisoformat(value.replace('Z', '+00:00'))
+                dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                if dt.tzinfo is None:
+                    return dt.replace(tzinfo=timezone.utc)
+                return dt.astimezone(timezone.utc)
             except Exception:
-                return datetime.min
-        return datetime.min
+                return datetime.min.replace(tzinfo=timezone.utc)
+        return datetime.min.replace(tzinfo=timezone.utc)
 
     for chat in user_chats:
         chat_messages = db.get_chat_messages(chat['id'])
+
+        is_favorites_chat = bool(chat.get('is_favorites_chat')) or str(chat.get('id', '')).startswith('favorites_')
+        if is_favorites_chat:
+            if chat_messages:
+                last_message = max(chat_messages, key=lambda msg: parse_message_time(msg.get('created_at', '')))
+                chat['lastMessage'] = last_message
+            chat['unreadCount'] = 0
+            continue
         
         if chat_messages:
             # Берем реально последнее сообщение по времени, независимо от порядка выдачи из БД
@@ -4390,38 +4749,60 @@ def get_chats(user_id: Optional[str] = None):
             continue
         
         # Подсчитываем непрочитанные
-        last_read_at = chat.get('read_messages_by_user', {}).get(user_id)
-        
-        # Парсим даты для сравнения
-        if isinstance(last_read_at, str):
-            try:
-                last_read_at = datetime.fromisoformat(last_read_at.replace('Z', '+00:00'))
-            except:
-                pass
-        
+        read_map = chat.get('read_messages_by_user') or chat.get('readMessagesByUser') or {}
+        read_marker = read_map.get(user_id) or read_map.get(str(user_id))
+
+        marker_index = None
+        marker_time = None
+        if isinstance(read_marker, str) and read_marker:
+            for idx, msg in enumerate(chat_messages):
+                if str(msg.get('id')) == read_marker:
+                    marker_index = idx
+                    marker_time = parse_message_time(msg.get('created_at', ''))
+                    break
+
+            if marker_time is None:
+                try:
+                    parsed = datetime.fromisoformat(read_marker.replace('Z', '+00:00'))
+                    if parsed.tzinfo is None:
+                        marker_time = parsed.replace(tzinfo=timezone.utc)
+                    else:
+                        marker_time = parsed.astimezone(timezone.utc)
+                except Exception:
+                    marker_time = None
+
         # Простая логика: если прочитал после последнего сообщения - всё прочитано
-        if last_read_at and last_read_at >= last_msg_time:
+        if marker_time and marker_time >= last_msg_time:
             chat['unreadCount'] = 0
-        elif last_read_at:
-            # Считаем сообщения после last_read_at
+        elif marker_index is not None:
             is_system_chat = chat.get('is_notifications_chat') or chat.get('is_system_chat')
             if is_system_chat:
-                # Для системных чатов считаем ВСЕ сообщения после last_read_at
-                unread = sum(1 for msg in chat_messages 
-                            if parse_message_time(msg.get('created_at', '')) > last_read_at)
+                chat['unreadCount'] = max(len(chat_messages) - marker_index - 1, 0)
             else:
-                # Для обычных чатов - только сообщения от других пользователей
-                unread = sum(1 for msg in chat_messages 
-                            if msg.get('author_id') != user_id 
-                            and parse_message_time(msg.get('created_at', '')) > last_read_at)
-            chat['unreadCount'] = unread
+                chat['unreadCount'] = sum(
+                    1 for msg in chat_messages[marker_index + 1:]
+                    if str(msg.get('author_id') or msg.get('authorId') or '') != user_id
+                )
+        elif marker_time:
+            is_system_chat = chat.get('is_notifications_chat') or chat.get('is_system_chat')
+            if is_system_chat:
+                chat['unreadCount'] = sum(
+                    1 for msg in chat_messages
+                    if parse_message_time(msg.get('created_at', '')) > marker_time
+                )
+            else:
+                chat['unreadCount'] = sum(
+                    1 for msg in chat_messages
+                    if str(msg.get('author_id') or msg.get('authorId') or '') != user_id
+                    and parse_message_time(msg.get('created_at', '')) > marker_time
+                )
         else:
             # Если не читал - считаем непрочитанные
             is_system_chat = chat.get('is_notifications_chat') or chat.get('is_system_chat')
             if is_system_chat:
                 chat['unreadCount'] = len(chat_messages)
             else:
-                chat['unreadCount'] = sum(1 for msg in chat_messages if msg.get('author_id') != user_id)
+                chat['unreadCount'] = sum(1 for msg in chat_messages if str(msg.get('author_id') or msg.get('authorId') or '') != user_id)
     
     # Функция для безопасного извлечения времени создания для сортировки
     def get_sort_time(chat):
@@ -4531,6 +4912,53 @@ def delete_chat(chat_id: str):
     
     return {"success": True}
 
+@app.post("/api/chats/{chat_id}/archive")
+def archive_chat(chat_id: str, data_payload: dict = Body(...)):
+    """Архивировать/разархивировать чат для конкретного пользователя"""
+    user_id = str(data_payload.get('userId', '')).strip()
+    raw_is_archived = data_payload.get('isArchived', True)
+
+    if isinstance(raw_is_archived, str):
+        is_archived = raw_is_archived.strip().lower() in ('1', 'true', 'yes', 'on')
+    else:
+        is_archived = bool(raw_is_archived)
+
+    if not user_id:
+        raise HTTPException(status_code=400, detail="userId is required")
+
+    chat = db.get_chat(chat_id)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    is_system_chat = bool(
+        chat.get('is_system_chat')
+        or chat.get('isSystemChat')
+        or chat.get('is_notifications_chat')
+        or chat.get('isNotificationsChat')
+        or chat.get('is_favorites_chat')
+        or chat.get('isFavoritesChat')
+    )
+    if is_system_chat:
+        raise HTTPException(status_code=400, detail="System chats cannot be archived")
+
+    archived_by_user = chat.get('archived_by_user') or chat.get('archivedByUser') or {}
+    if not isinstance(archived_by_user, dict):
+        archived_by_user = {}
+
+    archived_by_user[user_id] = is_archived
+
+    updated = db.update_chat(chat_id, {'archived_by_user': archived_by_user})
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to update chat archive state")
+
+    return {
+        "success": True,
+        "chatId": chat_id,
+        "userId": user_id,
+        "isArchived": is_archived,
+        "archivedByUser": archived_by_user,
+    }
+
 @app.get("/api/chats/{chat_id}/messages")
 def get_chat_messages(chat_id: str):
     """Получить все сообщения чата"""
@@ -4576,6 +5004,8 @@ def send_message(chat_id: str, message_data: MessageCreate):
     if not author_name or author_name == 'null':
         author_name = 'Unknown'
     
+    message_created_at = datetime.now(timezone.utc)
+
     new_message = {
         "id": str(uuid.uuid4()),
         "chat_id": chat_id,
@@ -4584,13 +5014,29 @@ def send_message(chat_id: str, message_data: MessageCreate):
         "content": message_data.content,
         "mentions": message_data.mentions or [],
         "reply_to_id": message_data.replyToId,
-        "created_at": datetime.now().isoformat(),
+        "created_at": message_created_at.isoformat(),
         "updated_at": None,
         "is_edited": False,
         "attachments": message_data.attachments or []
     }
     
     result = db.add_message(new_message)
+
+    try:
+        read_messages_by_user = chat.get('read_messages_by_user') or chat.get('readMessagesByUser') or {}
+        read_messages_by_user[str(message_data.authorId)] = str(new_message['id'])
+        db.update_chat(chat_id, {'read_messages_by_user': read_messages_by_user})
+    except Exception as read_sync_error:
+        logger.warning(f"Failed to update read marker for sender in chat {chat_id}: {read_sync_error}")
+
+    try:
+        author_id = str(author.get('id') or message_data.authorId)
+        db.update_user(author_id, {
+            "isOnline": True,
+            "lastSeen": message_created_at.isoformat()
+        })
+    except Exception as status_sync_error:
+        logger.warning(f"Failed to update sender status for user {message_data.authorId}: {status_sync_error}")
     
     # Уведомления о сообщениях НЕ отправляем - чат "Уведомления" только для задач, событий и т.д.
     
@@ -4599,20 +5045,39 @@ def send_message(chat_id: str, message_data: MessageCreate):
 @app.patch("/api/chats/{chat_id}/messages/{message_id}")
 def update_message(chat_id: str, message_id: str, update_data: dict):
     """Обновить сообщение"""
-    if 'content' not in update_data:
-        raise HTTPException(status_code=400, detail="No content to update")
+    if 'content' not in update_data and 'metadata' not in update_data and 'isPinned' not in update_data:
+        raise HTTPException(status_code=400, detail="No fields to update")
 
     # PostgreSQL path: обновляем и возвращаем запись атомарно
     if hasattr(db, 'conn'):
-        row = db.conn.fetch_one(
-            """
-            UPDATE messages
-            SET content = %s, is_edited = true, updated_at = NOW()
-            WHERE id = %s
-            RETURNING *
-            """,
-            (update_data['content'], message_id)
-        )
+        if 'content' in update_data:
+            row = db.conn.fetch_one(
+                """
+                UPDATE messages
+                SET content = %s, is_edited = true, updated_at = NOW()
+                WHERE id = %s
+                RETURNING *
+                """,
+                (update_data['content'], message_id)
+            )
+        else:
+            metadata_payload = update_data.get('metadata') or {}
+            if 'isPinned' in update_data:
+                metadata_payload = {
+                    **metadata_payload,
+                    'isPinned': bool(update_data.get('isPinned'))
+                }
+
+            row = db.conn.fetch_one(
+                """
+                UPDATE messages
+                SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb, updated_at = NOW()
+                WHERE id = %s
+                RETURNING *
+                """,
+                (json.dumps(metadata_payload, ensure_ascii=False), message_id)
+            )
+
         if not row:
             raise HTTPException(status_code=404, detail="Message not found")
         return snake_to_camel(dict(row))
@@ -4623,7 +5088,14 @@ def update_message(chat_id: str, message_id: str, update_data: dict):
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
 
-    success = db.update_message(message_id, update_data['content'])
+    if 'content' in update_data:
+        success = db.update_message(message_id, {'content': update_data['content'], 'is_edited': True})
+    else:
+        merged_metadata = {**(message.get('metadata') or {}), **(update_data.get('metadata') or {})}
+        if 'isPinned' in update_data:
+            merged_metadata['isPinned'] = bool(update_data.get('isPinned'))
+        success = db.update_message(message_id, {'metadata': merged_metadata})
+
     if not success:
         raise HTTPException(status_code=404, detail="Message not found")
 
@@ -4633,6 +5105,103 @@ def update_message(chat_id: str, message_id: str, update_data: dict):
         raise HTTPException(status_code=404, detail="Message not found")
 
     return snake_to_camel(updated_message)
+
+
+@app.post("/api/chats/{chat_id}/messages/{message_id}/pin")
+def pin_message(chat_id: str, message_id: str, payload: dict = Body(...)):
+    """Закрепить или открепить сообщение в чате"""
+    import uuid
+
+    user_id = payload.get('userId')
+    if not user_id:
+        raise HTTPException(status_code=400, detail="userId is required")
+
+    raw_is_pinned = payload.get('isPinned', True)
+    if isinstance(raw_is_pinned, str):
+        is_pinned = raw_is_pinned.strip().lower() in ('1', 'true', 'yes', 'on')
+    else:
+        is_pinned = bool(raw_is_pinned)
+
+    actor = db.get_user_by_id(user_id) or {}
+    actor_name = actor.get('name') or actor.get('username') or 'Пользователь'
+
+    chat = db.get_chat(chat_id)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    if hasattr(db, 'conn'):
+        target_message = db.conn.fetch_one(
+            "SELECT * FROM messages WHERE id = %s AND chat_id = %s AND is_deleted = false",
+            (message_id, chat_id)
+        )
+        if not target_message:
+            raise HTTPException(status_code=404, detail="Message not found")
+
+        pinned_message_row = None
+        if is_pinned:
+            pinned_message_row = db.conn.fetch_one(
+                """
+                UPDATE messages
+                SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                    'isPinned', true,
+                    'pinnedBy', %s,
+                    'pinnedAt', %s
+                ),
+                updated_at = NOW()
+                WHERE id = %s
+                RETURNING *
+                """,
+                (user_id, datetime.now().isoformat(), message_id)
+            )
+        else:
+            pinned_message_row = db.conn.fetch_one(
+                """
+                UPDATE messages
+                SET metadata = COALESCE(metadata, '{}'::jsonb) - 'isPinned' - 'pinnedBy' - 'pinnedAt',
+                    updated_at = NOW()
+                WHERE id = %s AND chat_id = %s
+                RETURNING *
+                """,
+                (message_id, chat_id)
+            )
+
+        target_message_dict = dict(target_message)
+        preview = (target_message_dict.get('content') or '').strip()
+        if len(preview) > 100:
+            preview = preview[:100] + '...'
+
+        notification_message = {
+            "id": str(uuid.uuid4()),
+            "chat_id": chat_id,
+            "author_id": user_id,
+            "author_name": actor_name,
+            "content": f"{actor_name} {'закрепил(а)' if is_pinned else 'открепил(а)'} сообщение",
+            "mentions": [],
+            "reply_to_id": None,
+            "created_at": datetime.now().isoformat(),
+            "updated_at": None,
+            "is_edited": False,
+            "is_system_message": True,
+            "notification_type": "message_pin",
+            "linked_message_id": message_id,
+            "attachments": [],
+            "metadata": {
+                "action": "pin_message",
+                "isPinned": is_pinned,
+                "pinnedMessageId": message_id,
+                "preview": preview,
+            },
+        }
+        created_notification = db.add_message(notification_message)
+
+        return {
+            "success": True,
+            "isPinned": is_pinned,
+            "pinnedMessage": snake_to_camel(dict(pinned_message_row)) if pinned_message_row else None,
+            "notification": snake_to_camel(created_notification) if created_notification else None,
+        }
+
+    raise HTTPException(status_code=500, detail="Pinning messages is only available in PostgreSQL mode")
 
 @app.post("/api/chats/{chat_id}/messages/{message_id}/forward")
 def forward_message(chat_id: str, message_id: str, forward_data: dict = Body(...)):
@@ -4711,10 +5280,8 @@ def delete_message(chat_id: str, message_id: str):
 @app.post("/api/chats/{chat_id}/mark-read")
 def mark_messages_as_read(chat_id: str, data_payload: dict):
     """Отметить сообщения как прочитанные"""
-    from datetime import datetime
-    
-    user_id = data_payload.get('userId')
-    last_message_id = data_payload.get('lastMessageId')
+    user_id = str(data_payload.get('userId', '')).strip()
+    last_message_id = str(data_payload.get('lastMessageId') or '').strip()
     
     if not user_id:
         raise HTTPException(status_code=400, detail="userId is required")
@@ -4723,9 +5290,16 @@ def mark_messages_as_read(chat_id: str, data_payload: dict):
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
-    # Обновляем время последнего прочтения для пользователя
-    read_messages_by_user = chat.get('read_messages_by_user', {})
-    read_messages_by_user[user_id] = datetime.now().isoformat()
+    # Обновляем маркер последнего прочтения для пользователя
+    read_messages_by_user = chat.get('read_messages_by_user') or chat.get('readMessagesByUser') or {}
+    if last_message_id:
+        chat_messages = db.get_chat_messages(chat_id) or []
+        if any(str(msg.get('id')) == last_message_id for msg in chat_messages):
+            read_messages_by_user[user_id] = last_message_id
+        else:
+            read_messages_by_user[user_id] = datetime.now(timezone.utc).isoformat()
+    else:
+        read_messages_by_user[user_id] = datetime.now(timezone.utc).isoformat()
     
     db.update_chat(chat_id, {'read_messages_by_user': read_messages_by_user})
     
@@ -4745,6 +5319,37 @@ def pin_chat(chat_id: str, data_payload: dict):
         raise HTTPException(status_code=400, detail="userId is required")
 
     chat = db.get_chat(chat_id)
+    if not chat and str(chat_id).startswith('favorites_'):
+        favorites_user_id = str(chat_id).replace('favorites_', '').strip() or str(user_id)
+        new_chat = {
+            "id": chat_id,
+            "title": "Избранное",
+            "is_group": False,
+            "is_favorites_chat": True,
+            "participant_ids": [favorites_user_id],
+            "creator_id": favorites_user_id,
+            "created_at": datetime.now().isoformat(),
+            "read_messages_by_user": {},
+            "pinned_by_user": {str(user_id): True},
+        }
+        chat = db.create_chat(new_chat)
+
+    if not chat and str(chat_id).startswith('notifications-'):
+        notifications_user_id = str(chat_id).replace('notifications-', '').strip() or str(user_id)
+        new_chat = {
+            "id": chat_id,
+            "title": "Уведомления",
+            "is_group": False,
+            "is_notifications_chat": True,
+            "is_system_chat": True,
+            "participant_ids": [notifications_user_id],
+            "creator_id": notifications_user_id,
+            "created_at": datetime.now().isoformat(),
+            "read_messages_by_user": {},
+            "pinned_by_user": {str(user_id): True},
+        }
+        chat = db.create_chat(new_chat)
+
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 

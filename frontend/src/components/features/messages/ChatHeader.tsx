@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, X, MoreVertical, Search, Pin, PinOff, Bell, Trash2 } from 'lucide-react';
+import { ArrowLeft, X, MoreVertical, Search, Pin, PinOff, Bell, Trash2, ChevronLeft, ChevronRight, Archive, Inbox } from 'lucide-react';
 import Avatar from '@/components/common/data-display/Avatar';
 import type { Chat, User, Message } from '@/components/messages/types';
 
@@ -36,8 +36,18 @@ interface ChatHeaderProps {
   setMessageSearchQuery: (value: string) => void;
   linkedTaskId?: string | null;
   linkedTaskTitle?: string | null;
+  linkedTaskStatus?: string | null;
   openLinkedTask: (taskId: string) => void;
+  pinnedMessageId?: string | null;
+  pinnedMessagePreview?: string | null;
+  pinnedMessageCount?: number;
+  pinnedMessagePosition?: number;
+  showPreviousPinned: () => void;
+  showNextPinned: () => void;
+  openPinnedMessage: (messageId: string) => void;
+  unpinMessage: () => void;
   togglePinChat: (chatId: string) => void;
+  toggleArchiveChat: (chatId: string) => void;
   deleteChat: (chatId: string) => void;
 }
 
@@ -74,8 +84,18 @@ export default function ChatHeader({
   setMessageSearchQuery,
   linkedTaskId,
   linkedTaskTitle,
+  linkedTaskStatus,
   openLinkedTask,
+  pinnedMessageId,
+  pinnedMessagePreview,
+  pinnedMessageCount = 0,
+  pinnedMessagePosition = 0,
+  showPreviousPinned,
+  showNextPinned,
+  openPinnedMessage,
+  unpinMessage,
   togglePinChat,
+  toggleArchiveChat,
   deleteChat,
 }: ChatHeaderProps) {
   const [viewportWidth, setViewportWidth] = useState(() => {
@@ -91,6 +111,24 @@ export default function ChatHeader({
   const resizeRafRef = useRef<number | null>(null);
   const glassRoundButtonClass = 'no-mobile-scale flex-shrink-0 flex items-center justify-center w-[42px] h-[42px] rounded-full bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] backdrop-blur-xl border border-[var(--border-light)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] transition-all shadow-[var(--shadow-card)]';
   const glassPillClass = 'bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] backdrop-blur-xl border border-[var(--border-light)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] transition-all shadow-[var(--shadow-card)]';
+  const normalizedTaskStatus = (linkedTaskStatus || '').toLowerCase();
+  const linkedTaskStatusLabel = normalizedTaskStatus
+    ? ({
+        todo: 'К выполнению',
+        pending: 'В ожидании',
+        'in-progress': 'В работе',
+        review: 'На проверке',
+        cancelled: 'Отменена',
+        stuck: 'Застряла',
+        completed: 'Завершена',
+      } as Record<string, string>)[normalizedTaskStatus] || linkedTaskStatus
+    : null;
+  const isArchived = (() => {
+    const raw = selectedChat.archivedByUser?.[currentUser?.id || ''];
+    if (typeof raw === 'string') return raw.toLowerCase() === 'true';
+    return Boolean(raw || (selectedChat as any).isArchivedForUser);
+  })();
+  const isProtectedSystemChat = Boolean(selectedChat.isFavoritesChat || selectedChat.isNotificationsChat || selectedChat.isSystemChat);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -258,7 +296,7 @@ export default function ChatHeader({
                 const avatarData = getChatAvatarData(selectedChat);
                 const avatarType = avatarData.type === 'system' ? 'group' : avatarData.type;
                 return (
-                  <div className="-ml-[8px] scale-[1.15] origin-left">
+                  <div className="flex h-9 w-9 items-center justify-center shrink-0">
                     <Avatar
                       src={avatarData.avatar}
                       name={avatarData.name}
@@ -283,14 +321,62 @@ export default function ChatHeader({
                   <p className="text-[10px] text-[var(--text-muted)]">
                     {selectedChat.isFavoritesChat ? '' : selectedChat.isSystemChat || selectedChat.isNotificationsChat ? '' : selectedChat.isGroup ? `${selectedChat.participantIds?.length || 0} участник${selectedChat.participantIds?.length === 1 ? '' : (selectedChat.participantIds?.length || 0) < 5 ? 'а' : 'ов'}` : (() => {
                       // Получаем собеседника
-                      const otherParticipantId = selectedChat.participantIds?.find((id: string) => id !== currentUser?.id);
-                      const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : null;
+                      const otherParticipantId = selectedChat.participantIds?.find((id: string) => String(id) !== String(currentUser?.id));
+                      const otherUser = otherParticipantId
+                        ? users.find(u => String(u.id) === String(otherParticipantId))
+                        : null;
                       if (!otherUser) return '';
-                      if (otherUser.isOnline) return 'в сети';
-                      if (otherUser.lastSeen) {
-                        const lastSeenDate = new Date(otherUser.lastSeen);
+
+                      const normalize = (value: unknown) => String(value ?? '').trim().toLowerCase();
+                      const otherIdentity = new Set<string>([
+                        normalize(otherUser.id),
+                        normalize((otherUser as any).telegramId),
+                        normalize((otherUser as any).telegram_id),
+                        normalize(otherUser.username),
+                        normalize((otherUser as any).name),
+                        normalize((otherUser as any).fullName),
+                        normalize(otherUser.email),
+                      ].filter(Boolean));
+
+                      const latestOtherMessage = [...messages]
+                        .reverse()
+                        .find((msg) => {
+                          const authorCandidates = [
+                            (msg as any).authorId,
+                            (msg as any).author_id,
+                            (msg as any).authorName,
+                            (msg as any).authorUsername,
+                            (msg as any).authorEmail,
+                          ]
+                            .map(normalize)
+                            .filter(Boolean);
+                          return authorCandidates.some(candidate => otherIdentity.has(candidate));
+                        });
+
+                      const statusLastSeenRaw =
+                        (otherUser as any).lastSeen ??
+                        (otherUser as any).last_seen ??
+                        (otherUser as any).lastActivity ??
+                        (otherUser as any).last_activity;
+
+                      const statusLastSeenDate = statusLastSeenRaw ? new Date(statusLastSeenRaw) : null;
+                      const messageLastSeenDate = latestOtherMessage?.createdAt ? new Date(latestOtherMessage.createdAt) : null;
+
+                      let effectiveLastSeenDate: Date | null = null;
+                      if (statusLastSeenDate && !Number.isNaN(statusLastSeenDate.getTime())) {
+                        effectiveLastSeenDate = statusLastSeenDate;
+                      }
+                      if (messageLastSeenDate && !Number.isNaN(messageLastSeenDate.getTime())) {
+                        if (!effectiveLastSeenDate || messageLastSeenDate.getTime() > effectiveLastSeenDate.getTime()) {
+                          effectiveLastSeenDate = messageLastSeenDate;
+                        }
+                      }
+
+                      if ((otherUser as any).isOnline || (otherUser as any).is_online) return 'в сети';
+                      if (effectiveLastSeenDate) {
                         const now = new Date();
-                        const diffMs = now.getTime() - lastSeenDate.getTime();
+                        const diffMs = now.getTime() - effectiveLastSeenDate.getTime();
+                        if (diffMs < 120000) return 'в сети';
                         const diffMins = Math.floor(diffMs / 60000);
                         const diffHours = Math.floor(diffMs / 3600000);
                         const diffDays = Math.floor(diffMs / 86400000);
@@ -298,7 +384,7 @@ export default function ChatHeader({
                         if (diffMins < 60) return `был(a) ${diffMins} мин. назад`;
                         if (diffHours < 24) return `был(a) ${diffHours} ч. назад`;
                         if (diffDays < 7) return `был(a) ${diffDays} дн. назад`;
-                        return `был(a) ${lastSeenDate.toLocaleDateString('ru-RU')}`;
+                        return `был(a) ${effectiveLastSeenDate.toLocaleDateString('ru-RU')}`;
                       }
                       return 'не в сети';
                     })()}
@@ -356,11 +442,89 @@ export default function ChatHeader({
                   <Pin className="w-3.5 h-3.5 text-[var(--text-primary)] flex-shrink-0" />
                   <div className="min-w-0 text-left">
                     <p className="text-[9px] uppercase tracking-wide text-[var(--text-muted)] leading-none">Привязано к задаче</p>
-                    <p className="text-xs text-[var(--text-primary)] truncate mt-0.5">Привязано к задаче</p>
+                    <p className="text-xs text-[var(--text-primary)] truncate mt-0.5">{linkedTaskTitle || 'Привязано к задаче'}</p>
+                    {linkedTaskStatusLabel && (
+                      <p className="text-[10px] text-[var(--text-muted)] truncate leading-none mt-0.5">Статус: {linkedTaskStatusLabel}</p>
+                    )}
                   </div>
                 </button>
               </div>
               )}
+              </>
+            )}
+
+            {!showMessageSearch && !linkedTaskId && pinnedMessageId && !isMiniTaskHeaderView && (
+              <>
+                {useCompactLinkedTaskButton ? (
+                  <div className="flex items-center gap-1 ml-1">
+                    <button
+                      onClick={showPreviousPinned}
+                      className="w-8 h-8 rounded-full border border-[var(--border-light)] bg-[var(--bg-glass)]/95 hover:bg-[var(--bg-glass-hover)] flex items-center justify-center disabled:opacity-45 disabled:cursor-not-allowed"
+                      disabled={pinnedMessageCount <= 1}
+                      title="Предыдущее закрепленное"
+                    >
+                      <ChevronLeft className="w-4 h-4 text-[var(--text-primary)]" />
+                    </button>
+                    <button
+                      onClick={() => openPinnedMessage(pinnedMessageId)}
+                      className={`${glassRoundButtonClass} text-[var(--text-primary)] relative`}
+                      title="Закрепленное сообщение"
+                    >
+                      <Pin className="w-4 h-4 text-cyan-400" />
+                      {pinnedMessageCount > 1 && (
+                        <span className="absolute -bottom-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-cyan-500 text-[9px] leading-4 text-white border border-[var(--border-light)]">
+                          {pinnedMessagePosition}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      onClick={showNextPinned}
+                      className="w-8 h-8 rounded-full border border-[var(--border-light)] bg-[var(--bg-glass)]/95 hover:bg-[var(--bg-glass-hover)] flex items-center justify-center disabled:opacity-45 disabled:cursor-not-allowed"
+                      disabled={pinnedMessageCount <= 1}
+                      title="Следующее закрепленное"
+                    >
+                      <ChevronRight className="w-4 h-4 text-[var(--text-primary)]" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center ml-1">
+                    <div className={`w-[244px] min-w-[244px] max-w-[244px] h-[38px] px-2 rounded-full flex items-center gap-1.5 ${glassPillClass}`}>
+                      <button
+                        onClick={showPreviousPinned}
+                        className="w-6 h-6 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center disabled:opacity-45 disabled:cursor-not-allowed"
+                        disabled={pinnedMessageCount <= 1}
+                        title="Предыдущее закрепленное"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5 text-[var(--text-primary)]" />
+                      </button>
+                      <button
+                        onClick={() => openPinnedMessage(pinnedMessageId)}
+                        className="min-w-0 flex-1 text-left"
+                        title="Закрепленное сообщение"
+                      >
+                        <p className="text-[8px] uppercase tracking-wide text-[var(--text-muted)] leading-none">
+                          {pinnedMessagePosition}/{pinnedMessageCount} закреп
+                        </p>
+                        <p className="text-[11px] text-[var(--text-primary)] truncate mt-0.5 leading-tight">{pinnedMessagePreview || 'Сообщение без текста'}</p>
+                      </button>
+                      <button
+                        onClick={showNextPinned}
+                        className="w-6 h-6 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center disabled:opacity-45 disabled:cursor-not-allowed"
+                        disabled={pinnedMessageCount <= 1}
+                        title="Следующее закрепленное"
+                      >
+                        <ChevronRight className="w-3.5 h-3.5 text-[var(--text-primary)]" />
+                      </button>
+                      <button
+                        onClick={unpinMessage}
+                        className="w-6 h-6 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center flex-shrink-0"
+                        title="Открепить"
+                      >
+                        <PinOff className="w-3 h-3 text-amber-400" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
             
@@ -396,7 +560,7 @@ export default function ChatHeader({
                   >
                     {selectedChat.pinnedByUser?.[currentUser?.id || ''] ? (
                       <>
-                        <PinOff className="w-4 h-4 text-cyan-400" />
+                        <PinOff className="w-4 h-4 text-[var(--text-primary)]" />
                         Открепить чат
                       </>
                     ) : (
@@ -406,6 +570,27 @@ export default function ChatHeader({
                       </>
                     )}
                   </button>
+                  {!isProtectedSystemChat && (
+                    <button
+                      onClick={() => {
+                        toggleArchiveChat(selectedChat.id);
+                        setShowChatMenu(false);
+                      }}
+                      className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors"
+                    >
+                      {isArchived ? (
+                        <>
+                          <Inbox className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                          Вернуть из архива
+                        </>
+                      ) : (
+                        <>
+                          <Archive className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                          В архив
+                        </>
+                      )}
+                    </button>
+                  )}
                   
                   {/* Настройки уведомлений */}
                   <div className="border-t border-[var(--border-color)] my-1" />

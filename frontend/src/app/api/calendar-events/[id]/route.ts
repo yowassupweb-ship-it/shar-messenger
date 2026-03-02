@@ -1,34 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readJsonFile, writeJsonFile } from '@/lib/dataStore';
-
-interface CalendarEvent {
-  id: string;
-  title: string;
-  description: string;
-  date: string;
-  time?: string;
-  remind?: boolean;
-  type: 'work' | 'meeting' | 'event' | 'holiday';
-  recurrence?: 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
-  listId?: string;
-  sourceId?: string; // ID задачи, если событие связано с задачей
-  assignedTo?: string;
-  assignedBy?: string;
-  createdBy?: string;
-  createdByName?: string;
-  linkUrl?: string;
-  linkTitle?: string;
-  createdAt: string;
-  updatedAt?: string;
-}
-
-interface CalendarData {
-  events: CalendarEvent[];
-}
-
-const DEFAULT_DATA: CalendarData = {
-  events: []
-};
+const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 
 // GET - получить событие по ID
 export async function GET(
@@ -37,14 +8,13 @@ export async function GET(
 ) {
   try {
     const params = await context.params;
-    const data = readJsonFile<CalendarData>('calendar-events.json', DEFAULT_DATA);
-    const event = data.events.find(e => e.id === params.id);
-
-    if (!event) {
-      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
-    }
-
-    return NextResponse.json(event);
+    const response = await fetch(`${BACKEND_URL}/api/calendar-events/${encodeURIComponent(params.id)}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store'
+    });
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error reading calendar event:', error);
     return NextResponse.json({ error: 'Failed to read event' }, { status: 500 });
@@ -59,42 +29,13 @@ export async function PUT(
   try {
     const params = await context.params;
     const body = await request.json();
-    const data = readJsonFile<CalendarData>('calendar-events.json', DEFAULT_DATA);
-    
-    const eventIndex = data.events.findIndex(e => e.id === params.id);
-    
-    if (eventIndex === -1) {
-      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
-    }
-
-    // Сохраняем оригинальные данные о создании
-    const originalEvent = data.events[eventIndex];
-
-    const updatedEvent: CalendarEvent = {
-      ...originalEvent,
-      title: body.title ?? originalEvent.title,
-      description: body.description ?? originalEvent.description,
-      date: body.date ?? originalEvent.date,
-      time: body.time ?? originalEvent.time,
-      remind: body.remind ?? originalEvent.remind,
-      type: body.type ?? originalEvent.type,
-      recurrence: body.recurrence ?? originalEvent.recurrence,
-      listId: body.listId ?? originalEvent.listId,
-      sourceId: body.sourceId ?? originalEvent.sourceId,
-      assignedTo: body.assignedTo ?? originalEvent.assignedTo,
-      assignedBy: body.assignedBy ?? originalEvent.assignedBy,
-      createdBy: body.createdBy ?? originalEvent.createdBy,
-      createdByName: body.createdByName ?? originalEvent.createdByName,
-      linkUrl: body.linkUrl ?? originalEvent.linkUrl,
-      linkTitle: body.linkTitle ?? originalEvent.linkTitle,
-      updatedAt: new Date().toISOString(),
-    };
-
-    data.events[eventIndex] = updatedEvent;
-    writeJsonFile('calendar-events.json', data);
-
-    console.log('Calendar event updated:', updatedEvent.id);
-    return NextResponse.json(updatedEvent);
+    const response = await fetch(`${BACKEND_URL}/api/calendar-events/${encodeURIComponent(params.id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error updating calendar event:', error);
     return NextResponse.json({ error: 'Failed to update event' }, { status: 500 });
@@ -108,28 +49,12 @@ export async function DELETE(
 ) {
   try {
     const params = await context.params;
-    console.log('[DELETE calendar-event] Received params:', params);
-    console.log('[DELETE calendar-event] Event ID:', params.id);
-    
-    const data = readJsonFile<CalendarData>('calendar-events.json', DEFAULT_DATA);
-    console.log('[DELETE calendar-event] Total events before delete:', data.events.length);
-    console.log('[DELETE calendar-event] Event IDs in DB:', data.events.map(e => e.id));
-    
-    const initialLength = data.events.length;
-    
-    data.events = data.events.filter(e => e.id !== params.id);
-
-    if (data.events.length === initialLength) {
-      console.warn('[DELETE calendar-event] Event not found (already deleted?):', params.id);
-      // Возвращаем 200, чтобы фронтенд мог удалить событие из UI, даже если его нет в базе
-      return NextResponse.json({ success: true, message: 'Event already deleted or not found' });
-    }
-
-    writeJsonFile('calendar-events.json', data);
-    
-    console.log('[DELETE calendar-event] Event deleted successfully:', params.id);
-    console.log('[DELETE calendar-event] Events remaining:', data.events.length);
-    return NextResponse.json({ success: true });
+    const response = await fetch(`${BACKEND_URL}/api/calendar-events/${encodeURIComponent(params.id)}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error deleting calendar event:', error);
     return NextResponse.json({ error: 'Failed to delete event' }, { status: 500 });

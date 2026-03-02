@@ -11,11 +11,11 @@ import {
   Pin,
   Plus,
   Search,
+  SlidersHorizontal,
   Star,
   X,
   Edit3,
   Trash2,
-  RefreshCw,
 } from 'lucide-react';
 
 interface LinkCategory {
@@ -114,6 +114,7 @@ export default function LinksPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
   const [sortBy, setSortBy] = useState<SortType>('date');
+  const [showMobileSortMenu, setShowMobileSortMenu] = useState(false);
 
   const [isMobileListsOpen, setIsMobileListsOpen] = useState(false);
 
@@ -652,42 +653,47 @@ export default function LinksPage() {
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        <div className="p-3 min-[900px]:p-4 border-b border-[var(--border-color)] bg-[var(--bg-secondary)]">
-          <div className="flex items-center gap-2 mb-3">
+      <main className="flex-1 min-w-0 flex flex-col overflow-hidden relative">
+        <div className="absolute top-0 left-0 right-0 z-30 p-3 min-[900px]:p-4 bg-transparent border-none pointer-events-none">
+          <div className="pointer-events-auto">
+          <div className="flex items-center gap-2 overflow-x-auto min-[900px]:overflow-visible whitespace-nowrap min-[900px]:whitespace-normal">
             <button
               onClick={() => setIsMobileListsOpen(true)}
-              className="min-[900px]:hidden w-9 h-9 rounded-full border border-[var(--border-color)] bg-[var(--bg-glass)] flex items-center justify-center"
+              className="min-[900px]:hidden flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border border-[var(--border-light)] flex items-center justify-center transition-all duration-200 shadow-[var(--shadow-card)] backdrop-blur-xl"
             >
               <Menu className="w-4 h-4" />
             </button>
 
-            <div className="relative flex-1 min-w-0">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+            <div className="relative flex-shrink-0 w-[min(44vw,420px)] min-w-[220px] min-[900px]:flex-1 min-[900px]:w-auto min-[900px]:min-w-0">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-10 text-[var(--text-primary)] flex items-center justify-center w-5 h-5">
+                <Search className="w-5 h-5" strokeWidth={2.5} />
+              </div>
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Поиск по ссылкам"
-                className="w-full h-10 pl-9 pr-3 rounded-[20px] bg-[var(--bg-glass)] border border-[var(--border-color)]"
+                className="w-full h-10 pl-10 pr-3 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border border-[var(--border-light)] rounded-[20px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--border-primary)] shadow-[var(--shadow-card)] backdrop-blur-xl"
               />
             </div>
 
             <button
-              onClick={() => setShowAddLinkModal(true)}
-              className="w-10 h-10 rounded-full bg-[var(--bg-glass)] border border-[var(--border-color)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center"
-              title="Добавить ссылку"
+              onClick={() => setShowBookmarksOnly((prev) => !prev)}
+              className={`min-[900px]:hidden flex-shrink-0 w-10 h-10 rounded-full border flex items-center justify-center transition-all duration-200 backdrop-blur-xl shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] ${
+                showBookmarksOnly
+                  ? 'bg-gradient-to-b from-[var(--bg-glass-hover)] to-[var(--bg-glass-active)] border-[var(--border-primary)] shadow-[var(--shadow-card)]'
+                  : 'bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border-[var(--border-light)] shadow-[var(--shadow-card)]'
+              }`}
+              title="Избранное"
             >
-              <Plus className="w-4 h-4" />
+              <Star className={`w-4 h-4 ${showBookmarksOnly ? 'text-amber-400 fill-current' : 'text-[var(--text-primary)]'}`} />
             </button>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setShowBookmarksOnly((prev) => !prev)}
-              className={`px-3 h-8 rounded-full border text-sm ${
+              className={`hidden min-[900px]:inline-flex flex-shrink-0 px-3 h-8 rounded-[20px] border text-sm transition-all duration-200 backdrop-blur-xl shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] ${
                 showBookmarksOnly
-                  ? 'bg-[var(--bg-glass-active)] border-[var(--border-light)]'
-                  : 'bg-[var(--bg-glass)] border-[var(--border-color)]'
+                  ? 'bg-gradient-to-b from-[var(--bg-glass-hover)] to-[var(--bg-glass-active)] border-[var(--border-primary)] shadow-[var(--shadow-card)]'
+                  : 'bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border-[var(--border-light)] shadow-[var(--shadow-card)]'
               }`}
             >
               <span className="inline-flex items-center gap-1.5">
@@ -696,11 +702,11 @@ export default function LinksPage() {
               </span>
             </button>
 
-            <div className="relative">
+            <div className="relative hidden min-[900px]:block flex-shrink-0">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortType)}
-                className="h-8 pl-3 pr-8 rounded-full bg-[var(--bg-glass)] border border-[var(--border-color)] text-sm appearance-none"
+                className="h-8 pl-3 pr-8 rounded-[20px] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border border-[var(--border-light)] backdrop-blur-xl shadow-[var(--shadow-card)] text-sm appearance-none transition-all duration-200"
               >
                 <option value="date">Сначала новые</option>
                 <option value="clicks">По кликам</option>
@@ -709,17 +715,61 @@ export default function LinksPage() {
               <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-muted)]" />
             </div>
 
+            <div className="relative min-[900px]:hidden flex-shrink-0">
+              <button
+                onClick={() => setShowMobileSortMenu((prev) => !prev)}
+                className="w-10 h-10 rounded-full border border-[var(--border-light)] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] backdrop-blur-xl shadow-[var(--shadow-card)] flex items-center justify-center transition-all duration-200"
+                title="Фильтр"
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+              </button>
+
+              {showMobileSortMenu && (
+                <div className="absolute right-0 top-11 z-40 w-44 rounded-2xl border border-[var(--border-light)] bg-[var(--bg-secondary)]/95 backdrop-blur-xl shadow-[var(--shadow-card)] overflow-hidden">
+                  {[
+                    { value: 'date' as SortType, label: 'Сначала новые' },
+                    { value: 'clicks' as SortType, label: 'По кликам' },
+                    { value: 'alpha' as SortType, label: 'По алфавиту' },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => {
+                        setSortBy(option.value);
+                        setShowMobileSortMenu(false);
+                      }}
+                      className={`w-full text-left px-3 py-2.5 text-sm transition-colors ${
+                        sortBy === option.value
+                          ? 'bg-[var(--bg-glass-active)] text-[var(--text-primary)]'
+                          : 'hover:bg-[var(--bg-glass)] text-[var(--text-secondary)]'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <button
-              onClick={loadData}
-              className="w-8 h-8 rounded-full border border-[var(--border-color)] bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center"
-              title="Обновить"
+              onClick={() => setShowAddLinkModal(true)}
+              className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border border-[var(--border-light)] backdrop-blur-xl shadow-[var(--shadow-card)] flex items-center justify-center transition-all duration-200"
+              title="Добавить ссылку"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
+              <Plus className="w-4 h-4" />
             </button>
+          </div>
+          {showMobileSortMenu && (
+            <button
+              type="button"
+              onClick={() => setShowMobileSortMenu(false)}
+              className="fixed inset-0 z-20 bg-transparent"
+              aria-label="Закрыть меню сортировки"
+            />
+          )}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 min-[900px]:p-4 pb-[calc(env(safe-area-inset-bottom)+92px)] min-[900px]:pb-4">
+        <div className="flex-1 overflow-y-auto p-3 min-[900px]:p-4 pt-[62px] min-[900px]:pt-[70px] pb-[calc(env(safe-area-inset-bottom)+132px)] min-[900px]:pb-6">
           {isLoading ? (
             <div className="h-full flex items-center justify-center text-[var(--text-muted)]">Загрузка ссылок...</div>
           ) : visibleLinks.length === 0 ? (

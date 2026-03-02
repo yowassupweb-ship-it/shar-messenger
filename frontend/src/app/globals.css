@@ -91,11 +91,11 @@ body {
   --text-tertiary: rgba(255, 255, 255, 0.5);
   --text-muted: rgba(255, 255, 255, 0.4);
   
-  --accent-primary: #34c759;
-  --accent-secondary: #30d158;
-  --accent-gradient: linear-gradient(135deg, #34c759, #30d158);
+  --accent-primary: #007aff;
+  --accent-secondary: #0a84ff;
+  --accent-gradient: linear-gradient(135deg, #007aff, #0a84ff);
   
-  --bubble-own: #34c759;
+  --bubble-own: #007aff;
   --bubble-other: #2c2c2e;
   
   --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.4);
@@ -305,6 +305,18 @@ html:not(.dark) .content-plan-modal input:not([type='checkbox']):not([type='radi
 html:not(.dark) .content-plan-modal textarea,
 html:not(.dark) .content-plan-modal select {
   border-color: rgba(198, 198, 200, 0.7) !important;
+}
+
+html:not(.dark) [class*="border-white/20"] {
+  border-color: rgba(15, 23, 42, 0.24) !important;
+}
+
+html:not(.dark) [class*="border-white/10"] {
+  border-color: rgba(15, 23, 42, 0.18) !important;
+}
+
+html:not(.dark) [class*="border-white/5"] {
+  border-color: rgba(15, 23, 42, 0.14) !important;
 }
 
 /* Hide bottom navigation when modal is open */

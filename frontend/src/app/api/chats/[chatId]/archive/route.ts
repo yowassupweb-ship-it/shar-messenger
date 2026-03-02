@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function POST(
   request: NextRequest,
@@ -9,18 +11,19 @@ export async function POST(
   try {
     const { chatId } = await params;
     const body = await request.json();
-    const response = await fetch(`${BACKEND_URL}/api/chats/${encodeURIComponent(chatId)}/pin`, {
+
+    const response = await fetch(`${BACKEND_URL}/api/chats/${chatId}/archive`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
     });
-    
+
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
-    console.error('Error pinning chat:', error);
-    return NextResponse.json({ error: 'Failed to pin chat' }, { status: 500 });
+    console.error('Error archiving chat:', error);
+    return NextResponse.json({ error: 'Failed to archive chat' }, { status: 500 });
   }
 }

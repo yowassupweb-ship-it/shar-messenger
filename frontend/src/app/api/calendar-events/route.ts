@@ -1,40 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readJsonFile, writeJsonFile, generateId } from '@/lib/dataStore';
-
-interface CalendarEvent {
-  id: string;
-  title: string;
-  description: string;
-  date: string;
-  time?: string;
-  remind?: boolean;
-  type: 'work' | 'meeting' | 'event' | 'holiday';
-  recurrence?: 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
-  listId?: string; // ID календарного листа
-  sourceId?: string; // ID задачи, если событие связано с задачей
-  assignedTo?: string;
-  assignedBy?: string;
-  createdBy?: string;
-  createdByName?: string;
-  linkUrl?: string;
-  linkTitle?: string;
-  createdAt: string;
-  updatedAt?: string;
-}
-
-interface CalendarData {
-  events: CalendarEvent[];
-}
-
-const DEFAULT_DATA: CalendarData = {
-  events: []
-};
+const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 
 // GET - получить все события
 export async function GET() {
   try {
-    const data = readJsonFile<CalendarData>('calendar-events.json', DEFAULT_DATA);
-    return NextResponse.json(data.events);
+    const response = await fetch(`${BACKEND_URL}/api/calendar-events`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store'
+    });
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error reading calendar events:', error);
     return NextResponse.json({ error: 'Failed to read events' }, { status: 500 });
@@ -45,34 +21,13 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const data = readJsonFile<CalendarData>('calendar-events.json', DEFAULT_DATA);
-
-    const newEvent: CalendarEvent = {
-      id: generateId(),
-      title: body.title || 'Без названия',
-      description: body.description || '',
-      date: body.date || new Date().toISOString().split('T')[0],
-      time: body.time,
-      remind: body.remind,
-      type: body.type || 'work',
-      recurrence: body.recurrence || 'once',
-      listId: body.listId, // Не используем fallback - если нет listId, значит undefined
-      sourceId: body.sourceId,
-      assignedTo: body.assignedTo,
-      assignedBy: body.assignedBy,
-      createdBy: body.createdBy,
-      createdByName: body.createdByName,
-      linkUrl: body.linkUrl,
-      linkTitle: body.linkTitle,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    data.events.push(newEvent);
-    writeJsonFile('calendar-events.json', data);
-
-    console.log('Calendar event created:', newEvent.id);
-    return NextResponse.json(newEvent);
+    const response = await fetch(`${BACKEND_URL}/api/calendar-events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error creating calendar event:', error);
     return NextResponse.json({ error: 'Failed to create event' }, { status: 500 });
@@ -89,16 +44,12 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Event ID required' }, { status: 400 });
     }
 
-    const data = readJsonFile<CalendarData>('calendar-events.json', DEFAULT_DATA);
-    const initialLength = data.events.length;
-    data.events = data.events.filter(e => e.id !== id);
-
-    if (data.events.length === initialLength) {
-      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
-    }
-
-    writeJsonFile('calendar-events.json', data);
-    return NextResponse.json({ success: true });
+    const response = await fetch(`${BACKEND_URL}/api/calendar-events/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error deleting calendar event:', error);
     return NextResponse.json({ error: 'Failed to delete event' }, { status: 500 });

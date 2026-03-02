@@ -11,6 +11,7 @@ interface AvatarUploadProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   onAvatarChange?: (avatarUrl: string | null) => void;
   className?: string;
+  showHint?: boolean;
 }
 
 const sizeClasses = {
@@ -35,6 +36,7 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
   size = 'lg',
   onAvatarChange,
   className = '',
+  showHint = true,
 }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -219,7 +221,7 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
       )}
 
       {/* Подсказка */}
-      {!error && !isUploading && !previewUrl && (
+      {showHint && !error && !isUploading && !previewUrl && (
         <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
           JPG, PNG, GIF, WebP до 5MB
         </p>

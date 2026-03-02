@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readJsonFile, writeJsonFile, generateId } from '@/lib/dataStore';
+const BACKEND_URL = process.env.BACKEND_URL || process.env.API_URL || 'http://127.0.0.1:8000';
 
 export interface LinkCategory {
   id: string;
@@ -48,65 +48,36 @@ interface LinksData {
   categories: LinkCategory[];
 }
 
-const DEFAULT_CATEGORIES: LinkCategory[] = [];
+async function proxyToBackend(request: NextRequest, method: 'GET' | 'POST' | 'PUT' | 'DELETE') {
+  const url = new URL(request.url);
+  const backendUrl = `${BACKEND_URL}/api/links${url.search}`;
 
-const DEFAULT_LISTS: LinkList[] = [
-  {
-    id: 'work',
-    name: 'Работа',
-    color: '#3b82f6',
-    icon: '',
-    order: 0,
-    createdAt: new Date().toISOString(),
-    createdBy: '',
-    allowedUsers: [],
-    allowedDepartments: [],
-    isPublic: true,
-  },
-];
-
-const DEFAULT_DATA: LinksData = {
-  links: [],
-  lists: DEFAULT_LISTS,
-  categories: DEFAULT_CATEGORIES
-};
-
-function normalizeDepartment(value?: string | null): string {
-  if (!value) return '';
-  return value
-    .toString()
-    .trim()
-    .toLowerCase()
-    .replace(/ё/g, 'е')
-    .replace(/\s+/g, '_');
-}
-
-function normalizeLinksData(input: LinksData): LinksData {
-  const lists = (input.lists || []).map((list, index) => {
-    const allowedUsers = Array.isArray((list as Partial<LinkList>).allowedUsers)
-      ? ((list as Partial<LinkList>).allowedUsers as string[]).filter(Boolean)
-      : [];
-    const allowedDepartments = Array.isArray((list as Partial<LinkList>).allowedDepartments)
-      ? ((list as Partial<LinkList>).allowedDepartments as string[]).filter(Boolean)
-      : [];
-    const explicitPublic = (list as Partial<LinkList>).isPublic;
-
-    return {
-      ...list,
-      order: typeof list.order === 'number' ? list.order : index,
-      createdAt: list.createdAt || new Date().toISOString(),
-      createdBy: (list as Partial<LinkList>).createdBy || '',
-      allowedUsers,
-      allowedDepartments,
-      isPublic: typeof explicitPublic === 'boolean' ? explicitPublic : allowedUsers.length === 0 && allowedDepartments.length === 0,
-    } as LinkList;
-  });
-
-  return {
-    links: input.links || [],
-    categories: input.categories || [],
-    lists,
+  const options: RequestInit = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    cache: 'no-store',
   };
+
+  if (method === 'POST' || method === 'PUT') {
+    const body = await request.json();
+    options.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(backendUrl, options);
+  const text = await response.text();
+
+  let data: any = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { error: text };
+    }
+  }
+
+  return NextResponse.json(data ?? {}, { status: response.status });
 }
 
 // Fetch metadata from URL
@@ -169,58 +140,22 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const fetchMeta = searchParams.get('fetchMeta');
     const url = searchParams.get('url');
-    const userId = searchParams.get('userId');
-    const username = searchParams.get('username');
-    const department = searchParams.get('department');
-    const normalizedDepartment = normalizeDepartment(department);
     
     // Fetch metadata for a single URL
     if (fetchMeta === 'true' && url) {
       const metadata = await fetchUrlMetadata(url);
       return NextResponse.json(metadata);
     }
-    
-    const rawData = readJsonFile<LinksData>('links.json', DEFAULT_DATA);
-    const normalizedData = normalizeLinksData(rawData);
 
-    let data: LinksData = normalizedData;
+    const proxied = await proxyToBackend(request, 'GET');
+    const payload = await proxied.json();
+    const normalized: LinksData = {
+      links: Array.isArray(payload?.links) ? payload.links : [],
+      lists: Array.isArray(payload?.lists) ? payload.lists : [],
+      categories: Array.isArray(payload?.categories) ? payload.categories : [],
+    };
 
-    if (userId || username || department) {
-      const visibleListIds = new Set(
-        normalizedData.lists
-          .filter((list) => {
-            const allowedUsers = Array.isArray(list.allowedUsers) ? list.allowedUsers : [];
-            const allowedDepartments = Array.isArray(list.allowedDepartments) ? list.allowedDepartments : [];
-            const isPublic = list.isPublic || (allowedUsers.length === 0 && allowedDepartments.length === 0);
-
-            if (isPublic) return true;
-            if ((userId && list.createdBy === userId) || (username && list.createdBy === username)) return true;
-            if ((userId && allowedUsers.includes(userId)) || (username && allowedUsers.includes(username))) return true;
-
-            if (normalizedDepartment) {
-              return allowedDepartments.some((dep) => {
-                const normalizedAllowed = normalizeDepartment(dep);
-                return normalizedAllowed === normalizedDepartment || dep === department;
-              });
-            }
-
-            return false;
-          })
-          .map((list) => list.id)
-      );
-
-      data = {
-        ...normalizedData,
-        lists: normalizedData.lists.filter((list) => visibleListIds.has(list.id)),
-        links: normalizedData.links.filter((link) => visibleListIds.has(link.listId)),
-      };
-    }
-
-    if (JSON.stringify(rawData) !== JSON.stringify(normalizedData)) {
-      writeJsonFile('links.json', normalizedData);
-    }
-
-    return NextResponse.json(data);
+    return NextResponse.json(normalized, { status: proxied.status });
   } catch (error) {
     console.error('Error reading links:', error);
     return NextResponse.json({ error: 'Failed to read links' }, { status: 500 });
@@ -230,93 +165,7 @@ export async function GET(request: NextRequest) {
 // POST - создать ссылку, список или категорию
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { type } = body;
-    
-    const data = normalizeLinksData(readJsonFile<LinksData>('links.json', DEFAULT_DATA));
-    
-    if (type === 'link') {
-      const { url, listId, categoryId, tags = [] } = body;
-      
-      // Fetch metadata
-      const metadata = await fetchUrlMetadata(url);
-      
-      const newLink: LinkItem = {
-        id: generateId(),
-        url,
-        title: metadata.title || new URL(url).hostname,
-        description: metadata.description,
-        favicon: metadata.favicon,
-        image: metadata.image,
-        siteName: metadata.siteName,
-        listId: listId || data.lists[0]?.id || 'work',
-        categoryId,
-        tags,
-        isBookmarked: false,
-        isPinned: false,
-        clickCount: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        order: data.links.length
-      };
-      
-      data.links.push(newLink);
-      writeJsonFile('links.json', data);
-      
-      return NextResponse.json(newLink);
-    }
-    
-    if (type === 'list') {
-      const {
-        name,
-        color = '#3b82f6',
-        icon = '📁',
-        createdBy = '',
-        allowedUsers = [],
-        allowedDepartments = [],
-      } = body;
-      const normalizedAllowedUsers = Array.isArray(allowedUsers) ? allowedUsers.filter(Boolean) : [];
-      const normalizedAllowedDepartments = Array.isArray(allowedDepartments) ? allowedDepartments.filter(Boolean) : [];
-      
-      const newList: LinkList = {
-        id: generateId(),
-        name,
-        color,
-        icon,
-        order: data.lists.length,
-        createdAt: new Date().toISOString(),
-        createdBy,
-        allowedUsers: normalizedAllowedUsers,
-        allowedDepartments: normalizedAllowedDepartments,
-        isPublic: normalizedAllowedUsers.length === 0 && normalizedAllowedDepartments.length === 0,
-      };
-      
-      data.lists.push(newList);
-      writeJsonFile('links.json', data);
-      
-      return NextResponse.json(newList);
-    }
-    
-    if (type === 'category') {
-      const { name, color = '#6b7280', icon = '📂' } = body;
-      
-      if (!data.categories) data.categories = [];
-      
-      const newCategory: LinkCategory = {
-        id: generateId(),
-        name,
-        color,
-        icon,
-        order: data.categories.length
-      };
-      
-      data.categories.push(newCategory);
-      writeJsonFile('links.json', data);
-      
-      return NextResponse.json(newCategory);
-    }
-    
-    return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
+    return proxyToBackend(request, 'POST');
   } catch (error) {
     console.error('Error creating:', error);
     return NextResponse.json({ error: 'Failed to create' }, { status: 500 });
@@ -326,111 +175,7 @@ export async function POST(request: NextRequest) {
 // PUT - обновить ссылку, список или категорию
 export async function PUT(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { type, id, ...updates } = body;
-    
-    const data = normalizeLinksData(readJsonFile<LinksData>('links.json', DEFAULT_DATA));
-    
-    if (type === 'link') {
-      const linkIndex = data.links.findIndex(l => l.id === id);
-      if (linkIndex === -1) {
-        return NextResponse.json({ error: 'Link not found' }, { status: 404 });
-      }
-      
-      // If URL changed and no title provided, refetch metadata (only favicon, image, siteName)
-      if (updates.url && updates.url !== data.links[linkIndex].url && !updates.title) {
-        const metadata = await fetchUrlMetadata(updates.url);
-        // Only update non-title fields from metadata
-        updates.favicon = metadata.favicon;
-        updates.image = metadata.image;
-        updates.siteName = metadata.siteName;
-      }
-      
-      data.links[linkIndex] = {
-        ...data.links[linkIndex],
-        ...updates,
-        updatedAt: new Date().toISOString()
-      };
-      
-      writeJsonFile('links.json', data);
-      return NextResponse.json(data.links[linkIndex]);
-    }
-    
-    if (type === 'list') {
-      const listIndex = data.lists.findIndex(l => l.id === id);
-      if (listIndex === -1) {
-        return NextResponse.json({ error: 'List not found' }, { status: 404 });
-      }
-
-      const nextUpdates = { ...updates };
-      if ('allowedUsers' in nextUpdates) {
-        nextUpdates.allowedUsers = Array.isArray(nextUpdates.allowedUsers)
-          ? nextUpdates.allowedUsers.filter(Boolean)
-          : [];
-      }
-      if ('allowedDepartments' in nextUpdates) {
-        nextUpdates.allowedDepartments = Array.isArray(nextUpdates.allowedDepartments)
-          ? nextUpdates.allowedDepartments.filter(Boolean)
-          : [];
-      }
-      
-      const merged = { ...data.lists[listIndex], ...nextUpdates } as LinkList;
-      const derivedPublic =
-        ('allowedUsers' in nextUpdates || 'allowedDepartments' in nextUpdates) && !('isPublic' in nextUpdates)
-          ? (merged.allowedUsers?.length || 0) === 0 && (merged.allowedDepartments?.length || 0) === 0
-          : merged.isPublic;
-
-      data.lists[listIndex] = {
-        ...merged,
-        isPublic: typeof derivedPublic === 'boolean' ? derivedPublic : true,
-      };
-      writeJsonFile('links.json', data);
-      return NextResponse.json(data.lists[listIndex]);
-    }
-    
-    if (type === 'category') {
-      if (!data.categories) data.categories = [];
-      const catIndex = data.categories.findIndex(c => c.id === id);
-      if (catIndex === -1) {
-        return NextResponse.json({ error: 'Category not found' }, { status: 404 });
-      }
-      
-      data.categories[catIndex] = { ...data.categories[catIndex], ...updates };
-      writeJsonFile('links.json', data);
-      return NextResponse.json(data.categories[catIndex]);
-    }
-    
-    if (type === 'reorder-links') {
-      const { linkIds } = body;
-      linkIds.forEach((linkId: string, index: number) => {
-        const link = data.links.find(l => l.id === linkId);
-        if (link) link.order = index;
-      });
-      writeJsonFile('links.json', data);
-      return NextResponse.json({ success: true });
-    }
-    
-    if (type === 'reorder-lists') {
-      const { listIds } = body;
-      listIds.forEach((listId: string, index: number) => {
-        const list = data.lists.find(l => l.id === listId);
-        if (list) list.order = index;
-      });
-      writeJsonFile('links.json', data);
-      return NextResponse.json({ success: true });
-    }
-    
-    if (type === 'click') {
-      const linkIndex = data.links.findIndex(l => l.id === id);
-      if (linkIndex !== -1) {
-        data.links[linkIndex].clickCount++;
-        data.links[linkIndex].lastClickedAt = new Date().toISOString();
-        writeJsonFile('links.json', data);
-        return NextResponse.json(data.links[linkIndex]);
-      }
-    }
-    
-    return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
+    return proxyToBackend(request, 'PUT');
   } catch (error) {
     console.error('Error updating:', error);
     return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
@@ -440,53 +185,7 @@ export async function PUT(request: NextRequest) {
 // DELETE - удалить ссылку, список или категорию
 export async function DELETE(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    const type = searchParams.get('type');
-    
-    if (!id || !type) {
-      return NextResponse.json({ error: 'ID and type are required' }, { status: 400 });
-    }
-    
-    const data = readJsonFile<LinksData>('links.json', DEFAULT_DATA);
-    
-    if (type === 'link') {
-      data.links = data.links.filter(l => l.id !== id);
-      writeJsonFile('links.json', data);
-      return NextResponse.json({ success: true });
-    }
-    
-    if (type === 'list') {
-      // Move links to first list or delete them
-      const firstList = data.lists.find(l => l.id !== id);
-      if (firstList) {
-        data.links.forEach(link => {
-          if (link.listId === id) {
-            link.listId = firstList.id;
-          }
-        });
-      } else {
-        data.links = data.links.filter(l => l.listId !== id);
-      }
-      data.lists = data.lists.filter(l => l.id !== id);
-      writeJsonFile('links.json', data);
-      return NextResponse.json({ success: true });
-    }
-    
-    if (type === 'category') {
-      if (!data.categories) data.categories = [];
-      // Remove category from links
-      data.links.forEach(link => {
-        if (link.categoryId === id) {
-          link.categoryId = undefined;
-        }
-      });
-      data.categories = data.categories.filter(c => c.id !== id);
-      writeJsonFile('links.json', data);
-      return NextResponse.json({ success: true });
-    }
-    
-    return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
+    return proxyToBackend(request, 'DELETE');
   } catch (error) {
     console.error('Error deleting:', error);
     return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });

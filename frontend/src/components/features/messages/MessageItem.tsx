@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Check, CheckCheck, X, Reply, Edit3, FileText, Calendar, Link as LinkIcon, File, Download, CheckSquare } from 'lucide-react';
+import { Check, X, Reply, Edit3, FileText, Calendar, Link as LinkIcon, File, Download, CheckSquare } from 'lucide-react';
 import Avatar from '@/components/common/data-display/Avatar';
 import LinkPreview from './LinkPreview';
 import { Message, User, Chat } from './types';
@@ -379,13 +379,38 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const avatarVisibilityClass = isNotificationBubble ? 'hidden' : (isDesktopView ? 'flex' : 'hidden');
   const bubbleBoxClass = isNotificationBubble
     ? 'w-full max-w-[94%] md:max-w-[82%]'
-    : (isDesktopView ? 'max-w-[75%] lg:max-w-[65%]' : 'max-w-[80%]');
+    : hasOnlyImages
+      ? (isDesktopView ? 'max-w-[88%] lg:max-w-[82%]' : 'max-w-[96%]')
+      : (isDesktopView ? 'max-w-[75%] lg:max-w-[65%]' : 'max-w-[80%]');
   const bubbleOverflowClass = isNotificationBubble ? 'overflow-visible' : 'overflow-hidden';
   const notificationSurfaceClass = 'bg-[var(--bg-tertiary)] border-[var(--border-color)]';
   const notificationTextClass = 'text-[var(--text-primary)]';
   const notificationActionClass = theme === 'dark'
     ? 'bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-primary)]'
     : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] border-[var(--border-color)] text-[var(--text-primary)]';
+  const telegramUnreadCheckClass = useDarkTextOnBubble ? 'text-gray-700/85' : 'text-white/80';
+  const telegramReadCheckClass = 'text-[#53bdeb]';
+  const checkIconSizeClass = isDesktopView ? 'w-3.5 h-3.5' : 'w-2.5 h-2.5';
+
+  const renderTelegramChecks = (isRead: boolean, compact = false) => {
+    const iconClass = compact ? 'w-2.5 h-2.5 md:w-3 md:h-3' : checkIconSizeClass;
+    const pairWrapClass = compact
+      ? 'w-[14px] md:w-[16px] h-2.5 md:h-3'
+      : (isDesktopView ? 'w-[18px] h-3.5' : 'w-[14px] h-2.5');
+    const secondCheckLeftClass = compact
+      ? 'left-[1px] md:left-[2px]'
+      : (isDesktopView ? 'left-[2px]' : 'left-0');
+    if (!isRead) {
+      return <Check className={`${iconClass} ${telegramUnreadCheckClass}`} strokeWidth={2.2} />;
+    }
+
+    return (
+      <span className={`relative inline-flex items-center ${pairWrapClass}`}>
+        <Check className={`absolute left-0 top-1/2 -translate-y-1/2 ${iconClass} ${telegramReadCheckClass}`} strokeWidth={2.2} />
+        <Check className={`absolute ${secondCheckLeftClass} top-1/2 -translate-y-1/2 ${iconClass} ${telegramReadCheckClass}`} strokeWidth={2.2} />
+      </span>
+    );
+  };
   
   // Настройки стилей
   const bubbleRadius = chatSettings.bubbleStyle === 'minimal' ? 'rounded-lg' : chatSettings.bubbleStyle === 'classic' ? 'rounded-2xl' : 'rounded-[12px]';
@@ -402,6 +427,26 @@ const MessageItem: React.FC<MessageItemProps> = ({
     () => (message.attachments || []).filter(att => att.type === 'image'),
     [message.attachments]
   );
+  const mergedImages = React.useMemo(() => {
+    const ordered: Array<{ url: string; name?: string }> = [];
+    const seen = new Set<string>();
+
+    imageAttachments.forEach((att) => {
+      const normalizedUrl = String(att?.url || '').trim();
+      if (!normalizedUrl || seen.has(normalizedUrl)) return;
+      seen.add(normalizedUrl);
+      ordered.push({ url: normalizedUrl, name: att?.name });
+    });
+
+    imageUrls.forEach((url) => {
+      const normalizedUrl = String(url || '').trim();
+      if (!normalizedUrl || seen.has(normalizedUrl)) return;
+      seen.add(normalizedUrl);
+      ordered.push({ url: normalizedUrl });
+    });
+
+    return ordered;
+  }, [imageAttachments, imageUrls]);
   const nonImageAttachments = React.useMemo(
     () => (message.attachments || []).filter(att => att.type !== 'image'),
     [message.attachments]
@@ -421,6 +466,76 @@ const MessageItem: React.FC<MessageItemProps> = ({
         `<span class="${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-900 font-medium' : 'text-white font-medium') : 'text-blue-400 font-medium'}">@$1</span>`
       );
   }, [displayContent, needsRichTextFormatting, isMyMessage, useDarkTextOnBubble]);
+
+  const renderTelegramStyleImageGrid = React.useCallback((
+    images: Array<{ url: string; name?: string }>,
+    sourceKey: 'attachment' | 'url'
+  ) => {
+    if (!images.length) return null;
+
+    const visibleImages = images.slice(0, 4);
+    const hiddenCount = Math.max(images.length - 4, 0);
+
+    const gridClass = (() => {
+      if (images.length === 1) return 'grid grid-cols-1 gap-2';
+      if (images.length === 2) return 'grid grid-cols-2 gap-2';
+      if (images.length === 3) return 'grid grid-cols-2 grid-rows-2 gap-2';
+      return 'grid grid-cols-2 grid-rows-2 gap-2';
+    })();
+
+    const tileClass = (index: number) => {
+      if (images.length === 1) {
+        return 'aspect-[4/3] md:aspect-[16/10] min-h-[180px] md:min-h-[240px] max-h-[620px]';
+      }
+      if (images.length === 2) {
+        return 'aspect-[4/3] min-h-[120px] md:min-h-[170px]';
+      }
+      if (images.length === 3 && index === 0) {
+        return 'row-span-2 aspect-auto min-h-[280px] md:min-h-[340px]';
+      }
+      return 'aspect-[4/3] min-h-[110px] md:min-h-[150px]';
+    };
+
+    return (
+      <div className="mt-2 mb-1 w-full max-w-[min(92vw,760px)] md:max-w-[760px]">
+        <div className={gridClass}>
+          {visibleImages.map((image, idx) => {
+            const isLastVisibleWithOverflow = hiddenCount > 0 && idx === visibleImages.length - 1;
+
+            return (
+              <div
+                key={`${sourceKey}-${idx}-${image.url}`}
+                className={`relative group rounded-xl overflow-hidden bg-black/20 cursor-pointer ${tileClass(idx)}`}
+                onClick={() => {
+                  setCurrentImageUrl(image.url);
+                  setShowImageModal(true);
+                }}
+              >
+                <img
+                  src={image.url}
+                  alt={image.name || 'Изображение'}
+                  loading="lazy"
+                  decoding="async"
+                  fetchPriority="low"
+                  className="absolute inset-0 w-full h-full object-cover hover:opacity-90 transition-opacity"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                  }}
+                />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                {isLastVisibleWithOverflow && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                    <span className="text-white text-lg font-semibold">+{hiddenCount}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }, [setCurrentImageUrl, setShowImageModal]);
 
   const downloadAttachment = (attachment: any) => {
     if (!attachment?.url) return;
@@ -539,11 +654,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                     </div>
                     <span className="text-[9px] md:text-[10px] text-[var(--text-muted)] flex-shrink-0 self-end ml-2">
                       {new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                      {isMyMessage && (
-                        isReadByOthers
-                          ? <CheckCheck className="w-2.5 h-2.5 md:w-3 md:h-3 inline ml-0.5" />
-                          : <Check className="w-2.5 h-2.5 md:w-3 md:h-3 inline ml-0.5" />
-                      )}
+                      {isMyMessage && <span className="inline-flex ml-0.5 align-middle">{renderTelegramChecks(isReadByOthers, true)}</span>}
                     </span>
                   </button>
                 )}
@@ -595,12 +706,16 @@ const MessageItem: React.FC<MessageItemProps> = ({
                     </div>
                   </button>
                 )}
-                {att.type === 'file' && (
+                {(att.type === 'file' || att.type === 'document') && (
                   <div className="inline-flex flex-col items-start gap-1 px-2 py-1.5 bg-orange-500/10 dark:bg-orange-500/10 rounded-xl border-2 border-orange-500/50 dark:border-orange-500/30 max-w-[200px] md:max-w-[280px]">
-                    <span className="text-[9px] text-orange-600 dark:text-orange-400/70">Файл</span>
+                    <span className="text-[9px] text-orange-600 dark:text-orange-400/70">{att.type === 'document' ? 'Документ' : 'Файл'}</span>
                     <div className="flex items-center gap-1.5 w-full min-w-0">
                       <div className="w-6 h-6 rounded-lg bg-orange-500/20 dark:bg-orange-500/20 flex items-center justify-center flex-shrink-0">
-                        <File className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+                        {att.type === 'document' ? (
+                          <FileText className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+                        ) : (
+                          <File className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+                        )}
                       </div>
                       <span className="text-xs font-medium text-[var(--text-primary)] truncate flex-1 min-w-0">{att.name}</span>
                       <button
@@ -782,7 +897,11 @@ const MessageItem: React.FC<MessageItemProps> = ({
                               }}
                               className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border flex-shrink-0 md:ml-0 ${notificationActionClass}`}
                             >
-                              <CheckSquare className="w-3 h-3" />
+                              {effectiveLinkedEventId && !message.linkedTaskId ? (
+                                <Calendar className="w-3 h-3" />
+                              ) : (
+                                <CheckSquare className="w-3 h-3" />
+                              )}
                               {message.linkedTaskId ? 'Открыть' : effectiveLinkedEventId ? 'Перейти' : message.linkedPostId ? 'Пост' : 'Чат'}
                             </button>
                           )}
@@ -826,42 +945,20 @@ const MessageItem: React.FC<MessageItemProps> = ({
                               : 'bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-600 dark:text-blue-400'
                           }`}
                         >
-                          <CheckSquare className="w-3.5 h-3.5" />
+                          {effectiveLinkedEventId && !message.linkedTaskId ? (
+                            <Calendar className="w-3.5 h-3.5" />
+                          ) : (
+                            <CheckSquare className="w-3.5 h-3.5" />
+                          )}
                           {message.linkedTaskId ? 'Открыть задачу' : effectiveLinkedEventId ? 'Открыть событие' : message.linkedPostId ? 'Открыть публикацию' : 'Открыть чат'}
                         </button>
                       </div>
                     )}
 
-                    {/* Предпросмотр изображений из URL */}
-                    {imageUrls.length > 0 && (
-                      <div className="mt-2 grid grid-cols-2 gap-2">
-                        {imageUrls.map((url, idx) => (
-                          <div 
-                            key={idx} 
-                            className="relative group rounded-lg overflow-hidden bg-black/20 cursor-pointer aspect-[4/3]"
-                            onClick={() => {
-                              setCurrentImageUrl(url);
-                              setShowImageModal(true);
-                            }}
-                          >
-                            <img 
-                              src={url} 
-                              alt="Изображение"
-                              loading="lazy"
-                              decoding="async"
-                              fetchPriority="low"
-                              className="absolute inset-0 w-full h-full object-cover hover:opacity-90 transition-opacity"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.parentElement!.style.display = 'none';
-                              }}
-                            />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                              <Download className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                    {/* Предпросмотр изображений */}
+                    {mergedImages.length > 0 && renderTelegramStyleImageGrid(
+                      mergedImages,
+                      'attachment'
                     )}
                     
                     {/* Предпросмотр ссылок */}
@@ -923,12 +1020,16 @@ const MessageItem: React.FC<MessageItemProps> = ({
                                 </div>
                               </button>
                             )}
-                            {att.type === 'file' && (
+                            {(att.type === 'file' || att.type === 'document') && (
                               <div className="w-full flex flex-col items-start gap-1 px-2 py-1.5 bg-orange-500/10 dark:bg-orange-500/10 rounded-xl border-2 border-orange-500/50 dark:border-orange-500/30 max-w-[200px] md:max-w-[280px]">
-                                <span className="text-[9px] text-orange-600 dark:text-orange-400/70">Файл</span>
+                                <span className="text-[9px] text-orange-600 dark:text-orange-400/70">{att.type === 'document' ? 'Документ' : 'Файл'}</span>
                                 <div className="flex items-center gap-1.5 w-full min-w-0">
                                   <div className="w-6 h-6 rounded-lg bg-orange-500/20 dark:bg-orange-500/20 flex items-center justify-center flex-shrink-0">
-                                    <File className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+                                    {att.type === 'document' ? (
+                                      <FileText className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+                                    ) : (
+                                      <File className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+                                    )}
                                   </div>
                                   <span className="text-xs font-medium text-[var(--text-primary)] truncate flex-1 min-w-0">{att.name}</span>
                                   <button
@@ -950,44 +1051,11 @@ const MessageItem: React.FC<MessageItemProps> = ({
                       </div>
                     )}
 
-                    {/* Изображения из attachments */}
-                    {message.attachments && imageAttachments.length > 0 && (
-                      <div className="mt-2 mb-1">
-                        <div className={`grid gap-1 ${imageAttachments.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                          {imageAttachments.map((att, idx) => (
-                            <div 
-                              key={idx}
-                              className="relative group rounded-lg overflow-hidden bg-black/20 cursor-pointer aspect-[4/3]"
-                              onClick={() => {
-                                setCurrentImageUrl(att.url);
-                                setShowImageModal(true);
-                              }}
-                            >
-                              <img 
-                                src={att.url} 
-                                alt={att.name || 'Изображение'}
-                                loading="lazy"
-                                decoding="async"
-                                fetchPriority="low"
-                                className="absolute inset-0 w-full h-full object-cover hover:opacity-90 transition-opacity rounded-lg"
-                                style={{ maxWidth: imageAttachments.length === 1 ? '300px' : '200px' }}
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = 'none';
-                                }}
-                              />
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center rounded-lg">
-                                <Download className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    {/* Изображения из attachments рендерятся в mergedImages */}
                     
                     {/* Время и галочки */}
                     {!isNotificationBubble && !hasOnlyImages && !isOnlyEmojis && !hasOnlyAttachments && (
-                      <span className="absolute bottom-0.5 right-2 flex items-center gap-0.5 select-none pointer-events-auto">
+                      <span className="absolute bottom-0.5 right-2 flex items-center gap-1 select-none pointer-events-auto">
                         <span className={`${isDesktopView ? 'text-[11px]' : 'text-[9px]'} select-none ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80') : 'text-[var(--text-muted)]'}`}>
                           {new Date(message.createdAt).toLocaleTimeString('ru-RU', {
                             hour: '2-digit',
@@ -995,11 +1063,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                           })}
                           {message.isEdited && <span className="ml-1">(изм.)</span>}
                         </span>
-                        {isMyMessage && !message.isDeleted && (
-                          isReadByOthers
-                            ? <CheckCheck className={`${isDesktopView ? 'w-3.5 h-3.5' : 'w-2.5 h-2.5'} ${useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80'}`} />
-                            : <Check className={`${isDesktopView ? 'w-3.5 h-3.5' : 'w-2.5 h-2.5'} ${useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80'}`} />
-                        )}
+                        {isMyMessage && !message.isDeleted && renderTelegramChecks(isReadByOthers)}
                       </span>
                     )}
                   </>

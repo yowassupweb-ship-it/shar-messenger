@@ -69,18 +69,103 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
     return count + attachmentLinks + textLinks;
   }, 0);
   
-  // Общие задачи (где ОБА участника задействованы - один заказчик, другой исполнитель или наоборот)
+  const toIdSet = (value: unknown): Set<string> => {
+    if (!value) return new Set<string>();
+    if (Array.isArray(value)) {
+      return new Set(
+        value
+          .filter(item => item !== null && item !== undefined && String(item).trim() !== '')
+          .map(item => String(item))
+      );
+    }
+    return new Set([String(value)]);
+  };
+
+  const normalizeText = (value: unknown): string =>
+    String(value ?? '')
+      .trim()
+      .toLowerCase();
+
+  const toTextSet = (value: unknown): Set<string> => {
+    if (!value) return new Set<string>();
+    if (Array.isArray(value)) {
+      return new Set(
+        value
+          .map(item => normalizeText(item))
+          .filter(item => item.length > 0)
+      );
+    }
+    const normalized = normalizeText(value);
+    return normalized ? new Set([normalized]) : new Set<string>();
+  };
+
+  // Общие задачи (где ОБА участника задействованы - учитываем ID и строковые поля с именами)
   const sharedTasks = tasks.filter(task => {
     if (!otherUser || !currentUser) return false;
-    
-    // Получаем исполнителя (может быть assignedToId или assignedTo)
-    const executorId = (task as any).assignedToId || task.assignedTo;
-    // Получаем заказчика (может быть assignedById или authorId)
-    const customerId = (task as any).assignedById || task.authorId;
-    
-    // Проверяем что ОБА участника задействованы в задаче
-    const currentUserInvolved = executorId === currentUser.id || customerId === currentUser.id;
-    const otherUserInvolved = executorId === otherUser.id || customerId === otherUser.id;
+
+    const currentUserId = String(currentUser.id);
+    const otherUserId = String(otherUser.id);
+
+    const assigneeIds = new Set<string>([
+      ...toIdSet((task as any).assignedToId),
+      ...toIdSet((task as any).assigned_to_id),
+      ...toIdSet((task as any).assignedTo),
+      ...toIdSet((task as any).assigned_to),
+      ...toIdSet((task as any).assignedToIds),
+      ...toIdSet((task as any).assigned_to_ids),
+    ]);
+
+    const customerIds = new Set<string>([
+      ...toIdSet((task as any).assignedById),
+      ...toIdSet((task as any).assigned_by_id),
+      ...toIdSet((task as any).authorId),
+      ...toIdSet((task as any).author_id),
+      ...toIdSet((task as any).createdBy),
+      ...toIdSet((task as any).created_by),
+    ]);
+
+    const assigneeTexts = new Set<string>([
+      ...toTextSet((task as any).assignedTo),
+      ...toTextSet((task as any).assigned_to),
+      ...toTextSet((task as any).assignee),
+      ...toTextSet((task as any).assigneeName),
+      ...toTextSet((task as any).assignedToName),
+    ]);
+
+    const customerTexts = new Set<string>([
+      ...toTextSet((task as any).assignedBy),
+      ...toTextSet((task as any).assigned_by),
+      ...toTextSet((task as any).author),
+      ...toTextSet((task as any).createdByName),
+    ]);
+
+    const allInvolvedTexts = new Set<string>([...assigneeTexts, ...customerTexts]);
+
+    const currentUserNames = new Set<string>([
+      normalizeText(currentUser.id),
+      normalizeText(currentUser.username),
+      normalizeText((currentUser as any).name),
+      normalizeText((currentUser as any).fullName),
+      normalizeText(currentUser.email),
+    ]);
+
+    const otherUserNames = new Set<string>([
+      normalizeText(otherUser.id),
+      normalizeText(otherUser.username),
+      normalizeText((otherUser as any).name),
+      normalizeText((otherUser as any).fullName),
+      normalizeText(otherUser.email),
+    ]);
+
+    const allInvolvedIds = new Set<string>([...assigneeIds, ...customerIds]);
+
+    const currentUserInvolved =
+      allInvolvedIds.has(currentUserId) ||
+      Array.from(currentUserNames).some(name => name && allInvolvedTexts.has(name));
+
+    const otherUserInvolved =
+      allInvolvedIds.has(otherUserId) ||
+      Array.from(otherUserNames).some(name => name && allInvolvedTexts.has(name));
     
     return currentUserInvolved && otherUserInvolved;
   });
@@ -120,9 +205,9 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 lg:relative lg:inset-auto lg:z-auto w-full lg:w-80 lg:min-w-[320px] border-l-0 lg:border-l border-[var(--border-color)] flex flex-col bg-[var(--bg-secondary)] flex-shrink-0 overflow-hidden">
+    <div className="fixed inset-0 z-50 lg:relative lg:inset-auto lg:z-auto w-full lg:w-80 lg:min-w-[320px] lg:ml-2 lg:rounded-2xl border lg:border-[var(--border-light)] lg:bg-[var(--bg-glass)] lg:shadow-[var(--shadow-light)] flex flex-col bg-[var(--bg-secondary)] flex-shrink-0 overflow-hidden">
       {/* Header */}
-      <div className="h-12 border-b border-[var(--border-color)] flex items-center px-4 gap-2 flex-shrink-0">
+      <div className="h-12 border-b border-[var(--border-light)] flex items-center px-4 gap-2 flex-shrink-0 bg-[var(--bg-glass)]/70 backdrop-blur-sm">
         <button
           onClick={() => setShowChatInfo(false)}
           className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--bg-tertiary)] transition-all lg:hidden"
@@ -139,7 +224,7 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
       </div>
 
       {/* Profile section */}
-      <div className="p-4 border-b border-[var(--border-color)]">
+      <div className="p-4 border-b border-[var(--border-light)] bg-[var(--bg-glass)]/60 backdrop-blur-sm">
         <div className="flex flex-col items-center">
           {(() => {
             const avatarData = getChatAvatarData(selectedChat!);
@@ -163,7 +248,7 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
                   setNewChatName(selectedChat.title || '');
                   setShowRenameChatModal(true);
                 }}
-                className="w-6 h-6 rounded-full hover:bg-[var(--bg-tertiary)] flex items-center justify-center transition-colors"
+                className="w-6 h-6 rounded-full hover:bg-[var(--bg-tertiary)] border border-[var(--border-light)]/70 flex items-center justify-center transition-colors"
                 title="Переименовать чат"
               >
                 <Edit3 className="w-3.5 h-3.5 text-[var(--text-muted)]" />
@@ -186,21 +271,21 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
         <div className="grid grid-cols-3 gap-2 mt-4">
           <button
             onClick={() => setChatInfoTab('media')}
-            className={`p-3 rounded-xl text-center transition-all ${chatInfoTab === 'media' ? 'bg-cyan-500/20' : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)]'}`}
+            className={`p-3 rounded-xl text-center transition-all border ${chatInfoTab === 'media' ? 'bg-cyan-500/20 border-cyan-400/40' : 'bg-[var(--bg-glass)] border-[var(--border-light)] hover:bg-[var(--bg-primary)]'}`}
           >
             <p className="text-2xl font-bold text-[var(--text-primary)] mb-1">{mediaCount}</p>
             <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Медиа</p>
           </button>
           <button
             onClick={() => setChatInfoTab('files')}
-            className={`p-3 rounded-xl text-center transition-all ${chatInfoTab === 'files' ? 'bg-cyan-500/20' : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)]'}`}
+            className={`p-3 rounded-xl text-center transition-all border ${chatInfoTab === 'files' ? 'bg-cyan-500/20 border-cyan-400/40' : 'bg-[var(--bg-glass)] border-[var(--border-light)] hover:bg-[var(--bg-primary)]'}`}
           >
             <p className="text-2xl font-bold text-[var(--text-primary)] mb-1">{fileCount}</p>
             <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Файлы</p>
           </button>
           <button
             onClick={() => setChatInfoTab('links')}
-            className={`p-3 rounded-xl text-center transition-all ${chatInfoTab === 'links' ? 'bg-cyan-500/20' : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)]'}`}
+            className={`p-3 rounded-xl text-center transition-all border ${chatInfoTab === 'links' ? 'bg-cyan-500/20 border-cyan-400/40' : 'bg-[var(--bg-glass)] border-[var(--border-light)] hover:bg-[var(--bg-primary)]'}`}
           >
             <p className="text-2xl font-bold text-[var(--text-primary)] mb-1">{linkCount}</p>
             <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Ссылки</p>
@@ -209,7 +294,7 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
       </div>
 
       {/* Tab buttons */}
-      <div className="overflow-x-auto border-b border-[var(--border-color)]" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
+      <div className="overflow-x-auto border-b border-[var(--border-light)] bg-[var(--bg-glass)]/50" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
         <style jsx>{`
           div::-webkit-scrollbar {
             display: none;
@@ -218,10 +303,10 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
         <div className="flex min-w-max">
           <button
             onClick={() => setChatInfoTab('profile')}
-            className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap ${
+            className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap border-b-2 ${
               chatInfoTab === 'profile' 
-                ? 'text-cyan-400 border-b-2 border-cyan-400' 
-                : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                ? 'text-cyan-400 border-cyan-400' 
+                : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
             }`}
           >
             Задачи
@@ -230,10 +315,10 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
           {selectedChat?.isGroup && (
             <button
               onClick={() => setChatInfoTab('participants')}
-              className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap ${
+              className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap border-b-2 ${
                 chatInfoTab === 'participants' 
-                  ? 'text-cyan-400 border-b-2 border-cyan-400' 
-                  : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                  ? 'text-cyan-400 border-cyan-400' 
+                  : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
               }`}
             >
               Участники
@@ -241,30 +326,30 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
           )}
           <button
             onClick={() => setChatInfoTab('media')}
-            className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap ${
+            className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap border-b-2 ${
               chatInfoTab === 'media' 
-                ? 'text-cyan-400 border-b-2 border-cyan-400' 
-                : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                ? 'text-cyan-400 border-cyan-400' 
+                : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
             }`}
           >
             Медиа
           </button>
           <button
             onClick={() => setChatInfoTab('files')}
-            className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap ${
+            className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap border-b-2 ${
               chatInfoTab === 'files' 
-                ? 'text-cyan-400 border-b-2 border-cyan-400' 
-                : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                ? 'text-cyan-400 border-cyan-400' 
+                : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
             }`}
           >
             Файлы
           </button>
           <button
             onClick={() => setChatInfoTab('links')}
-            className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap ${
+            className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap border-b-2 ${
               chatInfoTab === 'links' 
-                ? 'text-cyan-400 border-b-2 border-cyan-400' 
-                : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                ? 'text-cyan-400 border-cyan-400' 
+                : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
             }`}
           >
             Ссылки
@@ -288,7 +373,7 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
                   <button
                     key={task.id}
                     onClick={() => router.push(`/todos?task=${task.id}`)}
-                    className="w-full p-3 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] transition-colors text-left"
+                    className="w-full p-3 rounded-xl bg-[var(--bg-glass)] border border-[var(--border-light)] hover:bg-[var(--bg-primary)] transition-colors text-left"
                   >
                     <div className="flex items-start gap-3">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
@@ -328,7 +413,7 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
             {selectedChat.creatorId === currentUser?.id && (
               <button
                 onClick={() => setShowAddParticipantModal(true)}
-                className="w-full p-3 mb-3 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] transition-colors flex items-center gap-3"
+                className="w-full p-3 mb-3 rounded-xl bg-[var(--bg-glass)] border border-[var(--border-light)] hover:bg-[var(--bg-primary)] transition-colors flex items-center gap-3"
               >
                 <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center">
                   <Plus className="w-4 h-4 text-cyan-400" />

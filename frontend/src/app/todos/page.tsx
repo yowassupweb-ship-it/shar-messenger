@@ -422,7 +422,14 @@ export default function TodosPage() {
   const [showArchive, setShowArchive] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'stages' | 'todo' | 'pending' | 'in-progress' | 'review' | 'cancelled' | 'stuck'>('all');
   const [filterExecutor, setFilterExecutor] = useState<string | null>(null);
-  const [filterDepartment, setFilterDepartment] = useState<string>('all');
+  const [filterDepartment, setFilterDepartment] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'all';
+    return localStorage.getItem('todos_filter_department') || 'all';
+  });
+
+  const normalizeDepartment = useCallback((department?: string | null) => {
+    return (department || '').trim().toLocaleLowerCase('ru-RU');
+  }, []);
 
   // 🚀 PERFORMANCE: Мемоизация filteredAndSortedTodos должна быть ВЫШЕ headerPeople!
   // Перенесено из строки 2795 сюда для правильного порядка зависимостей
@@ -430,7 +437,7 @@ export default function TodosPage() {
     const personDepartmentById = new Map<string, string>();
     people.forEach(person => {
       if (person.department?.trim()) {
-        personDepartmentById.set(person.id, person.department.trim());
+        personDepartmentById.set(person.id, normalizeDepartment(person.department));
       }
     });
 
@@ -479,6 +486,7 @@ export default function TodosPage() {
 
         // Фильтр по отделу
         if (filterDepartment !== 'all') {
+          const normalizedFilterDepartment = normalizeDepartment(filterDepartment);
           const stageMeta = (t.stageMeta || (t.metadata as any)?.stageMeta) as Todo['stageMeta'] | undefined;
           const taskAssigneeIds = new Set<string>();
 
@@ -486,6 +494,7 @@ export default function TodosPage() {
           if (Array.isArray(t.assignedToIds)) {
             t.assignedToIds.forEach(id => taskAssigneeIds.add(id));
           }
+          if (t.assignedById) taskAssigneeIds.add(t.assignedById);
           if (t.stageDefaultAssigneeId) taskAssigneeIds.add(t.stageDefaultAssigneeId);
           if (stageMeta) {
             Object.values(stageMeta).forEach(meta => {
@@ -493,7 +502,7 @@ export default function TodosPage() {
             });
           }
 
-          const matchesDepartment = Array.from(taskAssigneeIds).some(assigneeId => personDepartmentById.get(assigneeId) === filterDepartment);
+          const matchesDepartment = Array.from(taskAssigneeIds).some(assigneeId => personDepartmentById.get(assigneeId) === normalizedFilterDepartment);
           if (!matchesDepartment) return false;
         }
         
@@ -501,14 +510,23 @@ export default function TodosPage() {
       }).sort((a, b) => {
         // Сначала незавершённые
         if (a.completed !== b.completed) return a.completed ? 1 : -1;
-        // Потом по приоритету
-        const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
-        return (priorityOrder[a.priority] || 2) - (priorityOrder[b.priority] || 2);
+
+        // Внутри группы - ручной порядок после drag&drop
+        const aOrder = Number.isFinite(a.order) ? a.order : Number.MAX_SAFE_INTEGER;
+        const bOrder = Number.isFinite(b.order) ? b.order : Number.MAX_SAFE_INTEGER;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+
+        // Фоллбэк для старых задач без order
+        const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (aCreated !== bCreated) return aCreated - bCreated;
+
+        return 0;
       });
       
       return { listId: list.id, todos: listTodos };
     });
-  }, [todos, lists, people, searchQuery, filterStatus, filterExecutor, filterDepartment, showCompleted, showArchive]);
+  }, [todos, lists, people, searchQuery, filterStatus, filterExecutor, filterDepartment, showCompleted, showArchive, normalizeDepartment]);
 
   const filteredTodosByListId = useMemo(() => {
     const map: Record<string, Todo[]> = {};
@@ -606,24 +624,29 @@ export default function TodosPage() {
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
   const [mobileView, setMobileView] = useState<'board' | 'single'>(windowWidth < 550 ? 'single' : 'board');
   
-  // 🚀 PERFORMANCE: Passive resize listener для плавной адаптации
+  // Resize listener без debounce, чтобы UI (в т.ч. скроллбар) обновлялся без задержки
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
-    let resizeTimeout: NodeJS.Timeout;
+
+    let rafId: number | null = null;
     const handleResize = () => {
-      clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(() => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+      rafId = window.requestAnimationFrame(() => {
         const newWidth = window.innerWidth;
         setWindowWidth(newWidth);
         setMobileView(newWidth < 550 ? 'single' : 'board');
-      }, 200);
+      });
     };
-    
+
+    handleResize();
     window.addEventListener('resize', handleResize, { passive: true });
     return () => {
       window.removeEventListener('resize', handleResize);
-      clearTimeout(resizeTimeout);
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
     };
   }, []);
 
@@ -644,6 +667,12 @@ export default function TodosPage() {
       localStorage.setItem('todos_selected_column', String(selectedColumnIndex));
     }
   }, [selectedColumnIndex]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('todos_filter_department', filterDepartment || 'all');
+    }
+  }, [filterDepartment]);
   
   // 🚀 PERFORMANCE: title и description живут в refs, НЕ вызывают re-render при вводе
   // Автосохранение раз в 15 секунд + при закрытии модалки
@@ -801,8 +830,12 @@ export default function TodosPage() {
     if (!board || !bottom) return;
 
     if (scrollSyncRef.current) return;
+    const boardMaxScroll = Math.max(0, board.scrollWidth - board.clientWidth);
+    const bottomMaxScroll = Math.max(0, bottom.scrollWidth - bottom.clientWidth);
+    const ratio = boardMaxScroll > 0 ? board.scrollLeft / boardMaxScroll : 0;
+
     scrollSyncRef.current = true;
-    bottom.scrollLeft = board.scrollLeft;
+    bottom.scrollLeft = ratio * bottomMaxScroll;
     requestAnimationFrame(() => {
       scrollSyncRef.current = false;
     });
@@ -814,8 +847,12 @@ export default function TodosPage() {
     if (!board || !bottom) return;
 
     if (scrollSyncRef.current) return;
+    const boardMaxScroll = Math.max(0, board.scrollWidth - board.clientWidth);
+    const bottomMaxScroll = Math.max(0, bottom.scrollWidth - bottom.clientWidth);
+    const ratio = bottomMaxScroll > 0 ? bottom.scrollLeft / bottomMaxScroll : 0;
+
     scrollSyncRef.current = true;
-    board.scrollLeft = bottom.scrollLeft;
+    board.scrollLeft = ratio * boardMaxScroll;
     requestAnimationFrame(() => {
       scrollSyncRef.current = false;
     });
@@ -830,36 +867,73 @@ export default function TodosPage() {
     if (rect.width <= 0) return;
 
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const maxScroll = Math.max(0, bottom.scrollWidth - bottom.clientWidth);
-    const nextScrollLeft = ratio * maxScroll;
+    const bottomMaxScroll = Math.max(0, bottom.scrollWidth - bottom.clientWidth);
+    const boardMaxScroll = Math.max(0, board.scrollWidth - board.clientWidth);
+    const nextBottomScrollLeft = ratio * bottomMaxScroll;
+    const nextBoardScrollLeft = ratio * boardMaxScroll;
 
     scrollSyncRef.current = true;
-    bottom.scrollLeft = nextScrollLeft;
-    board.scrollLeft = nextScrollLeft;
+    bottom.scrollLeft = nextBottomScrollLeft;
+    board.scrollLeft = nextBoardScrollLeft;
     requestAnimationFrame(() => {
       scrollSyncRef.current = false;
     });
   }, []);
 
   useEffect(() => {
-    if (windowWidth < 550) return;
+    if (windowWidth < 550) {
+      setBoardScrollWidth(0);
+      setBoardClientWidth(0);
+      return;
+    }
 
     syncBoardMetrics();
+
+    // После первичной отрисовки и гидрации DOM размеры могут уточниться
+    const raf1 = window.requestAnimationFrame(() => {
+      syncBoardMetrics();
+      window.requestAnimationFrame(() => {
+        syncBoardMetrics();
+      });
+    });
+
     const board = boardRef.current;
-    if (!board) return;
+    if (!board) {
+      window.cancelAnimationFrame(raf1);
+      return;
+    }
 
     const resizeObserver = new ResizeObserver(() => {
       syncBoardMetrics();
     });
 
     resizeObserver.observe(board);
+    if (board.parentElement) {
+      resizeObserver.observe(board.parentElement);
+    }
     window.addEventListener('resize', syncBoardMetrics);
 
     return () => {
+      window.cancelAnimationFrame(raf1);
       resizeObserver.disconnect();
       window.removeEventListener('resize', syncBoardMetrics);
     };
-  }, [syncBoardMetrics, windowWidth, lists.length, showAddList, showArchive]);
+  }, [
+    syncBoardMetrics,
+    windowWidth,
+    lists,
+    todos,
+    searchQuery,
+    filterStatus,
+    filterExecutor,
+    filterDepartment,
+    showCompleted,
+    showArchive,
+    showAddList,
+    canSeeAllTasks,
+    myAccountId,
+    myDepartment,
+  ]);
 
   // Проверка авторизации - редирект на /login если не авторизован
   useEffect(() => {
@@ -899,7 +973,14 @@ export default function TodosPage() {
       console.log('[loadData] Received lists:', todosData.lists?.length || 0);
       console.log('[loadData] Lists:', todosData.lists);
       
-      setTodos(todosData.todos || []);
+      setTodos((todosData.todos || []).map((todo: any, index: number) => ({
+        ...todo,
+        order: Number.isFinite(todo?.order)
+          ? todo.order
+          : Number.isFinite(todo?.taskOrder)
+            ? todo.taskOrder
+            : index
+      })));
       setLists(todosData.lists || []);
       setCategories(todosData.categories || []);
       let nextPeople = Array.isArray(peopleData.people) ? peopleData.people : [];
@@ -1933,7 +2014,14 @@ export default function TodosPage() {
         
         if (freshTodo) {
           // Обновляем локальный state
-          setTodos(data.todos || []);
+          setTodos((data.todos || []).map((todo: any, index: number) => ({
+            ...todo,
+            order: Number.isFinite(todo?.order)
+              ? todo.order
+              : Number.isFinite(todo?.taskOrder)
+                ? todo.taskOrder
+                : index
+          })));
           
           // Автозаполнение "От кого" если не указано
           const myAccount = myAccountId ? people.find(p => p.id === myAccountId) : null;
@@ -3201,14 +3289,16 @@ export default function TodosPage() {
 
       // Фильтр по отделу
       if (filterDepartment !== 'all') {
+        const normalizedFilterDepartment = normalizeDepartment(filterDepartment);
         const assigneeIds = new Set<string>();
         if (todo.assignedToId) assigneeIds.add(todo.assignedToId);
         if (Array.isArray(todo.assignedToIds)) {
           todo.assignedToIds.forEach(id => assigneeIds.add(id));
         }
+        if (todo.assignedById) assigneeIds.add(todo.assignedById);
         const hasDepartmentMatch = Array.from(assigneeIds).some(assigneeId => {
           const person = people.find(p => p.id === assigneeId);
-          return person?.department?.trim() === filterDepartment;
+          return normalizeDepartment(person?.department) === normalizedFilterDepartment;
         });
         if (!hasDepartmentMatch) return false;
       }
@@ -3230,7 +3320,7 @@ export default function TodosPage() {
     // Fallback (не должно использоваться при нормальной работе)
     const listTodos = todos.filter(t => t.listId === listId && (includeArchived || !t.archived));
     return filterTodos(listTodos, listId);
-  }, [filteredTodosByListId, todos]);
+  }, [filteredTodosByListId, todos, normalizeDepartment, filterDepartment, people]);
 
   // Получение архивных задач
   const getArchivedTodos = () => {

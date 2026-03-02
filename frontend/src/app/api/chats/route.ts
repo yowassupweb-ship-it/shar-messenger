@@ -7,13 +7,19 @@ export const revalidate = 0;
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get('user_id');
+  const includeArchived = searchParams.get('include_archived');
   
   if (!userId) {
     return NextResponse.json({ error: 'user_id is required' }, { status: 400 });
   }
 
   try {
-    const response = await fetch(`${BACKEND_URL}/api/chats?user_id=${userId}`, {
+    const backendParams = new URLSearchParams({ user_id: userId });
+    if (includeArchived !== null) {
+      backendParams.set('include_archived', includeArchived);
+    }
+
+    const response = await fetch(`${BACKEND_URL}/api/chats?${backendParams.toString()}`, {
       cache: 'no-store',
       headers: {
         'Content-Type': 'application/json',

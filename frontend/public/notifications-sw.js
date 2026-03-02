@@ -41,6 +41,10 @@ self.addEventListener('push', (event) => {
     icon: '/favicon.png',
     badge: '/favicon.png',
     tag: payload.tag || 'generic-notification',
+    renotify: true,
+    requireInteraction: true,
+    silent: false,
+    timestamp: Date.now(),
     data: {
       url: payload.url || '/account',
     },

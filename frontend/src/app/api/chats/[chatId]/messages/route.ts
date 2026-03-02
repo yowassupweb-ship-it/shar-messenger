@@ -10,14 +10,14 @@ export async function GET(
 ) {
   try {
     const { chatId } = await params;
-    const response = await fetch(`${BACKEND_URL}/api/chats/${chatId}/messages`, {
+    const response = await fetch(`${BACKEND_URL}/api/chats/${encodeURIComponent(chatId)}/messages`, {
       cache: 'no-store',
       headers: {
         'Content-Type': 'application/json',
       },
     });
     const data = await response.json();
-    return NextResponse.json(data);
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error fetching messages:', error);
     return NextResponse.json({ error: 'Failed to fetch messages' }, { status: 500 });
@@ -34,7 +34,7 @@ export async function POST(
     const body = await request.json();
     console.log('[POST /api/chats/[chatId]/messages] Body:', body);
     
-    const url = `${BACKEND_URL}/api/chats/${chatId}/messages`;
+    const url = `${BACKEND_URL}/api/chats/${encodeURIComponent(chatId)}/messages`;
     console.log('[POST /api/chats/[chatId]/messages] Backend URL:', url);
     
     const response = await fetch(url, {

@@ -92,6 +92,7 @@ export default function MessagesPage() {
   
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showArchivedChats, setShowArchivedChats] = useState(false);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [isGroupChat, setIsGroupChat] = useState(false);
@@ -117,6 +118,7 @@ export default function MessagesPage() {
     const isTouch = window.matchMedia('(pointer: coarse)').matches;
     return !(window.innerWidth < 773 || isTouch);
   });
+  const [viewportWidth, setViewportWidth] = useState(() => (typeof window === 'undefined' ? 1200 : window.innerWidth));
 
   const [showChatInfo, setShowChatInfo] = useState(false);
   const [chatInfoTab, setChatInfoTab] = useState<'profile' | 'tasks' | 'media' | 'files' | 'links' | 'participants'>('profile');
@@ -160,6 +162,7 @@ export default function MessagesPage() {
   const [showTaskListSelector, setShowTaskListSelector] = useState(false);
   const [creatingTaskFromMessage, setCreatingTaskFromMessage] = useState<Message | null>(null);
   const [creatingEventFromMessage, setCreatingEventFromMessage] = useState<Message | null>(null);
+  const [activePinnedMessageId, setActivePinnedMessageId] = useState<string | null>(null);
   const [notificationSound] = useState(() => {
     if (typeof window !== 'undefined') {
       const audio = new Audio();
@@ -214,6 +217,8 @@ export default function MessagesPage() {
   const selectionDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const lastManualChatCloseAtRef = useRef(0);
   const lastTabAutoScrollAtRef = useRef(0);
+  const pinnedOverlayDragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const suppressPinnedOverlayTapRef = useRef(false);
   const hydratedMessagesCacheRef = useRef<Set<string>>(new Set());
   const hydratedChatsCacheKeyRef = useRef<string | null>(null);
 
@@ -303,7 +308,7 @@ export default function MessagesPage() {
   };
 
   const linkedTaskBanner = useMemo(() => {
-    if (!selectedChat) return { id: null as string | null, title: null as string | null };
+    if (!selectedChat) return { id: null as string | null, title: null as string | null, status: null as string | null };
 
     const chatWithTask = selectedChat as Chat & {
       todoId?: string;
@@ -314,11 +319,119 @@ export default function MessagesPage() {
     const taskIdRaw = chatWithTask.todoId || chatWithTask.todo_id || null;
     const taskId = taskIdRaw ? String(taskIdRaw).trim() : null;
 
-    if (!taskId) return { id: null as string | null, title: null as string | null };
+    if (!taskId) return { id: null as string | null, title: null as string | null, status: null as string | null };
 
     const taskTitle = chatWithTask.taskTitle || 'Привязано к задаче';
-    return { id: taskId, title: taskTitle };
+    const taskStatus = (selectedChat as any).discussionStatus || (selectedChat as any).discussion_status || (selectedChat as any).todoStatus || null;
+    return { id: taskId, title: taskTitle, status: taskStatus };
   }, [selectedChat]);
+
+  const pinnedMessages = useMemo(() => {
+    const pinned = messages.filter((msg) => Boolean(msg?.metadata?.isPinned));
+    if (pinned.length === 0) return [] as Message[];
+    return pinned.sort((a, b) => {
+      const aTime = new Date(a.metadata?.pinnedAt || a.updatedAt || a.createdAt || 0).getTime();
+      const bTime = new Date(b.metadata?.pinnedAt || b.updatedAt || b.createdAt || 0).getTime();
+      return bTime - aTime;
+    });
+  }, [messages]);
+
+  const activePinnedMessage = useMemo(() => {
+    if (pinnedMessages.length === 0) return null;
+    if (!activePinnedMessageId) return pinnedMessages[0];
+    return pinnedMessages.find((msg) => msg.id === activePinnedMessageId) || pinnedMessages[0];
+  }, [pinnedMessages, activePinnedMessageId]);
+
+  const activePinnedMessageIndex = useMemo(() => {
+    if (!activePinnedMessage) return -1;
+    return pinnedMessages.findIndex((msg) => msg.id === activePinnedMessage.id);
+  }, [pinnedMessages, activePinnedMessage]);
+  const isPinnedOverlayMobileView = viewportWidth < 773;
+
+  const activePinnedPreview = useMemo(() => {
+    if (!activePinnedMessage) return null;
+    const contentPreview = (activePinnedMessage.content || '').trim();
+    const metadataPreview = (activePinnedMessage.metadata?.preview || '').trim();
+    const preview = activePinnedMessage.notificationType === 'message_pin'
+      ? (metadataPreview || contentPreview)
+      : (contentPreview || metadataPreview);
+    if (!preview) return 'Сообщение без текста';
+    return preview.length > 110 ? `${preview.slice(0, 110)}...` : preview;
+  }, [activePinnedMessage]);
+
+  const getPinnedNavigationMessageId = useCallback((message?: Message | null) => {
+    if (!message) return null;
+    const targetId = message.notificationType === 'message_pin'
+      ? String(message.metadata?.pinnedMessageId || '').trim()
+      : '';
+    if (targetId) return targetId;
+    return String(message.id || '').trim() || null;
+  }, []);
+
+  const navigatePinned = useCallback((direction: 'prev' | 'next') => {
+    if (pinnedMessages.length <= 1 || activePinnedMessageIndex < 0) return;
+
+    const targetIndex = direction === 'prev'
+      ? (activePinnedMessageIndex - 1 + pinnedMessages.length) % pinnedMessages.length
+      : (activePinnedMessageIndex + 1) % pinnedMessages.length;
+
+    const targetPinnedMessage = pinnedMessages[targetIndex];
+    const targetMessageId = getPinnedNavigationMessageId(targetPinnedMessage);
+    if (!targetMessageId) return;
+
+    setActivePinnedMessageId(targetPinnedMessage.id);
+    requestAnimationFrame(() => scrollToMessage(targetMessageId));
+  }, [activePinnedMessageIndex, pinnedMessages, getPinnedNavigationMessageId]);
+
+  const handlePinnedOverlayPointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    pinnedOverlayDragStartRef.current = { x: event.clientX, y: event.clientY };
+    suppressPinnedOverlayTapRef.current = false;
+  }, []);
+
+  const handlePinnedOverlayPointerUp = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    const start = pinnedOverlayDragStartRef.current;
+    pinnedOverlayDragStartRef.current = null;
+    if (!start) return;
+
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+
+    if (absY < 18 || absY <= absX + 8) return;
+
+    suppressPinnedOverlayTapRef.current = true;
+    if (deltaY < 0) {
+      navigatePinned('next');
+    } else {
+      navigatePinned('prev');
+    }
+
+    window.setTimeout(() => {
+      suppressPinnedOverlayTapRef.current = false;
+    }, 120);
+  }, [navigatePinned]);
+
+  useEffect(() => {
+    if (!selectedChat) {
+      setActivePinnedMessageId(null);
+      return;
+    }
+
+    if (pinnedMessages.length === 0) {
+      setActivePinnedMessageId(null);
+      return;
+    }
+
+    const hasCurrentPinned = activePinnedMessageId
+      ? pinnedMessages.some((msg) => msg.id === activePinnedMessageId)
+      : false;
+
+    if (!hasCurrentPinned) {
+      setActivePinnedMessageId(pinnedMessages[0].id);
+    }
+  }, [selectedChat?.id, pinnedMessages, activePinnedMessageId]);
 
   // Функция выбора чата с обновлением URL и localStorage
   const selectChat = useCallback((chat: Chat | null) => {
@@ -433,6 +546,21 @@ export default function MessagesPage() {
     setIsDesktopView(!(window.innerWidth < 773 || isTouchPointer));
   }, [isTouchPointer]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateViewportWidth = () => {
+      setViewportWidth((prev) => (prev === window.innerWidth ? prev : window.innerWidth));
+    };
+
+    updateViewportWidth();
+    window.addEventListener('resize', updateViewportWidth);
+
+    return () => {
+      window.removeEventListener('resize', updateViewportWidth);
+    };
+  }, []);
+
   // Периодическое обновление статуса пользователя и загрузка статусов других пользователей
   useEffect(() => {
     if (!currentUser) return;
@@ -443,12 +571,12 @@ export default function MessagesPage() {
     const statusInterval = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       void updateUserStatus({ isOnline: true });
-    }, 60000);
+    }, 20000);
 
     const usersStatusInterval = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       void loadUserStatuses();
-    }, 45000);
+    }, 20000);
 
     const handleVisibilityChange = () => {
       if (typeof document === 'undefined') return;
@@ -753,6 +881,18 @@ export default function MessagesPage() {
           lastSeen: new Date().toISOString()
         })
       });
+
+      const nextLastSeen = new Date().toISOString();
+      setUsers(prevUsers => prevUsers.map(user =>
+        String(user.id) === String(currentUser.id)
+          ? { ...user, isOnline, lastSeen: nextLastSeen }
+          : user
+      ));
+
+      setCurrentUser(prev => prev
+        ? { ...prev, isOnline, lastSeen: nextLastSeen }
+        : prev
+      );
     } catch (error) {
       console.error('Error updating user status:', error);
     } finally {
@@ -1004,47 +1144,52 @@ export default function MessagesPage() {
 
     // Убрали setIsLoadingChats(true) - loader только при initial load
     try {
-      const res = await fetch(`/api/chats?user_id=${currentUser.id}`);
+      const res = await fetch(`/api/chats?user_id=${currentUser.id}&include_archived=true`);
       
       if (res.ok) {
         let data = await res.json();
-        
-        const getSystemChatPinState = (chatId: string): boolean => {
-          const stored = localStorage.getItem(`chat_pin_${chatId}`);
-          return stored === null ? true : stored === 'true';
+
+        const normalizePinMap = (value: unknown): Record<string, boolean> => {
+          if (!value || typeof value !== 'object') return {};
+          return Object.entries(value as Record<string, unknown>).reduce<Record<string, boolean>>((acc, [key, raw]) => {
+            if (typeof raw === 'string') {
+              acc[key] = raw.trim().toLowerCase() === 'true';
+            } else {
+              acc[key] = raw === true;
+            }
+            return acc;
+          }, {});
+        };
+
+        const hasPinForUser = (pinMapValue: unknown, userIdValue: string): boolean => {
+          const pinMap = pinMapValue && typeof pinMapValue === 'object'
+            ? (pinMapValue as Record<string, unknown>)
+            : {};
+          const normalizeId = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+          const direct = pinMap[userIdValue];
+          if (typeof direct !== 'undefined') {
+            if (typeof direct === 'string') return direct.trim().toLowerCase() === 'true';
+            return direct === true;
+          }
+
+          const normalizedUserId = normalizeId(userIdValue);
+          for (const [key, raw] of Object.entries(pinMap)) {
+            if (normalizeId(key) === normalizedUserId) {
+              if (typeof raw === 'string') return raw.trim().toLowerCase() === 'true';
+              return raw === true;
+            }
+          }
+
+          return false;
         };
         
         const hasNotificationsChat = data.some((chat: any) => chat.isNotificationsChat || chat.isSystemChat);
         const hasFavoritesChat = data.some((chat: any) => chat.isFavoritesChat);
-        
-        // Обновляем состояние закрепления для системных чатов из localStorage
-        data = data.map((chat: any) => {
-          const isSystemChat = chat.isFavoritesChat || chat.isNotificationsChat || chat.isSystemChat;
-          const remotePinKey = `chat_pin_remote_${currentUser.id}_${chat.id}`;
-          const remotePinValue = localStorage.getItem(remotePinKey);
-
-          if (isSystemChat) {
-            return {
-              ...chat,
-              pinnedByUser: { 
-                ...(chat.pinnedByUser || {}),
-                [currentUser.id]: getSystemChatPinState(chat.id) 
-              }
-            };
-          }
-
-          if (remotePinValue !== null) {
-            return {
-              ...chat,
-              pinnedByUser: {
-                ...(chat.pinnedByUser || {}),
-                [currentUser.id]: remotePinValue === 'true'
-              }
-            };
-          }
-
-          return chat;
-        });
+        data = data.map((chat: any) => ({
+          ...chat,
+          pinnedByUser: normalizePinMap(chat.pinnedByUser || chat.pinned_by_user),
+        }));
         
         if (!hasFavoritesChat) {
           const favoritesChatId = `favorites_${currentUser.id}`;
@@ -1056,7 +1201,7 @@ export default function MessagesPage() {
             participantIds: [currentUser.id],
             createdAt: new Date().toISOString(),
             readMessagesByUser: {},
-            pinnedByUser: { [currentUser.id]: getSystemChatPinState(favoritesChatId) },
+            pinnedByUser: {},
             unreadCount: 0
           };
           data = [favoritesChat, ...data];
@@ -1068,11 +1213,7 @@ export default function MessagesPage() {
             const notifRes = await fetch(`/api/chats/notifications/${currentUser.id}`);
             if (notifRes.ok) {
               const notificationsChat = await notifRes.json();
-              // Устанавливаем локальное состояние закрепления
-              if (!notificationsChat.pinnedByUser) {
-                notificationsChat.pinnedByUser = {};
-              }
-              notificationsChat.pinnedByUser[currentUser.id] = getSystemChatPinState(notificationsChat.id);
+              notificationsChat.pinnedByUser = normalizePinMap(notificationsChat.pinnedByUser || notificationsChat.pinned_by_user);
               data = [notificationsChat, ...data];
             }
           } catch (e) {
@@ -1089,7 +1230,7 @@ export default function MessagesPage() {
             String(chat?.lastMessage?.id || ''),
             String(chat?.lastMessage?.createdAt || ''),
             String(chat?.lastMessage?.content || ''),
-            chat?.pinnedByUser?.[currentUserId] ? '1' : '0',
+            hasPinForUser(chat?.pinnedByUser || chat?.pinned_by_user, currentUserId) ? '1' : '0',
           ].join('|');
         };
 
@@ -1104,32 +1245,11 @@ export default function MessagesPage() {
         };
 
         // Оптимизация: легковесное сравнение данных перед обновлением state
-        // Сохраняем локальные изменения pinnedByUser при обновлении
         setChats(prevChats => {
           // Если данные не изменились, не обновляем state
           if (prevChats.length > 0 && areChatListsEquivalent(prevChats, data)) {
             return prevChats;
           }
-          
-          // Сохраняем локальное состояние закрепления при обновлении
-          if (prevChats.length > 0) {
-            return data.map((newChat: any) => {
-              const oldChat = prevChats.find(c => c.id === newChat.id);
-              const isSystemChat = newChat.isFavoritesChat || newChat.isNotificationsChat || newChat.isSystemChat;
-              if (isSystemChat && oldChat?.pinnedByUser) {
-                // Для системных чатов сохраняем локальное состояние закрепления
-                return {
-                  ...newChat,
-                  pinnedByUser: {
-                    ...newChat.pinnedByUser,
-                    ...oldChat.pinnedByUser
-                  }
-                };
-              }
-              return newChat;
-            });
-          }
-          
           return data;
         });
 
@@ -1176,6 +1296,30 @@ export default function MessagesPage() {
       return false;
     }
   };
+
+  const recoverFromMissingChat = useCallback((chatId: string) => {
+    const normalizedTargetId = String(chatId || '').trim();
+    if (!normalizedTargetId) return;
+
+    if (selectedChat?.id === normalizedTargetId) {
+      setMessages([]);
+      setReplyToMessage(null);
+      setAttachments([]);
+      selectChat(null);
+    }
+
+    try {
+      const cachedSelectedChatId = localStorage.getItem('selectedChatId');
+      if (cachedSelectedChatId === normalizedTargetId) {
+        localStorage.removeItem('selectedChatId');
+      }
+      localStorage.removeItem(`messages_chat_cache_${normalizedTargetId}`);
+    } catch {
+      // Ignore localStorage errors
+    }
+
+    void loadChats();
+  }, [selectedChat?.id, selectChat, loadChats]);
 
   const loadMessages = useCallback(async (chatId: string, isPolling: boolean = false) => {
     if (!isPolling) setIsLoadingMessages(true); // 🚀 PERFORMANCE
@@ -1286,34 +1430,24 @@ export default function MessagesPage() {
         
         // При polling обновляем данные чата (для галочек прочтения) - ПОСЛЕ mark-read
         if (isPolling && currentUser) {
-          const chatRes = await fetch(`/api/chats?user_id=${currentUser.id}`);
+          const chatRes = await fetch(`/api/chats?user_id=${currentUser.id}&include_archived=true`);
           if (chatRes.ok) {
             const allChats = await chatRes.json();
             const updatedChat = allChats.find((c: Chat) => c.id === chatId);
             if (updatedChat) {
               setSelectedChat((prev: Chat | null) => prev ? { ...prev, readMessagesByUser: updatedChat.readMessagesByUser } : null);
-              // Обновляем список чатов для badge - сохраняем локальные pinnedByUser
-              setChats(prevChats => {
-                return allChats.map((newChat: Chat) => {
-                  const oldChat = prevChats.find(c => c.id === newChat.id);
-                  const isSystemChat = newChat.isFavoritesChat || newChat.isNotificationsChat || newChat.isSystemChat;
-                  if (isSystemChat && oldChat?.pinnedByUser) {
-                    return {
-                      ...newChat,
-                      pinnedByUser: {
-                        ...newChat.pinnedByUser,
-                        ...oldChat.pinnedByUser
-                      }
-                    };
-                  }
-                  return newChat;
-                });
-              });
+              setChats(allChats);
             }
           }
         } else if (!isPolling) {
           // Обновляем счетчики непрочитанных при первой загрузке
           loadChats();
+        }
+      } else {
+        const errorData = await res.json().catch(() => null);
+        const detail = String(errorData?.detail || errorData?.error || '').toLowerCase();
+        if (res.status === 404 && detail.includes('chat not found')) {
+          recoverFromMissingChat(chatId);
         }
       }
     } catch (error) {
@@ -1321,7 +1455,7 @@ export default function MessagesPage() {
     } finally {
       if (!isPolling) setIsLoadingMessages(false); // 🚀 PERFORMANCE  
     }
-  }, [messagesListRef, messages, messageInputRef, currentUser, loadChats, updateUserStatus]);
+  }, [messagesListRef, messages, messageInputRef, currentUser, loadChats, updateUserStatus, recoverFromMissingChat]);
 
   const createChat = async () => {
     if (!currentUser || selectedUsers.length === 0) return;
@@ -1393,6 +1527,71 @@ export default function MessagesPage() {
     }
   };
 
+  const recreateDeletedChatAndResend = useCallback(async (
+    deletedChat: Chat,
+    payload: {
+      authorId: string;
+      content: string;
+      mentions: string[];
+      replyToId?: string;
+      attachments?: any[];
+    }
+  ): Promise<boolean> => {
+    if (!currentUser?.id) return false;
+
+    const participantIds = Array.from(
+      new Set(
+        [...(deletedChat.participantIds || []), currentUser.id]
+          .map((id) => String(id || '').trim())
+          .filter(Boolean)
+      )
+    );
+
+    if (participantIds.length === 0) return false;
+
+    const todoId = String((deletedChat as any).todoId || (deletedChat as any).todo_id || '').trim();
+
+    try {
+      const createRes = await fetch('/api/chats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          participantIds,
+          isGroup: Boolean(deletedChat.isGroup),
+          title: deletedChat.isGroup ? (deletedChat.title || 'Групповой чат') : undefined,
+          creatorId: deletedChat.isGroup ? currentUser.id : undefined,
+          todoId: todoId || undefined,
+        }),
+      });
+
+      if (!createRes.ok) return false;
+
+      const recreatedChat = await createRes.json();
+      const recreatedChatId = String(recreatedChat?.id || '').trim();
+      if (!recreatedChatId) return false;
+
+      recoverFromMissingChat(deletedChat.id);
+
+      const sendRes = await fetch(`/api/chats/${recreatedChatId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!sendRes.ok) return false;
+
+      const sentMessage = await sendRes.json();
+      selectChat(recreatedChat);
+      setMessages([sentMessage]);
+      void loadMessages(recreatedChatId, false);
+      void loadChats();
+      return true;
+    } catch (error) {
+      console.error('Failed to recreate deleted chat:', error);
+      return false;
+    }
+  }, [currentUser?.id, loadChats, loadMessages, recoverFromMissingChat, selectChat]);
+
   const sendMessage = useCallback(async () => {
     const messageText = messageInputRef.current?.value || '';
     // Проверяем: должен быть либо текст, либо вложения
@@ -1443,17 +1642,19 @@ export default function MessagesPage() {
       }
     }, 60);
 
+    const outboundPayload = {
+      authorId: currentUser.id,
+      content: messageText,
+      mentions: [],
+      replyToId: replyToMessage?.id,
+      attachments: attachments.length > 0 ? attachments : undefined,
+    };
+
     try {
       const res = await fetch(`/api/chats/${selectedChat.id}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          authorId: currentUser.id,
-          content: messageText,
-          mentions: [],
-          replyToId: replyToMessage?.id,
-          attachments: attachments.length > 0 ? attachments : undefined
-        })
+        body: JSON.stringify(outboundPayload)
       });
 
       if (res.ok) {
@@ -1469,15 +1670,35 @@ export default function MessagesPage() {
 
         loadChats();
       } else {
+        const errorData = await res.json().catch(() => null);
+        const detail = String(errorData?.detail || errorData?.error || '').toLowerCase();
         pendingOutgoingRef.current = pendingOutgoingRef.current.filter((msg) => msg.id !== optimisticMessage.id);
         setMessages(prev => prev.filter((msg) => msg.id !== optimisticMessage.id));
+
+        if (res.status === 404 && detail.includes('chat not found')) {
+          const recreatedAndResent = await recreateDeletedChatAndResend(selectedChat, outboundPayload);
+          if (!recreatedAndResent) {
+            recoverFromMissingChat(selectedChat.id);
+            alert('Чат был удалён. Не удалось автоматически создать новый — откройте диалог снова.');
+          }
+        }
       }
     } catch (error) {
       pendingOutgoingRef.current = pendingOutgoingRef.current.filter((msg) => msg.id !== optimisticMessage.id);
       setMessages(prev => prev.filter((msg) => msg.id !== optimisticMessage.id));
       console.error('Error sending message:', error);
     }
-  }, [messageInputRef, selectedChat, currentUser, attachments, replyToMessage, messagesListRef, loadChats, syncComposerHeight, updateUserStatus]);
+  }, [messageInputRef, selectedChat, currentUser, attachments, replyToMessage, messagesListRef, loadChats, syncComposerHeight, updateUserStatus, recoverFromMissingChat, recreateDeletedChatAndResend]);
+
+  useEffect(() => {
+    if (!selectedChat) return;
+    if (chats.length === 0) return;
+
+    const exists = chats.some((chat) => chat.id === selectedChat.id);
+    if (!exists) {
+      recoverFromMissingChat(selectedChat.id);
+    }
+  }, [selectedChat, chats, recoverFromMissingChat]);
 
   const updateMessage = useCallback(async (messageId: string, content: string): Promise<boolean> => {
     if (!selectedChat) return false;
@@ -1687,37 +1908,34 @@ export default function MessagesPage() {
 
     const getPinState = (targetChat: any, userId: string): boolean => {
       const pinMap = targetChat?.pinnedByUser || targetChat?.pinned_by_user || {};
-      const raw = pinMap?.[userId];
-      if (typeof raw === 'string') {
-        return raw.toLowerCase() === 'true';
+      const normalizeId = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const userIdRaw = String(userId ?? '');
+      const directRaw = pinMap?.[userIdRaw];
+
+      const toBool = (raw: unknown) => {
+        if (typeof raw === 'string') return raw.toLowerCase() === 'true';
+        return raw === true;
+      };
+
+      if (typeof directRaw !== 'undefined') {
+        return toBool(directRaw);
       }
-      return raw === true;
+
+      const normalizedUserId = normalizeId(userIdRaw);
+      for (const [key, value] of Object.entries(pinMap as Record<string, unknown>)) {
+        if (normalizeId(key) === normalizedUserId) {
+          return toBool(value);
+        }
+      }
+
+      return false;
     };
 
     const chat = chats.find(c => c.id === chatId);
     const isPinned = getPinState(chat, currentUser.id);
     const newPinState = !isPinned;
-    const remotePinStorageKey = `chat_pin_remote_${currentUser.id}_${chatId}`;
+    const previousPinState = isPinned;
 
-    // Для системных чатов (Избранное, Уведомления) сохраняем в localStorage
-    const isSystemChat = chat?.isFavoritesChat || chat?.isNotificationsChat || chat?.isSystemChat;
-    
-    if (isSystemChat) {
-      // Сохраняем в localStorage и обновляем локальный state
-      localStorage.setItem(`chat_pin_${chatId}`, String(newPinState));
-      
-      // Обновляем локальный state немедленно
-      setChats(prevChats => 
-        prevChats.map(c => 
-          c.id === chatId 
-            ? { ...c, pinnedByUser: { ...c.pinnedByUser, [currentUser.id]: newPinState } }
-            : c
-        )
-      );
-      return;
-    }
-
-    // Для обычных чатов используем API
     // Оптимистичное обновление сразу
     setChats(prevChats => 
       prevChats.map(c => 
@@ -1726,10 +1944,9 @@ export default function MessagesPage() {
           : c
       )
     );
-    localStorage.setItem(remotePinStorageKey, String(newPinState));
     
     try {
-      const res = await fetch(`/api/chats/${chatId}/pin`, {
+      const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}/pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1739,18 +1956,15 @@ export default function MessagesPage() {
       });
 
       if (!res.ok) {
-        console.warn(`[togglePinChat] Backend pin sync failed (${res.status}), keeping local state`);
-        return;
+        throw new Error(`Backend pin sync failed (${res.status})`);
       }
 
       const payload = await res.json().catch(() => null);
       if (!payload?.success) {
-        console.warn('[togglePinChat] Backend payload is not success, keeping local state');
-        return;
+        throw new Error('Backend payload is not success');
       }
 
       const serverPinned = typeof payload?.isPinned === 'boolean' ? payload.isPinned : newPinState;
-      localStorage.setItem(remotePinStorageKey, String(serverPinned));
       setChats(prevChats =>
         prevChats.map(c =>
           c.id === chatId
@@ -1767,9 +1981,115 @@ export default function MessagesPage() {
       await loadChats();
     } catch (error) {
       console.error('Error toggling pin:', error);
-      console.warn('[togglePinChat] Keeping local pin state due to sync error');
+      setChats(prevChats =>
+        prevChats.map(c =>
+          c.id === chatId
+            ? { ...c, pinnedByUser: { ...(c.pinnedByUser || {}), [currentUser.id]: previousPinState } }
+            : c
+        )
+      );
+
+      const maybeMessage = String((error as Error)?.message || '').toLowerCase();
+      if (maybeMessage.includes('404')) {
+        recoverFromMissingChat(chatId);
+      }
     }
   };
+
+  const toggleArchiveChat = async (chatId: string, nextArchived?: boolean) => {
+    if (!currentUser) return;
+
+    const getArchiveState = (targetChat: any): boolean => {
+      if (!targetChat) return false;
+      const map = targetChat.archivedByUser || targetChat.archived_by_user || {};
+      const raw = map?.[currentUser.id];
+      if (typeof raw === 'string') return raw.toLowerCase() === 'true';
+      if (raw === true) return true;
+      return Boolean(targetChat.isArchivedForUser || targetChat.is_archived_for_user);
+    };
+
+    const chat = chats.find(c => c.id === chatId);
+    const isProtectedSystemChat = Boolean(chat?.isFavoritesChat || chat?.isNotificationsChat || chat?.isSystemChat);
+    if (isProtectedSystemChat) {
+      return;
+    }
+    const currentArchived = getArchiveState(chat as any);
+    const shouldArchive = typeof nextArchived === 'boolean' ? nextArchived : !currentArchived;
+
+    setChats(prev => prev.map(c => {
+      if (c.id !== chatId) return c;
+      return {
+        ...c,
+        archivedByUser: {
+          ...(c.archivedByUser || (c as any).archived_by_user || {}),
+          [currentUser.id]: shouldArchive,
+        },
+        isArchivedForUser: shouldArchive,
+      } as Chat;
+    }));
+
+    if (selectedChat?.id === chatId && shouldArchive && !showArchivedChats) {
+      selectChat(null);
+    }
+
+    try {
+      const response = await fetch(`/api/chats/${chatId}/archive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          isArchived: shouldArchive,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Archive sync failed (${response.status})`);
+      }
+
+      await loadChats();
+    } catch (error) {
+      console.error('Error toggling archive state:', error);
+      // rollback
+      setChats(prev => prev.map(c => {
+        if (c.id !== chatId) return c;
+        return {
+          ...c,
+          archivedByUser: {
+            ...(c.archivedByUser || (c as any).archived_by_user || {}),
+            [currentUser.id]: currentArchived,
+          },
+          isArchivedForUser: currentArchived,
+        } as Chat;
+      }));
+    }
+  };
+
+  const togglePinMessage = useCallback(async (message: Message) => {
+    if (!selectedChat || !currentUser) return;
+    if (linkedTaskBanner.id) return;
+
+    const shouldPin = !Boolean(message.metadata?.isPinned);
+
+    try {
+      const response = await fetch(`/api/chats/${encodeURIComponent(selectedChat.id)}/messages/${encodeURIComponent(message.id)}/pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          isPinned: shouldPin,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to toggle message pin:', response.status);
+        return;
+      }
+
+      await loadMessages(selectedChat.id);
+    } catch (error) {
+      console.error('Error toggling message pin:', error);
+    }
+  }, [selectedChat, currentUser, loadMessages, linkedTaskBanner.id]);
 
   // Добавить участника в групповой чат
   const addParticipant = async (userId: string) => {
@@ -1958,28 +2278,42 @@ export default function MessagesPage() {
   // Разделяем чаты на закрепленные и обычные - мемоизировано для стабильности
   const { pinnedChats, unpinnedChats } = useMemo(() => {
     const userId = currentUser?.id || '';
+    const isArchivedForCurrentUser = (chat: Chat): boolean => {
+      const map = (chat as any).archivedByUser || (chat as any).archived_by_user || {};
+      const raw = map?.[userId];
+      const byMap = typeof raw === 'string' ? raw.toLowerCase() === 'true' : raw === true;
+      return Boolean(byMap || (chat as any).isArchivedForUser || (chat as any).is_archived_for_user);
+    };
+
     const getPinState = (chat: Chat): boolean => {
-      if (typeof window !== 'undefined') {
-        const localPinned = localStorage.getItem(`chat_pin_remote_${userId}_${chat.id}`);
-        if (localPinned !== null) {
-          return localPinned === 'true';
+      const pinMap = (chat as any).pinnedByUser || (chat as any).pinned_by_user || {};
+      const normalizeId = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const directRaw = pinMap?.[userId];
+      if (typeof directRaw !== 'undefined') {
+        if (typeof directRaw === 'string') return directRaw.toLowerCase() === 'true';
+        return directRaw === true;
+      }
+
+      const normalizedUserId = normalizeId(userId);
+      for (const [key, value] of Object.entries(pinMap as Record<string, unknown>)) {
+        if (normalizeId(key) === normalizedUserId) {
+          if (typeof value === 'string') return value.toLowerCase() === 'true';
+          return value === true;
         }
       }
 
-      const pinMap = (chat as any).pinnedByUser || (chat as any).pinned_by_user || {};
-      const raw = pinMap?.[userId];
-      if (typeof raw === 'string') return raw.toLowerCase() === 'true';
-      return raw === true;
+      return false;
     };
 
-    const allPinnedChats = chats.filter(chat => getPinState(chat));
-    const allUnpinnedChats = chats.filter(chat => !getPinState(chat));
+    const sourceChats = chats.filter(chat => isArchivedForCurrentUser(chat) === showArchivedChats);
+    const allPinnedChats = sourceChats.filter(chat => getPinState(chat));
+    const allUnpinnedChats = sourceChats.filter(chat => !getPinState(chat));
     
     return {
       pinnedChats: filterChatsBySearch(allPinnedChats),
       unpinnedChats: filterChatsBySearch(allUnpinnedChats)
     };
-  }, [chats, currentUser?.id, searchQuery]); // Заменили filterChatsBySearch на searchQuery
+  }, [chats, currentUser?.id, searchQuery, showArchivedChats]); // Заменили filterChatsBySearch на searchQuery
 
   const messagesContainerRef = useRef<HTMLDivElement>(null); // Ref для основного контейнера страницы
 
@@ -2187,6 +2521,8 @@ export default function MessagesPage() {
         selectedChat={selectedChat}
         isChatListCollapsed={isChatListCollapsed}
         setIsChatListCollapsed={setIsChatListCollapsed}
+        showArchivedChats={showArchivedChats}
+        setShowArchivedChats={setShowArchivedChats}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         setShowNewChatModal={setShowNewChatModal}
@@ -2246,10 +2582,85 @@ export default function MessagesPage() {
             setMessageSearchQuery={setMessageSearchQuery}
             linkedTaskId={linkedTaskBanner.id}
             linkedTaskTitle={linkedTaskBanner.title}
+            linkedTaskStatus={linkedTaskBanner.status}
             openLinkedTask={(taskId) => router.push(`/account?tab=tasks&task=${encodeURIComponent(taskId)}`)}
+            pinnedMessageId={linkedTaskBanner.id ? null : (activePinnedMessage?.id || null)}
+            pinnedMessagePreview={linkedTaskBanner.id ? null : activePinnedPreview}
+            pinnedMessageCount={linkedTaskBanner.id ? 0 : pinnedMessages.length}
+            pinnedMessagePosition={linkedTaskBanner.id ? 0 : (activePinnedMessageIndex + 1)}
+            showPreviousPinned={() => {
+              navigatePinned('prev');
+            }}
+            showNextPinned={() => {
+              navigatePinned('next');
+            }}
+            openPinnedMessage={(_messageId) => {
+              const targetMessageId = getPinnedNavigationMessageId(activePinnedMessage);
+              if (!targetMessageId) return;
+              scrollToMessage(targetMessageId);
+            }}
+            unpinMessage={() => {
+              if (activePinnedMessage) {
+                void togglePinMessage(activePinnedMessage);
+              }
+            }}
             togglePinChat={togglePinChat}
             deleteChat={deleteChat}
+            toggleArchiveChat={toggleArchiveChat}
           />
+
+          {activePinnedMessage && !linkedTaskBanner.id && isPinnedOverlayMobileView && (
+            <div className="absolute top-[56px] md:top-[58px] left-0 right-0 z-20 px-2 md:px-4 lg:px-8 pointer-events-none">
+              <div className="pointer-events-auto flex items-center gap-1.5 rounded-xl border border-[var(--border-light)] bg-[var(--bg-glass)]/95 backdrop-blur-xl px-2.5 py-1.5 shadow-[var(--shadow-card)]">
+                <button
+                  onClick={() => {
+                    navigatePinned('prev');
+                  }}
+                  className="w-6 h-6 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-glass-hover)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+                  disabled={pinnedMessages.length <= 1}
+                  title="Предыдущее закрепленное"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5 text-[var(--text-primary)]" />
+                </button>
+                <button
+                  onClick={() => {
+                    if (suppressPinnedOverlayTapRef.current) {
+                      suppressPinnedOverlayTapRef.current = false;
+                      return;
+                    }
+                    const targetMessageId = getPinnedNavigationMessageId(activePinnedMessage);
+                    if (!targetMessageId) return;
+                    scrollToMessage(targetMessageId);
+                  }}
+                  onPointerDown={handlePinnedOverlayPointerDown}
+                  onPointerUp={handlePinnedOverlayPointerUp}
+                  className="flex-1 min-w-0 text-left"
+                >
+                  <p className="text-[9px] text-[var(--text-muted)] leading-none">{activePinnedMessageIndex + 1}/{pinnedMessages.length} закреп</p>
+                  <p className="text-[11px] md:text-xs truncate text-[var(--text-primary)] leading-tight mt-0.5">
+                    {activePinnedPreview}
+                  </p>
+                </button>
+                <button
+                  onClick={() => {
+                    navigatePinned('next');
+                  }}
+                  className="w-6 h-6 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-glass-hover)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+                  disabled={pinnedMessages.length <= 1}
+                  title="Следующее закрепленное"
+                >
+                  <ChevronRight className="w-3.5 h-3.5 text-[var(--text-primary)]" />
+                </button>
+                <button
+                  onClick={() => void togglePinMessage(activePinnedMessage)}
+                  className="w-7 h-7 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center"
+                  title="Открепить"
+                >
+                  <PinOff className="w-3.5 h-3.5 text-amber-400" />
+                </button>
+              </div>
+            </div>
+          )}
           
           <MessagesArea
             messagesListRef={messagesListRef}
@@ -2278,6 +2689,7 @@ export default function MessagesPage() {
             scrollToMessage={scrollToMessage}
             setCurrentImageUrl={setCurrentImageUrl}
             setShowImageModal={setShowImageModal}
+            hasPinnedMessage={Boolean(activePinnedMessage) && !linkedTaskBanner.id && isPinnedOverlayMobileView}
           />
 
           {/* Message input */}
@@ -2512,6 +2924,10 @@ export default function MessagesPage() {
             console.error('Error loading calendars:', error);
           }
         }}
+        onTogglePin={(msg) => {
+          void togglePinMessage(msg);
+        }}
+        canPinMessage={!linkedTaskBanner.id}
       />
 
       {/* Image Modal - Telegram-style image viewer with zoom */}
@@ -2561,6 +2977,9 @@ export default function MessagesPage() {
           }}
           onTogglePin={(chatId) => {
             togglePinChat(chatId);
+          }}
+          onToggleArchive={(chatId, isArchived) => {
+            void toggleArchiveChat(chatId, isArchived);
           }}
         />
       )}

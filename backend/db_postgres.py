@@ -90,7 +90,7 @@ class PostgresConnection:
             with self.connection.cursor() as cursor:
                 cursor.execute("SELECT 1")
             return True
-        except (psycopg2.Error, psycopg2.InterfaceError):
+        except Exception:
             return False
     
     def ensure_connection(self):
@@ -106,7 +106,7 @@ class PostgresConnection:
             with self.connection.cursor() as cursor:
                 cursor.execute(query, params or ())
                 return True
-        except psycopg2.Error as e:
+        except Exception as e:
             print(f"❌ Query execution error: {e}")
             self.connection.rollback()
             return False
@@ -150,7 +150,7 @@ class PostgresConnection:
                 for params in data:
                     cursor.execute(query, params)
                 return True
-        except psycopg2.Error as e:
+        except Exception as e:
             print(f"❌ Batch execution error: {e}")
             return False
     
@@ -546,8 +546,18 @@ class PostgresDatabase:
         return departments
     
     # ==================== CHATS ====================
+    def _ensure_chats_columns(self):
+        """Ensure optional chats columns exist for newer messaging features."""
+        try:
+            self.conn.execute_query("ALTER TABLE chats ADD COLUMN IF NOT EXISTS pinned_by_user JSONB DEFAULT '{}'::jsonb")
+            self.conn.execute_query("ALTER TABLE chats ADD COLUMN IF NOT EXISTS archived_by_user JSONB DEFAULT '{}'::jsonb")
+            self.conn.execute_query("ALTER TABLE chats ADD COLUMN IF NOT EXISTS discussion_status VARCHAR(50)")
+        except Exception as e:
+            print(f"Error ensuring chats columns: {e}")
+
     def get_chats(self, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get chats, optionally filtered by user"""
+        self._ensure_chats_columns()
         if user_id:
             query = """
                 SELECT DISTINCT c.*, 
@@ -585,6 +595,7 @@ class PostgresDatabase:
     
     def get_chat(self, chat_id: str) -> Optional[Dict[str, Any]]:
         """Get single chat"""
+        self._ensure_chats_columns()
         query = """
             SELECT c.*, 
                 ARRAY_AGG(DISTINCT cp.user_id) AS participant_ids
@@ -603,6 +614,7 @@ class PostgresDatabase:
     
     def update_chat(self, chat_id: str, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Update chat"""
+        self._ensure_chats_columns()
         set_clauses = []
         params = []
         
@@ -622,13 +634,17 @@ class PostgresDatabase:
             'readMessagesByUser': 'read_messages_by_user',
             'pinned_by_user': 'pinned_by_user',
             'pinnedByUser': 'pinned_by_user',
+            'archived_by_user': 'archived_by_user',
+            'archivedByUser': 'archived_by_user',
+            'discussion_status': 'discussion_status',
+            'discussionStatus': 'discussion_status',
             'updated_at': 'updated_at',
             'updatedAt': 'updated_at'
         }
         
         for key, value in update_data.items():
             db_field = field_mapping.get(key, key)
-            if db_field in ['read_messages_by_user', 'pinned_by_user']:
+            if db_field in ['read_messages_by_user', 'pinned_by_user', 'archived_by_user']:
                 set_clauses.append(f"{db_field} = %s")
                 params.append(Json(value))
             else:
@@ -672,11 +688,12 @@ class PostgresDatabase:
     
     def add_chat(self, chat: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Add new chat"""
+        self._ensure_chats_columns()
         query = """
             INSERT INTO chats 
             (id, title, is_group, todo_id, is_notifications_chat, is_system_chat, is_favorites_chat, 
-             creator_id, read_messages_by_user, pinned_by_user)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             creator_id, read_messages_by_user, pinned_by_user, archived_by_user, discussion_status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
         """
         params = (
@@ -689,7 +706,9 @@ class PostgresDatabase:
             chat.get('is_favorites_chat', chat.get('isFavoritesChat', False)),
             chat.get('creator_id', chat.get('creatorId')),
             Json(chat.get('read_messages_by_user', chat.get('readMessagesByUser', {}))),
-            Json(chat.get('pinned_by_user', chat.get('pinnedByUser', {})))
+            Json(chat.get('pinned_by_user', chat.get('pinnedByUser', {}))),
+            Json(chat.get('archived_by_user', chat.get('archivedByUser', {}))),
+            chat.get('discussion_status', chat.get('discussionStatus')),
         )
         result = self.conn.fetch_one(query, params)
         
@@ -707,6 +726,7 @@ class PostgresDatabase:
     
     def find_chat_by_todo(self, todo_id: str) -> Optional[Dict[str, Any]]:
         """Find chat associated with a task"""
+        self._ensure_chats_columns()
         query = """
             SELECT c.*, 
                 ARRAY_AGG(DISTINCT cp.user_id) FILTER (WHERE cp.user_id IS NOT NULL) AS participant_ids
@@ -924,6 +944,133 @@ class PostgresDatabase:
         """Delete collection"""
         query = "DELETE FROM collections WHERE id = %s"
         return self.conn.execute_query(query, (collection_id,))
+
+    # ==================== EVENTS ====================
+    def _hydrate_event_row(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        event = dict(row)
+        metadata = event.get('metadata')
+        if not isinstance(metadata, dict):
+            metadata = {}
+        event['metadata'] = metadata
+
+        event['entity'] = metadata.get('entity', 'event')
+        event['event_type'] = metadata.get('type') or metadata.get('eventType') or event.get('event_type')
+        event['date_type'] = metadata.get('dateType') or metadata.get('date_type') or event.get('date_type')
+        event['tags'] = metadata.get('tags', [])
+        event['participants'] = metadata.get('participants', [])
+        event['created_by'] = metadata.get('createdBy') or metadata.get('created_by') or event.get('user_id')
+
+        passthrough_fields = [
+            'color', 'url', 'impact', 'notes',
+            'date', 'time', 'remind', 'recurrence',
+            'listId', 'sourceId', 'assignedTo', 'assignedBy',
+            'createdByName', 'linkUrl', 'linkTitle', 'type'
+        ]
+        for field in passthrough_fields:
+            if field in metadata:
+                event[field] = metadata[field]
+
+        return event
+
+    def get_events(self, entity: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get all events, optionally filtered by entity type"""
+        query = "SELECT * FROM events ORDER BY created_at DESC"
+        rows = self.conn.fetch_all(query)
+        hydrated = [self._hydrate_event_row(row) for row in rows]
+        if entity:
+            return [event for event in hydrated if event.get('entity') == entity]
+        return hydrated
+
+    def get_event(self, event_id: str, entity: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Get single event by id"""
+        query = "SELECT * FROM events WHERE id = %s"
+        row = self.conn.fetch_one(query, (event_id,))
+        if not row:
+            return None
+        event = self._hydrate_event_row(row)
+        if entity and event.get('entity') != entity:
+            return None
+        return event
+
+    def add_event(self, event_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Create event"""
+        metadata = dict(event_data.get('metadata') or {})
+        metadata['entity'] = event_data.get('entity') or metadata.get('entity') or 'event'
+
+        extra_fields = [
+            'type', 'dateType', 'color', 'url', 'tags', 'impact', 'notes', 'participants',
+            'createdBy', 'date', 'time', 'remind', 'recurrence',
+            'listId', 'sourceId', 'assignedTo', 'assignedBy', 'createdByName', 'linkUrl', 'linkTitle'
+        ]
+        for field in extra_fields:
+            if field in event_data and event_data.get(field) is not None:
+                metadata[field] = event_data.get(field)
+
+        query = """
+            INSERT INTO events (id, title, description, start_date, end_date, user_id, metadata, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+            RETURNING *
+        """
+        params = (
+            event_data.get('id'),
+            event_data.get('title'),
+            event_data.get('description'),
+            event_data.get('start_date') or event_data.get('startDate') or event_data.get('date'),
+            event_data.get('end_date') or event_data.get('endDate'),
+            event_data.get('user_id') or event_data.get('userId') or event_data.get('created_by') or event_data.get('createdBy'),
+            Json(metadata)
+        )
+        row = self.conn.fetch_one(query, params)
+        return self._hydrate_event_row(row) if row else None
+
+    def update_event(self, event_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Update event"""
+        existing = self.get_event(event_id)
+        if not existing:
+            return None
+
+        metadata = dict(existing.get('metadata') or {})
+        incoming_metadata = updates.get('metadata')
+        if isinstance(incoming_metadata, dict):
+            metadata.update(incoming_metadata)
+
+        if 'entity' in updates and updates.get('entity'):
+            metadata['entity'] = updates.get('entity')
+
+        extra_fields = [
+            'type', 'dateType', 'color', 'url', 'tags', 'impact', 'notes', 'participants',
+            'createdBy', 'date', 'time', 'remind', 'recurrence',
+            'listId', 'sourceId', 'assignedTo', 'assignedBy', 'createdByName', 'linkUrl', 'linkTitle'
+        ]
+        for field in extra_fields:
+            if field in updates:
+                metadata[field] = updates.get(field)
+
+        title = updates.get('title', existing.get('title'))
+        description = updates.get('description', existing.get('description'))
+        start_date = updates.get('start_date') or updates.get('startDate') or updates.get('date') or existing.get('start_date')
+        end_date = updates.get('end_date') or updates.get('endDate') or existing.get('end_date')
+        user_id = updates.get('user_id') or updates.get('userId') or updates.get('created_by') or updates.get('createdBy') or existing.get('user_id')
+
+        query = """
+            UPDATE events
+            SET title = %s,
+                description = %s,
+                start_date = %s,
+                end_date = %s,
+                user_id = %s,
+                metadata = %s,
+                updated_at = NOW()
+            WHERE id = %s
+            RETURNING *
+        """
+        row = self.conn.fetch_one(query, (title, description, start_date, end_date, user_id, Json(metadata), event_id))
+        return self._hydrate_event_row(row) if row else None
+
+    def delete_event(self, event_id: str) -> bool:
+        """Delete event"""
+        query = "DELETE FROM events WHERE id = %s"
+        return self.conn.execute_query(query, (event_id,))
     
     # ==================== TASKS (TODOS) ====================
     def get_tasks(self, user_id: Optional[str] = None, list_id: Optional[str] = None) -> List[Dict[str, Any]]:

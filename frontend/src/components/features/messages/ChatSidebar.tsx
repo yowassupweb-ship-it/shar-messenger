@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, Plus, MessageCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Plus, MessageCircle, ChevronLeft, ChevronRight, Archive } from 'lucide-react';
 import ChatItem from './ChatItem';
 import { Chat, User } from './types';
 
@@ -7,6 +7,8 @@ interface ChatSidebarProps {
   selectedChat: Chat | null;
   isChatListCollapsed: boolean;
   setIsChatListCollapsed: (value: boolean) => void;
+  showArchivedChats: boolean;
+  setShowArchivedChats: (value: boolean) => void;
   searchQuery: string;
   setSearchQuery: (value: string) => void;
   setShowNewChatModal: (value: boolean) => void;
@@ -32,6 +34,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   selectedChat,
   isChatListCollapsed,
   setIsChatListCollapsed,
+  showArchivedChats,
+  setShowArchivedChats,
   searchQuery,
   setSearchQuery,
   setShowNewChatModal,
@@ -75,6 +79,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   const isCollapsed = isChatListCollapsed && !isMobileView;
   const visiblePinnedChats = pinnedChats;
   const visibleUnpinnedChats = unpinnedChats;
+  const visibleChatsCount = visiblePinnedChats.length + visibleUnpinnedChats.length;
   const initialRenderBudget = 10;
   const shouldLimitInitialRender = !searchQuery.trim() && !isCollapsed;
   const renderedChats = useMemo(() => {
@@ -176,6 +181,13 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
               <Plus className="w-4 h-4" />
             </button>
             <button
+              onClick={() => setShowArchivedChats(!showArchivedChats)}
+              className={`${glassRoundButtonSmallClass} ${showArchivedChats ? 'bg-blue-500/20 border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)]' : ''}`}
+              title={showArchivedChats ? 'Показать активные чаты' : 'Показать архив'}
+            >
+              <Archive className={`w-4 h-4 ${showArchivedChats ? 'text-blue-400' : 'text-gray-500 dark:text-gray-400'}`} />
+            </button>
+            <button
               onClick={() => setIsChatListCollapsed(true)}
               className={`hidden md:flex ${glassRoundButtonSmallClass}`}
               title="Свернуть список"
@@ -191,18 +203,18 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
         {isLoadingChats ? (
           /* 🚀 PERFORMANCE: Skeleton loader для LCP оптимизации */
           <ChatListSkeleton />
-        ) : chats.length === 0 ? (
+        ) : visibleChatsCount === 0 ? (
           <div className={`flex flex-col items-center justify-center h-full text-[var(--text-muted)] ${isCollapsed ? 'md:px-1 px-4' : 'px-4'} py-8`}>
             <MessageCircle className={`${isCollapsed ? 'md:w-8 md:h-8 w-12 h-12' : 'w-12 h-12'} mb-3 opacity-50`} />
             {isCollapsed ? (
               <div className="lg:hidden">
-                <p className="text-sm text-center">Нет чатов</p>
-                <p className="text-xs mt-1 text-center">Создайте новый чат чтобы начать общение</p>
+                <p className="text-sm text-center">{showArchivedChats ? 'Архив пуст' : 'Нет чатов'}</p>
+                <p className="text-xs mt-1 text-center">{showArchivedChats ? 'В архиве пока нет чатов' : 'Создайте новый чат чтобы начать общение'}</p>
               </div>
             ) : (
               <>
-                <p className="text-sm text-center">Нет чатов</p>
-                <p className="text-xs mt-1 text-center">Создайте новый чат чтобы начать общение</p>
+                <p className="text-sm text-center">{showArchivedChats ? 'Архив пуст' : 'Нет чатов'}</p>
+                <p className="text-xs mt-1 text-center">{showArchivedChats ? 'В архиве пока нет чатов' : 'Создайте новый чат чтобы начать общение'}</p>
               </>
             )}
           </div>

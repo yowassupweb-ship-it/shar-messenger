@@ -79,7 +79,7 @@ const ChatItem = React.memo<ChatItemProps>(({
             style={{ pointerEvents: 'none' }}
           >
             <div className="flex items-center gap-2 mb-2">
-              {chat.pinnedByUser?.[currentUser?.id || ''] && <Pin className="w-3 h-3 text-cyan-400 flex-shrink-0" />}
+              {chat.pinnedByUser?.[currentUser?.id || ''] && <Pin className="w-3 h-3 text-[var(--text-primary)] flex-shrink-0" />}
               {chat.isGroup && <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />}
               <span className="font-medium text-sm text-[var(--text-primary)] truncate select-none">{chatTitle}</span>
             </div>
@@ -126,7 +126,7 @@ const ChatItem = React.memo<ChatItemProps>(({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 mb-0.5">
                 {isPinned && !chat.isFavoritesChat && !chat.isSystemChat && !chat.isNotificationsChat && (
-                  <Pin className="w-3 h-3 text-cyan-400 flex-shrink-0" />
+                  <Pin className="w-3 h-3 text-[var(--text-primary)] flex-shrink-0" />
                 )}
                 {chat.isGroup && (
                   <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />
@@ -193,7 +193,7 @@ const ChatItem = React.memo<ChatItemProps>(({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 mb-0.5">
               {isPinned && !chat.isFavoritesChat && !chat.isSystemChat && !chat.isNotificationsChat && (
-                <Pin className="w-3 h-3 text-cyan-400 flex-shrink-0" />
+                <Pin className="w-3 h-3 text-[var(--text-primary)] flex-shrink-0" />
               )}
               {chat.isGroup && (
                 <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />
@@ -240,6 +240,8 @@ const ChatItem = React.memo<ChatItemProps>(({
     prevProps.chat.lastMessage?.content === nextProps.chat.lastMessage?.content &&
     prevProps.isSelected === nextProps.isSelected &&
     prevProps.isHovered === nextProps.isHovered &&
+    prevProps.currentUser?.id === nextProps.currentUser?.id &&
+    prevProps.users === nextProps.users &&
     prevProps.chatDrafts[prevProps.chat.id] === nextProps.chatDrafts[nextProps.chat.id] &&
     prevProps.variant === nextProps.variant &&
     prevProps.isPinned === nextProps.isPinned

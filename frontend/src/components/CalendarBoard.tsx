@@ -57,6 +57,8 @@ interface Todo {
   id: string;
   title: string;
   dueDate?: string;
+  calendarEventId?: string;
+  addToCalendar?: boolean;
   completed: boolean;
   status?: 'todo' | 'in-progress' | 'pending' | 'review' | 'stuck' | 'cancelled';
   priority: 'high' | 'medium' | 'low';
@@ -154,6 +156,7 @@ export default function CalendarBoard() {
     if (!userId) return;
 
     const title = String(event?.title || 'Событие').trim() || 'Событие';
+    const calendarName = calendarLists.find((list) => list.id === event.listId)?.name || 'Личный календарь';
     const formatType = (value?: string) => {
       switch (value) {
         case 'work':
@@ -176,6 +179,7 @@ export default function CalendarBoard() {
     const buildChanges = (): string[] => {
       const changes: string[] = [];
       if (!previousEvent) {
+        changes.push(`Календарь: ${calendarName}`);
         if (event.date) changes.push(`Дата: ${event.date}`);
         if (event.time) changes.push(`Время: ${event.time}`);
         if (event.type) changes.push(`Тип: ${formatType(event.type)}`);
@@ -208,13 +212,14 @@ export default function CalendarBoard() {
     const changeLines = buildChanges();
     const body = [`«${title}»`, ...changeLines].join('\n');
     const browserBody = changeLines.length > 0 ? `${title} • ${changeLines[0]}` : title;
+    const notificationTitle = previousEvent ? 'Событие обновлено' : 'Новое событие';
 
     try {
       await fetch(`/api/chats/notifications/${encodeURIComponent(userId)}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          content: `Событие обновлено\n${body}`,
+          content: `${notificationTitle}\n${body}`,
           notificationType: 'event_update',
           linkedEventId: eventId,
           linkedEventTitle: title,
@@ -223,7 +228,7 @@ export default function CalendarBoard() {
 
       if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
         try {
-          new Notification('Событие обновлено', {
+          new Notification(notificationTitle, {
             body: browserBody,
             tag: `calendar-event-${eventId}`,
             icon: '/favicon.png',
@@ -235,7 +240,7 @@ export default function CalendarBoard() {
     } catch (error) {
       console.warn('[CalendarBoard] Failed to send direct event update notification:', error);
     }
-  }, []);
+  }, [calendarLists]);
   
   // Advanced access management states
   const [accessPermission, setAccessPermission] = useState<'viewer' | 'editor'>('viewer');
@@ -502,14 +507,25 @@ export default function CalendarBoard() {
       return date >= monthStart && date <= monthEnd;
     };
 
-    events
-      .filter(e => {
-        if (!e.date || !isWithinMonth(e.date)) return false;
-        if (!activeListId) return true;
-        if (!e.listId) return true;
-        return e.listId === activeListId;
-      })
-      .forEach(e => {
+    const visibleCalendarEvents = events.filter(e => {
+      if (!e.date || !isWithinMonth(e.date)) return false;
+      if (!activeListId) return true;
+      if (!e.listId) return true;
+      return e.listId === activeListId;
+    });
+
+    const visibleCalendarEventIds = new Set(
+      visibleCalendarEvents.map((event) => String(event.id || '').trim()).filter(Boolean)
+    );
+
+    const visibleTodoSourceIds = new Set(
+      visibleCalendarEvents
+        .filter((event) => event.type === 'task' || event.type === 'tz')
+        .map((event) => String(event.sourceId || '').trim())
+        .filter(Boolean)
+    );
+
+    visibleCalendarEvents.forEach(e => {
         items.push({
           id: `event-${e.id}`,
           kind: 'event',
@@ -522,7 +538,15 @@ export default function CalendarBoard() {
       });
 
     todos
-      .filter(t => t.dueDate && isWithinMonth(t.dueDate) && !t.archived)
+      .filter(t => {
+        if (!t.dueDate || !isWithinMonth(t.dueDate) || t.archived) return false;
+
+        const linkedEventId = String(t.calendarEventId || '').trim();
+        const linkedByEventId = Boolean(linkedEventId) && visibleCalendarEventIds.has(linkedEventId);
+        const linkedBySourceId = visibleTodoSourceIds.has(String(t.id || '').trim());
+
+        return linkedByEventId || linkedBySourceId;
+      })
       .forEach(t => {
         const normalizedDueDate = normalizeDateKey(t.dueDate);
         if (!normalizedDueDate) return;
@@ -558,6 +582,9 @@ export default function CalendarBoard() {
   const goToCurrentMonth = () => {
     setCurrentMonth(new Date());
   };
+
+  const currentMonthLabel = currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+  const formattedCurrentMonthLabel = currentMonthLabel.charAt(0).toUpperCase() + currentMonthLabel.slice(1);
 
   const getPersonName = (id?: string) => {
     if (!id) return '';
@@ -931,7 +958,7 @@ export default function CalendarBoard() {
               <div className="text-[11px] text-gray-600 dark:text-white/70">
                 {calendarToastType === 'shared'
                   ? 'События в этом календаре увидят все пользователи.'
-                  : 'События в этом календаре видите только вы.'}
+                  : 'Доступ к событиям этого календаря определяется его настройками.'}
               </div>
             </div>
             <button
@@ -1101,9 +1128,9 @@ export default function CalendarBoard() {
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            <div className="px-4 h-10 min-w-[220px] rounded-[20px] bg-gradient-to-br from-white/15 to-white/5 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl flex items-center justify-center">
+            <div className="px-5 h-10 max-w-[340px] rounded-[20px] bg-gradient-to-br from-white/15 to-white/5 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl inline-flex items-center justify-center">
               <span className="text-sm font-semibold text-gray-900 dark:text-white whitespace-nowrap">
-                {currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).charAt(0).toUpperCase() + currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).slice(1)}
+                {formattedCurrentMonthLabel}
               </span>
             </div>
 
@@ -1237,9 +1264,9 @@ export default function CalendarBoard() {
           <ChevronLeft className="w-4 h-4" />
         </button>
 
-        <div className="flex-1 mx-2 h-9 rounded-[20px] bg-gradient-to-br from-white/15 to-white/5 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl flex items-center justify-center min-w-0">
+        <div className="mx-2 px-3 h-9 rounded-[20px] bg-gradient-to-br from-white/15 to-white/5 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl inline-flex items-center justify-center min-w-0 max-w-[60vw]">
           <div className="text-sm font-semibold text-gray-900 dark:text-white truncate px-2">
-            {currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).charAt(0).toUpperCase() + currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).slice(1)}
+            {formattedCurrentMonthLabel}
           </div>
         </div>
 
@@ -1474,7 +1501,7 @@ export default function CalendarBoard() {
       {/* Add/Edit Event Modal */}
       {showAddEvent && (selectedDate || editingEvent) && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 sm:p-4">
-          <div className="bg-gradient-to-br from-white/96 to-white/90 dark:from-[var(--bg-secondary)] dark:to-[var(--bg-secondary)]/90 rounded-t-2xl sm:rounded-2xl border-t sm:border border-gray-200/80 dark:border-white/10 w-full sm:max-w-md shadow-[0_20px_60px_rgba(0,0,0,0.28)] max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="bg-gradient-to-br from-white/96 to-white/90 dark:from-[var(--bg-secondary)] dark:to-[var(--bg-secondary)]/90 rounded-t-2xl sm:rounded-2xl border-t sm:border border-gray-200/80 dark:border-white/10 w-full sm:max-w-[860px] lg:max-w-[980px] shadow-[0_20px_60px_rgba(0,0,0,0.28)] max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200/80 dark:border-white/10 flex-shrink-0 bg-white/70 dark:bg-white/[0.03] backdrop-blur-sm">
               <h3 className="font-semibold text-sm sm:text-base text-gray-900 dark:text-white tracking-tight">
                 {editingEvent ? (

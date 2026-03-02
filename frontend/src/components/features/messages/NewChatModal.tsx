@@ -43,14 +43,14 @@ export default function NewChatModal({
 
   return (
     <div className="fixed !inset-0 !p-0 !m-0 bg-black/50 backdrop-blur-sm z-[100] !overflow-hidden md:flex md:items-center md:justify-center md:p-4">
-      <div className="!w-full !h-full md:relative md:inset-auto bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl md:border md:border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_4px_24px_rgba(0,0,0,0.4)] rounded-none md:rounded-[24px] md:w-full md:max-w-md md:h-auto md:max-h-[80vh] md:min-h-0 flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-white/10 shrink-0">
-          <h3 className="font-semibold text-white">Новый чат</h3>
+      <div className="!w-full !h-full md:relative md:inset-auto bg-gradient-to-br from-white/96 to-white/88 dark:from-white/15 dark:to-white/5 backdrop-blur-xl md:border md:border-gray-200/80 dark:md:border-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.7),0_10px_32px_rgba(0,0,0,0.22)] rounded-none md:rounded-[24px] md:w-full md:max-w-md md:h-auto md:max-h-[80vh] md:min-h-0 flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200/80 dark:border-white/10 shrink-0">
+          <h3 className="font-semibold text-gray-900 dark:text-white">Новый чат</h3>
           <button
             onClick={handleClose}
-            className="p-1.5 hover:bg-white/10 rounded-full transition-all"
+            className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full transition-all"
           >
-            <X className="w-5 h-5 text-white" />
+            <X className="w-5 h-5 text-gray-700 dark:text-white" />
           </button>
         </div>
 
@@ -63,7 +63,7 @@ export default function NewChatModal({
               onChange={(e) => setIsGroupChat(e.target.checked)}
               className="w-4 h-4 rounded border-[var(--border-color)] bg-[var(--bg-tertiary)]"
             />
-            <span className="text-sm">Групповой чат</span>
+            <span className="text-sm text-gray-800 dark:text-white">Групповой чат</span>
           </label>
 
           {/* Group title */}
@@ -73,19 +73,19 @@ export default function NewChatModal({
               value={groupTitle}
               onChange={(e) => setGroupTitle(e.target.value)}
               placeholder="Название группы"
-              className="w-full px-4 py-2.5 mb-4 bg-white/5 border border-white/20 rounded-[20px] text-sm text-white placeholder:text-white/50 focus:outline-none focus:border-white/40 backdrop-blur-sm shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)]"
+              className="w-full px-4 py-2.5 mb-4 bg-white/75 dark:bg-white/5 border border-gray-200/80 dark:border-white/20 rounded-[20px] text-sm text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-white/50 focus:outline-none focus:border-gray-300 dark:focus:border-white/40 backdrop-blur-sm shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)]"
             />
           )}
 
           {/* Search users */}
           <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-white/60" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-white/60" />
             <input
               type="text"
               placeholder="Поиск пользователей..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2.5 bg-white/5 border border-white/20 rounded-[25px] text-sm text-white placeholder:text-white/50 focus:outline-none focus:border-white/40 backdrop-blur-sm shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)]"
+              className="w-full pl-9 pr-3 py-2.5 bg-white/75 dark:bg-white/5 border border-gray-200/80 dark:border-white/20 rounded-[25px] text-sm text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-white/50 focus:outline-none focus:border-gray-300 dark:focus:border-white/40 backdrop-blur-sm shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)]"
             />
           </div>
 
@@ -94,7 +94,7 @@ export default function NewChatModal({
             {filteredUsers.map(user => (
               <label
                 key={user.id}
-                className="flex items-center gap-3 p-3 bg-white/5 rounded-[20px] border border-white/10 hover:bg-white/10 cursor-pointer transition-all backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]"
+                className="flex items-center gap-3 p-3 bg-white/70 dark:bg-white/5 rounded-[20px] border border-gray-200/80 dark:border-white/10 hover:bg-white/90 dark:hover:bg-white/10 cursor-pointer transition-all backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]"
               >
                 <input
                   type={isGroupChat ? 'checkbox' : 'radio'}
@@ -120,9 +120,9 @@ export default function NewChatModal({
                   type="user"
                 />
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-white">{user.name || user.username || 'Без имени'}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{user.name || user.username || 'Без имени'}</p>
                   {user.email && (
-                    <p className="text-xs text-white/60">{user.email}</p>
+                    <p className="text-xs text-gray-600 dark:text-white/60">{user.email}</p>
                   )}
                 </div>
               </label>
@@ -130,17 +130,17 @@ export default function NewChatModal({
           </div>
         </div>
 
-        <div className="flex gap-2 p-4 border-t border-white/10">
+        <div className="flex gap-2 p-4 border-t border-gray-200/80 dark:border-white/10">
           <button
             onClick={handleClose}
-            className="flex-1 py-2.5 bg-white/5 rounded-[20px] text-sm text-white hover:bg-white/10 transition-all border border-white/10"
+            className="flex-1 py-2.5 bg-white/75 dark:bg-white/5 rounded-[20px] text-sm text-gray-800 dark:text-white hover:bg-white dark:hover:bg-white/10 transition-all border border-gray-200/80 dark:border-white/10"
           >
             Отмена
           </button>
           <button
             onClick={onCreateChat}
             disabled={selectedUsers.length === 0 || (isGroupChat && !groupTitle.trim())}
-            className="flex-1 py-2.5 bg-[#007aff]/20 text-white rounded-[20px] text-sm font-medium border border-[#007aff]/30 hover:bg-[#007aff]/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="flex-1 py-2.5 bg-[#007aff]/20 text-gray-900 dark:text-white rounded-[20px] text-sm font-medium border border-[#007aff]/30 hover:bg-[#007aff]/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
           >
             Создать чат
           </button>

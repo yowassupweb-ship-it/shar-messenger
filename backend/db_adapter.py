@@ -206,6 +206,22 @@ if USE_POSTGRES:
         
         def delete_collection(self, collection_id: str) -> bool:
             return self.db.delete_collection(collection_id)
+
+        # Events
+        def get_events(self, entity: Optional[str] = None) -> List[Dict[str, Any]]:
+            return self.db.get_events(entity)
+
+        def get_event(self, event_id: str, entity: Optional[str] = None) -> Optional[Dict[str, Any]]:
+            return self.db.get_event(event_id, entity)
+
+        def add_event(self, event_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+            return self.db.add_event(event_data)
+
+        def update_event(self, event_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+            return self.db.update_event(event_id, updates)
+
+        def delete_event(self, event_id: str) -> bool:
+            return self.db.delete_event(event_id)
         
         # Tasks (TODOs)
         def get_tasks(self, user_id: Optional[str] = None, list_id: Optional[str] = None) -> List[Dict[str, Any]]:

@@ -411,7 +411,7 @@ export default function ContactsPage() {
         <div className="flex items-center gap-2 w-full md:justify-center">
           {/* Search */}
           <div className="relative flex-1 md:flex-none">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-700 dark:text-white flex items-center justify-center z-10 pointer-events-none">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-primary)] flex items-center justify-center z-10 pointer-events-none">
               <Search className="w-5 h-5" strokeWidth={2.5} />
             </div>
             <input
@@ -419,14 +419,14 @@ export default function ContactsPage() {
               placeholder="Поиск..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full md:w-[220px] h-10 pl-10 pr-3 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-[16px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--border-light)] backdrop-blur-xl"
+              className="w-full md:w-[220px] h-10 pl-10 pr-3 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border border-[var(--border-light)] rounded-[20px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--border-primary)] shadow-[var(--shadow-card)] backdrop-blur-xl"
             />
           </div>
           
           {/* Color Toggle Button */}
           <button
             onClick={() => setColoredBackgrounds(!coloredBackgrounds)}
-            className="w-10 h-10 rounded-[16px] bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] border border-[var(--border-color)] flex items-center justify-center transition-all duration-200 backdrop-blur-xl"
+            className="w-10 h-10 rounded-[20px] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border border-[var(--border-light)] flex items-center justify-center transition-all duration-200 shadow-[var(--shadow-card)] backdrop-blur-xl"
             title={coloredBackgrounds ? 'Выключить цветные фоны' : 'Включить цветные фоны'}
           >
             {coloredBackgrounds ? (
