@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown,
   ExternalLink,
@@ -85,9 +85,31 @@ interface AccessUser {
   department?: string;
 }
 
+type ContextMenuState = {
+  x: number;
+  y: number;
+  type: 'list' | 'link';
+  item: LinkList | LinkItem;
+};
+
 type SortType = 'date' | 'clicks' | 'alpha';
 
 const LIST_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#ef4444'];
+
+const getSafeHostname = (rawUrl?: string): string => {
+  const value = (rawUrl || '').trim();
+  if (!value) return 'invalid-url';
+
+  try {
+    return new URL(value).hostname;
+  } catch {
+    try {
+      return new URL(`https://${value}`).hostname;
+    } catch {
+      return 'invalid-url';
+    }
+  }
+};
 
 const sortLinks = (links: LinkItem[], sortBy: SortType): LinkItem[] => {
   const sorted = [...links];
@@ -106,6 +128,7 @@ const sortLinks = (links: LinkItem[], sortBy: SortType): LinkItem[] => {
 export default function LinksPage() {
   const [data, setData] = useState<LinksData>({ links: [], lists: [], categories: [] });
   const [isLoading, setIsLoading] = useState(true);
+  const [isUserContextReady, setIsUserContextReady] = useState(false);
   const [currentUserId, setCurrentUserId] = useState('');
   const [currentUsername, setCurrentUsername] = useState('');
   const [currentDepartment, setCurrentDepartment] = useState('');
@@ -153,10 +176,22 @@ export default function LinksPage() {
   const [isSendingToChat, setIsSendingToChat] = useState(false);
   const [chatSearchQuery, setChatSearchQuery] = useState('');
   const [isChatDropdownOpen, setIsChatDropdownOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressTriggeredRef = useRef(false);
+  const touchStartPointRef = useRef<{ x: number; y: number } | null>(null);
 
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
+
+      if (!currentUserId && !currentUsername && !currentDepartment) {
+        setData({ links: [], lists: [], categories: [] });
+        setSelectedListId(null);
+        return;
+      }
+
       const params = new URLSearchParams();
       if (currentUserId) params.set('userId', currentUserId);
       if (currentUsername) params.set('username', currentUsername);
@@ -171,7 +206,12 @@ export default function LinksPage() {
       setData({ links, lists, categories });
 
       if (lists.length > 0) {
-        setSelectedListId((prev) => prev ?? lists[0].id);
+        setSelectedListId((prev) => {
+          if (prev && lists.some((list) => list.id === prev)) {
+            return prev;
+          }
+          return lists[0].id;
+        });
       } else {
         setSelectedListId(null);
       }
@@ -183,22 +223,117 @@ export default function LinksPage() {
   }, [currentDepartment, currentUserId, currentUsername]);
 
   useEffect(() => {
+    if (!isUserContextReady) return;
     loadData();
-  }, [loadData]);
+  }, [isUserContextReady, loadData]);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('myAccount');
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as { id?: string; username?: string; department?: string };
-      setCurrentUserId(parsed.id || '');
-      setCurrentUsername(parsed.username || '');
-      setCurrentDepartment(parsed.department || '');
-    } catch {
-      setCurrentUserId('');
-      setCurrentUsername('');
-      setCurrentDepartment('');
-    }
+    const loadUserContext = async () => {
+      try {
+        const raw = localStorage.getItem('myAccount');
+        const fallbackUsername = (localStorage.getItem('username') || '').trim();
+        if (!raw) {
+          if (!fallbackUsername) {
+            setCurrentUserId('');
+            setCurrentUsername('');
+            setCurrentDepartment('');
+            return;
+          }
+
+          try {
+            const meResponse = await fetch(`/api/auth/me?username=${encodeURIComponent(fallbackUsername)}`);
+            if (meResponse.ok) {
+              const meUser = await meResponse.json();
+              const userId = String(meUser?.id || '').trim();
+              const department = String(meUser?.department || '').trim();
+              setCurrentUserId(userId);
+              setCurrentUsername(fallbackUsername);
+              setCurrentDepartment(department);
+              localStorage.setItem(
+                'myAccount',
+                JSON.stringify({
+                  id: userId,
+                  username: fallbackUsername,
+                  department,
+                })
+              );
+              return;
+            }
+          } catch {
+            // no-op
+          }
+
+          setCurrentUserId('');
+          setCurrentUsername(fallbackUsername);
+          setCurrentDepartment('');
+          return;
+        }
+
+        const parsed = JSON.parse(raw) as { id?: string; userId?: string; username?: string; name?: string; department?: string };
+        const userId = String(parsed.id || parsed.userId || '').trim();
+        const username = String(parsed.username || fallbackUsername || parsed.name || '').trim();
+        let department = parsed.department || '';
+
+        if (!department && username) {
+          try {
+            const meResponse = await fetch(`/api/auth/me?username=${encodeURIComponent(username)}`);
+            if (meResponse.ok) {
+              const meUser = await meResponse.json();
+              department = String(meUser?.department || '').trim();
+              const resolvedUserId = String(meUser?.id || userId || '').trim();
+              localStorage.setItem(
+                'myAccount',
+                JSON.stringify({
+                  ...parsed,
+                  id: resolvedUserId,
+                  username,
+                  department,
+                })
+              );
+              setCurrentUserId(resolvedUserId);
+              setCurrentUsername(username);
+              setCurrentDepartment(department);
+              return;
+            }
+          } catch {
+            // no-op
+          }
+        }
+
+        if (!department && userId) {
+          try {
+            const response = await fetch(`/api/users/${encodeURIComponent(userId)}`);
+            if (response.ok) {
+              const user = await response.json();
+              department = String(user?.department || '').trim();
+              if (department) {
+                localStorage.setItem(
+                  'myAccount',
+                  JSON.stringify({
+                    ...parsed,
+                    department,
+                  })
+                );
+              }
+            }
+          } catch {
+            // no-op
+          }
+        }
+
+        setCurrentUserId(userId);
+        setCurrentUsername(username);
+        setCurrentDepartment(department);
+      } catch {
+        setCurrentUserId('');
+        setCurrentUsername('');
+        setCurrentDepartment('');
+      } finally {
+        setIsUserContextReady(true);
+      }
+    };
+
+    void loadUserContext();
   }, []);
 
   useEffect(() => {
@@ -295,13 +430,21 @@ export default function LinksPage() {
   const addLink = async () => {
     if (!newUrl.trim()) return;
     try {
-      await fetch('/api/links', {
+      const targetListId = newListId || selectedListId || data.lists[0]?.id;
+
+      if (!targetListId) {
+        throw new Error('Не найден список для добавления ссылки');
+      }
+
+      const response = await fetch('/api/links', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'link',
           url: newUrl.trim(),
-          listId: newListId || selectedListId || data.lists[0]?.id,
+          listId: targetListId,
+          userId: currentUserId || undefined,
+          department: currentDepartment || undefined,
           tags: newTags
             .split(',')
             .map((tag) => tag.trim())
@@ -309,8 +452,17 @@ export default function LinksPage() {
         }),
       });
 
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        const errorMessage = payload?.detail || payload?.error || 'Не удалось добавить ссылку';
+        throw new Error(errorMessage);
+      }
+
       setShowAddLinkModal(false);
       resetLinkForm();
+      setSelectedListId(targetListId);
+      setShowBookmarksOnly(false);
+      setSearchQuery('');
       await loadData();
     } catch (error) {
       console.error('Failed to add link', error);
@@ -320,7 +472,7 @@ export default function LinksPage() {
   const addList = async () => {
     if (!newListName.trim()) return;
     try {
-      await fetch('/api/links', {
+      const response = await fetch('/api/links', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -333,6 +485,12 @@ export default function LinksPage() {
           allowedDepartments: newListAllowedDepartments,
         }),
       });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        const errorMessage = payload?.detail || payload?.error || 'Не удалось создать папку';
+        throw new Error(errorMessage);
+      }
 
       setShowAddListModal(false);
       setNewListName('');
@@ -464,6 +622,8 @@ export default function LinksPage() {
           title: editTitle.trim(),
           description: editDescription.trim(),
           listId: editListId || selectedListId || data.lists[0]?.id,
+          userId: currentUserId || undefined,
+          department: currentDepartment || undefined,
           tags: editTags
             .split(',')
             .map((tag) => tag.trim())
@@ -567,6 +727,96 @@ export default function LinksPage() {
     }
   };
 
+  const openContextMenuAt = useCallback(
+    (x: number, y: number, type: 'list' | 'link', item: LinkList | LinkItem) => {
+      const menuWidth = 120;
+      const menuHeight = 56;
+      const maxX = Math.max(8, window.innerWidth - menuWidth - 8);
+      const maxY = Math.max(8, window.innerHeight - menuHeight - 8);
+      setContextMenu({
+        x: Math.min(Math.max(8, x), maxX),
+        y: Math.min(Math.max(8, y), maxY),
+        type,
+        item,
+      });
+    },
+    []
+  );
+
+  const clearLongPressTimer = useCallback((resetTrigger = false) => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    if (resetTrigger) {
+      longPressTriggeredRef.current = false;
+    }
+  }, []);
+
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent, type: 'list' | 'link', item: LinkList | LinkItem) => {
+      e.preventDefault();
+      openContextMenuAt(e.clientX, e.clientY, type, item);
+    },
+    [openContextMenuAt]
+  );
+
+  const handleTouchStartContext = useCallback(
+    (e: React.TouchEvent, type: 'list' | 'link', item: LinkList | LinkItem) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      touchStartPointRef.current = { x: touch.clientX, y: touch.clientY };
+      longPressTriggeredRef.current = false;
+      clearLongPressTimer();
+
+      longPressTimerRef.current = window.setTimeout(() => {
+        longPressTriggeredRef.current = true;
+        openContextMenuAt(touch.clientX, touch.clientY, type, item);
+      }, 420);
+    },
+    [clearLongPressTimer, openContextMenuAt]
+  );
+
+  const handleTouchMoveContext = useCallback(
+    (e: React.TouchEvent) => {
+      if (!touchStartPointRef.current || e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const deltaX = Math.abs(touch.clientX - touchStartPointRef.current.x);
+      const deltaY = Math.abs(touch.clientY - touchStartPointRef.current.y);
+      if (deltaX > 10 || deltaY > 10) {
+        clearLongPressTimer();
+      }
+    },
+    [clearLongPressTimer]
+  );
+
+  const handleTouchEndContext = useCallback(() => {
+    clearLongPressTimer();
+    touchStartPointRef.current = null;
+    if (longPressTriggeredRef.current) {
+      window.setTimeout(() => {
+        longPressTriggeredRef.current = false;
+      }, 0);
+    }
+  }, [clearLongPressTimer]);
+
+  const consumeLongPressClick = useCallback(() => {
+    if (!longPressTriggeredRef.current) return false;
+    longPressTriggeredRef.current = false;
+    return true;
+  }, []);
+
+  useEffect(() => {
+    const closeMenu = () => setContextMenu(null);
+    document.addEventListener('mousedown', closeMenu);
+    window.addEventListener('scroll', closeMenu, true);
+    return () => {
+      document.removeEventListener('mousedown', closeMenu);
+      window.removeEventListener('scroll', closeMenu, true);
+      clearLongPressTimer(true);
+    };
+  }, [clearLongPressTimer]);
+
   return (
     <div className="h-full min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex min-w-0 overflow-hidden">
       {isMobileListsOpen && (
@@ -599,9 +849,15 @@ export default function LinksPage() {
               <div key={list.id} className="group rounded-xl border border-transparent hover:border-[var(--border-color)]">
                 <button
                   onClick={() => {
+                    if (consumeLongPressClick()) return;
                     setSelectedListId(list.id);
                     setIsMobileListsOpen(false);
                   }}
+                  onContextMenu={(e) => handleContextMenu(e, 'list', list)}
+                  onTouchStart={(e) => handleTouchStartContext(e, 'list', list)}
+                  onTouchMove={handleTouchMoveContext}
+                  onTouchEnd={handleTouchEndContext}
+                  onTouchCancel={handleTouchEndContext}
                   className={`w-full px-3 py-2 rounded-xl flex items-center gap-2 text-left ${
                     isActive ? 'bg-[var(--bg-glass-active)]' : 'hover:bg-[var(--bg-glass)]'
                   }`}
@@ -613,24 +869,6 @@ export default function LinksPage() {
                   </span>
                   <span className="text-xs text-[var(--text-muted)]">{listStats[list.id] || 0}</span>
                 </button>
-
-                <div className="hidden group-hover:flex items-center gap-1 px-3 pb-2">
-                  <button
-                    onClick={() => startEditList(list)}
-                    className="w-6 h-6 rounded-md hover:bg-[var(--bg-glass)] flex items-center justify-center"
-                    title="Переименовать"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => deleteList(list.id)}
-                    className="w-6 h-6 rounded-md hover:bg-[var(--bg-glass)] flex items-center justify-center"
-                    title="Удалить список"
-                    disabled={data.lists.length <= 1}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
 
                 {editingListId === list.id && (
                   <div className="px-3 pb-2">
@@ -782,21 +1020,27 @@ export default function LinksPage() {
             <div className="grid grid-cols-1 min-[700px]:grid-cols-2 min-[1200px]:grid-cols-3 gap-3">
               {visibleLinks.map((item) => {
                 const categoryName = data.categories.find((c) => c.id === item.categoryId)?.name;
+                const hostname = getSafeHostname(item.url);
                 return (
                   <article
                     key={item.id}
                     onDoubleClick={() => openEditLinkModal(item)}
+                    onContextMenu={(e) => handleContextMenu(e, 'link', item)}
+                    onTouchStart={(e) => handleTouchStartContext(e, 'link', item)}
+                    onTouchMove={handleTouchMoveContext}
+                    onTouchEnd={handleTouchEndContext}
+                    onTouchCancel={handleTouchEndContext}
                     className="rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-3 min-w-0 hover:bg-[var(--bg-glass)] transition-colors flex flex-col h-full"
                   >
                     <div className="flex items-start gap-2">
                       <img
-                        src={item.favicon || `https://www.google.com/s2/favicons?domain=${new URL(item.url).hostname}&sz=64`}
+                        src={item.favicon || `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`}
                         alt="favicon"
                         className="w-6 h-6 rounded shrink-0 mt-0.5"
                       />
                       <div className="min-w-0 flex-1">
                         <h3 className="text-sm font-semibold truncate">{item.title}</h3>
-                        <p className="text-xs text-[var(--text-muted)] truncate">{item.siteName || new URL(item.url).hostname}</p>
+                        <p className="text-xs text-[var(--text-muted)] truncate">{item.siteName || hostname}</p>
                       </div>
                     </div>
 
@@ -932,6 +1176,45 @@ export default function LinksPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {contextMenu && (
+        <div
+          className="fixed z-[140] flex items-center gap-1 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-1 shadow-[0_12px_28px_rgba(0,0,0,0.22)]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              if (contextMenu.type === 'link') {
+                openEditLinkModal(contextMenu.item as LinkItem);
+              } else {
+                startEditList(contextMenu.item as LinkList);
+              }
+              setContextMenu(null);
+            }}
+            className="w-9 h-9 rounded-lg hover:bg-[var(--bg-glass)] flex items-center justify-center"
+            title="Редактировать"
+          >
+            <Edit3 className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (contextMenu.type === 'link') {
+                deleteLink((contextMenu.item as LinkItem).id);
+              } else {
+                deleteList((contextMenu.item as LinkList).id);
+              }
+              setContextMenu(null);
+            }}
+            className="w-9 h-9 rounded-lg hover:bg-[var(--bg-glass)] flex items-center justify-center"
+            title="Удалить"
+          >
+            <Trash2 className="w-4 h-4 text-rose-500" />
+          </button>
         </div>
       )}
 
