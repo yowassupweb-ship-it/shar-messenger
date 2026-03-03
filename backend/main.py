@@ -236,7 +236,11 @@ async def get_uploaded_file(filename: str):
 
 # Папка для аватаров
 AVATARS_DIR = UPLOAD_DIR / "avatars"
-AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+except PermissionError as e:
+    import logging as _logging
+    _logging.warning(f"[Storage] Cannot create directory {AVATARS_DIR}: {e}")
 
 # Папки для фоновых SVG чатов (light/dark), устойчивые к передеплоям через SHAR_UPLOADS_DIR
 CHAT_BACKGROUNDS_DIR = UPLOAD_DIR / "chat-backgrounds"
@@ -244,19 +248,27 @@ CHAT_BACKGROUNDS_LIGHT_DIR = CHAT_BACKGROUNDS_DIR / "light"
 CHAT_BACKGROUNDS_DARK_DIR = CHAT_BACKGROUNDS_DIR / "dark"
 CHAT_BACKGROUNDS_LIGHT_GRADIENT_DIR = CHAT_BACKGROUNDS_DIR / "light-gradient"
 CHAT_BACKGROUNDS_DARK_GRADIENT_DIR = CHAT_BACKGROUNDS_DIR / "dark-gradient"
-CHAT_BACKGROUNDS_LIGHT_DIR.mkdir(parents=True, exist_ok=True)
-CHAT_BACKGROUNDS_DARK_DIR.mkdir(parents=True, exist_ok=True)
-CHAT_BACKGROUNDS_LIGHT_GRADIENT_DIR.mkdir(parents=True, exist_ok=True)
-CHAT_BACKGROUNDS_DARK_GRADIENT_DIR.mkdir(parents=True, exist_ok=True)
-
 CHAT_BACKGROUNDS_LIGHT_BG_DIR = CHAT_BACKGROUNDS_LIGHT_DIR / "backgrounds"
 CHAT_BACKGROUNDS_LIGHT_OVERLAY_DIR = CHAT_BACKGROUNDS_LIGHT_DIR / "overlays"
 CHAT_BACKGROUNDS_DARK_BG_DIR = CHAT_BACKGROUNDS_DARK_DIR / "backgrounds"
 CHAT_BACKGROUNDS_DARK_OVERLAY_DIR = CHAT_BACKGROUNDS_DARK_DIR / "overlays"
-CHAT_BACKGROUNDS_LIGHT_BG_DIR.mkdir(parents=True, exist_ok=True)
-CHAT_BACKGROUNDS_LIGHT_OVERLAY_DIR.mkdir(parents=True, exist_ok=True)
-CHAT_BACKGROUNDS_DARK_BG_DIR.mkdir(parents=True, exist_ok=True)
-CHAT_BACKGROUNDS_DARK_OVERLAY_DIR.mkdir(parents=True, exist_ok=True)
+
+_upload_dirs = [
+    CHAT_BACKGROUNDS_LIGHT_DIR,
+    CHAT_BACKGROUNDS_DARK_DIR,
+    CHAT_BACKGROUNDS_LIGHT_GRADIENT_DIR,
+    CHAT_BACKGROUNDS_DARK_GRADIENT_DIR,
+    CHAT_BACKGROUNDS_LIGHT_BG_DIR,
+    CHAT_BACKGROUNDS_LIGHT_OVERLAY_DIR,
+    CHAT_BACKGROUNDS_DARK_BG_DIR,
+    CHAT_BACKGROUNDS_DARK_OVERLAY_DIR,
+]
+for _d in _upload_dirs:
+    try:
+        _d.mkdir(parents=True, exist_ok=True)
+    except PermissionError as e:
+        import logging as _logging
+        _logging.warning(f"[Storage] Cannot create directory {_d}: {e}")
 
 
 def _get_theme_background_root(theme: str) -> Path:
