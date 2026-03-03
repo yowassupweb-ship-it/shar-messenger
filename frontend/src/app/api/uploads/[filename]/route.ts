@@ -3,13 +3,43 @@ import { readFile } from 'fs/promises';
 import path from 'path';
 import { existsSync } from 'fs';
 
+const BACKEND_BASE_URL = (process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000')
+  .replace(/\/+$/, '')
+  .replace(/\/api$/i, '');
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ filename: string }> }
 ) {
   try {
     const { filename } = await params;
-    const filePath = path.join(process.cwd(), '..', 'backend', 'uploads', filename);
+
+    const sanitizedFilename = path.basename(filename);
+
+    // 1) Основной источник: backend API
+    try {
+      const backendRes = await fetch(`${BACKEND_BASE_URL}/api/uploads/${encodeURIComponent(sanitizedFilename)}`, {
+        method: 'GET',
+        cache: 'no-store'
+      });
+
+      if (backendRes.ok) {
+        const fileBuffer = await backendRes.arrayBuffer();
+        const contentType = backendRes.headers.get('content-type') || 'application/octet-stream';
+
+        return new NextResponse(fileBuffer, {
+          headers: {
+            'Content-Type': contentType,
+            'Cache-Control': 'public, max-age=31536000, immutable'
+          }
+        });
+      }
+    } catch (proxyError) {
+      console.error('Error proxying file from backend:', proxyError);
+    }
+
+    // 2) Fallback для локальной разработки
+    const filePath = path.join(process.cwd(), '..', 'backend', 'uploads', sanitizedFilename);
 
     if (!existsSync(filePath)) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
@@ -18,7 +48,7 @@ export async function GET(
     const fileBuffer = await readFile(filePath);
     
     // Определяем MIME тип по расширению
-    const ext = filename.split('.').pop()?.toLowerCase();
+    const ext = sanitizedFilename.split('.').pop()?.toLowerCase();
     const mimeTypes: Record<string, string> = {
       'jpg': 'image/jpeg',
       'jpeg': 'image/jpeg',

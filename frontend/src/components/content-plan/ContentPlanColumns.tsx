@@ -22,17 +22,17 @@ interface ContentPlanColumnsProps {
   dragOverDate: string | null;
   myAccountId: string | null;
   users: Person[];
-  scrollContainerRef: React.RefObject<HTMLDivElement>;
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   getPostsForDay: (day: Date) => ContentPost[];
   handleMouseDown: (e: React.MouseEvent) => void;
   handleMouseMove: (e: React.MouseEvent) => void;
   handleMouseUp: () => void;
   handleMouseLeave: () => void;
   handleDragOver: (e: React.DragEvent, dateKey: string) => void;
-  handleDragLeave: () => void;
+  handleDragLeave: (e?: React.DragEvent) => void;
   handleDrop: (e: React.DragEvent, date: Date) => void;
   handleDragStart: (e: React.DragEvent, post: ContentPost) => void;
-  handleDragEnd: () => void;
+  handleDragEnd: (e: React.DragEvent) => void;
   openEditPost: (post: ContentPost) => void;
   openAddPost: (date: Date) => void;
   copyPost: (post: ContentPost, e?: React.MouseEvent) => void;
@@ -82,7 +82,7 @@ export default function ContentPlanColumns({
           return (
             <div
               key={dateKey}
-              style={{ width: '260px', minWidth: '260px', flexShrink: 0 }}
+              style={{ width: '230px', minWidth: '230px', flexShrink: 0 }}
               className={`flex flex-col rounded-xl border transition-all ${
                 isDropTarget ? 'ring-2 ring-purple-500/50 border-purple-500/50' : 'border-gray-300 dark:border-white/10'
               } ${
@@ -95,11 +95,15 @@ export default function ContentPlanColumns({
               {/* Column Header */}
               <div className={`px-2.5 py-1.5 rounded-t-xl border-b flex items-center justify-between ${
                 isToday 
-                  ? 'bg-purple-500/20 border-purple-500/30' 
+                  ? 'bg-purple-200 dark:bg-purple-900 border-purple-400 dark:border-purple-600' 
                   : 'bg-gray-100 dark:bg-[#1a1a1a] border-gray-200 dark:border-white/10'
               }`}>
                 <div className="flex items-center gap-2">
-                  <span className={`text-lg font-bold ${isToday ? 'text-purple-600 dark:text-purple-400' : 'text-gray-900 dark:text-white'}`}>
+                  <span className={`text-lg font-bold ${
+                    isToday
+                      ? 'text-purple-900 dark:text-purple-100 bg-purple-300 dark:bg-purple-700 border border-purple-400 dark:border-purple-500 rounded-md px-2 py-0.5 shadow-[0_1px_4px_rgba(168,85,247,0.25)]'
+                      : 'text-gray-900 dark:text-white'
+                  }`}>
                     {day.getDate()}
                   </span>
                   <span className={`text-[10px] font-medium ${isToday ? 'text-purple-500 dark:text-purple-400/70' : 'text-gray-500 dark:text-white/40'}`}>
@@ -117,8 +121,8 @@ export default function ContentPlanColumns({
               </div>
 
               {/* Cards Container */}
-              <div className={`flex-1 p-2.5 space-y-3 rounded-b-xl min-h-[100px] ${
-                isToday ? 'bg-purple-50 dark:bg-purple-500/5' : 'bg-gray-50 dark:bg-[#141414]'
+              <div className={`flex-1 p-2.5 space-y-3 rounded-b-xl min-h-[100px] backdrop-blur-md ${
+                isToday ? 'bg-purple-100/60 dark:bg-purple-950/40' : 'bg-gray-50/50 dark:bg-[#141414]/30'
               }`}>
                 {dayPosts.map(post => {
                   const platformConfig = PLATFORM_CONFIG[post.platform] || { color: '#666', name: 'Unknown', icon: '' };

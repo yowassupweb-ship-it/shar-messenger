@@ -290,7 +290,7 @@ export default function ChatHeader({
                 setShowChatInfo(true);
                 setChatInfoTab('profile');
               }}
-              className={`no-mobile-scale flex items-center gap-3 min-w-0 px-[14px] py-[6px] rounded-full transition-all h-[46px] ${glassPillClass} ${isMobileView ? 'flex-1 w-0 max-w-none' : 'w-fit shrink-0 max-w-[calc(100%-104px)]'}`}
+              className={`no-mobile-scale flex items-center gap-3 min-w-0 pl-[5px] pr-[14px] py-[6px] rounded-full transition-all h-[46px] ${glassPillClass} ${isMobileView ? 'flex-1 w-0 max-w-none' : 'w-fit shrink-0 max-w-[calc(100%-104px)]'}`}
             >
               {(() => {
                 const avatarData = getChatAvatarData(selectedChat);
@@ -454,78 +454,43 @@ export default function ChatHeader({
             )}
 
             {!showMessageSearch && !linkedTaskId && pinnedMessageId && !isMiniTaskHeaderView && (
-              <>
-                {useCompactLinkedTaskButton ? (
-                  <div className="flex items-center gap-1 ml-1">
-                    <button
-                      onClick={showPreviousPinned}
-                      className="w-8 h-8 rounded-full border border-[var(--border-light)] bg-[var(--bg-glass)]/95 hover:bg-[var(--bg-glass-hover)] flex items-center justify-center disabled:opacity-45 disabled:cursor-not-allowed"
-                      disabled={pinnedMessageCount <= 1}
-                      title="Предыдущее закрепленное"
-                    >
-                      <ChevronLeft className="w-4 h-4 text-[var(--text-primary)]" />
-                    </button>
-                    <button
-                      onClick={() => openPinnedMessage(pinnedMessageId)}
-                      className={`${glassRoundButtonClass} text-[var(--text-primary)] relative`}
-                      title="Закрепленное сообщение"
-                    >
-                      <Pin className="w-4 h-4 text-cyan-400" />
-                      {pinnedMessageCount > 1 && (
-                        <span className="absolute -bottom-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-cyan-500 text-[9px] leading-4 text-white border border-[var(--border-light)]">
-                          {pinnedMessagePosition}
-                        </span>
-                      )}
-                    </button>
-                    <button
-                      onClick={showNextPinned}
-                      className="w-8 h-8 rounded-full border border-[var(--border-light)] bg-[var(--bg-glass)]/95 hover:bg-[var(--bg-glass-hover)] flex items-center justify-center disabled:opacity-45 disabled:cursor-not-allowed"
-                      disabled={pinnedMessageCount <= 1}
-                      title="Следующее закрепленное"
-                    >
-                      <ChevronRight className="w-4 h-4 text-[var(--text-primary)]" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center ml-1">
-                    <div className={`w-[244px] min-w-[244px] max-w-[244px] h-[38px] px-2 rounded-full flex items-center gap-1.5 ${glassPillClass}`}>
-                      <button
-                        onClick={showPreviousPinned}
-                        className="w-6 h-6 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center disabled:opacity-45 disabled:cursor-not-allowed"
-                        disabled={pinnedMessageCount <= 1}
-                        title="Предыдущее закрепленное"
-                      >
-                        <ChevronLeft className="w-3.5 h-3.5 text-[var(--text-primary)]" />
-                      </button>
-                      <button
-                        onClick={() => openPinnedMessage(pinnedMessageId)}
-                        className="min-w-0 flex-1 text-left"
-                        title="Закрепленное сообщение"
-                      >
-                        <p className="text-[8px] uppercase tracking-wide text-[var(--text-muted)] leading-none">
-                          {pinnedMessagePosition}/{pinnedMessageCount} закреп
-                        </p>
-                        <p className="text-[11px] text-[var(--text-primary)] truncate mt-0.5 leading-tight">{pinnedMessagePreview || 'Сообщение без текста'}</p>
-                      </button>
-                      <button
-                        onClick={showNextPinned}
-                        className="w-6 h-6 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center disabled:opacity-45 disabled:cursor-not-allowed"
-                        disabled={pinnedMessageCount <= 1}
-                        title="Следующее закрепленное"
-                      >
-                        <ChevronRight className="w-3.5 h-3.5 text-[var(--text-primary)]" />
-                      </button>
-                      <button
-                        onClick={unpinMessage}
-                        className="w-6 h-6 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center flex-shrink-0"
-                        title="Открепить"
-                      >
-                        <PinOff className="w-3 h-3 text-amber-400" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </>
+              <div className="flex items-center ml-1">
+                <div className={`w-[244px] max-w-[244px] shrink h-[38px] px-2 rounded-full flex items-center gap-1.5 ${glassPillClass}`}>
+                  <button
+                    onClick={showPreviousPinned}
+                    className="w-6 h-6 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center disabled:opacity-45 disabled:cursor-not-allowed shrink-0"
+                    disabled={pinnedMessageCount <= 1}
+                    title="Предыдущее закрепленное"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5 text-[var(--text-primary)]" />
+                  </button>
+                  <button
+                    onClick={() => openPinnedMessage(pinnedMessageId)}
+                    className="min-w-0 flex-1 text-left shrink"
+                    title="Закрепленное сообщение"
+                  >
+                    <p className="text-[8px] uppercase tracking-wide text-[var(--text-muted)] leading-none truncate">
+                      {pinnedMessagePosition}/{pinnedMessageCount} закреп
+                    </p>
+                    <p className="text-[11px] text-[var(--text-primary)] truncate mt-0.5 leading-tight">{pinnedMessagePreview || 'Сообщение без текста'}</p>
+                  </button>
+                  <button
+                    onClick={showNextPinned}
+                    className="w-6 h-6 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center disabled:opacity-45 disabled:cursor-not-allowed shrink-0"
+                    disabled={pinnedMessageCount <= 1}
+                    title="Следующее закрепленное"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5 text-[var(--text-primary)]" />
+                  </button>
+                  <button
+                    onClick={unpinMessage}
+                    className="w-6 h-6 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center shrink-0"
+                    title="Открепить"
+                  >
+                    <PinOff className="w-3 h-3 text-[var(--text-muted)] hover:text-amber-400 transition-colors" />
+                  </button>
+                </div>
+              </div>
             )}
             
             {/* Кнопка прокрутки к непрочитанным - СКРЫТА, мешала UI */}

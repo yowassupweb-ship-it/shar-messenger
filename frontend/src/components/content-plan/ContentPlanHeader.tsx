@@ -73,13 +73,13 @@ export default function ContentPlanHeader({
   return (
     <>
       {/* View Mode Toggle */}
-      <div className="flex items-center p-1 h-10 bg-gradient-to-br from-white/15 to-white/5 border border-white/20 rounded-[20px] shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl mr-2 sm:mr-3">
+      <div className="flex items-center p-1 h-10 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] rounded-[20px] shadow-[var(--shadow-card)] backdrop-blur-xl mr-2 sm:mr-3">
         <button
           onClick={() => setViewMode('columns')}
           className={`w-8 h-8 rounded-[14px] flex items-center justify-center transition-all ${
             viewMode === 'columns' 
               ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' 
-              : 'text-gray-500 dark:text-white/50 hover:bg-white/10'
+              : 'text-[var(--text-muted)] hover:bg-[var(--bg-glass-hover)]'
           }`}
           title="Колонки"
         >
@@ -90,7 +90,7 @@ export default function ContentPlanHeader({
           className={`w-8 h-8 rounded-[14px] flex items-center justify-center transition-all ${
             viewMode === 'calendar' 
               ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' 
-              : 'text-gray-500 dark:text-white/50 hover:bg-white/10'
+              : 'text-[var(--text-muted)] hover:bg-[var(--bg-glass-hover)]'
           }`}
           title="Календарь"
         >
@@ -101,10 +101,10 @@ export default function ContentPlanHeader({
       {/* Navigation - depends on view mode */}
       {viewMode === 'columns' ? (
         <>
-          <div className="hidden sm:flex items-center gap-2 mr-3 p-1 h-10 bg-gradient-to-br from-white/15 to-white/5 border border-white/20 rounded-[20px] shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl">
+          <div className="hidden sm:flex items-center gap-2 mr-3 p-1 h-10 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] rounded-[20px] shadow-[var(--shadow-card)] backdrop-blur-xl">
             <button
               onClick={handleGoToPreviousWeek}
-              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
+              className="w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[var(--shadow-card)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] transition-all"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -116,21 +116,21 @@ export default function ContentPlanHeader({
             </button>
             <button
               onClick={handleGoToNextWeek}
-              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
+              className="w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[var(--shadow-card)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] transition-all"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-          <span className="hidden lg:inline text-sm text-gray-500 dark:text-white/60">
+          <span className="hidden lg:inline text-sm text-[var(--text-muted)]">
             {weekDays[0].toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })} — {weekDays[6].toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
           </span>
         </>
       ) : (
         <>
-          <div className="hidden sm:flex items-center gap-2 mr-3 p-1 h-10 bg-gradient-to-br from-white/15 to-white/5 border border-white/20 rounded-[20px] shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl">
+          <div className="hidden sm:flex items-center gap-2 mr-3 p-1 h-10 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] rounded-[20px] shadow-[var(--shadow-card)] backdrop-blur-xl">
             <button
               onClick={handleGoToPreviousMonth}
-              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
+              className="w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[var(--shadow-card)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] transition-all"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -142,12 +142,12 @@ export default function ContentPlanHeader({
             </button>
             <button
               onClick={handleGoToNextMonth}
-              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
+              className="w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[var(--shadow-card)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] transition-all"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-          <span className="hidden lg:inline text-sm text-gray-500 dark:text-white/60">
+          <span className="hidden lg:inline text-sm text-[var(--text-muted)]">
             {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
           </span>
         </>
@@ -162,7 +162,7 @@ export default function ContentPlanHeader({
           className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 h-10 rounded-[20px] transition-all border backdrop-blur-xl ${
             selectedPlatformFilters.length > 0 
               ? 'bg-purple-500/20 border border-purple-500/30 text-purple-600 dark:text-purple-400' 
-              : 'bg-gradient-to-br from-white/15 to-white/5 border-white/20 hover:from-white/20 hover:to-white/10 text-gray-600 dark:text-white/70 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)]'
+              : 'bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border-[var(--border-light)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] text-[var(--text-primary)] shadow-[var(--shadow-card)]'
           }`}
         >
           <Filter className="w-3.5 h-3.5" />
@@ -225,7 +225,7 @@ export default function ContentPlanHeader({
       <div className="relative mr-2 sm:mr-3 hidden sm:flex items-center">
         {isSearchOpen ? (
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 z-10 pointer-events-none text-gray-600 dark:text-white/40" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 z-10 pointer-events-none text-[var(--text-primary)]" />
             <input
               type="text"
               placeholder="Поиск..."
@@ -236,14 +236,14 @@ export default function ContentPlanHeader({
                   setIsSearchOpen(false);
                 }
               }}
-              className="pl-9 pr-4 h-10 bg-gradient-to-br from-white/15 to-white/5 border border-gray-300/70 dark:border-white/20 rounded-[20px] w-40 text-sm focus:outline-none focus:border-purple-500/40 dark:focus:border-white/30 transition-colors shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
+              className="pl-9 pr-4 h-10 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] rounded-[20px] w-40 text-sm focus:outline-none focus:border-[var(--border-primary)] transition-colors shadow-[var(--shadow-card)] backdrop-blur-xl"
               autoFocus
             />
           </div>
         ) : (
           <button
             onClick={() => setIsSearchOpen(true)}
-            className="w-10 h-10 rounded-[20px] flex items-center justify-center bg-gradient-to-br from-white/15 to-white/5 border border-white/20 hover:from-white/20 hover:to-white/10 text-gray-600 dark:text-white/70 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl transition-all"
+            className="w-10 h-10 rounded-[20px] flex items-center justify-center bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] text-[var(--text-primary)] shadow-[var(--shadow-card)] backdrop-blur-xl transition-all"
             title="Поиск"
           >
             <Search className="w-4 h-4" />

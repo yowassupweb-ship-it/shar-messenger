@@ -14,6 +14,17 @@ export interface LinkItem {
   favicon?: string;
 }
 
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  description?: string;
+  startDate: string;
+  endDate?: string;
+  createdBy?: string;
+  participants?: string[];
+  calendarListId?: string;
+}
+
 export interface ContentPost {
   id: string;
   title: string;
@@ -31,6 +42,7 @@ export interface ContentPost {
   linkId?: string;
   linkUrl?: string;
   linkTitle?: string;
+  eventId?: string;
   createdBy?: string;
   createdAt: string;
   updatedAt: string;
@@ -49,7 +61,7 @@ export interface Toast {
   id: string;
   type: 'info' | 'success' | 'warning' | 'error';
   title: string;
-  message: string;
+  message?: string;
   postId?: string;
   createdAt: number;
 }
@@ -96,6 +108,7 @@ export interface PostForm {
   linkId?: string;
   linkUrl?: string;
   linkTitle?: string;
+  eventId?: string;
 }
 
 export type ViewMode = 'columns' | 'calendar';

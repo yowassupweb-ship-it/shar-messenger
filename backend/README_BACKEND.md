@@ -91,7 +91,18 @@ USE_POSTGRES=false  # true для PostgreSQL, false для JSON
 
 # Сохранить JSON как резервную копию
 KEEP_JSON_BACKUP=true
+
+# ВАЖНО: постоянное хранилище вложений/аватаров (вне папки релиза)
+# Пример Linux: /var/lib/shar/uploads
+# Пример Windows: D:/shar/uploads
+SHAR_UPLOADS_DIR=/var/lib/shar/uploads
 ```
+
+### Защита вложений от передеплоев
+
+- Файлы из `POST /api/upload` и `POST /api/avatars` сохраняются в директорию `SHAR_UPLOADS_DIR`.
+- Для продакшена указывайте путь **вне** `backend/` и **вне** каталога сборки/релиза.
+- Если `SHAR_UPLOADS_DIR` не задан, используется локальная папка `backend/uploads` (подходит только для dev).
 
 ---
 

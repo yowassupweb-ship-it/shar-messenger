@@ -508,7 +508,10 @@ class PostgresDatabase:
             db_key = field_map.get(key, key)
             
             # Handle JSON fields
-            if db_key in ['enabled_tools', 'metadata', 'visible_tabs', 'tools_order', 'pinned_tools', 'chat_settings']:
+            if db_key == 'chat_settings':
+                set_clauses.append("chat_settings = COALESCE(chat_settings, '{}'::jsonb) || %s::jsonb")
+                params.append(Json(value or {}))
+            elif db_key in ['enabled_tools', 'metadata', 'visible_tabs', 'tools_order', 'pinned_tools']:
                 set_clauses.append(f"{db_key} = %s")
                 params.append(Json(value))
             else:
@@ -550,6 +553,7 @@ class PostgresDatabase:
         """Ensure optional chats columns exist for newer messaging features."""
         try:
             self.conn.execute_query("ALTER TABLE chats ADD COLUMN IF NOT EXISTS pinned_by_user JSONB DEFAULT '{}'::jsonb")
+            self.conn.execute_query("ALTER TABLE chats ADD COLUMN IF NOT EXISTS pinned_order_by_user JSONB DEFAULT '{}'::jsonb")
             self.conn.execute_query("ALTER TABLE chats ADD COLUMN IF NOT EXISTS archived_by_user JSONB DEFAULT '{}'::jsonb")
             self.conn.execute_query("ALTER TABLE chats ADD COLUMN IF NOT EXISTS discussion_status VARCHAR(50)")
         except Exception as e:
@@ -634,6 +638,8 @@ class PostgresDatabase:
             'readMessagesByUser': 'read_messages_by_user',
             'pinned_by_user': 'pinned_by_user',
             'pinnedByUser': 'pinned_by_user',
+            'pinned_order_by_user': 'pinned_order_by_user',
+            'pinnedOrderByUser': 'pinned_order_by_user',
             'archived_by_user': 'archived_by_user',
             'archivedByUser': 'archived_by_user',
             'discussion_status': 'discussion_status',
@@ -644,7 +650,7 @@ class PostgresDatabase:
         
         for key, value in update_data.items():
             db_field = field_mapping.get(key, key)
-            if db_field in ['read_messages_by_user', 'pinned_by_user', 'archived_by_user']:
+            if db_field in ['read_messages_by_user', 'pinned_by_user', 'pinned_order_by_user', 'archived_by_user']:
                 set_clauses.append(f"{db_field} = %s")
                 params.append(Json(value))
             else:
@@ -692,8 +698,8 @@ class PostgresDatabase:
         query = """
             INSERT INTO chats 
             (id, title, is_group, todo_id, is_notifications_chat, is_system_chat, is_favorites_chat, 
-             creator_id, read_messages_by_user, pinned_by_user, archived_by_user, discussion_status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             creator_id, read_messages_by_user, pinned_by_user, pinned_order_by_user, archived_by_user, discussion_status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
         """
         params = (
@@ -707,6 +713,7 @@ class PostgresDatabase:
             chat.get('creator_id', chat.get('creatorId')),
             Json(chat.get('read_messages_by_user', chat.get('readMessagesByUser', {}))),
             Json(chat.get('pinned_by_user', chat.get('pinnedByUser', {}))),
+            Json(chat.get('pinned_order_by_user', chat.get('pinnedOrderByUser', {}))),
             Json(chat.get('archived_by_user', chat.get('archivedByUser', {}))),
             chat.get('discussion_status', chat.get('discussionStatus')),
         )

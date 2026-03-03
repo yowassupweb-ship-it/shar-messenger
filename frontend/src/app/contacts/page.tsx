@@ -405,7 +405,7 @@ export default function ContactsPage() {
   }
 
   return (
-    <div className="h-full text-[var(--text-primary)] bg-[var(--bg-primary)] flex flex-col overflow-hidden relative">
+    <div className="h-full text-[var(--text-primary)] bg-transparent flex flex-col overflow-hidden relative">
       {/* Header - поиск как хедер */}
       <div className="absolute top-0 left-0 right-0 z-10 flex-shrink-0 px-3 md:px-4 py-2 md:py-3 border-none">
         <div className="flex items-center gap-2 w-full md:justify-center">

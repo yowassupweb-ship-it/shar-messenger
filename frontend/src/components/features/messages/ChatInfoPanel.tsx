@@ -56,6 +56,18 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
 
   if (!showChatInfo || !selectedChat) return null;
 
+  const detectMobileView = () => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 768;
+  };
+
+  const isMobileView = detectMobileView();
+
+  // Desktop layout constants (matching ChatSidebar)
+  const desktopBottomMenuHeight = 46;
+  const desktopBottomGap = 10;
+  const desktopBottomOffset = desktopBottomMenuHeight + desktopBottomGap;
+
   // Определяем собеседника (не текущий пользователь)
   const otherParticipantId = selectedChat?.participantIds?.find(id => id !== currentUser?.id);
   const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : null;
@@ -101,7 +113,10 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
 
   // Общие задачи (где ОБА участника задействованы - учитываем ID и строковые поля с именами)
   const sharedTasks = tasks.filter(task => {
-    if (!otherUser || !currentUser) return false;
+    if (!otherUser || !currentUser) {
+      console.log('[ChatInfoPanel] Missing users:', { otherUser: !!otherUser, currentUser: !!currentUser });
+      return false;
+    }
 
     const currentUserId = String(currentUser.id);
     const otherUserId = String(otherUser.id);
@@ -167,8 +182,14 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
       allInvolvedIds.has(otherUserId) ||
       Array.from(otherUserNames).some(name => name && allInvolvedTexts.has(name));
     
-    return currentUserInvolved && otherUserInvolved;
+    const isShared = currentUserInvolved && otherUserInvolved;
+    if (isShared) {
+      console.log('[ChatInfoPanel] Shared task found:', task.title, { currentUserInvolved, otherUserInvolved });
+    }
+    return isShared;
   });
+  
+  console.log('[ChatInfoPanel] Shared tasks:', sharedTasks.length, 'of', tasks.length);
 
   const downloadAttachment = async (url?: string, filename?: string) => {
     if (!url) return;
@@ -205,26 +226,61 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 lg:relative lg:inset-auto lg:z-auto w-full lg:w-80 lg:min-w-[320px] lg:ml-2 lg:rounded-2xl border lg:border-[var(--border-light)] lg:bg-[var(--bg-glass)] lg:shadow-[var(--shadow-light)] flex flex-col bg-[var(--bg-secondary)] flex-shrink-0 overflow-hidden">
+    <>
+      {/* Mobile overlay */}
+      {isMobileView && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          onClick={() => setShowChatInfo(false)}
+        />
+      )}
+      
+      <div 
+        className="fixed inset-y-0 right-0 left-auto z-50 md:relative md:inset-auto md:z-auto w-full max-w-[85%] md:max-w-none md:w-80 md:min-w-80 flex flex-col bg-transparent flex-shrink-0 overflow-hidden shadow-[var(--shadow-card)] transition-transform duration-300 md:transition-none"
+        style={{
+          borderRadius: isMobileView ? '0' : '20px',
+          margin: isMobileView ? '0' : `5px 5px ${desktopBottomOffset}px 0`,
+        height: isMobileView ? '100%' : `calc(100% - ${desktopBottomOffset}px)`,
+        borderColor: 'var(--border-light)',
+        borderStyle: 'solid',
+        borderWidth: isMobileView ? '0 0 0 1px' : '1px',
+      }}
+    >
+      {/* Background layer for 100% reliable blur without destroying child blurs */}
+      <div 
+        className="absolute inset-0 z-0 pointer-events-none rounded-[20px] overflow-hidden"
+        style={{
+          borderRadius: isMobileView ? '0' : '20px',
+          backgroundColor: 'var(--bg-glass)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+        }}
+      />
+
+      {/* Content wrapper for z-index layering */}
+      <div className="relative z-10 flex flex-col w-full h-full min-h-0 overflow-hidden">
+
       {/* Header */}
-      <div className="h-12 border-b border-[var(--border-light)] flex items-center px-4 gap-2 flex-shrink-0 bg-[var(--bg-glass)]/70 backdrop-blur-sm">
-        <button
-          onClick={() => setShowChatInfo(false)}
-          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--bg-tertiary)] transition-all lg:hidden"
-        >
-          <ArrowLeft className="w-4 h-4 text-[var(--text-primary)]" />
-        </button>
-        <span className="font-medium text-sm">{selectedChat?.isGroup ? 'Чат' : 'Профиль'}</span>
-        <button
-          onClick={() => setShowChatInfo(false)}
-          className="ml-auto w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--bg-tertiary)] transition-all hidden lg:flex"
-        >
-          <X className="w-4 h-4 text-[var(--text-primary)]" />
-        </button>
+      <div className="absolute top-0 left-0 right-0 z-20 bg-transparent">
+        <div className="h-[56px] md:h-[58px] px-4 flex items-center gap-2">
+          <button
+            onClick={() => setShowChatInfo(false)}
+            className="w-9 h-9 rounded-full flex items-center justify-center bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] backdrop-blur-xl transition-all lg:hidden"
+          >
+            <ArrowLeft className="w-4 h-4 text-[var(--text-primary)]" />
+          </button>
+          <span className="font-medium text-sm text-[var(--text-primary)]">{selectedChat?.isGroup ? 'Чат' : 'Профиль'}</span>
+          <button
+            onClick={() => setShowChatInfo(false)}
+            className="ml-auto w-9 h-9 rounded-full flex items-center justify-center bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] backdrop-blur-xl transition-all hidden lg:flex"
+          >
+            <X className="w-4 h-4 text-[var(--text-primary)]" />
+          </button>
+        </div>
       </div>
 
       {/* Profile section */}
-      <div className="p-4 border-b border-[var(--border-light)] bg-[var(--bg-glass)]/60 backdrop-blur-sm">
+      <div className="p-4 pt-[68px] md:pt-[72px] border-b border-[var(--border-light)] bg-[var(--bg-glass)]/40 backdrop-blur-xl">
         <div className="flex flex-col items-center">
           {(() => {
             const avatarData = getChatAvatarData(selectedChat!);
@@ -271,21 +327,21 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
         <div className="grid grid-cols-3 gap-2 mt-4">
           <button
             onClick={() => setChatInfoTab('media')}
-            className={`p-3 rounded-xl text-center transition-all border ${chatInfoTab === 'media' ? 'bg-cyan-500/20 border-cyan-400/40' : 'bg-[var(--bg-glass)] border-[var(--border-light)] hover:bg-[var(--bg-primary)]'}`}
+            className={`p-3 rounded-xl text-center transition-all border backdrop-blur-xl ${chatInfoTab === 'media' ? 'bg-purple-500/20 border-purple-400/40' : 'bg-[var(--bg-glass)] border-[var(--border-light)] hover:bg-[var(--bg-primary)]'}`}
           >
             <p className="text-2xl font-bold text-[var(--text-primary)] mb-1">{mediaCount}</p>
             <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Медиа</p>
           </button>
           <button
             onClick={() => setChatInfoTab('files')}
-            className={`p-3 rounded-xl text-center transition-all border ${chatInfoTab === 'files' ? 'bg-cyan-500/20 border-cyan-400/40' : 'bg-[var(--bg-glass)] border-[var(--border-light)] hover:bg-[var(--bg-primary)]'}`}
+            className={`p-3 rounded-xl text-center transition-all border backdrop-blur-xl ${chatInfoTab === 'files' ? 'bg-purple-500/20 border-purple-400/40' : 'bg-[var(--bg-glass)] border-[var(--border-light)] hover:bg-[var(--bg-primary)]'}`}
           >
             <p className="text-2xl font-bold text-[var(--text-primary)] mb-1">{fileCount}</p>
             <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Файлы</p>
           </button>
           <button
             onClick={() => setChatInfoTab('links')}
-            className={`p-3 rounded-xl text-center transition-all border ${chatInfoTab === 'links' ? 'bg-cyan-500/20 border-cyan-400/40' : 'bg-[var(--bg-glass)] border-[var(--border-light)] hover:bg-[var(--bg-primary)]'}`}
+            className={`p-3 rounded-xl text-center transition-all border backdrop-blur-xl ${chatInfoTab === 'links' ? 'bg-purple-500/20 border-purple-400/40' : 'bg-[var(--bg-glass)] border-[var(--border-light)] hover:bg-[var(--bg-primary)]'}`}
           >
             <p className="text-2xl font-bold text-[var(--text-primary)] mb-1">{linkCount}</p>
             <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Ссылки</p>
@@ -294,7 +350,7 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
       </div>
 
       {/* Tab buttons */}
-      <div className="overflow-x-auto border-b border-[var(--border-light)] bg-[var(--bg-glass)]/50" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
+      <div className="overflow-x-auto border-b border-[var(--border-light)] bg-[var(--bg-glass)]/50 backdrop-blur-xl" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
         <style jsx>{`
           div::-webkit-scrollbar {
             display: none;
@@ -305,7 +361,7 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
             onClick={() => setChatInfoTab('profile')}
             className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap border-b-2 ${
               chatInfoTab === 'profile' 
-                ? 'text-cyan-400 border-cyan-400' 
+                ? 'text-purple-400 border-purple-400' 
                 : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
             }`}
           >
@@ -317,7 +373,7 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
               onClick={() => setChatInfoTab('participants')}
               className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap border-b-2 ${
                 chatInfoTab === 'participants' 
-                  ? 'text-cyan-400 border-cyan-400' 
+                  ? 'text-purple-400 border-purple-400' 
                   : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
               }`}
             >
@@ -328,7 +384,7 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
             onClick={() => setChatInfoTab('media')}
             className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap border-b-2 ${
               chatInfoTab === 'media' 
-                ? 'text-cyan-400 border-cyan-400' 
+                ? 'text-purple-400 border-purple-400' 
                 : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
             }`}
           >
@@ -338,7 +394,7 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
             onClick={() => setChatInfoTab('files')}
             className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap border-b-2 ${
               chatInfoTab === 'files' 
-                ? 'text-cyan-400 border-cyan-400' 
+                ? 'text-purple-400 border-purple-400' 
                 : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
             }`}
           >
@@ -348,7 +404,7 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
             onClick={() => setChatInfoTab('links')}
             className={`flex-1 px-4 py-2.5 text-xs font-medium transition-all whitespace-nowrap border-b-2 ${
               chatInfoTab === 'links' 
-                ? 'text-cyan-400 border-cyan-400' 
+                ? 'text-purple-400 border-purple-400' 
                 : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
             }`}
           >
@@ -358,8 +414,15 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3">
-        {chatInfoTab === 'profile' && (
+      <div className="flex-1 overflow-y-auto p-3" style={{
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+        WebkitOverflowScrolling: 'touch'
+      }}>        <style jsx>{`
+          div::-webkit-scrollbar {
+            display: none;
+          }
+        `}</style>        {chatInfoTab === 'profile' && (
           <div>
             {sharedTasks.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-[var(--text-muted)]">
@@ -650,7 +713,9 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
           </div>
         )}
       </div>
+      </div>
     </div>
+    </>
   );
 };
 

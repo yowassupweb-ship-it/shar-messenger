@@ -455,6 +455,14 @@ class Database:
         
         for user in users:
             if user["id"] == user_id:
+                if isinstance(updates.get("chatSettings"), dict):
+                    updates = {
+                        **updates,
+                        "chatSettings": {
+                            **(user.get("chatSettings") or {}),
+                            **updates.get("chatSettings", {})
+                        }
+                    }
                 user.update(updates)
                 print(f"🔄 update_user({user_id}): ПОСЛЕ update - enabledTools: {user.get('enabledTools')}")
                 self._save()

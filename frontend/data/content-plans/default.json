@@ -145,6 +145,23 @@
       "createdAt": "2026-02-12T09:49:22.149Z",
       "updatedAt": "2026-02-12T09:49:22.149Z",
       "comments": []
+    },
+    {
+      "id": "post_1772549832283_qybd2rk7l",
+      "title": "вввв",
+      "postText": "",
+      "platforms": [],
+      "contentType": "post",
+      "publishDate": "2026-03-02",
+      "publishTime": "12:00",
+      "mediaUrls": [],
+      "postStatus": "draft",
+      "roles": [],
+      "participants": [],
+      "createdBy": "user_001",
+      "createdAt": "2026-03-03T14:57:12.283Z",
+      "updatedAt": "2026-03-03T14:57:12.283Z",
+      "comments": []
     }
   ]
 }

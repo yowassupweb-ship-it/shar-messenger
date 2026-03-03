@@ -4,7 +4,9 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
 import { showToast } from '@/components/Toast'
-import { Copy, Link2, Check, RotateCcw, Settings, Plus, Pencil, Trash2, X, Save } from 'lucide-react'
+import { Copy, Link2, Check, RotateCcw, Settings, Plus, Pencil, Trash2, X, Save, ArrowLeft, Hash } from 'lucide-react'
+import Link from 'next/link'
+import { useTheme } from '@/contexts/ThemeContext'
 
 interface Preset {
   id: string
@@ -45,6 +47,17 @@ type TabType = 'generator' | 'settings'
 
 export default function UTMGeneratorPage() {
   const router = useRouter()
+  const { theme } = useTheme()
+  const [chatSettings, setChatSettings] = useState({
+    chatBackgroundDark: '#0f172a',
+    chatBackgroundLight: '#f8fafc',
+    chatBackgroundImageDark: '',
+    chatBackgroundImageLight: '',
+    chatOverlayImageDark: '',
+    chatOverlayImageLight: '',
+    chatOverlayScale: 100,
+    chatOverlayOpacity: 1,
+  })
   const glassInputClass = 'w-full bg-gradient-to-b from-white/12 to-white/5 backdrop-blur-xl border border-white/20 rounded-[35px] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-primary)] focus:border-white/35 placeholder:text-[var(--text-muted)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
   const glassInputCompactClass = 'w-full bg-gradient-to-b from-white/12 to-white/5 backdrop-blur-xl border border-white/20 rounded-[35px] px-2 py-1 text-xs text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-primary)] focus:border-white/35 placeholder:text-[var(--text-muted)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
 
@@ -98,6 +111,32 @@ export default function UTMGeneratorPage() {
       }
     }
     loadPresets()
+  }, [])
+
+  useEffect(() => {
+    const loadChatSettings = () => {
+      const raw = localStorage.getItem('chatSettings')
+      if (!raw) return
+      try {
+        const parsed = JSON.parse(raw)
+        setChatSettings((prev) => ({ ...prev, ...parsed }))
+      } catch {
+        return
+      }
+    }
+
+    const handleChatSettingsChanged = (event: Event) => {
+      const customEvent = event as CustomEvent
+      if (customEvent.detail) {
+        setChatSettings((prev) => ({ ...prev, ...(customEvent.detail || {}) }))
+      } else {
+        loadChatSettings()
+      }
+    }
+
+    loadChatSettings()
+    window.addEventListener('chatSettingsChanged', handleChatSettingsChanged as EventListener)
+    return () => window.removeEventListener('chatSettingsChanged', handleChatSettingsChanged as EventListener)
   }, [])
 
   useEffect(() => {
@@ -320,9 +359,71 @@ export default function UTMGeneratorPage() {
     setSelectedPreset(null)
   }, [])
 
+  const pageBackgroundColor = theme === 'dark'
+    ? (chatSettings?.chatBackgroundDark || '#0f172a')
+    : (chatSettings?.chatBackgroundLight || '#f8fafc')
+  const pageBackgroundImage = theme === 'dark'
+    ? String(chatSettings?.chatBackgroundImageDark || '').trim()
+    : String(chatSettings?.chatBackgroundImageLight || '').trim()
+  const pageOverlayImage = theme === 'dark'
+    ? String(chatSettings?.chatOverlayImageDark || '').trim()
+    : String(chatSettings?.chatOverlayImageLight || '').trim()
+  const pageOverlayScale = Math.max(20, Math.min(200, Number(chatSettings?.chatOverlayScale ?? 100) || 100))
+  const pageOverlayOpacity = Math.max(0, Math.min(1, Number(chatSettings?.chatOverlayOpacity ?? 1) || 1))
+
   return (
-    <div className="h-full min-h-0 flex flex-col p-4 pb-24 md:pb-20 gap-4 theme-text">
-      <div className="flex-1 min-h-0 grid grid-cols-1 min-[780px]:grid-cols-[380px_minmax(0,1fr)] gap-4">
+    <div
+      className="h-full min-h-0 flex flex-col pb-24 md:pb-20 theme-text relative overflow-hidden"
+      style={{
+        backgroundColor: pageBackgroundColor,
+        ...(pageBackgroundImage
+          ? {
+              backgroundImage: `url('${pageBackgroundImage}')`,
+              backgroundSize: 'cover',
+              backgroundRepeat: 'no-repeat',
+              backgroundPosition: 'center center'
+            }
+          : {})
+      }}
+    >
+      {pageOverlayImage && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: `url('${pageOverlayImage}')`,
+            backgroundSize: `${pageOverlayScale * 3}px`,
+            backgroundRepeat: 'repeat',
+            backgroundPosition: 'center center',
+            opacity: pageOverlayOpacity,
+            zIndex: 1,
+          }}
+        />
+      )}
+
+      {/* Header */}
+      <div className="absolute top-0 left-0 right-0 z-40 w-full px-3 py-2 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <Link
+            href="/"
+            className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[var(--shadow-card)] backdrop-blur-xl text-[var(--text-primary)] transition-all"
+            title="На главную"
+          >
+            <ArrowLeft className="w-4 h-4" strokeWidth={2} />
+          </Link>
+          <div className="relative flex-none">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-primary)] flex items-center justify-center z-10 pointer-events-none">
+              <Hash className="w-5 h-5" strokeWidth={2.5} />
+            </div>
+            <div className="w-full sm:w-[200px] h-10 pl-10 pr-3 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] rounded-[20px] text-sm shadow-[var(--shadow-card)] backdrop-blur-xl flex items-center justify-center font-medium text-[var(--text-primary)]">
+              <Link href="/utm-generator" className="hover:opacity-80 transition-opacity">Генератор</Link>
+              <span className="mx-2 text-[var(--text-muted)]">/</span>
+              <Link href="/utm-generator/history" className="hover:opacity-80 transition-opacity">История</Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 min-h-0 grid grid-cols-1 min-[780px]:grid-cols-[380px_minmax(0,1fr)] gap-4 relative z-10 px-3 pt-[60px]">
         <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] shadow-[var(--shadow-card)] overflow-hidden flex flex-col min-h-0">
           <div className="p-3 border-b border-[var(--border-color)]">
             <div className="flex gap-1 p-1 bg-gradient-to-b from-white/12 to-white/5 backdrop-blur-xl border border-white/20 rounded-[35px] shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]">
@@ -355,7 +456,7 @@ export default function UTMGeneratorPage() {
           {activeTab === 'settings' ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-medium text-gray-600 dark:text-white/70">Управление пресетами</h4>
+                <h4 className="text-xs font-medium text-gray-700 dark:text-white/80">Управление пресетами</h4>
                 <div className="flex gap-2">
                   <button
                     onClick={resetToDefaults}
@@ -406,7 +507,7 @@ export default function UTMGeneratorPage() {
 
               <div className="space-y-2">
                 {presets.map((preset) => (
-                  <div key={preset.id} className="flex items-center gap-2 p-2 bg-gradient-to-b from-white/12 to-white/5 backdrop-blur-xl rounded-xl border border-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.12),0_2px_8px_rgba(0,0,0,0.18)]">
+                  <div key={preset.id} className="flex items-center gap-2 p-2 bg-gradient-to-b from-white/16 to-white/8 backdrop-blur-xl rounded-xl border border-white/25 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]">
                     {editingPreset?.id === preset.id ? (
                       <div className="flex-1 space-y-2">
                         <input type="text" value={editingPreset.name} onChange={(e) => setEditingPreset({ ...editingPreset, name: e.target.value })} className={glassInputCompactClass} />

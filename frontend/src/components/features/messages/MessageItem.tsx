@@ -91,8 +91,8 @@ const MessageItem: React.FC<MessageItemProps> = ({
     if (!normalizedValue) return false;
 
     return normalizedValue === currentUserIdNormalized
-      || (currentUserUsernameNormalized && normalizedValue === currentUserUsernameNormalized)
-      || (currentUserNameNormalized && normalizedValue === currentUserNameNormalized);
+      || Boolean(currentUserUsernameNormalized && normalizedValue === currentUserUsernameNormalized)
+      || Boolean(currentUserNameNormalized && normalizedValue === currentUserNameNormalized);
   };
 
   // Защита от null authorId (для системных сообщений)
@@ -383,8 +383,10 @@ const MessageItem: React.FC<MessageItemProps> = ({
       ? (isDesktopView ? 'max-w-[88%] lg:max-w-[82%]' : 'max-w-[96%]')
       : (isDesktopView ? 'max-w-[75%] lg:max-w-[65%]' : 'max-w-[80%]');
   const bubbleOverflowClass = isNotificationBubble ? 'overflow-visible' : 'overflow-hidden';
-  const notificationSurfaceClass = 'bg-[var(--bg-tertiary)] border-[var(--border-color)]';
-  const notificationTextClass = 'text-[var(--text-primary)]';
+  const notificationSurfaceClass = theme === 'dark'
+    ? 'bg-[var(--bg-tertiary)] border-[var(--border-color)] backdrop-blur-md'
+    : 'bg-gradient-to-br from-white/60 to-white/40 border-gray-300/70 backdrop-blur-md shadow-[0_2px_8px_rgba(0,0,0,0.08)]';
+  const notificationTextClass = theme === 'dark' ? 'text-[var(--text-primary)]' : 'text-gray-800';
   const notificationActionClass = theme === 'dark'
     ? 'bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-primary)]'
     : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] border-[var(--border-color)] text-[var(--text-primary)]';
@@ -395,11 +397,11 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const renderTelegramChecks = (isRead: boolean, compact = false) => {
     const iconClass = compact ? 'w-2.5 h-2.5 md:w-3 md:h-3' : checkIconSizeClass;
     const pairWrapClass = compact
-      ? 'w-[14px] md:w-[16px] h-2.5 md:h-3'
-      : (isDesktopView ? 'w-[18px] h-3.5' : 'w-[14px] h-2.5');
+      ? 'w-[16px] md:w-[18px] h-2.5 md:h-3'
+      : (isDesktopView ? 'w-[20px] h-3.5' : 'w-[16px] h-2.5');
     const secondCheckLeftClass = compact
-      ? 'left-[1px] md:left-[2px]'
-      : (isDesktopView ? 'left-[2px]' : 'left-0');
+      ? 'left-[4px] md:left-[5px]'
+      : (isDesktopView ? 'left-[5px]' : 'left-[3px]');
     if (!isRead) {
       return <Check className={`${iconClass} ${telegramUnreadCheckClass}`} strokeWidth={2.2} />;
     }
@@ -416,7 +418,82 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const bubbleRadius = chatSettings.bubbleStyle === 'minimal' ? 'rounded-lg' : chatSettings.bubbleStyle === 'classic' ? 'rounded-2xl' : 'rounded-[12px]';
   const mobileFontSize = chatSettings.fontSizeMobile || 15;
   const desktopFontSize = chatSettings.fontSize || 13;
+  const bubbleOpacityRaw = Number(chatSettings?.bubbleOpacity ?? 0.92);
+  const bubbleOpacity = Number.isFinite(bubbleOpacityRaw) ? Math.max(0.2, Math.min(1, bubbleOpacityRaw)) : 0.92;
   const fontSizeStyle = { fontSize: `${isDesktopView ? desktopFontSize : mobileFontSize}px`, lineHeight: isDesktopView ? '1.5' : '1.3' };
+
+  const hexToRgba = (hex: string, alpha: number): string => {
+    const normalized = String(hex || '').replace('#', '').trim();
+    if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return hex;
+    const r = parseInt(normalized.slice(0, 2), 16);
+    const g = parseInt(normalized.slice(2, 4), 16);
+    const b = parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  const normalizeColorToRgba = (color: string, alpha: number): string => {
+    const normalized = String(color || '').trim();
+    if (!normalized) return color;
+
+    if (/^#[0-9a-fA-F]{6}$/.test(normalized)) {
+      return hexToRgba(normalized, alpha);
+    }
+
+    const rgbMatch = normalized.match(/^rgba?\(([^)]+)\)$/i);
+    if (rgbMatch) {
+      const parts = rgbMatch[1].split(',').map((part) => part.trim());
+      const r = Number.parseFloat(parts[0] || '0');
+      const g = Number.parseFloat(parts[1] || '0');
+      const b = Number.parseFloat(parts[2] || '0');
+      if ([r, g, b].every((value) => Number.isFinite(value))) {
+        return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${alpha})`;
+      }
+    }
+
+    return normalized;
+  };
+
+  const resolveColorToRgba = (inputColor: string, alpha: number, fallbackHex: string): string => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return hexToRgba(fallbackHex, alpha);
+    }
+
+    try {
+      const probe = document.createElement('span');
+      probe.style.color = inputColor;
+      probe.style.position = 'absolute';
+      probe.style.left = '-9999px';
+      probe.style.width = '0';
+      probe.style.height = '0';
+      document.body.appendChild(probe);
+
+      const resolved = getComputedStyle(probe).color;
+      probe.remove();
+
+      const rgbMatch = resolved.match(/^rgba?\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+      if (rgbMatch) {
+        return `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${alpha})`;
+      }
+    } catch {
+    }
+
+    return hexToRgba(fallbackHex, alpha);
+  };
+
+  const ownBubbleColor = theme === 'dark' ? chatSettings.bubbleColor : chatSettings.bubbleColorLight;
+  const opponentBubbleColor = theme === 'dark' 
+    ? (chatSettings?.bubbleColorOpponent || '#1f2937') 
+    : (chatSettings?.bubbleColorOpponentLight || '#e5e7eb');
+  const ownBubbleTextColor = theme === 'dark'
+    ? (chatSettings?.bubbleTextColor || '')
+    : (chatSettings?.bubbleTextColorLight || '');
+  const ownBubbleStyle = isMyMessage && hasBackground && !isNotificationBubble
+    ? { backgroundColor: hexToRgba(ownBubbleColor, bubbleOpacity), backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }
+    : undefined;
+  const opponentBubbleStyle = !isMyMessage && hasBackground && !isNotificationBubble && !message.isSystemMessage
+    ? { backgroundColor: hexToRgba(opponentBubbleColor, bubbleOpacity), backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }
+    : undefined;
+  const messageBubbleStyle = ownBubbleStyle || opponentBubbleStyle;
   
   // URL extraction
   const urls = displayContent.match(/(https?:\/\/[^\s<>"']+)/gi) || [];
@@ -479,25 +556,28 @@ const MessageItem: React.FC<MessageItemProps> = ({
     const gridClass = (() => {
       if (images.length === 1) return 'grid grid-cols-1 gap-2';
       if (images.length === 2) return 'grid grid-cols-2 gap-2';
-      if (images.length === 3) return 'grid grid-cols-2 grid-rows-2 gap-2';
-      return 'grid grid-cols-2 grid-rows-2 gap-2';
+      if (images.length === 3) return 'grid grid-cols-2 gap-2';
+      return 'grid grid-cols-2 gap-2';
     })();
 
     const tileClass = (index: number) => {
       if (images.length === 1) {
-        return 'aspect-[4/3] md:aspect-[16/10] min-h-[180px] md:min-h-[240px] max-h-[620px]';
+        return 'aspect-[4/3] md:aspect-[16/10] min-h-[180px] md:min-h-[240px] max-h-[620px] col-span-1';
       }
       if (images.length === 2) {
-        return 'aspect-[4/3] min-h-[120px] md:min-h-[170px]';
+        return 'aspect-[4/3] min-h-[120px] md:min-h-[170px] col-span-1';
       }
       if (images.length === 3 && index === 0) {
-        return 'row-span-2 aspect-auto min-h-[280px] md:min-h-[340px]';
+        return 'col-span-2 aspect-[16/9] min-h-[160px] md:min-h-[200px]';
       }
-      return 'aspect-[4/3] min-h-[110px] md:min-h-[150px]';
+      if (images.length === 3) {
+        return 'aspect-[4/3] min-h-[110px] md:min-h-[140px] col-span-1';
+      }
+      return 'aspect-[4/3] min-h-[110px] md:min-h-[150px] col-span-1';
     };
 
     return (
-      <div className="mt-2 mb-1 w-full max-w-[min(92vw,760px)] md:max-w-[760px]">
+      <div className="mt-2 mb-1 pb-4 pr-2 w-full max-w-[min(92vw,760px)] md:max-w-[760px]">
         <div className={gridClass}>
           {visibleImages.map((image, idx) => {
             const isLastVisibleWithOverflow = hiddenCount > 0 && idx === visibleImages.length - 1;
@@ -638,21 +718,42 @@ const MessageItem: React.FC<MessageItemProps> = ({
                       e.preventDefault();
                       const taskId = att.taskId || att.id;
                       if (taskId) {
-                        requestAnimationFrame(() => {
-                          router.push(`/todos?task=${taskId}`);
-                        });
+                        window.location.href = `/todos?task=${taskId}`;
                       }
                     }}
-                    className="flex items-center gap-2 px-2 py-1.5 md:px-3 md:py-2 bg-cyan-500/10 dark:bg-cyan-500/10 rounded-lg md:rounded-xl border border-cyan-500/50 dark:border-cyan-500/30 hover:bg-cyan-500/20 dark:hover:bg-cyan-500/20 transition-colors w-full relative"
+                    className="group flex items-center gap-3 px-2.5 py-2 md:px-3 md:py-2.5 bg-gradient-to-br from-purple-500/20 via-purple-500/15 to-purple-500/20 dark:from-purple-500/20 dark:via-purple-500/15 dark:to-purple-500/20 rounded-xl md:rounded-2xl border-2 border-purple-500/50 dark:border-purple-400/30 hover:border-purple-500/70 dark:hover:border-purple-300/50 hover:shadow-lg hover:shadow-purple-500/25 dark:hover:shadow-purple-400/20 transition-all duration-300 w-full relative backdrop-blur-sm"
                   >
-                    <div className="w-6 h-6 md:w-8 md:h-8 rounded bg-cyan-500/20 dark:bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
-                      <FileText className="w-3 h-3 md:w-4 md:h-4 text-cyan-600 dark:text-cyan-400" />
+                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 dark:from-purple-500 dark:to-purple-700 flex items-center justify-center flex-shrink-0 shadow-md transition-all duration-300">
+                      <CheckSquare className="w-4 h-4 md:w-5 md:h-5 text-white drop-shadow-md" />
                     </div>
-                    <div className="flex flex-col items-start min-w-0 flex-1">
-                      <span className="text-[9px] md:text-[10px] text-cyan-600 dark:text-cyan-400/70 uppercase">Задача</span>
-                      <span className="text-xs md:text-sm font-medium text-cyan-700 dark:text-cyan-300 truncate max-w-[120px] md:max-w-[200px]">{att.name}</span>
+                    <div className="flex flex-col items-start min-w-0 flex-1 gap-1">
+                      <span className="text-[10px] md:text-xs text-purple-700 dark:text-purple-400 font-bold uppercase tracking-wide">Задача</span>
+                      <span className="text-sm md:text-base font-semibold text-purple-900 dark:text-purple-200 truncate max-w-[140px] md:max-w-[220px] leading-tight">{att.name}</span>
+                      {(att.assignedToNames || att.assignedBy) && (
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {att.assignedBy && (
+                            <div className="flex items-center gap-0.5">
+                              <Avatar name={att.assignedBy} size="xs" className="ring-1 ring-purple-300 dark:ring-purple-500" />
+                              <span className="text-[9px] text-purple-700 dark:text-purple-300">{att.assignedBy}</span>
+                            </div>
+                          )}
+                          {att.assignedToNames && att.assignedToNames.length > 0 && (
+                            <>
+                              <span className="text-[9px] text-purple-600 dark:text-purple-400">→</span>
+                              <div className="flex items-center -space-x-1">
+                                {att.assignedToNames.slice(0, 3).map((name: string, i: number) => (
+                                  <Avatar key={i} name={name} size="xs" className="ring-1 ring-purple-300 dark:ring-purple-500" />
+                                ))}
+                                {att.assignedToNames.length > 3 && (
+                                  <span className="text-[9px] text-purple-700 dark:text-purple-300 ml-1">+{att.assignedToNames.length - 3}</span>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <span className="text-[9px] md:text-[10px] text-[var(--text-muted)] flex-shrink-0 self-end ml-2">
+                    <span className="text-[10px] md:text-xs text-[var(--text-muted)] flex-shrink-0 self-end ml-2 font-medium">
                       {new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
                       {isMyMessage && <span className="inline-flex ml-0.5 align-middle">{renderTelegramChecks(isReadByOthers, true)}</span>}
                     </span>
@@ -668,14 +769,20 @@ const MessageItem: React.FC<MessageItemProps> = ({
                         });
                       }
                     }}
-                    className="flex items-center gap-2 px-2 py-1.5 md:px-3 md:py-2 bg-green-500/10 dark:bg-green-500/10 rounded-lg md:rounded-xl border border-green-500/50 dark:border-green-500/30 hover:bg-green-500/20 dark:hover:bg-green-500/20 transition-colors w-full"
+                    className="flex items-center gap-2 px-2.5 py-2 md:px-3 md:py-2.5 bg-green-500/20 dark:bg-green-500/15 rounded-lg md:rounded-xl border-2 border-green-500/60 dark:border-green-500/40 hover:bg-green-500/30 dark:hover:bg-green-500/25 hover:border-green-500/80 dark:hover:border-green-500/60 transition-all w-full"
                   >
-                    <div className="w-6 h-6 md:w-8 md:h-8 rounded bg-green-500/20 dark:bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                      <Calendar className="w-3 h-3 md:w-4 md:h-4 text-green-600 dark:text-green-400" />
+                    <div className="w-7 h-7 md:w-9 md:h-9 rounded-lg bg-green-500/30 dark:bg-green-500/25 flex items-center justify-center flex-shrink-0 border border-green-500/40">
+                      <Calendar className="w-3.5 h-3.5 md:w-4 md:h-4 text-green-700 dark:text-green-400" />
                     </div>
-                    <div className="flex flex-col items-start min-w-0">
-                      <span className="text-[9px] md:text-[10px] text-green-600 dark:text-green-400/70 uppercase">Событие</span>
-                      <span className="text-xs md:text-sm font-medium text-green-700 dark:text-green-300 truncate max-w-[120px] md:max-w-[200px]">{att.name}</span>
+                    <div className="flex flex-col items-start min-w-0 flex-1 gap-0.5">
+                      <span className="text-[9px] md:text-[10px] text-green-700 dark:text-green-400 uppercase font-bold">Событие</span>
+                      <span className="text-xs md:text-sm font-medium text-green-800 dark:text-green-300 truncate max-w-[120px] md:max-w-[200px]">{att.name}</span>
+                      {att.organizerName && (
+                        <div className="flex items-center gap-1">
+                          <Avatar name={att.organizerName} size="xs" className="ring-1 ring-green-400 dark:ring-green-500" />
+                          <span className="text-[9px] text-green-700 dark:text-green-300">{att.organizerName}</span>
+                        </div>
+                      )}
                     </div>
                   </button>
                 )}
@@ -689,7 +796,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                         });
                       }
                     }}
-                    className={`flex flex-col items-start gap-1 px-3 py-2 rounded-xl border transition-colors w-full shadow-[var(--shadow-glass)] ${
+                    className={`flex flex-col items-start gap-1 px-3 py-2 rounded-xl border transition-colors w-full shadow-[var(--shadow-glass)] backdrop-blur-md ${
                       isMyMessage
                         ? 'bg-white/22 border-white/40 hover:bg-white/30'
                         : 'bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border-[var(--border-light)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)]'
@@ -697,7 +804,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                   >
                     <span className={`text-[10px] ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-800/80' : 'text-white/90') : 'text-[var(--accent-primary)]'}`}>Ссылка</span>
                     <div className="flex items-center gap-2">
-                      <div className={`w-8 h-8 rounded-lg border flex items-center justify-center flex-shrink-0 ${
+                      <div className={`w-8 h-8 rounded-lg border flex items-center justify-center flex-shrink-0 backdrop-blur-md ${
                         isMyMessage ? 'bg-white/20 border-white/35' : 'bg-[var(--bg-glass-hover)] border-[var(--border-color)]'
                       }`}>
                         <LinkIcon className={`w-4 h-4 ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-800' : 'text-white') : 'text-[var(--accent-primary)]'}`} />
@@ -707,17 +814,17 @@ const MessageItem: React.FC<MessageItemProps> = ({
                   </button>
                 )}
                 {(att.type === 'file' || att.type === 'document') && (
-                  <div className="inline-flex flex-col items-start gap-1 px-2 py-1.5 bg-orange-500/10 dark:bg-orange-500/10 rounded-xl border-2 border-orange-500/50 dark:border-orange-500/30 max-w-[200px] md:max-w-[280px]">
-                    <span className="text-[9px] text-orange-600 dark:text-orange-400/70">{att.type === 'document' ? 'Документ' : 'Файл'}</span>
-                    <div className="flex items-center gap-1.5 w-full min-w-0">
-                      <div className="w-6 h-6 rounded-lg bg-orange-500/20 dark:bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                  <div className="group inline-flex flex-col items-start gap-2 px-2.5 py-2 bg-gradient-to-br from-orange-500/20 via-red-500/15 to-orange-500/20 dark:from-orange-500/20 dark:via-red-500/15 dark:to-orange-500/20 rounded-xl border-2 border-orange-500/50 dark:border-orange-400/30 hover:border-orange-500/70 dark:hover:border-orange-300/50 max-w-[220px] md:max-w-[300px] hover:shadow-lg hover:shadow-orange-500/25 dark:hover:shadow-orange-400/20 transition-all duration-300 backdrop-blur-sm">
+                    <span className="text-[10px] md:text-xs text-orange-700 dark:text-orange-400 font-bold uppercase tracking-wide">{att.type === 'document' ? 'Документ' : 'Файл'}</span>
+                    <div className="flex items-center gap-2.5 w-full min-w-0">
+                      <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-gradient-to-br from-orange-400 to-red-500 dark:from-orange-500 dark:to-red-600 flex items-center justify-center flex-shrink-0 shadow-md transition-all duration-300">
                         {att.type === 'document' ? (
-                          <FileText className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+                          <FileText className="w-4 h-4 md:w-5 md:h-5 text-white drop-shadow-md" />
                         ) : (
-                          <File className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+                          <File className="w-4 h-4 md:w-5 md:h-5 text-white drop-shadow-md" />
                         )}
                       </div>
-                      <span className="text-xs font-medium text-[var(--text-primary)] truncate flex-1 min-w-0">{att.name}</span>
+                      <span className="text-xs md:text-sm font-semibold text-gray-900 dark:text-[var(--text-primary)] truncate flex-1 min-w-0 leading-tight">{att.name}</span>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -725,9 +832,10 @@ const MessageItem: React.FC<MessageItemProps> = ({
                           e.stopPropagation();
                           downloadAttachment(att);
                         }}
-                        className="text-[10px] font-medium text-orange-600 dark:text-orange-400 hover:text-orange-500 dark:hover:text-orange-300 flex-shrink-0"
+                        className="px-2.5 py-1.5 rounded-lg bg-gradient-to-br from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white text-[10px] md:text-xs font-bold shadow-md hover:shadow-lg active:scale-95 transition-all duration-200 flex items-center gap-1 flex-shrink-0"
                       >
-                        Скачать
+                        <Download className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                        <span className="hidden md:inline">Скачать</span>
                       </button>
                     </div>
                   </div>
@@ -781,7 +889,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                   } ${message.isDeleted ? 'opacity-60' : ''}`
                 : ''
             }`}
-            style={isMyMessage && hasBackground && !isNotificationBubble ? { backgroundColor: theme === 'dark' ? chatSettings.bubbleColor : chatSettings.bubbleColorLight } : undefined}
+            style={messageBubbleStyle}
           >
             {!isMyMessage && hasBackground && !isNotificationBubble && (
               <p className={`text-[10px] font-medium mb-0.5 select-none ${message.isSystemMessage ? 'text-orange-600 dark:text-purple-400' : 'text-[var(--accent-primary)] dark:text-gray-300'} flex items-center gap-1.5`}>
@@ -909,13 +1017,13 @@ const MessageItem: React.FC<MessageItemProps> = ({
                       ) : needsRichTextFormatting ? (
                         <span
                           className={`message-content ${isMyMessage ? myBubbleTextClass : 'text-[var(--text-primary)]'} whitespace-pre-wrap [overflow-wrap:anywhere] ${isEditing ? 'bg-blue-500/10 -mx-2 -my-1 px-2 py-1 rounded border border-blue-400/30' : ''}`}
-                          style={fontSizeStyle}
+                          style={isMyMessage && ownBubbleTextColor ? { ...fontSizeStyle, color: ownBubbleTextColor } : fontSizeStyle}
                           dangerouslySetInnerHTML={{ __html: formattedMessageHtml }}
                         />
                       ) : (
                         <span
                           className={`message-content ${isMyMessage ? myBubbleTextClass : 'text-[var(--text-primary)]'} ${isNotificationBubble ? 'block max-w-full whitespace-pre-wrap [overflow-wrap:anywhere] text-left text-[13px] md:text-sm leading-relaxed' : 'whitespace-pre-wrap [overflow-wrap:anywhere]'} ${isEditing ? 'bg-blue-500/10 -mx-2 -my-1 px-2 py-1 rounded border border-blue-400/30' : ''}`}
-                          style={fontSizeStyle}
+                          style={isMyMessage && ownBubbleTextColor ? { ...fontSizeStyle, color: ownBubbleTextColor } : fontSizeStyle}
                         >
                           {displayContent}
                         </span>
@@ -939,7 +1047,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                               window.location.href = `/account?tab=messages&chat=${message.linkedChatId}`;
                             }
                           }}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors backdrop-blur-md ${
                             isMyMessage
                               ? 'bg-white/15 hover:bg-white/25 border border-white/30 text-white'
                               : 'bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-600 dark:text-blue-400'
@@ -975,35 +1083,64 @@ const MessageItem: React.FC<MessageItemProps> = ({
                                   const taskId = att.taskId || att.id;
                                   if (taskId) window.location.href = `/todos?task=${taskId}`;
                                 }}
-                                className="w-full flex items-center gap-2 px-2 py-1.5 md:px-3 md:py-2 bg-cyan-500/10 dark:bg-cyan-500/10 rounded-lg md:rounded-xl border border-cyan-500/50 dark:border-cyan-500/30 hover:bg-cyan-500/20 dark:hover:bg-cyan-500/20 transition-colors"
+                                className="group w-full flex items-center gap-3 px-2.5 py-2 md:px-3 md:py-2.5 bg-gradient-to-br from-purple-500/20 via-purple-500/15 to-purple-500/20 dark:from-purple-500/20 dark:via-purple-500/15 dark:to-purple-500/20 rounded-xl md:rounded-2xl border-2 border-purple-500/50 dark:border-purple-400/30 hover:border-purple-500/70 dark:hover:border-purple-300/50 hover:shadow-lg hover:shadow-purple-500/25 dark:hover:shadow-purple-400/20 transition-all duration-300 backdrop-blur-md"
                               >
-                                <div className="w-6 h-6 md:w-8 md:h-8 rounded bg-cyan-500/20 dark:bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
-                                  <FileText className="w-3 h-3 md:w-4 md:h-4 text-cyan-600 dark:text-cyan-400" />
+                                <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 dark:from-purple-500 dark:to-purple-700 flex items-center justify-center flex-shrink-0 shadow-md transition-all duration-300">
+                                  <CheckSquare className="w-4 h-4 md:w-5 md:h-5 text-white drop-shadow-md" />
                                 </div>
-                                <div className="flex flex-col items-start min-w-0 flex-1">
-                                  <span className="text-[9px] md:text-[10px] text-cyan-600 dark:text-cyan-400/70 uppercase">Задача</span>
-                                  <span className="text-xs md:text-sm font-medium text-cyan-700 dark:text-cyan-300 truncate w-full">{att.name}</span>
+                                <div className="flex flex-col items-start min-w-0 flex-1 gap-1">
+                                  <span className="text-[10px] md:text-xs text-purple-700 dark:text-purple-400 font-bold uppercase tracking-wide">Задача</span>
+                                  <span className="text-sm md:text-base font-semibold text-purple-900 dark:text-purple-200 truncate w-full leading-tight">{att.name}</span>
+                                  {(att.assignedToNames || att.assignedBy) && (
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      {att.assignedBy && (
+                                        <div className="flex items-center gap-0.5">
+                                          <Avatar name={att.assignedBy} size="xs" className="ring-1 ring-purple-300 dark:ring-purple-500" />
+                                          <span className="text-[9px] text-purple-700 dark:text-purple-300">{att.assignedBy}</span>
+                                        </div>
+                                      )}
+                                      {att.assignedToNames && att.assignedToNames.length > 0 && (
+                                        <>
+                                          <span className="text-[9px] text-purple-600 dark:text-purple-400">→</span>
+                                          <div className="flex items-center -space-x-1">
+                                            {att.assignedToNames.slice(0, 3).map((name: string, i: number) => (
+                                              <Avatar key={i} name={name} size="xs" className="ring-1 ring-purple-300 dark:ring-purple-500" />
+                                            ))}
+                                            {att.assignedToNames.length > 3 && (
+                                              <span className="text-[9px] text-purple-700 dark:text-purple-300 ml-1">+{att.assignedToNames.length - 3}</span>
+                                            )}
+                                          </div>
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               </button>
                             )}
                             {att.type === 'event' && (
                               <button 
                                 onClick={() => { if (att.id) window.location.href = `/account?tab=calendar&event=${att.id}`; }}
-                                className="w-full flex items-center gap-2 px-2 py-1.5 md:px-3 md:py-2 bg-green-500/10 dark:bg-green-500/10 rounded-lg md:rounded-xl border border-green-500/50 dark:border-green-500/30 hover:bg-green-500/20 dark:hover:bg-green-500/20 transition-colors"
+                                className="w-full flex items-center gap-2 px-2.5 py-2 md:px-3 md:py-2.5 bg-green-500/20 dark:bg-green-500/15 rounded-lg md:rounded-xl border-2 border-green-500/60 dark:border-green-500/40 hover:bg-green-500/30 dark:hover:bg-green-500/25 hover:border-green-500/80 dark:hover:border-green-500/60 transition-all backdrop-blur-md"
                               >
-                                <div className="w-6 h-6 md:w-8 md:h-8 rounded bg-green-500/20 dark:bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                                  <Calendar className="w-3 h-3 md:w-4 md:h-4 text-green-600 dark:text-green-400" />
+                                <div className="w-7 h-7 md:w-9 md:h-9 rounded-lg bg-green-500/30 dark:bg-green-500/25 flex items-center justify-center flex-shrink-0 border border-green-500/40">
+                                  <Calendar className="w-3.5 h-3.5 md:w-4 md:h-4 text-green-700 dark:text-green-400" />
                                 </div>
-                                <div className="flex flex-col items-start min-w-0 flex-1">
-                                  <span className="text-[9px] md:text-[10px] text-green-600 dark:text-green-400/70 uppercase">Событие</span>
-                                  <span className="text-xs md:text-sm font-medium text-green-700 dark:text-green-300 truncate w-full">{att.name}</span>
+                                <div className="flex flex-col items-start min-w-0 flex-1 gap-0.5">
+                                  <span className="text-[9px] md:text-[10px] text-green-700 dark:text-green-400 uppercase font-bold">Событие</span>
+                                  <span className="text-xs md:text-sm font-medium text-green-800 dark:text-green-300 truncate w-full">{att.name}</span>
+                                  {att.organizerName && (
+                                    <div className="flex items-center gap-1">
+                                      <Avatar name={att.organizerName} size="xs" className="ring-1 ring-green-400 dark:ring-green-500" />
+                                      <span className="text-[9px] text-green-700 dark:text-green-300">{att.organizerName}</span>
+                                    </div>
+                                  )}
                                 </div>
                               </button>
                             )}
                             {att.type === 'link' && (
                               <button 
                                 onClick={() => { if (att.url) window.open(att.url, '_blank'); }}
-                                className={`w-full flex flex-col items-start gap-1 px-3 py-2 rounded-xl border transition-colors shadow-[var(--shadow-glass)] ${
+                                className={`w-full flex flex-col items-start gap-1 px-3 py-2 rounded-xl border transition-colors shadow-[var(--shadow-glass)] backdrop-blur-md ${
                                   isMyMessage
                                     ? 'bg-white/22 border-white/40 hover:bg-white/30'
                                     : 'bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border-[var(--border-light)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)]'
@@ -1011,7 +1148,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                               >
                                 <span className={`text-[10px] ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-800/80' : 'text-white/90') : 'text-[var(--accent-primary)]'}`}>Ссылка</span>
                                 <div className="flex items-center gap-2">
-                                  <div className={`w-8 h-8 rounded-lg border flex items-center justify-center flex-shrink-0 ${
+                                  <div className={`w-8 h-8 rounded-lg border flex items-center justify-center flex-shrink-0 backdrop-blur-md ${
                                     isMyMessage ? 'bg-white/20 border-white/35' : 'bg-[var(--bg-glass-hover)] border-[var(--border-color)]'
                                   }`}>
                                     <LinkIcon className={`w-4 h-4 ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-800' : 'text-white') : 'text-[var(--accent-primary)]'}`} />
@@ -1021,17 +1158,17 @@ const MessageItem: React.FC<MessageItemProps> = ({
                               </button>
                             )}
                             {(att.type === 'file' || att.type === 'document') && (
-                              <div className="w-full flex flex-col items-start gap-1 px-2 py-1.5 bg-orange-500/10 dark:bg-orange-500/10 rounded-xl border-2 border-orange-500/50 dark:border-orange-500/30 max-w-[200px] md:max-w-[280px]">
-                                <span className="text-[9px] text-orange-600 dark:text-orange-400/70">{att.type === 'document' ? 'Документ' : 'Файл'}</span>
-                                <div className="flex items-center gap-1.5 w-full min-w-0">
-                                  <div className="w-6 h-6 rounded-lg bg-orange-500/20 dark:bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                              <div className="group w-full flex flex-col items-start gap-2 px-2.5 py-2 bg-gradient-to-br from-orange-500/20 via-red-500/15 to-orange-500/20 dark:from-orange-500/20 dark:via-red-500/15 dark:to-orange-500/20 rounded-xl border-2 border-orange-500/50 dark:border-orange-400/30 hover:border-orange-500/70 dark:hover:border-orange-300/50 max-w-[220px] md:max-w-[300px] hover:shadow-lg hover:shadow-orange-500/25 dark:hover:shadow-orange-400/20 transition-all duration-300 backdrop-blur-md">
+                                <span className="text-[10px] md:text-xs text-orange-700 dark:text-orange-400 font-bold uppercase tracking-wide">{att.type === 'document' ? 'Документ' : 'Файл'}</span>
+                                <div className="flex items-center gap-2.5 w-full min-w-0">
+                                  <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-gradient-to-br from-orange-400 to-red-500 dark:from-orange-500 dark:to-red-600 flex items-center justify-center flex-shrink-0 shadow-md transition-all duration-300">
                                     {att.type === 'document' ? (
-                                      <FileText className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+                                      <FileText className="w-4 h-4 md:w-5 md:h-5 text-white drop-shadow-md" />
                                     ) : (
-                                      <File className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+                                      <File className="w-4 h-4 md:w-5 md:h-5 text-white drop-shadow-md" />
                                     )}
                                   </div>
-                                  <span className="text-xs font-medium text-[var(--text-primary)] truncate flex-1 min-w-0">{att.name}</span>
+                                  <span className="text-xs md:text-sm font-semibold text-gray-900 dark:text-[var(--text-primary)] truncate flex-1 min-w-0 leading-tight">{att.name}</span>
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -1039,9 +1176,10 @@ const MessageItem: React.FC<MessageItemProps> = ({
                                       e.stopPropagation();
                                       downloadAttachment(att);
                                     }}
-                                    className="text-[10px] font-medium text-orange-600 dark:text-orange-400 hover:text-orange-500 dark:hover:text-orange-300 flex-shrink-0"
+                                    className="px-2.5 py-1.5 rounded-lg bg-gradient-to-br from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white text-[10px] md:text-xs font-bold shadow-md hover:shadow-lg active:scale-95 transition-all duration-200 flex items-center gap-1 flex-shrink-0"
                                   >
-                                    Скачать
+                                    <Download className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                                    <span className="hidden md:inline">Скачать</span>
                                   </button>
                                 </div>
                               </div>

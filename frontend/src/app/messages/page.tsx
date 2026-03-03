@@ -177,8 +177,21 @@ export default function MessagesPage() {
     bubbleStyle: 'modern' as 'modern' | 'classic' | 'minimal',
     fontSize: 13, // размер в пикселях для десктопа
     fontSizeMobile: 15, // размер в пикселях для мобильных
-    bubbleColor: '#3c3d96', // цвет для темной темы
-    bubbleColorLight: '#453de6', // цвет для светлой темы
+    bubbleColor: '#545190', // цвет для темной темы
+    bubbleColorLight: '#252546', // цвет для светлой темы
+    bubbleColorOpponent: '#38414d',
+    bubbleColorOpponentLight: '#e5e7eb',
+    bubbleTextColor: '#ffffff',
+    bubbleTextColorLight: '#ffffff',
+    chatBackgroundDark: '/images/backgrounds/graphite-05.jpg',
+    chatBackgroundLight: '/images/gradients/Autumn.png',
+    chatBackgroundImageDark: '/images/backgrounds/graphite-05.jpg',
+    chatBackgroundImageLight: '/images/gradients/Autumn.png',
+    chatOverlayImageDark: '/images/overlays/Cats.svg',
+    chatOverlayImageLight: '/images/overlays/Cats.svg',
+    chatOverlayScale: 140,
+    chatOverlayOpacity: 0.07,
+    bubbleOpacity: 1,
     colorPreset: 0
   });
   
@@ -196,9 +209,12 @@ export default function MessagesPage() {
   
   // Определяем цвет текста для своих баблов в зависимости от яркости фона
   const currentBubbleColor = theme === 'dark' ? chatSettings.bubbleColor : chatSettings.bubbleColorLight;
+  const currentBubbleTextColor = theme === 'dark'
+    ? (chatSettings.bubbleTextColor || '')
+    : (chatSettings.bubbleTextColorLight || '');
   const useDarkTextOnBubble = needsDarkText(currentBubbleColor);
-  const myBubbleTextClass = useDarkTextOnBubble ? 'text-gray-900' : 'text-white';
-  const myBubbleTextMutedClass = useDarkTextOnBubble ? 'text-gray-700' : 'text-white/70';
+  const myBubbleTextClass = currentBubbleTextColor ? '' : (useDarkTextOnBubble ? 'text-gray-900' : 'text-white');
+  const myBubbleTextMutedClass = currentBubbleTextColor ? '' : (useDarkTextOnBubble ? 'text-gray-700' : 'text-white/70');
   const composerContextOffset = editingMessageId || replyToMessage ? 46 : 0;
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -494,9 +510,31 @@ export default function MessagesPage() {
 
   // Загрузка настроек чата
   useEffect(() => {
+    const defaultSettings = {
+      bubbleStyle: 'modern' as 'modern' | 'classic' | 'minimal',
+      fontSize: 13,
+      fontSizeMobile: 15,
+      bubbleColor: '#545190',
+      bubbleColorLight: '#252546',
+      bubbleTextColor: '#ffffff',
+      bubbleTextColorLight: '#ffffff',
+      bubbleColorOpponent: '#38414d',
+      bubbleColorOpponentLight: '#e5e7eb',
+      chatBackgroundDark: '/images/backgrounds/graphite-05.jpg',
+      chatBackgroundLight: '/images/gradients/Autumn.png',
+      chatBackgroundImageDark: '/images/backgrounds/graphite-05.jpg',
+      chatBackgroundImageLight: '/images/gradients/Autumn.png',
+      chatOverlayImageDark: '/images/overlays/Cats.svg',
+      chatOverlayImageLight: '/images/overlays/Cats.svg',
+      chatOverlayScale: 140,
+      chatOverlayOpacity: 0.07,
+      bubbleOpacity: 1,
+      colorPreset: 0,
+    };
+
     const savedSettings = localStorage.getItem('chatSettings');
     if (savedSettings) {
-      const settings = JSON.parse(savedSettings);
+      const settings = { ...defaultSettings, ...JSON.parse(savedSettings) };
       setChatSettings(settings);
       // Устанавливаем CSS переменную для desktop font size при загрузке
       if (settings.fontSize) {
@@ -506,7 +544,7 @@ export default function MessagesPage() {
     
     // Слушатель изменений настроек
     const handleSettingsChange = (e: CustomEvent) => {
-      setChatSettings(e.detail);
+      setChatSettings((prev) => ({ ...prev, ...(e.detail || {}) }));
       // Обновляем CSS переменную для desktop font size
       if (e.detail.fontSize) {
         document.documentElement.style.setProperty('--desktop-font-size', `${e.detail.fontSize}px`);
@@ -1359,17 +1397,43 @@ export default function MessagesPage() {
         // Проверяем есть ли НОВЫЕ сообщения (сравниваем количество)
         const hasNewMessages = data.length > messages.length;
         
-        // Звуковое уведомление ОТКЛЮЧЕНО - раздражает пользователей
-        // if (isPolling && hasNewMessages && notificationSound && data.length > 0) {
-        //   const lastMessage = data[data.length - 1];
-        //   if (lastMessage.authorId !== currentUser?.id) {
-        //     // Проверяем настройки уведомлений для этого чата
-        //     const notificationsEnabled = localStorage.getItem(`chat_notifications_${chatId}`) !== 'false';
-        //     if (notificationsEnabled) {
-        //       notificationSound.play().catch(e => console.log('Звук заблокирован браузером'));
-        //     }
-        //   }
-        // }
+        // Browser Notification для новых сообщений
+        if (isPolling && hasNewMessages && data.length > 0 && currentUser) {
+          const lastMessage = data[data.length - 1];
+          // Показываем уведомление только если сообщение от другого пользователя
+          if (lastMessage.authorId !== currentUser.id) {
+            const notificationsEnabled = localStorage.getItem(`chat_notifications_${chatId}`) !== 'false';
+            if (notificationsEnabled && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              try {
+                // Находим автора сообщения
+                const author = chats.find(c => c.id === chatId)?.participants?.find(p => p.id === lastMessage.authorId);
+                const senderName = author?.name || author?.username || 'Пользователь';
+                
+                // Найдем название чата
+                const chat = chats.find(c => c.id === chatId);
+                const chatName = chat?.isGroup ? chat.name : senderName;
+                
+                // Получаем содержимое сообщения
+                let messageContent = lastMessage.content || '';
+                
+                // Обрезаем длинные сообщения
+                if (messageContent.length > 100) {
+                  messageContent = messageContent.substring(0, 100) + '...';
+                }
+                
+                // Создаем уведомление
+                new Notification(`${senderName} ${chat?.isGroup ? `(${chatName})` : ''}`, {
+                  body: messageContent,
+                  tag: `chat-message-${chatId}-${lastMessage.id}`,
+                  icon: '/favicon.png',
+                  requireInteraction: false
+                });
+              } catch (error) {
+                console.warn('Failed to show browser notification:', error);
+              }
+            }
+          }
+        }
         
         // Слияние с локальными pending-сообщениями (optimistic queue)
         const pendingForChat = pendingOutgoingRef.current.filter((msg) => msg.chatId === chatId);
@@ -1931,16 +1995,59 @@ export default function MessagesPage() {
       return false;
     };
 
+    const getPinOrder = (targetChat: any, userId: string): number | null => {
+      const orderMap = targetChat?.pinnedOrderByUser || targetChat?.pinned_order_by_user || {};
+      const normalizeId = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const userIdRaw = String(userId ?? '');
+
+      const parseOrder = (raw: unknown): number | null => {
+        if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+        if (typeof raw === 'string' && raw.trim() !== '') {
+          const parsed = Number.parseInt(raw, 10);
+          return Number.isFinite(parsed) ? parsed : null;
+        }
+        return null;
+      };
+
+      const directRaw = orderMap?.[userIdRaw];
+      const directParsed = parseOrder(directRaw);
+      if (directParsed !== null) {
+        return directParsed;
+      }
+
+      const normalizedUserId = normalizeId(userIdRaw);
+      for (const [key, value] of Object.entries(orderMap as Record<string, unknown>)) {
+        if (normalizeId(key) === normalizedUserId) {
+          return parseOrder(value);
+        }
+      }
+
+      return null;
+    };
+
     const chat = chats.find(c => c.id === chatId);
     const isPinned = getPinState(chat, currentUser.id);
     const newPinState = !isPinned;
     const previousPinState = isPinned;
+    const previousPinOrder = getPinOrder(chat, currentUser.id);
+    const maxPinOrder = chats.reduce((maxOrder, targetChat) => {
+      const order = getPinOrder(targetChat, currentUser.id);
+      if (order === null) return maxOrder;
+      return Math.max(maxOrder, order);
+    }, -1);
+    const nextPinOrder = newPinState ? maxPinOrder + 1 : null;
 
     // Оптимистичное обновление сразу
     setChats(prevChats => 
       prevChats.map(c => 
         c.id === chatId 
-          ? { ...c, pinnedByUser: { ...c.pinnedByUser, [currentUser.id]: newPinState } }
+          ? {
+              ...c,
+              pinnedByUser: { ...(c.pinnedByUser || {}), [currentUser.id]: newPinState },
+              pinnedOrderByUser: newPinState
+                ? { ...(c.pinnedOrderByUser || {}), [currentUser.id]: nextPinOrder ?? 0 }
+                : Object.fromEntries(Object.entries(c.pinnedOrderByUser || {}).filter(([key]) => key !== currentUser.id)),
+            }
           : c
       )
     );
@@ -1951,7 +2058,8 @@ export default function MessagesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: currentUser.id,
-          isPinned: newPinState
+          isPinned: newPinState,
+          pinOrder: nextPinOrder,
         })
       });
 
@@ -1965,16 +2073,34 @@ export default function MessagesPage() {
       }
 
       const serverPinned = typeof payload?.isPinned === 'boolean' ? payload.isPinned : newPinState;
+      const serverPinOrderRaw = payload?.pinOrder;
+      const serverPinOrder = typeof serverPinOrderRaw === 'number'
+        ? serverPinOrderRaw
+        : Number.isFinite(Number.parseInt(String(serverPinOrderRaw ?? ''), 10))
+          ? Number.parseInt(String(serverPinOrderRaw), 10)
+          : nextPinOrder;
       setChats(prevChats =>
         prevChats.map(c =>
           c.id === chatId
-            ? { ...c, pinnedByUser: { ...(c.pinnedByUser || {}), [currentUser.id]: serverPinned } }
+            ? {
+                ...c,
+                pinnedByUser: { ...(c.pinnedByUser || {}), [currentUser.id]: serverPinned },
+                pinnedOrderByUser: serverPinned
+                  ? { ...(c.pinnedOrderByUser || {}), [currentUser.id]: serverPinOrder ?? 0 }
+                  : Object.fromEntries(Object.entries(c.pinnedOrderByUser || {}).filter(([key]) => key !== currentUser.id)),
+              }
             : c
         )
       );
       setSelectedChat(prev =>
         prev?.id === chatId
-          ? { ...prev, pinnedByUser: { ...(prev.pinnedByUser || {}), [currentUser.id]: serverPinned } }
+          ? {
+              ...prev,
+              pinnedByUser: { ...(prev.pinnedByUser || {}), [currentUser.id]: serverPinned },
+              pinnedOrderByUser: serverPinned
+                ? { ...(prev.pinnedOrderByUser || {}), [currentUser.id]: serverPinOrder ?? 0 }
+                : Object.fromEntries(Object.entries(prev.pinnedOrderByUser || {}).filter(([key]) => key !== currentUser.id)),
+            }
           : prev
       );
 
@@ -1984,7 +2110,13 @@ export default function MessagesPage() {
       setChats(prevChats =>
         prevChats.map(c =>
           c.id === chatId
-            ? { ...c, pinnedByUser: { ...(c.pinnedByUser || {}), [currentUser.id]: previousPinState } }
+            ? {
+                ...c,
+                pinnedByUser: { ...(c.pinnedByUser || {}), [currentUser.id]: previousPinState },
+                pinnedOrderByUser: previousPinState
+                  ? { ...(c.pinnedOrderByUser || {}), [currentUser.id]: previousPinOrder ?? 0 }
+                  : Object.fromEntries(Object.entries(c.pinnedOrderByUser || {}).filter(([key]) => key !== currentUser.id)),
+              }
             : c
         )
       );
@@ -2275,6 +2407,44 @@ export default function MessagesPage() {
     });
   }, [searchQuery, users, currentUser?.id]);
 
+  const reorderPinnedChats = useCallback(async (orderedPinnedChatIds: string[]) => {
+    if (!currentUser || orderedPinnedChatIds.length === 0) return;
+
+    const orderedSet = new Set(orderedPinnedChatIds);
+
+    setChats(prevChats =>
+      prevChats.map(chat => {
+        if (!orderedSet.has(chat.id)) return chat;
+        const orderIndex = orderedPinnedChatIds.indexOf(chat.id);
+        return {
+          ...chat,
+          pinnedOrderByUser: {
+            ...(chat.pinnedOrderByUser || {}),
+            [currentUser.id]: orderIndex,
+          },
+        };
+      })
+    );
+
+    try {
+      await Promise.all(orderedPinnedChatIds.map((chatId, index) =>
+        fetch(`/api/chats/${encodeURIComponent(chatId)}/pin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUser.id,
+            isPinned: true,
+            pinOrder: index,
+          }),
+        })
+      ));
+      await loadChats();
+    } catch (error) {
+      console.error('Error reordering pinned chats:', error);
+      await loadChats();
+    }
+  }, [currentUser, loadChats]);
+
   // Разделяем чаты на закрепленные и обычные - мемоизировано для стабильности
   const { pinnedChats, unpinnedChats } = useMemo(() => {
     const userId = currentUser?.id || '';
@@ -2305,8 +2475,27 @@ export default function MessagesPage() {
       return false;
     };
 
+    const getPinOrder = (chat: Chat): number => {
+      const orderMap = (chat as any).pinnedOrderByUser || (chat as any).pinned_order_by_user || {};
+      const directRaw = orderMap?.[userId];
+      if (typeof directRaw === 'number' && Number.isFinite(directRaw)) return directRaw;
+      if (typeof directRaw === 'string') {
+        const parsed = Number.parseInt(directRaw, 10);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return Number.MAX_SAFE_INTEGER;
+    };
+
     const sourceChats = chats.filter(chat => isArchivedForCurrentUser(chat) === showArchivedChats);
-    const allPinnedChats = sourceChats.filter(chat => getPinState(chat));
+    const allPinnedChats = sourceChats
+      .filter(chat => getPinState(chat))
+      .sort((a, b) => {
+        const orderDiff = getPinOrder(a) - getPinOrder(b);
+        if (orderDiff !== 0) return orderDiff;
+        const aTime = new Date(a.lastMessage?.createdAt || a.createdAt || 0).getTime();
+        const bTime = new Date(b.lastMessage?.createdAt || b.createdAt || 0).getTime();
+        return bTime - aTime;
+      });
     const allUnpinnedChats = sourceChats.filter(chat => !getPinState(chat));
     
     return {
@@ -2510,12 +2699,55 @@ export default function MessagesPage() {
     };
   }, []);
 
+  const desktopChatBackgroundColor = theme === 'dark'
+    ? (chatSettings?.chatBackgroundDark || '#0f172a')
+    : (chatSettings?.chatBackgroundLight || '#f8fafc');
+  const desktopChatBackgroundImage = theme === 'dark'
+    ? String(chatSettings?.chatBackgroundImageDark || '').trim()
+    : String(chatSettings?.chatBackgroundImageLight || '').trim();
+  const desktopChatOverlayImage = theme === 'dark'
+    ? String(chatSettings?.chatOverlayImageDark || '').trim()
+    : String(chatSettings?.chatOverlayImageLight || '').trim();
+  const desktopOverlayScale = Math.max(20, Math.min(200, Number(chatSettings?.chatOverlayScale ?? 100) || 100));
+  const desktopOverlayOpacity = Math.max(0, Math.min(1, Number(chatSettings?.chatOverlayOpacity ?? 1) || 1));
+
   return (
     <div 
       ref={messagesContainerRef}
-      className="bg-[var(--bg-primary)] text-[var(--text-primary)] flex w-full max-w-full overflow-hidden overflow-x-hidden rounded-none overscroll-none min-w-0 cursor-default"
-      style={{ height: '100dvh', maxHeight: '100dvh' }}
+      className={`${isDesktopView ? 'bg-transparent' : 'bg-[var(--bg-primary)] px-2'} text-[var(--text-primary)] flex w-full max-w-full overflow-hidden overflow-x-hidden rounded-none overscroll-none min-w-0 cursor-default relative`}
+      style={{
+        height: '100dvh',
+        maxHeight: '100dvh',
+        ...(isDesktopView
+          ? {
+              backgroundColor: desktopChatBackgroundColor,
+              ...(desktopChatBackgroundImage
+                ? {
+                    backgroundImage: `url('${desktopChatBackgroundImage}')`,
+                    backgroundSize: 'cover',
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'center center'
+                  }
+                : {})
+            }
+          : {})
+      }}
     >
+      {isDesktopView && !selectedChat && desktopChatOverlayImage && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: `url('${desktopChatOverlayImage}')`,
+            backgroundSize: `${desktopOverlayScale * 3}px`,
+            backgroundRepeat: 'repeat',
+            backgroundPosition: 'center center',
+            backgroundAttachment: 'fixed',
+            opacity: desktopOverlayOpacity,
+            zIndex: 1,
+          }}
+        />
+      )}
+
       {/* Левая панель - список чатов (единый блок с разными состояниями) */}
       <ChatSidebar
         selectedChat={selectedChat}
@@ -2541,6 +2773,8 @@ export default function MessagesPage() {
         currentUser={currentUser}
         users={users}
         chatDrafts={chatDrafts}
+        onReorderPinnedChats={reorderPinnedChats}
+        canReorderPinnedChats={!searchQuery.trim()}
         ChatListSkeleton={ChatListSkeleton}
       />
 
@@ -2611,7 +2845,7 @@ export default function MessagesPage() {
 
           {activePinnedMessage && !linkedTaskBanner.id && isPinnedOverlayMobileView && (
             <div className="absolute top-[56px] md:top-[58px] left-0 right-0 z-20 px-2 md:px-4 lg:px-8 pointer-events-none">
-              <div className="pointer-events-auto flex items-center gap-1.5 rounded-xl border border-[var(--border-light)] bg-[var(--bg-glass)]/95 backdrop-blur-xl px-2.5 py-1.5 shadow-[var(--shadow-card)]">
+              <div className="pointer-events-auto flex items-center gap-1.5 rounded-[50px] border border-[var(--border-light)] bg-[var(--bg-glass)]/95 backdrop-blur-xl px-2.5 py-1 shadow-[var(--shadow-card)]">
                 <button
                   onClick={() => {
                     navigatePinned('prev');
@@ -2759,11 +2993,13 @@ export default function MessagesPage() {
           />
         </div>
       ) : (
-        <div className={`${isTouchPointer ? 'hidden' : 'flex'} flex-1 items-center justify-center text-[var(--text-muted)]`}>
-          <div className="text-center">
-            <MessageCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
-            <p className="text-sm">Выберите чат</p>
-            <p className="text-xs mt-1">или создайте новый</p>
+        <div className={`${isTouchPointer ? 'hidden' : 'flex'} flex-1 items-center justify-center text-[var(--text-muted)] px-4 pb-[calc(env(safe-area-inset-bottom)+86px)] md:pb-0`}>
+          <div className="text-center rounded-3xl px-5 py-4.5 border border-[var(--border-light)] bg-[var(--bg-glass)]/55 backdrop-blur-xl shadow-[var(--shadow-card)]">
+            <div className="w-16 h-16 mx-auto mb-3 rounded-full border border-[var(--border-light)] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] flex items-center justify-center shadow-[var(--shadow-card)]">
+              <MessageCircle className="w-8 h-8 opacity-70" />
+            </div>
+            <p className="text-[17px] leading-none font-semibold tracking-tight text-[var(--text-primary)]">Выберите чат</p>
+            <p className="text-[11px] mt-1.5 text-[var(--text-secondary)]">или создайте новый</p>
           </div>
         </div>
       )}

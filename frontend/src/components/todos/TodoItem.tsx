@@ -149,12 +149,12 @@ const TodoItem = memo(function TodoItem({
       onMouseLeave={onMouseLeave}
       onDoubleClick={onEdit}
       className={`
-        group bg-white dark:bg-[var(--bg-tertiary)] border border-gray-300 dark:border-[var(--border-color)] rounded-xl p-3 md:cursor-grab md:active:cursor-grabbing
-        transition-all duration-200 hover:shadow-lg hover:border-gray-400 dark:hover:border-[var(--border-light)] border-l-4 ${PRIORITY_COLORS[todo.priority]}
+        group bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl p-3 md:cursor-grab md:active:cursor-grabbing
+        transition-colors duration-150 hover:border-[var(--border-light)] border-l-4 ${PRIORITY_COLORS[todo.priority]}
         ${todo.completed ? 'opacity-70' : ''}
         ${isDragging ? 'opacity-50 scale-95' : ''}
         ${isDragOver ? 'border-t-2 border-t-blue-500' : ''}
-        shadow-md flex flex-col gap-2 will-change-transform
+        flex flex-col gap-2 will-change-transform
       `}
       style={{ transform: 'translateZ(0)' }}
     >
@@ -246,16 +246,16 @@ const TodoItem = memo(function TodoItem({
         {!todo.completed && !todo.stagesEnabled && todo.status && (
           <button
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
-            className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] border backdrop-blur-sm ${
+            className={`px-2 py-0.5 rounded-full text-[10px] font-medium border ${
               todo.status === 'in-progress' 
-                ? 'bg-gradient-to-br from-blue-500/20 to-blue-600/30 text-blue-600 dark:text-blue-400 border-blue-500/30' 
+                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30' 
                 : todo.status === 'pending'
-                  ? 'bg-gradient-to-br from-orange-500/20 to-orange-600/30 text-orange-600 dark:text-orange-400 border-orange-500/30'
+                  ? 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30'
                   : todo.status === 'cancelled'
-                    ? 'bg-gradient-to-br from-red-500/20 to-red-600/30 text-red-600 dark:text-red-400 border-red-500/30'
+                    ? 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30'
                     : todo.status === 'stuck'
-                      ? 'bg-gradient-to-br from-yellow-500/20 to-yellow-600/30 text-yellow-600 dark:text-yellow-500 border-yellow-500/30'
-                      : 'bg-gradient-to-br from-green-500/20 to-green-600/30 text-green-600 dark:text-green-400 border-green-500/30'
+                      ? 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-500 border-yellow-500/30'
+                      : 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30'
             }`}
           >
             {todo.status === 'in-progress' ? 'В работе' : 
@@ -267,7 +267,7 @@ const TodoItem = memo(function TodoItem({
         {!todo.completed && todo.stagesEnabled && (
           <button
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
-            className="px-2 py-0.5 rounded-full text-[10px] font-medium transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] border backdrop-blur-sm bg-gradient-to-br from-blue-500/10 to-blue-600/20 text-blue-600 dark:text-blue-400 border-blue-500/30"
+            className="px-2 py-0.5 rounded-full text-[10px] font-medium border bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30"
           >
             Этапы: {stageCount}
           </button>
@@ -275,7 +275,7 @@ const TodoItem = memo(function TodoItem({
         <div className="flex items-center gap-1 ml-auto">
           <button
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
-            className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500/10 to-blue-600/20 hover:from-blue-500/20 hover:to-blue-600/30 flex items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] border border-blue-500/20 backdrop-blur-sm"
+            className="w-6 h-6 rounded-full bg-[var(--bg-primary)] border border-[var(--border-color)] hover:border-[var(--border-light)] flex items-center justify-center transition-colors duration-150"
             title="Редактировать"
           >
             <Edit3 className="w-3 h-3 text-blue-500 dark:text-blue-400" strokeWidth={2} />
@@ -283,7 +283,7 @@ const TodoItem = memo(function TodoItem({
           {todo.completed && (
             <button
               onClick={(e) => { e.stopPropagation(); onArchive(); }}
-              className="w-6 h-6 rounded-full bg-gradient-to-br from-gray-500/10 to-gray-600/20 hover:from-gray-500/20 hover:to-gray-600/30 flex items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] border border-gray-500/20 backdrop-blur-sm"
+              className="w-6 h-6 rounded-full bg-[var(--bg-primary)] border border-[var(--border-color)] hover:border-[var(--border-light)] flex items-center justify-center transition-colors duration-150"
               title="Архивировать"
             >
               <Archive className="w-3 h-3 text-gray-500 dark:text-gray-400" strokeWidth={2} />
@@ -291,7 +291,7 @@ const TodoItem = memo(function TodoItem({
           )}
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            className="w-6 h-6 rounded-full bg-gradient-to-br from-red-500/10 to-red-600/20 hover:from-red-500/20 hover:to-red-600/30 flex items-center justify-center transition-all duration-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] border border-red-500/20 backdrop-blur-sm"
+            className="w-6 h-6 rounded-full bg-[var(--bg-primary)] border border-[var(--border-color)] hover:border-[var(--border-light)] flex items-center justify-center transition-colors duration-150"
             title="Удалить"
           >
             <Trash2 className="w-3 h-3 text-red-500 dark:text-red-400" strokeWidth={2} />

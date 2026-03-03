@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
-import { existsSync } from 'fs';
+
+const BACKEND_BASE_URL = (process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000')
+  .replace(/\/+$/, '')
+  .replace(/\/api$/i, '');
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,32 +13,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    // Сохраняем локально в backend/uploads
-    const uploadsDir = path.join(process.cwd(), '..', 'backend', 'uploads');
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true });
+    const backendForm = new FormData();
+    backendForm.append('file', file);
+
+    const backendRes = await fetch(`${BACKEND_BASE_URL}/api/upload`, {
+      method: 'POST',
+      body: backendForm,
+    });
+
+    if (!backendRes.ok) {
+      const errorText = await backendRes.text();
+      console.error('Backend upload failed:', errorText);
+      return NextResponse.json(
+        { error: 'Failed to upload file to backend storage' },
+        { status: backendRes.status }
+      );
     }
 
-    // Генерируем уникальное имя файла
-    const timestamp = Date.now();
-    const randomStr = Math.random().toString(36).slice(2, 11);
-    const ext = file.name.split('.').pop() || 'bin';
-    const fileName = `${timestamp}-${randomStr}.${ext}`;
-    const filePath = path.join(uploadsDir, fileName);
-
-    // Сохраняем файл
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    await writeFile(filePath, buffer);
-
-    // Возвращаем URL для доступа через бэкенд
-    const fileUrl = `/api/uploads/${fileName}`;
+    const data = await backendRes.json();
 
     return NextResponse.json({
       success: true,
-      url: fileUrl,
-      filename: file.name,
-      size: file.size,
+      url: data.url,
+      filename: data.filename || file.name,
+      size: data.size || file.size,
       type: file.type.startsWith('image/') ? 'image' : 'file'
     });
   } catch (error) {

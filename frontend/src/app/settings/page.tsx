@@ -15,6 +15,17 @@ const COLOR_PRESETS = [
   { name: 'Индиго', light: '#4f46e5', dark: '#6366f1' },
 ];
 
+type ChatAsset = {
+  name: string;
+  path: string;
+  url: string;
+};
+
+type ThemeAssets = {
+  backgrounds: ChatAsset[];
+  overlays: ChatAsset[];
+};
+
 const ToggleSwitch = ({ checked, onChange }: { checked: boolean; onChange: (val: boolean) => void }) => (
   <button
     type="button"
@@ -43,6 +54,28 @@ const Card = ({ title, subtitle, children }: { title: string; subtitle?: string;
 
 const inputClass = 'w-full h-11 rounded-xl border border-[var(--border-light)] bg-[var(--bg-secondary)]/70 px-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)]';
 
+const DARK_GRAPHITE_GRADIENTS = [
+  { name: 'Графит 01', start: '#0a0b10', mid: '#11131b', end: '#1a1d28' },
+  { name: 'Графит 02', start: '#08090d', mid: '#10131a', end: '#171b24' },
+  { name: 'Графит 03', start: '#0b0c12', mid: '#141722', end: '#1d2230' },
+  { name: 'Графит 04', start: '#090b10', mid: '#0f131c', end: '#151a25' },
+  { name: 'Графит 05', start: '#07080c', mid: '#0d1017', end: '#131823' },
+  { name: 'Графит 06', start: '#0c0e14', mid: '#141925', end: '#1c2433' },
+  { name: 'Графит 07', start: '#0a0d13', mid: '#121822', end: '#1a2230' },
+  { name: 'Графит 08', start: '#06070b', mid: '#0c0f16', end: '#121722' },
+];
+
+const createGradientDataUri = (start: string, mid: string, end: string) => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200" viewBox="0 0 1600 1200" preserveAspectRatio="none"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${start}"/><stop offset="52%" stop-color="${mid}"/><stop offset="100%" stop-color="${end}"/></linearGradient></defs><rect width="1600" height="1200" fill="url(#g)"/></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+};
+
+const BUILTIN_DARK_BACKGROUND_ASSETS: ChatAsset[] = DARK_GRAPHITE_GRADIENTS.map((preset, index) => ({
+  name: `${preset.name} (встроенный)`,
+  path: `builtin://graphite-${String(index + 1).padStart(2, '0')}`,
+  url: createGradientDataUri(preset.start, preset.mid, preset.end),
+}));
+
 export default function UserSettingsPage() {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
@@ -61,11 +94,48 @@ export default function UserSettingsPage() {
     fontSizeMobile: 13,
     bubbleColor: '#007aff',
     bubbleColorLight: '#007aff',
+    bubbleColorOpponent: '#1f2937',
+    bubbleColorOpponentLight: '#e5e7eb',
+    bubbleTextColor: '#ffffff',
+    bubbleTextColorLight: '#ffffff',
+    chatBackgroundDark: '#0f172a',
+    chatBackgroundLight: '#f8fafc',
+    chatBackgroundImageDark: '',
+    chatBackgroundImageLight: '',
+    chatOverlayImageDark: '',
+    chatOverlayImageLight: '',
+    chatOverlayScale: 100,
+    chatOverlayOpacity: 1,
+    bubbleOpacity: 0.92,
     colorPreset: 0,
+  });
+  const [chatAssets, setChatAssets] = useState<{ light: ThemeAssets; dark: ThemeAssets }>({
+    light: { backgrounds: [], overlays: [] },
+    dark: { backgrounds: [], overlays: [] },
   });
 
   useEffect(() => {
     const loadSettings = async () => {
+      const localSettingsRaw = localStorage.getItem('chatSettings');
+      let localSettings: Record<string, any> = {};
+      if (localSettingsRaw) {
+        try {
+          localSettings = JSON.parse(localSettingsRaw);
+        } catch {
+          localSettings = {};
+        }
+      }
+
+      const applyLoadedSettings = (nextSettings: Record<string, any>) => {
+        const merged = { ...chatSettings, ...nextSettings };
+        const matchedPresetIndex = COLOR_PRESETS.findIndex(
+          (preset) =>
+            preset.light.toLowerCase() === String(merged.bubbleColorLight || '').toLowerCase() &&
+            preset.dark.toLowerCase() === String(merged.bubbleColor || '').toLowerCase()
+        );
+        setChatSettings({ ...merged, colorPreset: matchedPresetIndex >= 0 ? matchedPresetIndex : -1 });
+      };
+
       try {
         const myAccountStr = localStorage.getItem('myAccount');
         if (myAccountStr) {
@@ -86,46 +156,60 @@ export default function UserSettingsPage() {
               department: user.department || '',
             });
             if (user.chatSettings) {
-              const loadedSettings = { ...chatSettings, ...user.chatSettings };
-              const matchedPresetIndex = COLOR_PRESETS.findIndex(
-                (preset) =>
-                  preset.light.toLowerCase() === String(loadedSettings.bubbleColorLight || '').toLowerCase() &&
-                  preset.dark.toLowerCase() === String(loadedSettings.bubbleColor || '').toLowerCase()
-              );
-              setChatSettings({
-                ...loadedSettings,
-                colorPreset: matchedPresetIndex >= 0 ? matchedPresetIndex : -1,
-              });
+              const loadedSettings = { ...user.chatSettings, ...localSettings };
+              applyLoadedSettings(loadedSettings);
+              localStorage.setItem('chatSettings', JSON.stringify({ ...chatSettings, ...loadedSettings }));
               return;
             }
           }
         }
-        const savedSettings = localStorage.getItem('chatSettings');
-        if (savedSettings) {
-          const parsed = { ...chatSettings, ...JSON.parse(savedSettings) };
-          const matchedPresetIndex = COLOR_PRESETS.findIndex(
-            (preset) =>
-              preset.light.toLowerCase() === String(parsed.bubbleColorLight || '').toLowerCase() &&
-              preset.dark.toLowerCase() === String(parsed.bubbleColor || '').toLowerCase()
-          );
-          setChatSettings({ ...parsed, colorPreset: matchedPresetIndex >= 0 ? matchedPresetIndex : -1 });
+        if (Object.keys(localSettings).length > 0) {
+          applyLoadedSettings(localSettings);
         }
       } catch {
-        const savedSettings = localStorage.getItem('chatSettings');
-        if (savedSettings) {
-          try {
-            const parsed = { ...chatSettings, ...JSON.parse(savedSettings) };
-            const matchedPresetIndex = COLOR_PRESETS.findIndex(
-              (preset) =>
-                preset.light.toLowerCase() === String(parsed.bubbleColorLight || '').toLowerCase() &&
-                preset.dark.toLowerCase() === String(parsed.bubbleColor || '').toLowerCase()
-            );
-            setChatSettings({ ...parsed, colorPreset: matchedPresetIndex >= 0 ? matchedPresetIndex : -1 });
-          } catch {}
+        if (Object.keys(localSettings).length > 0) {
+          applyLoadedSettings(localSettings);
         }
       }
     };
     void loadSettings();
+  }, []);
+
+  useEffect(() => {
+    const loadChatAssets = async () => {
+      let lightBackgrounds: ChatAsset[] = [];
+      let lightOverlays: ChatAsset[] = [];
+      let darkBackgrounds: ChatAsset[] = [];
+      let darkOverlays: ChatAsset[] = [];
+
+      try {
+        const response = await fetch('/api/chat-backgrounds', { cache: 'no-store' });
+        if (response.ok) {
+          const payload = await response.json();
+          lightBackgrounds = Array.isArray(payload?.light?.backgrounds) ? payload.light.backgrounds : [];
+          lightOverlays = Array.isArray(payload?.light?.overlays) ? payload.light.overlays : [];
+          darkBackgrounds = Array.isArray(payload?.dark?.backgrounds) ? payload.dark.backgrounds : [];
+          darkOverlays = Array.isArray(payload?.dark?.overlays) ? payload.dark.overlays : [];
+        }
+      } catch {}
+
+      setChatAssets({
+        light: {
+          backgrounds: lightBackgrounds,
+          overlays: lightOverlays,
+        },
+        dark: {
+          backgrounds: [...BUILTIN_DARK_BACKGROUND_ASSETS, ...darkBackgrounds],
+          overlays: darkOverlays,
+        },
+      });
+
+      if (darkBackgrounds.length === 0 && lightBackgrounds.length === 0 && lightOverlays.length === 0 && darkOverlays.length === 0) {
+        console.error('Failed to load chat assets from API, using built-in dark gradients only');
+      }
+    };
+
+    void loadChatAssets();
   }, []);
 
   const saveSettings = async (newSettings: typeof chatSettings) => {
@@ -249,6 +333,156 @@ export default function UserSettingsPage() {
   ];
 
   const isCustomThemeSelected = chatSettings.colorPreset < 0;
+  const [assetEditorTheme, setAssetEditorTheme] = useState<'light' | 'dark'>('dark');
+
+  const getBackgroundFieldByTheme = (targetTheme: 'light' | 'dark') =>
+    targetTheme === 'dark' ? 'chatBackgroundImageDark' : 'chatBackgroundImageLight';
+  const getOverlayFieldByTheme = (targetTheme: 'light' | 'dark') =>
+    targetTheme === 'dark' ? 'chatOverlayImageDark' : 'chatOverlayImageLight';
+
+  const buildAssetOptions = (items: ChatAsset[], noneLabel: string) => [
+    { name: noneLabel, url: '' },
+    ...items,
+  ];
+
+  const normalizeAssets = (items: ChatAsset[]) => {
+    const seen = new Set<string>();
+    return (items || []).filter((asset) => {
+      const key = String(asset?.url || '').trim();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  const currentThemeAssets = assetEditorTheme === 'dark' ? chatAssets.dark : chatAssets.light;
+  const themeBackgroundAssets = normalizeAssets(currentThemeAssets.backgrounds);
+  const themeOverlayAssets = normalizeAssets(currentThemeAssets.overlays);
+
+  const currentThemeBackgroundOptions = buildAssetOptions(
+    themeBackgroundAssets,
+    'Без фона'
+  );
+  const currentThemeOverlayOptions = buildAssetOptions(
+    themeOverlayAssets,
+    'Без накладки'
+  );
+
+  const selectedBackgroundField = getBackgroundFieldByTheme(assetEditorTheme);
+  const selectedOverlayField = getOverlayFieldByTheme(assetEditorTheme);
+  const selectedBackgroundUrl = String(chatSettings[selectedBackgroundField] || '');
+  const selectedOverlayUrl = String(chatSettings[selectedOverlayField] || '');
+
+  const selectedBackgroundIndexRaw = currentThemeBackgroundOptions.findIndex((asset) => asset.url === selectedBackgroundUrl);
+  const selectedOverlayIndexRaw = currentThemeOverlayOptions.findIndex((asset) => asset.url === selectedOverlayUrl);
+  const selectedBackgroundIndex = selectedBackgroundIndexRaw >= 0 ? selectedBackgroundIndexRaw : 0;
+  const selectedOverlayIndex = selectedOverlayIndexRaw >= 0 ? selectedOverlayIndexRaw : 0;
+
+  const selectedBackgroundName = currentThemeBackgroundOptions[selectedBackgroundIndex]?.name || 'Без фона';
+  const selectedOverlayName = currentThemeOverlayOptions[selectedOverlayIndex]?.name || 'Без накладки';
+
+  const onBackgroundSliderChange = (nextIndex: number) => {
+    const nextAsset = currentThemeBackgroundOptions[nextIndex] || currentThemeBackgroundOptions[0];
+    saveSettings({ ...chatSettings, [selectedBackgroundField]: nextAsset?.url || '' });
+  };
+
+  const onOverlaySliderChange = (nextIndex: number) => {
+    const nextAsset = currentThemeOverlayOptions[nextIndex] || currentThemeOverlayOptions[0];
+    saveSettings({ ...chatSettings, [selectedOverlayField]: nextAsset?.url || '' });
+  };
+
+  const setBackgroundByIndex = (nextIndex: number) => {
+    const index = Math.max(0, Math.min(currentThemeBackgroundOptions.length - 1, nextIndex));
+    onBackgroundSliderChange(index);
+  };
+
+  const setOverlayByIndex = (nextIndex: number) => {
+    const index = Math.max(0, Math.min(currentThemeOverlayOptions.length - 1, nextIndex));
+    onOverlaySliderChange(index);
+  };
+
+  const cycleBackground = (step: number) => {
+    if (currentThemeBackgroundOptions.length <= 1) return;
+    const next = (selectedBackgroundIndex + step + currentThemeBackgroundOptions.length) % currentThemeBackgroundOptions.length;
+    setBackgroundByIndex(next);
+  };
+
+  const cycleOverlay = (step: number) => {
+    if (currentThemeOverlayOptions.length <= 1) return;
+    const next = (selectedOverlayIndex + step + currentThemeOverlayOptions.length) % currentThemeOverlayOptions.length;
+    setOverlayByIndex(next);
+  };
+
+  const bubbleOpacityRaw = Number(chatSettings.bubbleOpacity ?? 0.92);
+  const bubbleOpacity = Number.isFinite(bubbleOpacityRaw) ? Math.max(0.2, Math.min(1, bubbleOpacityRaw)) : 0.92;
+  const overlayScaleRaw = Number(chatSettings.chatOverlayScale ?? 100);
+  const overlayScale = Number.isFinite(overlayScaleRaw) ? Math.max(20, Math.min(200, overlayScaleRaw)) : 100;
+  const overlayOpacityRaw = Number(chatSettings.chatOverlayOpacity ?? 1);
+  const overlayOpacity = Number.isFinite(overlayOpacityRaw) ? Math.max(0, Math.min(1, overlayOpacityRaw)) : 1;
+
+  const hexToRgba = (hex: string, alpha: number): string => {
+    const normalized = String(hex || '').replace('#', '').trim();
+    if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return hex;
+    const r = parseInt(normalized.slice(0, 2), 16);
+    const g = parseInt(normalized.slice(2, 4), 16);
+    const b = parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  const editorPreviewBackground = String(chatSettings[selectedBackgroundField] || '').trim();
+  const editorPreviewOverlay = String(chatSettings[selectedOverlayField] || '').trim();
+
+  const editorPreviewStyle = {
+    backgroundColor: assetEditorTheme === 'dark'
+      ? (chatSettings.chatBackgroundDark || '#0f172a')
+      : (chatSettings.chatBackgroundLight || '#f8fafc'),
+    backgroundImage: editorPreviewBackground ? `url('${editorPreviewBackground}')` : undefined,
+    backgroundSize: editorPreviewBackground ? 'cover' : undefined,
+    backgroundRepeat: editorPreviewBackground ? 'no-repeat' : undefined,
+    backgroundPosition: editorPreviewBackground ? 'center center' : undefined,
+  } as const;
+  const editorPreviewOverlayStyle = editorPreviewOverlay
+    ? {
+        position: 'absolute' as const,
+        inset: 0,
+        backgroundImage: `url('${editorPreviewOverlay}')`,
+        backgroundSize: `${overlayScale}%`,
+        backgroundRepeat: 'repeat',
+        backgroundPosition: 'center center',
+        opacity: overlayOpacity,
+        pointerEvents: 'none' as const,
+      }
+    : undefined;
+
+  const previewChatBackground = theme === 'dark'
+    ? (chatSettings.chatBackgroundDark || '#0f172a')
+    : (chatSettings.chatBackgroundLight || '#f8fafc');
+  const previewBackgroundImage = theme === 'dark'
+    ? String(chatSettings.chatBackgroundImageDark || '').trim()
+    : String(chatSettings.chatBackgroundImageLight || '').trim();
+  const previewOverlayImage = theme === 'dark'
+    ? String(chatSettings.chatOverlayImageDark || '').trim()
+    : String(chatSettings.chatOverlayImageLight || '').trim();
+
+  const previewBackgroundStyle = {
+    backgroundColor: previewChatBackground,
+    backgroundImage: previewBackgroundImage ? `url('${previewBackgroundImage}')` : undefined,
+    backgroundSize: previewBackgroundImage ? 'cover' : undefined,
+    backgroundRepeat: previewBackgroundImage ? 'no-repeat' : undefined,
+    backgroundPosition: previewBackgroundImage ? 'center center' : undefined,
+  } as const;
+  const previewOverlayStyle = previewOverlayImage
+    ? {
+        position: 'absolute' as const,
+        inset: 0,
+        backgroundImage: `url('${previewOverlayImage}')`,
+        backgroundSize: `${overlayScale}%`,
+        backgroundRepeat: 'repeat',
+        backgroundPosition: 'center center',
+        opacity: overlayOpacity,
+        pointerEvents: 'none' as const,
+      }
+    : undefined;
 
   return (
     <div className="h-screen flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
@@ -411,18 +645,16 @@ export default function UserSettingsPage() {
                   </div>
                 </div>
 
-                <div>
-                  <button
-                    onClick={() => setShowColorPicker(!showColorPicker)}
-                    className="w-full h-11 rounded-xl border border-[var(--border-light)] bg-[var(--bg-secondary)]/70 hover:bg-[var(--bg-glass-hover)] px-3 transition-colors flex items-center gap-3"
-                  >
-                    <div className="w-8 h-8 rounded-lg border border-[var(--border-light)] bg-[var(--bg-glass)] flex items-center justify-center">
-                      <Palette className="w-4 h-4 text-[var(--text-primary)]" />
-                    </div>
-                    <span className="flex-1 text-left text-sm text-[var(--text-primary)]">Цветовая схема</span>
-                    <span className={`text-xs ${isCustomThemeSelected ? 'text-cyan-500 font-medium' : 'text-[var(--text-muted)]'}`}>{isCustomThemeSelected ? 'Кастомная' : getColorName()}</span>
-                  </button>
-                </div>
+                <button
+                  onClick={() => setShowColorPicker(!showColorPicker)}
+                  className="w-full h-11 rounded-xl border border-[var(--border-light)] bg-[var(--bg-secondary)]/70 hover:bg-[var(--bg-glass-hover)] px-3 transition-colors flex items-center gap-3"
+                >
+                  <div className="w-8 h-8 rounded-lg border border-[var(--border-light)] bg-[var(--bg-glass)] flex items-center justify-center">
+                    <Palette className="w-4 h-4 text-[var(--text-primary)]" />
+                  </div>
+                  <span className="flex-1 text-left text-sm text-[var(--text-primary)]">Цветовая схема</span>
+                  <span className={`text-xs ${isCustomThemeSelected ? 'text-cyan-500 font-medium' : 'text-[var(--text-muted)]'}`}>{isCustomThemeSelected ? 'Кастомная' : getColorName()}</span>
+                </button>
 
                 {showColorPicker && (
                   <div className="rounded-xl border border-[var(--border-light)] bg-[var(--bg-secondary)]/70 p-3 space-y-3">
@@ -439,19 +671,195 @@ export default function UserSettingsPage() {
                         </button>
                       ))}
                     </div>
+
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-[var(--text-muted)]">Свой цвет</span>
                       <input type="color" value={chatSettings.bubbleColorLight} onChange={(e) => saveSettings({ ...chatSettings, bubbleColorLight: e.target.value, colorPreset: -1 })} className={`w-9 h-9 rounded-lg cursor-pointer border bg-transparent ${isCustomThemeSelected ? 'border-cyan-500 ring-1 ring-cyan-500/40' : 'border-[var(--border-light)]'}`} title="Светлая тема" />
                       <input type="color" value={chatSettings.bubbleColor} onChange={(e) => saveSettings({ ...chatSettings, bubbleColor: e.target.value, colorPreset: -1 })} className={`w-9 h-9 rounded-lg cursor-pointer border bg-transparent ${isCustomThemeSelected ? 'border-cyan-500 ring-1 ring-cyan-500/40' : 'border-[var(--border-light)]'}`} title="Тёмная тема" />
                     </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-[var(--text-muted)]">Цвет текста бабла</span>
+                      <input type="color" value={chatSettings.bubbleTextColorLight} onChange={(e) => saveSettings({ ...chatSettings, bubbleTextColorLight: e.target.value })} className="w-9 h-9 rounded-lg cursor-pointer border border-[var(--border-light)] bg-transparent" title="Текст бабла (светлая тема)" />
+                      <input type="color" value={chatSettings.bubbleTextColor} onChange={(e) => saveSettings({ ...chatSettings, bubbleTextColor: e.target.value })} className="w-9 h-9 rounded-lg cursor-pointer border border-[var(--border-light)] bg-transparent" title="Текст бабла (тёмная тема)" />
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-[var(--text-muted)]">Цвет бабла оппонента</span>
+                      <input type="color" value={chatSettings.bubbleColorOpponentLight} onChange={(e) => saveSettings({ ...chatSettings, bubbleColorOpponentLight: e.target.value })} className="w-9 h-9 rounded-lg cursor-pointer border border-[var(--border-light)] bg-transparent" title="Бабл оппонента (светлая тема)" />
+                      <input type="color" value={chatSettings.bubbleColorOpponent} onChange={(e) => saveSettings({ ...chatSettings, bubbleColorOpponent: e.target.value })} className="w-9 h-9 rounded-lg cursor-pointer border border-[var(--border-light)] bg-transparent" title="Бабл оппонента (тёмная тема)" />
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-[var(--text-muted)]">Фон чата</span>
+                      <input type="color" value={chatSettings.chatBackgroundLight} onChange={(e) => saveSettings({ ...chatSettings, chatBackgroundLight: e.target.value })} className="w-9 h-9 rounded-lg cursor-pointer border border-[var(--border-light)] bg-transparent" title="Фон чата (светлая тема)" />
+                      <input type="color" value={chatSettings.chatBackgroundDark} onChange={(e) => saveSettings({ ...chatSettings, chatBackgroundDark: e.target.value })} className="w-9 h-9 rounded-lg cursor-pointer border border-[var(--border-light)] bg-transparent" title="Фон чата (тёмная тема)" />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-[var(--text-muted)]">Графитовые градиенты (тёмная тема)</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {DARK_GRAPHITE_GRADIENTS.map((preset) => (
+                          <button
+                            key={preset.name}
+                            type="button"
+                            onClick={() => saveSettings({
+                              ...chatSettings,
+                              chatBackgroundDark: preset.end,
+                              chatBackgroundImageDark: createGradientDataUri(preset.start, preset.mid, preset.end),
+                            })}
+                            className="h-10 rounded-xl border border-[var(--border-light)] shadow-[var(--shadow-card)] transition-all hover:scale-[1.01]"
+                            style={{ background: `linear-gradient(180deg, ${preset.start} 0%, ${preset.mid} 52%, ${preset.end} 100%)` }}
+                            title={preset.name}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                <div className="rounded-xl border border-[var(--border-light)] bg-[var(--bg-secondary)]/70 p-3">
+                <div className="rounded-xl border border-[var(--border-light)] bg-[var(--bg-secondary)]/70 p-3 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-[var(--text-muted)]">Фоны и накладки</p>
+                    <div className="grid grid-cols-2 gap-1 p-1 rounded-lg border border-[var(--border-light)] bg-[var(--bg-secondary)]/70">
+                      <button type="button" onClick={() => setAssetEditorTheme('light')} className={`px-2 py-1 rounded-md text-xs transition-colors ${assetEditorTheme === 'light' ? 'bg-[var(--bg-glass-hover)] text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>Светлая</button>
+                      <button type="button" onClick={() => setAssetEditorTheme('dark')} className={`px-2 py-1 rounded-md text-xs transition-colors ${assetEditorTheme === 'dark' ? 'bg-[var(--bg-glass-hover)] text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>Тёмная</button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-[var(--border-light)] overflow-hidden relative" style={editorPreviewStyle}>
+                    {editorPreviewOverlayStyle && <div style={editorPreviewOverlayStyle} />}
+                    <div className="h-40 p-3 flex flex-col justify-end">
+                      <div className="space-y-2 relative z-10">
+                        <div className="max-w-[78%] rounded-xl px-3 py-2 text-sm border border-[var(--border-light)] text-[var(--text-primary)]" style={{ backgroundColor: hexToRgba(assetEditorTheme === 'dark' ? chatSettings.bubbleColorOpponent : chatSettings.bubbleColorOpponentLight, bubbleOpacity) }}>Пример подложки и накладки</div>
+                        <div className="max-w-[78%] ml-auto rounded-xl px-3 py-2 text-sm" style={{ backgroundColor: hexToRgba(assetEditorTheme === 'dark' ? chatSettings.bubbleColor : chatSettings.bubbleColorLight, bubbleOpacity), color: assetEditorTheme === 'dark' ? (chatSettings.bubbleTextColor || '#ffffff') : (chatSettings.bubbleTextColorLight || '#ffffff') }}>Слайдером листаю варианты</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[var(--text-muted)]">Фон</span>
+                      <span className="text-[var(--text-primary)]">{selectedBackgroundName}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => cycleBackground(-1)} className="w-8 h-8 rounded-lg border border-[var(--border-light)] bg-[var(--bg-secondary)] text-[var(--text-primary)] disabled:opacity-50" disabled={currentThemeBackgroundOptions.length <= 1}>‹</button>
+                      <div className="flex-1 overflow-x-auto scrollbar-hide-mobile">
+                        <div className="flex items-center gap-2 min-w-max pr-1">
+                          {currentThemeBackgroundOptions.map((asset, idx) => (
+                            <button
+                              key={`bg-thumb-${asset.url || 'none'}-${idx}`}
+                              type="button"
+                              onClick={() => setBackgroundByIndex(idx)}
+                              className={`relative w-16 h-10 rounded-lg border transition-all overflow-hidden ${selectedBackgroundIndex === idx ? 'border-[var(--accent-primary)] ring-1 ring-[var(--accent-primary)]/50' : 'border-[var(--border-light)]'}`}
+                              title={asset.name}
+                              style={asset.url ? { backgroundImage: `url('${asset.url}')`, backgroundSize: 'cover', backgroundPosition: 'center center', backgroundRepeat: 'no-repeat', backgroundColor: assetEditorTheme === 'dark' ? '#0f172a' : '#f8fafc' } : { backgroundColor: assetEditorTheme === 'dark' ? '#0f172a' : '#f8fafc' }}
+                            >
+                              {!asset.url && <span className="absolute inset-0 text-[10px] text-[var(--text-muted)] flex items-center justify-center">Нет</span>}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <button type="button" onClick={() => cycleBackground(1)} className="w-8 h-8 rounded-lg border border-[var(--border-light)] bg-[var(--bg-secondary)] text-[var(--text-primary)] disabled:opacity-50" disabled={currentThemeBackgroundOptions.length <= 1}>›</button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[var(--text-muted)]">Накладка</span>
+                      <span className="text-[var(--text-primary)]">{selectedOverlayName}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => cycleOverlay(-1)} className="w-8 h-8 rounded-lg border border-[var(--border-light)] bg-[var(--bg-secondary)] text-[var(--text-primary)] disabled:opacity-50" disabled={currentThemeOverlayOptions.length <= 1}>‹</button>
+                      <div className="flex-1 overflow-x-auto scrollbar-hide-mobile">
+                        <div className="flex items-center gap-2 min-w-max pr-1">
+                          {currentThemeOverlayOptions.map((asset, idx) => (
+                            <button
+                              key={`overlay-thumb-${asset.url || 'none'}-${idx}`}
+                              type="button"
+                              onClick={() => setOverlayByIndex(idx)}
+                              className={`relative w-16 h-10 rounded-lg border transition-all overflow-hidden ${selectedOverlayIndex === idx ? 'border-[var(--accent-primary)] ring-1 ring-[var(--accent-primary)]/50' : 'border-[var(--border-light)]'}`}
+                              title={asset.name}
+                              style={asset.url ? { backgroundImage: `url('${asset.url}')`, backgroundSize: `${overlayScale}%`, backgroundPosition: 'center center', backgroundRepeat: 'repeat', backgroundColor: assetEditorTheme === 'dark' ? '#0f172a' : '#f8fafc' } : { backgroundColor: assetEditorTheme === 'dark' ? '#0f172a' : '#f8fafc' }}
+                            >
+                              {!asset.url && <span className="absolute inset-0 text-[10px] text-[var(--text-muted)] flex items-center justify-center">Нет</span>}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <button type="button" onClick={() => cycleOverlay(1)} className="w-8 h-8 rounded-lg border border-[var(--border-light)] bg-[var(--bg-secondary)] text-[var(--text-primary)] disabled:opacity-50" disabled={currentThemeOverlayOptions.length <= 1}>›</button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[var(--text-muted)]">Масштаб накладки</span>
+                      <span className="text-[var(--text-primary)]">{overlayScale}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={20}
+                      max={200}
+                      step={5}
+                      value={overlayScale}
+                      onChange={(e) => saveSettings({ ...chatSettings, chatOverlayScale: Number.parseInt(e.target.value, 10) || 100 })}
+                      className="w-full accent-[var(--accent-primary)]"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[var(--text-muted)]">Прозрачность накладки</span>
+                      <span className="text-[var(--text-primary)]">{Math.round(overlayOpacity * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={Math.round(overlayOpacity * 100)}
+                      onChange={(e) => {
+                        const nextPercent = Number.parseInt(e.target.value, 10) || 0;
+                        saveSettings({ ...chatSettings, chatOverlayOpacity: nextPercent / 100 });
+                      }}
+                      className="w-full accent-[var(--accent-primary)]"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[var(--text-muted)]">Прозрачность баблов</span>
+                      <span className="text-[var(--text-primary)]">{Math.round(bubbleOpacity * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={20}
+                      max={100}
+                      step={1}
+                      value={Math.round(bubbleOpacity * 100)}
+                      onChange={(e) => {
+                        const nextPercent = Number.parseInt(e.target.value, 10) || 92;
+                        saveSettings({ ...chatSettings, bubbleOpacity: nextPercent / 100 });
+                      }}
+                      className="w-full accent-[var(--accent-primary)]"
+                    />
+                  </div>
+
+                  {currentThemeBackgroundOptions.length <= 1 && currentThemeOverlayOptions.length <= 1 && (
+                    <p className="text-xs text-[var(--text-muted)]">
+                      Для этой темы пока нет загруженных вариантов. Положите файлы в папки chat-backgrounds/{assetEditorTheme}/backgrounds и chat-backgrounds/{assetEditorTheme}/overlays.
+                    </p>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-[var(--border-light)] p-3 relative overflow-hidden" style={previewBackgroundStyle}>
+                  {previewOverlayStyle && <div style={previewOverlayStyle} />}
                   <div className="text-xs text-[var(--text-muted)] mb-2 inline-flex items-center gap-1"><Sparkles className="w-3.5 h-3.5" />Предпросмотр</div>
-                  <div className="space-y-2">
-                    <div className="max-w-[78%] rounded-xl px-3 py-2 text-sm border border-[var(--border-light)] bg-[var(--bg-glass)] text-[var(--text-primary)]">Привет! Посмотрел настройки.</div>
-                    <div className="max-w-[78%] ml-auto rounded-xl px-3 py-2 text-sm text-white" style={{ backgroundColor: theme === 'dark' ? chatSettings.bubbleColor : chatSettings.bubbleColorLight }}>Отлично, применяю новый стиль 👍</div>
+                  <div className="space-y-2 relative z-10">
+                    <div className="max-w-[78%] rounded-xl px-3 py-2 text-sm border border-[var(--border-light)] text-[var(--text-primary)]" style={{ backgroundColor: hexToRgba(theme === 'dark' ? chatSettings.bubbleColorOpponent : chatSettings.bubbleColorOpponentLight, bubbleOpacity) }}>Привет! Посмотрел настройки.</div>
+                    <div className="max-w-[78%] ml-auto rounded-xl px-3 py-2 text-sm" style={{ backgroundColor: hexToRgba(theme === 'dark' ? chatSettings.bubbleColor : chatSettings.bubbleColorLight, bubbleOpacity), color: theme === 'dark' ? (chatSettings.bubbleTextColor || '#ffffff') : (chatSettings.bubbleTextColorLight || '#ffffff') }}>Отлично, применяю новый стиль 👍</div>
                   </div>
                 </div>
               </div>

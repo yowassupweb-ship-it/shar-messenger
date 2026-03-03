@@ -3,6 +3,7 @@ import type {
   ContentPost,
   Person,
   LinkItem,
+  CalendarEvent,
   ContentPlanMeta,
   Notification,
   Toast,
@@ -27,6 +28,10 @@ interface PostForm {
   linkId?: string;
   linkUrl?: string;
   linkTitle?: string;
+  eventId?: string;
+  mediaUrls?: string[];
+  roles?: string[];
+  participants?: string[];
 }
 
 export function useContentPlanState() {
@@ -34,6 +39,7 @@ export function useContentPlanState() {
   const [posts, setPosts] = useState<ContentPost[]>([]);
   const [users, setUsers] = useState<Person[]>([]);
   const [availableLinks, setAvailableLinks] = useState<LinkItem[]>([]);
+  const [availableEvents, setAvailableEvents] = useState<CalendarEvent[]>([]);
   const [myAccountId, setMyAccountId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -122,7 +128,7 @@ export function useContentPlanState() {
   const initialFormRef = useRef<PostForm | null>(null);
 
   // Refs
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const descriptionEditorRef = useRef<HTMLDivElement>(null);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -189,6 +195,9 @@ export function useContentPlanState() {
     mentionFilter, setMentionFilter,
     showLinkUrlModal, setShowLinkUrlModal,
     linkUrlInput, setLinkUrlInput,
+    
+    // Events
+    availableEvents, setAvailableEvents,
     
     // Post Form
     postForm, setPostForm,

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { X, Check } from 'lucide-react';
-import type { ContentPlanMeta, Person } from '@/types/contentPlan';
+import type { ContentPlanMeta, Person, Toast } from '@/types/contentPlan';
 
 interface PlanSettingsModalProps {
   isOpen: boolean;
@@ -14,7 +14,7 @@ interface PlanSettingsModalProps {
   onUpdate: (plan: ContentPlanMeta) => void;
   onDelete: (planId: string) => void;
   onActivePlanChange: (planId: string) => void;
-  addToast: (toast: { type: 'success' | 'error' | 'info'; title: string; message?: string }) => void;
+  addToast: (toast: Omit<Toast, 'id' | 'createdAt'>) => void;
 }
 
 const PLAN_COLORS = ['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#6366F1'];

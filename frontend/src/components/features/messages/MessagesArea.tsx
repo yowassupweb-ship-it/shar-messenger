@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { MessageCircle } from 'lucide-react';
 import MessageItem from './MessageItem';
 import type { Message, User, Chat } from './types';
@@ -64,6 +64,7 @@ export default function MessagesArea({
 }: MessagesAreaProps) {
   const [hasRealOverflow, setHasRealOverflow] = useState(false);
   const [showAllMessages, setShowAllMessages] = useState(false);
+  const [dockOffsetPx, setDockOffsetPx] = useState(96);
   const dockOffsetRef = useRef(96);
   const previousDockOffsetRef = useRef(96);
   const initialRenderLimit = 40;
@@ -74,6 +75,54 @@ export default function MessagesArea({
     ? 'px-4 lg:px-8 h-full min-w-0'
     : 'px-0 h-full min-w-0';
   const listSpacingClass = isDesktopView ? 'space-y-[3px]' : 'space-y-1.5';
+  const chatBackgroundColor = theme === 'dark'
+    ? (chatSettings?.chatBackgroundDark || '#0f172a')
+    : (chatSettings?.chatBackgroundLight || '#f8fafc');
+  const chatBackgroundImage = theme === 'dark'
+    ? String(chatSettings?.chatBackgroundImageDark || '').trim()
+    : String(chatSettings?.chatBackgroundImageLight || '').trim();
+  const chatOverlayImage = theme === 'dark'
+    ? String(chatSettings?.chatOverlayImageDark || '').trim()
+    : String(chatSettings?.chatOverlayImageLight || '').trim();
+  const overlayScale = Math.max(20, Math.min(200, Number(chatSettings?.chatOverlayScale ?? 100) || 100));
+  const overlayOpacity = Math.max(0, Math.min(1, Number(chatSettings?.chatOverlayOpacity ?? 1) || 1));
+  const emptyStateTopOffset = isDesktopView
+    ? (hasPinnedMessage ? 112 : 64)
+    : (hasPinnedMessage ? 164 : 120);
+
+  const chatBackgroundStyle = useMemo<CSSProperties>(() => {
+    const style: CSSProperties = {
+      backgroundColor: chatBackgroundColor,
+    };
+
+    if (chatBackgroundImage) {
+      style.backgroundImage = `url('${chatBackgroundImage}')`;
+      style.backgroundSize = 'cover';
+      style.backgroundRepeat = 'no-repeat';
+      style.backgroundPosition = 'center center';
+    }
+
+    return style;
+  }, [chatBackgroundColor, chatBackgroundImage]);
+
+  const overlayStyle = useMemo<CSSProperties | undefined>(() => {
+    if (!chatOverlayImage) return undefined;
+    return {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      pointerEvents: 'none',
+      backgroundImage: `url('${chatOverlayImage}')`,
+      backgroundSize: `${overlayScale * 3}px`,
+      backgroundRepeat: 'repeat',
+      backgroundPosition: 'center center',
+      backgroundAttachment: 'fixed',
+      opacity: overlayOpacity,
+      zIndex: 1,
+    };
+  }, [chatOverlayImage, overlayScale, overlayOpacity]);
 
   const filteredMessages = messages.filter(message => {
     if (!message) return false;
@@ -168,6 +217,7 @@ export default function MessagesArea({
 
       if (dockOffsetRef.current !== nextOffset) {
         dockOffsetRef.current = nextOffset;
+        setDockOffsetPx(nextOffset);
       }
 
       previousDockOffsetRef.current = nextOffset;
@@ -272,13 +322,27 @@ export default function MessagesArea({
   };
 
   return (
-    <div ref={messagesListRef} className={`${containerClass} ${scrollBehaviorClass}`}>
-      <div className={innerClass}>
+    <div
+      ref={messagesListRef}
+      className={`${containerClass} ${scrollBehaviorClass} relative`}
+      style={chatBackgroundStyle}
+    >
+      {overlayStyle && <div style={overlayStyle} aria-hidden="true" />}
+      <div className={`${innerClass} relative z-10`}>
         {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)] select-none">
-            <MessageCircle className="w-16 h-16 mb-4 opacity-30" />
-            <p className="text-base font-medium">Нет сообщений</p>
-            <p className="text-sm mt-1 opacity-70">Начните общение</p>
+          <div
+            className="absolute left-0 right-0 z-20 px-4 select-none"
+            style={{ top: emptyStateTopOffset, bottom: dockOffsetPx }}
+          >
+            <div className="h-full flex items-center justify-center">
+              <div className="rounded-3xl border border-[var(--border-light)] bg-[var(--bg-glass)]/55 backdrop-blur-2xl shadow-[var(--shadow-card)] px-7 py-6 text-center">
+                <div className="w-14 h-14 mx-auto mb-3 rounded-full border border-[var(--border-light)] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] flex items-center justify-center">
+                  <MessageCircle className="w-7 h-7 opacity-70" />
+                </div>
+                <p className="text-[15px] font-semibold leading-tight text-[var(--text-primary)]">Нет сообщений</p>
+                <p className="text-[12px] mt-1 text-[var(--text-secondary)]">Начните общение</p>
+              </div>
+            </div>
           </div>
         ) : (
           <div className={listSpacingClass}>

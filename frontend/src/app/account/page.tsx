@@ -79,6 +79,19 @@ export default function AccountPage() {
     fontSizeMobile: 15, // размер в пикселях для мобильных
     bubbleColor: '#3c3d96', // цвет для темной темы
     bubbleColorLight: '#453de6', // цвет для светлой темы
+    bubbleColorOpponent: '#1f2937',
+    bubbleColorOpponentLight: '#e5e7eb',
+    bubbleTextColor: '#ffffff',
+    bubbleTextColorLight: '#ffffff',
+    chatBackgroundDark: '#0f172a',
+    chatBackgroundLight: '#f8fafc',
+    chatBackgroundImageDark: '',
+    chatBackgroundImageLight: '',
+    chatOverlayImageDark: '',
+    chatOverlayImageLight: '',
+    chatOverlayScale: 100,
+    chatOverlayOpacity: 1,
+    bubbleOpacity: 0.92,
     colorPreset: 0
   });
   
@@ -86,6 +99,7 @@ export default function AccountPage() {
   const [pinnedTools, setPinnedTools] = useState<string[]>([]);
   const [draggingTool, setDraggingTool] = useState<string | null>(null);
   const [isDragOverBar, setIsDragOverBar] = useState(false);
+  const [pinnedToolContextMenu, setPinnedToolContextMenu] = useState<{ toolId: string; x: number; y: number } | null>(null);
   const [isDesktop, setIsDesktop] = useState(false);
   const [isTouchDevice, setIsTouchDevice] = useState(() => typeof window !== 'undefined' ? window.matchMedia('(pointer: coarse)').matches : false);
   const [isBelow768, setIsBelow768] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 773 : false);
@@ -138,6 +152,19 @@ export default function AccountPage() {
         fontSizeMobile: 15,
         bubbleColor: '#3c3d96',
         bubbleColorLight: '#453de6',
+        bubbleColorOpponent: '#1f2937',
+        bubbleColorOpponentLight: '#e5e7eb',
+        bubbleTextColor: '#ffffff',
+        bubbleTextColorLight: '#ffffff',
+        chatBackgroundDark: '#0f172a',
+        chatBackgroundLight: '#f8fafc',
+        chatBackgroundImageDark: '',
+        chatBackgroundImageLight: '',
+        chatOverlayImageDark: '',
+        chatOverlayImageLight: '',
+        chatOverlayScale: 100,
+        chatOverlayOpacity: 1,
+        bubbleOpacity: 0.92,
         colorPreset: 0
       };
       
@@ -151,12 +178,32 @@ export default function AccountPage() {
             
             // Загружаем настройки чата из PostgreSQL
             if (user.chatSettings) {
-              const settings = { ...defaultSettings, ...user.chatSettings };
+              let localSettings: Record<string, any> = {};
+              const localSettingsRaw = localStorage.getItem('chatSettings');
+              if (localSettingsRaw) {
+                try {
+                  localSettings = JSON.parse(localSettingsRaw);
+                } catch {
+                  localSettings = {};
+                }
+              }
+
+              const settings = { ...defaultSettings, ...user.chatSettings, ...localSettings };
               setChatSettings(settings);
               // Сохраняем в localStorage для быстрого доступа (не как источник правды)
               localStorage.setItem('chatSettings', JSON.stringify(settings));
             } else {
-              setChatSettings(defaultSettings);
+              const localSettingsRaw = localStorage.getItem('chatSettings');
+              if (localSettingsRaw) {
+                try {
+                  const localSettings = JSON.parse(localSettingsRaw);
+                  setChatSettings({ ...defaultSettings, ...localSettings });
+                } catch {
+                  setChatSettings(defaultSettings);
+                }
+              } else {
+                setChatSettings(defaultSettings);
+              }
             }
             
             // Загружаем настройки навигации
@@ -168,7 +215,17 @@ export default function AccountPage() {
         }
       } catch (error) {
         console.error('Failed to load chat settings:', error);
-        setChatSettings(defaultSettings);
+        const localSettingsRaw = localStorage.getItem('chatSettings');
+        if (localSettingsRaw) {
+          try {
+            const localSettings = JSON.parse(localSettingsRaw);
+            setChatSettings({ ...defaultSettings, ...localSettings });
+          } catch {
+            setChatSettings(defaultSettings);
+          }
+        } else {
+          setChatSettings(defaultSettings);
+        }
       }
     };
     loadChatSettings();
@@ -315,6 +372,31 @@ export default function AccountPage() {
   const removePinnedTool = useCallback((toolId: string) => {
     savePinnedTools(pinnedTools.filter(id => id !== toolId));
   }, [pinnedTools, savePinnedTools]);
+
+  useEffect(() => {
+    if (!pinnedToolContextMenu) return;
+
+    const closeMenu = () => setPinnedToolContextMenu(null);
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeMenu();
+      }
+    };
+
+    document.addEventListener('click', closeMenu);
+    document.addEventListener('contextmenu', closeMenu);
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('resize', closeMenu);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('click', closeMenu);
+      document.removeEventListener('contextmenu', closeMenu);
+      window.removeEventListener('scroll', closeMenu, true);
+      window.removeEventListener('resize', closeMenu);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [pinnedToolContextMenu]);
 
   useEffect(() => {
     // Загрузка текущего пользователя
@@ -539,7 +621,7 @@ export default function AccountPage() {
       
       case 'tools':
         return (
-          <div className="h-full min-h-full overflow-y-auto p-4 sm:p-6 pb-[calc(env(safe-area-inset-bottom)+92px)] bg-[var(--bg-primary)]">
+          <div className="h-full min-h-full overflow-y-auto p-4 sm:p-6 pb-[calc(env(safe-area-inset-bottom)+92px)] bg-transparent">
             <div className="flex flex-col items-center mb-6 max-w-5xl mx-auto">
               <div className="flex items-center justify-between w-full">
                 <h2 className="text-2xl font-bold text-center flex-1">Инструменты</h2>
@@ -617,10 +699,55 @@ export default function AccountPage() {
     }
   };
 
+  const isChatStyledTab = activeTab === 'tasks' || activeTab === 'contacts' || activeTab === 'tools' || activeTab === 'links';
+  const accountChatBackgroundColor = theme === 'dark'
+    ? (chatSettings?.chatBackgroundDark || '#0f172a')
+    : (chatSettings?.chatBackgroundLight || '#f8fafc');
+  const accountChatBackgroundImage = theme === 'dark'
+    ? String(chatSettings?.chatBackgroundImageDark || '').trim()
+    : String(chatSettings?.chatBackgroundImageLight || '').trim();
+  const accountChatOverlayImage = theme === 'dark'
+    ? String(chatSettings?.chatOverlayImageDark || '').trim()
+    : String(chatSettings?.chatOverlayImageLight || '').trim();
+  const accountOverlayScale = Math.max(20, Math.min(200, Number(chatSettings?.chatOverlayScale ?? 100) || 100));
+  const accountOverlayOpacity = Math.max(0, Math.min(1, Number(chatSettings?.chatOverlayOpacity ?? 1) || 1));
+  const mobileNavButtonBaseClass = 'w-10 h-10 flex-shrink-0 rounded-[20px] flex items-center justify-center transition-all duration-200 focus:outline-none border backdrop-blur-xl';
+  const mobileNavButtonActiveClass = 'bg-blue-500/20 text-gray-900 dark:text-white border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)]';
+  const mobileNavButtonIdleClass = 'text-[var(--text-primary)] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border-[var(--border-light)] shadow-[var(--shadow-card)]';
+
   return (
-    <div className={`h-screen w-full max-w-full min-w-0 theme-text flex flex-col transition-colors duration-300 overflow-hidden overflow-x-hidden ${activeTab === 'messages' ? '' : 'theme-bg'}`}>
+    <div
+      className={`h-screen w-full max-w-full min-w-0 theme-text flex flex-col transition-colors duration-300 overflow-hidden overflow-x-hidden relative ${(activeTab === 'messages' || activeTab === 'tasks' || activeTab === 'contacts' || activeTab === 'tools' || activeTab === 'links') ? '' : 'theme-bg'}`}
+      style={isChatStyledTab
+        ? {
+            backgroundColor: accountChatBackgroundColor,
+            ...(accountChatBackgroundImage
+              ? {
+                  backgroundImage: `url('${accountChatBackgroundImage}')`,
+                  backgroundSize: 'cover',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'center center'
+                }
+              : {})
+          }
+        : undefined}
+    >
+      {isChatStyledTab && accountChatOverlayImage && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: `url('${accountChatOverlayImage}')`,
+            backgroundSize: `${accountOverlayScale * 3}px`,
+            backgroundRepeat: 'repeat',
+            backgroundPosition: 'center center',
+            opacity: accountOverlayOpacity,
+            zIndex: 1,
+          }}
+        />
+      )}
+
       {/* Main Content */}
-      <div className="flex-1 min-w-0 overflow-hidden overflow-x-hidden">
+      <div className="flex-1 min-w-0 overflow-hidden overflow-x-hidden relative z-10">
         <div className={`h-full min-w-0 ${activeTab === 'tasks' || activeTab === 'messages' ? '' : 'overflow-y-auto'} overflow-x-hidden`}>
           {renderContent()}
         </div>
@@ -628,14 +755,14 @@ export default function AccountPage() {
 
       {/* Mobile Bottom Navigation Bar - стеклянные кнопки */}
       <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-3 pb-[max(env(safe-area-inset-bottom),12px)] px-3 z-40 pointer-events-none select-none overflow-visible ${shouldUseMobileNav && !hideBottomNavInOpenedChat ? 'flex' : 'hidden'}`} onCopy={(e) => e.preventDefault()}>
-        <div className="flex items-center gap-2 pointer-events-auto backdrop-blur-xl bg-gradient-to-b from-white/12 to-white/5 border border-white/25 rounded-full px-3 py-1.5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.18),0_10px_24px_rgba(0,0,0,0.22)] select-none" onCopy={(e) => e.preventDefault()}>
+        <div className="flex items-center gap-1 p-[2px] rounded-full pointer-events-auto select-none backdrop-blur-xl bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[var(--shadow-card)]" onCopy={(e) => e.preventDefault()}>
           {visibleTabs.messages && (
           <button
             onClick={() => handleTabChange('messages')}
-            className={`relative w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
+            className={`relative ${mobileNavButtonBaseClass} ${
               activeTab === 'messages'
-                ? 'bg-blue-500/20 text-gray-900 dark:text-white border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
-                : 'text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm'
+                ? mobileNavButtonActiveClass
+                : mobileNavButtonIdleClass
             }`}
           >
             <MessageCircle className="w-4 h-4" strokeWidth={2} />
@@ -650,10 +777,10 @@ export default function AccountPage() {
           {visibleTabs.tasks && (
           <button
             onClick={() => handleTabChange('tasks')}
-            className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
+            className={`${mobileNavButtonBaseClass} ${
               activeTab === 'tasks'
-                ? 'bg-blue-500/20 text-gray-900 dark:text-white border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
-                : 'text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm'
+                ? mobileNavButtonActiveClass
+                : mobileNavButtonIdleClass
             }`}
           >
             <CheckSquare className="w-4 h-4" strokeWidth={2} />
@@ -663,10 +790,10 @@ export default function AccountPage() {
           {visibleTabs.calendar && (
           <button
             onClick={() => handleTabChange('calendar')}
-            className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
+            className={`${mobileNavButtonBaseClass} ${
               activeTab === 'calendar'
-                ? 'bg-blue-500/20 text-gray-900 dark:text-white border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
-                : 'text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm'
+                ? mobileNavButtonActiveClass
+                : mobileNavButtonIdleClass
             }`}
           >
             <Calendar className="w-4 h-4" strokeWidth={2} />
@@ -676,10 +803,10 @@ export default function AccountPage() {
           {visibleTabs.contacts && (
           <button
             onClick={() => handleTabChange('contacts')}
-            className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
+            className={`${mobileNavButtonBaseClass} ${
               activeTab === 'contacts'
-                ? 'bg-blue-500/20 text-gray-900 dark:text-white border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
-                : 'text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm'
+                ? mobileNavButtonActiveClass
+                : mobileNavButtonIdleClass
             }`}
           >
             <Users className="w-4 h-4" strokeWidth={2} />
@@ -689,10 +816,10 @@ export default function AccountPage() {
           {visibleTabs.links && (
           <button
             onClick={() => handleTabChange('links')}
-            className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
+            className={`${mobileNavButtonBaseClass} ${
               activeTab === 'links'
-                ? 'bg-blue-500/20 text-gray-900 dark:text-white border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
-                : 'text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm'
+                ? mobileNavButtonActiveClass
+                : mobileNavButtonIdleClass
             }`}
           >
             <Globe className="w-4 h-4" strokeWidth={2} />
@@ -701,10 +828,10 @@ export default function AccountPage() {
 
           <button
             onClick={() => handleTabChange('tools')}
-            className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
+            className={`${mobileNavButtonBaseClass} ${
               activeTab === 'tools'
-                ? 'bg-blue-500/20 text-gray-900 dark:text-white border border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)] backdrop-blur-xl'
-                : 'text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm'
+                ? mobileNavButtonActiveClass
+                : mobileNavButtonIdleClass
             }`}
           >
             <MoreVertical className="w-4 h-4" strokeWidth={2} />
@@ -833,7 +960,17 @@ export default function AccountPage() {
                 >
                   <Link
                     href={tool.href}
-                    className="flex items-center gap-1.5 text-[10px] font-medium transition-all px-2 py-1.5 rounded-xl bg-gradient-to-b from-white/10 to-white/5 border border-white/20 hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]"
+                    className="flex items-center justify-center xl:justify-start gap-1.5 w-8 h-8 xl:w-auto xl:max-w-[170px] rounded-xl transition-all px-0 xl:px-2 py-0 xl:py-1.5 bg-gradient-to-b from-white/10 to-white/5 border border-white/20 hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]"
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      setPinnedToolContextMenu({
+                        toolId,
+                        x: rect.left + rect.width / 2,
+                        y: rect.top,
+                      });
+                    }}
+                    title={tool.name}
                   >
                     <div className={`w-5 h-5 rounded-full bg-gradient-to-br ${tool.gradient} flex items-center justify-center relative overflow-hidden shadow-sm backdrop-blur-sm`}>
                       {/* Apple-style glass */}
@@ -853,15 +990,10 @@ export default function AccountPage() {
                         {tool.id === 'admin' && <Shield className="w-2.5 h-2.5 text-white" strokeWidth={2} />}
                       </div>
                     </div>
-                    <span className="hidden md:inline text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">{tool.name}</span>
+                    <span className="hidden xl:inline truncate text-[10px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+                      {tool.name}
+                    </span>
                   </Link>
-                  <button
-                    onClick={(e) => { e.preventDefault(); removePinnedTool(toolId); }}
-                    className="hidden lg:flex absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Открепить"
-                  >
-                    <X className="w-2.5 h-2.5" strokeWidth={3} />
-                  </button>
                 </div>
               );
             })}
@@ -932,14 +1064,38 @@ export default function AccountPage() {
         </div>
       </div>
 
+      {pinnedToolContextMenu && (
+        <div
+          className="fixed z-[220] min-w-[180px] rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] shadow-2xl overflow-hidden"
+          style={{
+            left: pinnedToolContextMenu.x,
+            top: pinnedToolContextMenu.y,
+            transform: 'translate(-50%, calc(-100% - 8px))',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="w-full px-3 py-2.5 text-left text-sm text-red-400 hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-2"
+            onClick={(e) => {
+              e.stopPropagation();
+              removePinnedTool(pinnedToolContextMenu.toolId);
+              setPinnedToolContextMenu(null);
+            }}
+          >
+            <X className="w-4 h-4" />
+            Открепить
+          </button>
+        </div>
+      )}
+
       {/* Profile Modal */}
       {showProfileModal && currentUser && (
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 pb-20"
           onClick={() => setShowProfileModal(false)}
         >
           <div 
-            className="bg-[var(--bg-secondary)] rounded-2xl w-full max-w-md shadow-2xl border border-[var(--border-primary)]"
+            className="bg-[var(--bg-secondary)] rounded-2xl w-full max-w-md shadow-2xl border border-[var(--border-primary)] backdrop-blur-xl"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}

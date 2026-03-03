@@ -27,6 +27,8 @@ interface ChatSidebarProps {
   currentUser: User | null;
   users: User[];
   chatDrafts: Record<string, string>;
+  onReorderPinnedChats: (orderedPinnedChatIds: string[]) => void;
+  canReorderPinnedChats: boolean;
   ChatListSkeleton: React.ComponentType;
 }
 
@@ -54,19 +56,26 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   currentUser,
   users,
   chatDrafts,
+  onReorderPinnedChats,
+  canReorderPinnedChats,
   ChatListSkeleton,
 }) => {
-  const [isMobileView, setIsMobileView] = useState(() => {
+  const detectMobileView = () => {
     if (typeof window === 'undefined') return false;
-    return window.innerWidth < 773 || window.matchMedia('(pointer: coarse)').matches;
+    return window.innerWidth < 768;
+  };
+
+  const [isMobileView, setIsMobileView] = useState(() => {
+    return detectMobileView();
   });
   const [showAllChats, setShowAllChats] = useState(false);
+  const [draggedPinnedChatId, setDraggedPinnedChatId] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const updateMobileView = () => {
-      setIsMobileView(window.innerWidth < 773 || window.matchMedia('(pointer: coarse)').matches);
+      setIsMobileView(detectMobileView());
     };
 
     updateMobileView();
@@ -78,6 +87,12 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
   const isCollapsed = isChatListCollapsed && !isMobileView;
   const visiblePinnedChats = pinnedChats;
+
+  // Debug: log mobile view state
+  useEffect(() => {
+    console.log('ChatSidebar: isMobileView =', isMobileView, 'window.innerWidth =', window.innerWidth);
+  }, [isMobileView]);
+
   const visibleUnpinnedChats = unpinnedChats;
   const visibleChatsCount = visiblePinnedChats.length + visibleUnpinnedChats.length;
   const initialRenderBudget = 10;
@@ -129,14 +144,70 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   const glassRoundButtonSmallClass = 'flex-shrink-0 flex items-center justify-center w-[32px] h-[32px] rounded-full bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] backdrop-blur-xl border border-[var(--border-light)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] transition-all shadow-[var(--shadow-card)]';
   const glassSearchPillClass = 'w-full h-[37px] pl-10 pr-3 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] rounded-full text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--border-primary)] shadow-[var(--shadow-card)] backdrop-blur-xl';
 
+  const handlePinnedDragStart = (chatId: string) => {
+    if (!canReorderPinnedChats) return;
+    setDraggedPinnedChatId(chatId);
+  };
+
+  const handlePinnedDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!canReorderPinnedChats) return;
+    event.preventDefault();
+  };
+
+  const handlePinnedDrop = (targetChatId: string) => {
+    if (!canReorderPinnedChats || !draggedPinnedChatId || draggedPinnedChatId === targetChatId) {
+      return;
+    }
+
+    const currentOrder = [...pinnedChats];
+    const fromIndex = currentOrder.findIndex(chat => chat.id === draggedPinnedChatId);
+    const toIndex = currentOrder.findIndex(chat => chat.id === targetChatId);
+    if (fromIndex === -1 || toIndex === -1) {
+      return;
+    }
+
+    const [movedItem] = currentOrder.splice(fromIndex, 1);
+    currentOrder.splice(toIndex, 0, movedItem);
+    onReorderPinnedChats(currentOrder.map(chat => chat.id));
+  };
+
+  const handlePinnedDragEnd = () => {
+    setDraggedPinnedChatId(null);
+  };
+
+  const desktopBottomMenuHeight = 46;
+  const desktopBottomGap = 10;
+  const desktopBottomOffset = desktopBottomMenuHeight + desktopBottomGap;
+  const desktopSidebarRadius = 20;
+
   return (
-    <div className={`
-      ${selectedChat && isMobileView ? 'hidden' : 'flex'} 
-      ${isCollapsed ? 'w-[84px] min-w-[84px]' : isMobileView ? 'w-full' : 'w-full md:w-80 md:min-w-80'} 
-      border-r border-[var(--border-color)] flex-col h-full min-h-0 transition-all duration-200 bg-[var(--bg-secondary)] flex-shrink-0 max-w-full overflow-x-hidden relative
-    `}
+    <div 
+      className={`
+        ${selectedChat && isMobileView ? 'hidden' : 'flex'} 
+        ${isCollapsed ? 'w-[84px] min-w-[84px]' : isMobileView ? 'w-full' : 'w-full md:w-80 md:min-w-80'} 
+        flex-col h-full min-h-0 flex-shrink-0 max-w-full relative z-10 shadow-[var(--shadow-card)]
+      `}
+      style={{
+        borderRadius: isMobileView ? '0' : '20px',
+        margin: isMobileView ? '0' : `5px 0 ${desktopBottomOffset}px 5px`,
+        height: isMobileView ? '100%' : `calc(100% - ${desktopBottomOffset}px)`,
+        borderColor: 'var(--border-light)',
+        borderStyle: 'solid',
+        borderWidth: isMobileView ? '0 1px 0 0' : '1px',
+      }}
       onCopy={(e) => e.preventDefault()}
     >
+      {/* Background layer for 100% reliable blur without destroying child blurs */}
+      <div 
+        className="absolute inset-0 z-0 pointer-events-none rounded-[20px] overflow-hidden"
+        style={{
+          borderRadius: isMobileView ? '0' : '20px',
+          backgroundColor: 'var(--bg-glass)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+        }}
+      />
+      
       {/* Search / New Chat Button */}
       <div className="absolute top-0 left-0 right-0 z-20 bg-transparent">
         {isCollapsed ? (
@@ -199,7 +270,19 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       </div>
 
       {/* Chats list */}
-      <div className="flex-1 min-h-0 overflow-y-auto pt-[56px] md:pt-[58px] pb-20 bg-transparent">
+      <div
+        className="relative z-10 flex-1 min-h-0 overflow-y-auto pt-[56px] md:pt-[58px] pb-[calc(env(safe-area-inset-bottom)+80px)] md:pb-4 bg-transparent"
+        style={{
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          WebkitOverflowScrolling: 'touch'
+        }}
+      >
+        <style jsx>{`
+          div::-webkit-scrollbar {
+            display: none;
+          }
+        `}</style>
         {isLoadingChats ? (
           /* 🚀 PERFORMANCE: Skeleton loader для LCP оптимизации */
           <ChatListSkeleton />
@@ -258,25 +341,34 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                   </div>
                   <div className="divide-y divide-[var(--border-color)]">
                     {renderedChats.pinned.map(chat => (
-                      <ChatItem
+                      <div
                         key={chat.id}
-                        chat={chat}
-                        isSelected={selectedChat?.id === chat.id}
-                        onSelect={selectChat}
-                        onContextMenu={(e, chat) => {
-                          e.preventDefault();
-                          setContextMenuChat(chat);
-                          setChatContextMenuPosition({ top: e.clientY, left: e.clientX });
-                          setShowChatContextMenu(true);
-                        }}
-                        getChatTitle={getChatTitle}
-                        getChatAvatarData={getChatAvatarData}
-                        currentUser={currentUser}
-                        users={users}
-                        chatDrafts={chatDrafts}
-                        variant="mobile"
-                        isPinned={true}
-                      />
+                        draggable={canReorderPinnedChats}
+                        onDragStart={() => handlePinnedDragStart(chat.id)}
+                        onDragOver={handlePinnedDragOver}
+                        onDrop={() => handlePinnedDrop(chat.id)}
+                        onDragEnd={handlePinnedDragEnd}
+                        className={draggedPinnedChatId === chat.id ? 'opacity-50' : ''}
+                      >
+                        <ChatItem
+                          chat={chat}
+                          isSelected={selectedChat?.id === chat.id}
+                          onSelect={selectChat}
+                          onContextMenu={(e, chat) => {
+                            e.preventDefault();
+                            setContextMenuChat(chat);
+                            setChatContextMenuPosition({ top: e.clientY, left: e.clientX });
+                            setShowChatContextMenu(true);
+                          }}
+                          getChatTitle={getChatTitle}
+                          getChatAvatarData={getChatAvatarData}
+                          currentUser={currentUser}
+                          users={users}
+                          chatDrafts={chatDrafts}
+                          variant="mobile"
+                          isPinned={true}
+                        />
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -325,25 +417,34 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                   </div>
                   <div className="divide-y divide-[var(--border-color)]">
                     {renderedChats.pinned.map(chat => (
-                      <ChatItem
+                      <div
                         key={chat.id}
-                        chat={chat}
-                        isSelected={selectedChat?.id === chat.id}
-                        onSelect={selectChat}
-                        onContextMenu={(e, chat) => {
-                          e.preventDefault();
-                          setContextMenuChat(chat);
-                          setChatContextMenuPosition({ top: e.clientY, left: e.clientX });
-                          setShowChatContextMenu(true);
-                        }}
-                        getChatTitle={getChatTitle}
-                        getChatAvatarData={getChatAvatarData}
-                        currentUser={currentUser}
-                        users={users}
-                        chatDrafts={chatDrafts}
-                        variant="mobile"
-                        isPinned={true}
-                      />
+                        draggable={canReorderPinnedChats}
+                        onDragStart={() => handlePinnedDragStart(chat.id)}
+                        onDragOver={handlePinnedDragOver}
+                        onDrop={() => handlePinnedDrop(chat.id)}
+                        onDragEnd={handlePinnedDragEnd}
+                        className={draggedPinnedChatId === chat.id ? 'opacity-50' : ''}
+                      >
+                        <ChatItem
+                          chat={chat}
+                          isSelected={selectedChat?.id === chat.id}
+                          onSelect={selectChat}
+                          onContextMenu={(e, chat) => {
+                            e.preventDefault();
+                            setContextMenuChat(chat);
+                            setChatContextMenuPosition({ top: e.clientY, left: e.clientX });
+                            setShowChatContextMenu(true);
+                          }}
+                          getChatTitle={getChatTitle}
+                          getChatAvatarData={getChatAvatarData}
+                          currentUser={currentUser}
+                          users={users}
+                          chatDrafts={chatDrafts}
+                          variant="mobile"
+                          isPinned={true}
+                        />
+                      </div>
                     ))}
                   </div>
                 </div>

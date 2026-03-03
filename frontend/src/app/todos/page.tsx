@@ -1912,21 +1912,34 @@ export default function TodosPage() {
   useEffect(() => {
     const taskId = searchParams.get('task');
     
-    console.log('[URL Task] taskId:', taskId, 'todos:', todos.length, 'isLoading:', isLoading, 'isClosing:', isClosingModalRef.current, 'hasOpened:', hasOpenedFromUrlRef.current);
-    
     // Если есть taskId в URL и данные загружены
     if (taskId && !isLoading && !isClosingModalRef.current && !hasOpenedFromUrlRef.current) {
       const todo = todos.find(t => t.id === taskId);
-      console.log('[URL Task] Found todo:', todo?.title);
       if (todo) {
-        hasOpenedFromUrlRef.current = true; // Помечаем что уже открыли
-        // Автозаполнение "От кого" если не указано и myAccount - заказчик
+        hasOpenedFromUrlRef.current = true;
         const myAccount = myAccountId ? people.find(p => p.id === myAccountId) : null;
         let updatedTodo = todo;
         if (!todo.assignedById && myAccount && myAccount.role === 'customer') {
           updatedTodo = { ...todo, assignedById: myAccount.id, assignedBy: myAccount.name };
         }
         setEditingTodo(updatedTodo);
+      } else {
+        // Задача не найдена в текущем фильтре — получаем её напрямую по ID (без фильтра по пользователю)
+        hasOpenedFromUrlRef.current = true;
+        fetch(`/api/todos?taskId=${taskId}`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            const fetched = data?.todos?.[0];
+            if (fetched) {
+              const myAccount = myAccountId ? people.find(p => p.id === myAccountId) : null;
+              let updatedTodo = fetched;
+              if (!fetched.assignedById && myAccount && myAccount.role === 'customer') {
+                updatedTodo = { ...fetched, assignedById: myAccount.id, assignedBy: myAccount.name };
+              }
+              setEditingTodo(updatedTodo);
+            }
+          })
+          .catch(() => {});
       }
     }
     
@@ -3389,7 +3402,7 @@ export default function TodosPage() {
   }
 
   return (
-    <div className="todos-page h-screen flex flex-col text-gray-900 dark:text-white overflow-hidden relative bg-gray-50 dark:bg-transparent">
+    <div className="todos-page h-screen flex flex-col text-gray-900 dark:text-white overflow-hidden relative bg-transparent">
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-40 w-full px-3 py-2 flex-shrink-0">
         {/* Mobile header - all in one line */}
@@ -3405,7 +3418,7 @@ export default function TodosPage() {
             className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all ${
               selectedColumnIndex === 0
                 ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed bg-gray-200/10 dark:bg-white/5 border border-white/10'
-                : 'text-[var(--text-primary)] bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] active:scale-95 backdrop-blur-xl'
+                : 'text-[var(--text-primary)] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[var(--shadow-card)] active:scale-95 backdrop-blur-xl'
             }`}
           >
             <ChevronLeft className="w-4 h-4" />
@@ -3421,7 +3434,7 @@ export default function TodosPage() {
               placeholder="Поиск..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-9 pl-9 pr-3 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 rounded-[20px] text-xs focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-white/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
+              className="w-full h-9 pl-9 pr-3 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border border-[var(--border-light)] rounded-[20px] text-xs focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--border-primary)] shadow-[var(--shadow-card)] backdrop-blur-xl"
             />
           </div>
 
@@ -3429,7 +3442,7 @@ export default function TodosPage() {
           <div className="relative">
             <button
               onClick={() => setMobileHeaderMenuOpen(!mobileHeaderMenuOpen)}
-              className="flex-shrink-0 w-9 h-9 flex items-center justify-center bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all duration-200 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
+              className="flex-shrink-0 w-9 h-9 flex items-center justify-center bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] rounded-[20px] transition-all duration-200 border border-[var(--border-light)] shadow-[var(--shadow-card)] backdrop-blur-xl"
             >
               <MoreVertical className="w-4 h-4" />
             </button>
@@ -3453,7 +3466,7 @@ export default function TodosPage() {
             className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all ${
               selectedColumnIndex >= nonArchivedLists.length - 1
                 ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed bg-gray-200/10 dark:bg-white/5 border border-white/10'
-                : 'text-[var(--text-primary)] bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] active:scale-95 backdrop-blur-xl'
+                : 'text-[var(--text-primary)] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[var(--shadow-card)] active:scale-95 backdrop-blur-xl'
             }`}
           >
             <ChevronRight className="w-4 h-4" />
@@ -3472,7 +3485,7 @@ export default function TodosPage() {
               placeholder="Поиск..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full sm:w-[200px] h-10 pl-10 pr-3 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 rounded-[20px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-white/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
+              className="w-full sm:w-[200px] h-10 pl-10 pr-3 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border border-[var(--border-light)] rounded-[20px] text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--border-primary)] shadow-[var(--shadow-card)] backdrop-blur-xl"
             />
           </div>
 
@@ -3480,7 +3493,7 @@ export default function TodosPage() {
           <div className="relative hidden min-[550px]:block" ref={statusFilterRef}>
             <button
               onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
-              className="flex items-center gap-1.5 px-3 h-10 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all duration-200 text-sm border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] backdrop-blur-xl"
+              className="flex items-center gap-1.5 px-3 h-10 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] rounded-[20px] transition-all duration-200 text-sm border border-[var(--border-light)] shadow-[var(--shadow-card)] backdrop-blur-xl"
             >
               <Filter className="w-4 h-4 flex-shrink-0" />
               <span className="truncate max-w-[120px]">{filterStatus === 'all' ? 'Все' : filterStatus === 'stages' ? 'Этапы' : filterStatus === 'todo' ? 'К выполнению' : filterStatus === 'pending' ? 'В ожидании' : filterStatus === 'in-progress' ? 'В работе' : filterStatus === 'review' ? 'Готово к проверке' : filterStatus === 'cancelled' ? 'Отменена' : 'Застряла'}</span>
@@ -3498,7 +3511,7 @@ export default function TodosPage() {
           <div className="relative hidden min-[550px]:block" ref={executorFilterRef}>
             <button
               onClick={() => setExecutorDropdownOpen(!executorDropdownOpen)}
-              className="flex items-center gap-1.5 px-3 h-10 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all duration-200 text-sm border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] backdrop-blur-xl"
+              className="flex items-center gap-1.5 px-3 h-10 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] rounded-[20px] transition-all duration-200 text-sm border border-[var(--border-light)] shadow-[var(--shadow-card)] backdrop-blur-xl"
             >
               <User className="w-4 h-4 flex-shrink-0" />
               <span className="truncate max-w-[100px]">{filterExecutor ? headerPeople.find(p => p.id === filterExecutor)?.name || 'Все' : 'Все'}</span>
@@ -3517,7 +3530,7 @@ export default function TodosPage() {
           <div className="relative hidden min-[550px]:block" ref={departmentFilterRef}>
             <button
               onClick={() => setDepartmentDropdownOpen(!departmentDropdownOpen)}
-              className="flex items-center gap-1.5 px-3 h-10 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all duration-200 text-sm border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)] backdrop-blur-xl"
+              className="flex items-center gap-1.5 px-3 h-10 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] rounded-[20px] transition-all duration-200 text-sm border border-[var(--border-light)] shadow-[var(--shadow-card)] backdrop-blur-xl"
             >
               <Briefcase className="w-4 h-4 flex-shrink-0" />
               <span className="truncate max-w-[120px]">{filterDepartment === 'all' ? 'Все отделы' : filterDepartment}</span>
@@ -3538,7 +3551,7 @@ export default function TodosPage() {
             className={`hidden min-[550px]:flex w-10 h-10 items-center justify-center rounded-[20px] transition-all duration-200 border flex-shrink-0 backdrop-blur-xl ${
               showArchive
                 ? 'bg-blue-500/20 text-blue-400 border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)]'
-                : 'bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_rgba(0,0,0,0.15)]'
+                : 'bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border-[var(--border-light)] shadow-[var(--shadow-card)]'
             }`}
             title={showArchive ? 'Скрыть архив' : 'Показать архив'}
           >

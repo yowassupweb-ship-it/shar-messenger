@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
+const BACKEND_BASE_URL = (process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000')
+  .replace(/\/+$/, '')
+  .replace(/\/api$/i, '');
 
 // GET - получить все события
 export async function GET() {
   try {
-    const response = await fetch(`${BACKEND_URL}/api/calendar-events`, {
+    const response = await fetch(`${BACKEND_BASE_URL}/api/calendar-events`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store'
@@ -21,7 +23,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const response = await fetch(`${BACKEND_URL}/api/calendar-events`, {
+    const response = await fetch(`${BACKEND_BASE_URL}/api/calendar-events`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -44,7 +46,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Event ID required' }, { status: 400 });
     }
 
-    const response = await fetch(`${BACKEND_URL}/api/calendar-events/${encodeURIComponent(id)}`, {
+    const response = await fetch(`${BACKEND_BASE_URL}/api/calendar-events/${encodeURIComponent(id)}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' }
     });

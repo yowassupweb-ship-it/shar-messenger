@@ -64,7 +64,7 @@ export default function ImageModal({
 
   return (
     <div 
-      className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center"
       onClick={handleBackdropClick}
     >
       {/* Header с кнопками - десктоп версия */}
@@ -76,12 +76,12 @@ export default function ImageModal({
               e.stopPropagation();
               setZoom(prev => Math.max(0.5, prev - 0.25));
             }}
-            className="w-10 h-10 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all"
+            className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-xl border border-white/20 flex items-center justify-center transition-all"
             title="Уменьшить"
           >
-            <span className="text-cyan-400 text-xl font-bold">−</span>
+            <span className="text-white text-xl font-bold">−</span>
           </button>
-          <div className="px-3 h-10 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-sm font-medium min-w-[60px]">
+          <div className="px-3 h-10 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center text-white text-sm font-medium min-w-[60px]">
             {Math.round(zoom * 100)}%
           </div>
           <button
@@ -89,17 +89,17 @@ export default function ImageModal({
               e.stopPropagation();
               setZoom(prev => Math.min(3, prev + 0.25));
             }}
-            className="w-10 h-10 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all"
+            className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-xl border border-white/20 flex items-center justify-center transition-all"
             title="Увеличить"
           >
-            <span className="text-cyan-400 text-xl font-bold">+</span>
+            <span className="text-white text-xl font-bold">+</span>
           </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
               setZoom(1);
             }}
-            className="px-3 h-10 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all text-cyan-400 text-sm"
+            className="px-3 h-10 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-xl border border-white/20 flex items-center justify-center transition-all text-white text-sm"
             title="Сбросить"
           >
             100%
@@ -110,54 +110,54 @@ export default function ImageModal({
         <div className="flex gap-2">
           <button
             onClick={handleDownload}
-            className="w-10 h-10 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all"
+            className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-xl border border-white/20 flex items-center justify-center transition-all"
             title="Скачать"
           >
-            <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
           </button>
           <button
             onClick={handleClose}
-            className="w-10 h-10 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all"
+            className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-xl border border-white/20 flex items-center justify-center transition-all"
           >
-            <X className="w-6 h-6 text-cyan-400" />
+            <X className="w-6 h-6 text-white" />
           </button>
         </div>
       </div>
 
       {/* Мобильная версия - кнопки НАД хедером */}
-      <div className="md:hidden flex flex-col gap-2 absolute top-2 right-2 z-10" onClick={(e) => e.stopPropagation()}>
+      <div className="md:hidden flex flex-col gap-2 absolute top-4 right-4 z-10" onClick={(e) => e.stopPropagation()}>
         <button
           onClick={handleDownload}
-          className="w-12 h-12 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all backdrop-blur-sm"
+          className="w-12 h-12 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 flex items-center justify-center transition-all backdrop-blur-xl shadow-lg"
           title="Скачать"
         >
-          <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
         </button>
         <button
           onClick={handleClose}
-          className="w-12 h-12 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all backdrop-blur-sm"
+          className="w-12 h-12 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 flex items-center justify-center transition-all backdrop-blur-xl shadow-lg"
         >
-          <X className="w-6 h-6 text-cyan-400" />
+          <X className="w-6 h-6 text-white" />
         </button>
       </div>
 
       {/* Мобильная версия - zoom controls внизу */}
-      <div className="md:hidden absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10" onClick={(e) => e.stopPropagation()}>
+      <div className="md:hidden absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-10" onClick={(e) => e.stopPropagation()}>
         <button
           onClick={(e) => {
             e.stopPropagation();
             setZoom(prev => Math.max(0.5, prev - 0.25));
           }}
-          className="w-12 h-12 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all backdrop-blur-sm"
+          className="w-12 h-12 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 flex items-center justify-center transition-all backdrop-blur-xl shadow-lg"
           title="Уменьшить"
         >
-          <span className="text-cyan-400 text-xl font-bold">−</span>
+          <span className="text-white text-xl font-bold">−</span>
         </button>
-        <div className="px-3 h-12 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-sm font-medium min-w-[60px] backdrop-blur-sm">
+        <div className="px-3 h-12 rounded-full bg-white/15 border border-white/25 flex items-center justify-center text-white text-sm font-medium min-w-[60px] backdrop-blur-xl shadow-lg">
           {Math.round(zoom * 100)}%
         </div>
         <button
@@ -165,34 +165,34 @@ export default function ImageModal({
             e.stopPropagation();
             setZoom(prev => Math.min(3, prev + 0.25));
           }}
-          className="w-12 h-12 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all backdrop-blur-sm"
+          className="w-12 h-12 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 flex items-center justify-center transition-all backdrop-blur-xl shadow-lg"
           title="Увеличить"
         >
-          <span className="text-cyan-400 text-xl font-bold">+</span>
+          <span className="text-white text-xl font-bold">+</span>
         </button>
         <button
           onClick={(e) => {
             e.stopPropagation();
             setZoom(1);
           }}
-          className="px-3 h-12 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-all text-cyan-400 text-sm backdrop-blur-sm"
+          className="px-3 h-12 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 flex items-center justify-center transition-all text-white text-sm backdrop-blur-xl shadow-lg"
           title="Сбросить"
         >
           100%
         </button>
       </div>
       
-      <div className="overflow-auto max-w-[95vw] max-h-[95vh]" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full h-full flex items-center justify-center p-4 md:p-8" onClick={(e) => e.stopPropagation()}>
         <img 
           src={imageUrl}
           alt="Full size"
-          className="object-contain transition-transform duration-200"
+          className="object-contain transition-transform duration-200 select-none max-w-full max-h-full"
           style={{ 
             transform: `scale(${zoom})`,
-            cursor: zoom > 1 ? 'move' : 'default',
-            maxWidth: '90vw',
-            maxHeight: '90vh'
+            cursor: zoom > 1 ? 'grab' : 'default',
+            touchAction: 'none'
           }}
+          draggable={false}
           onWheel={(e) => {
             e.stopPropagation();
             if (e.deltaY < 0) {

@@ -16,6 +16,7 @@ import logging
 import uuid
 import shutil
 from pathlib import Path
+from urllib.parse import quote
 from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -50,6 +51,7 @@ def snake_to_camel(data):
         preserve_nested_map_keys = {
             'read_messages_by_user',
             'pinned_by_user',
+            'pinned_order_by_user',
             'archived_by_user',
         }
         new_dict = {}
@@ -185,9 +187,16 @@ async def log_requests(request, call_next):
     print(f"<<< Response status: {response.status_code}")
     return response
 
-# Создаем папку для загрузок
-UPLOAD_DIR = Path(__file__).parent / "uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
+# Директория для вложений и аватаров (устойчива к передеплоям)
+# Если SHAR_UPLOADS_DIR не задан, используем локальный backend/uploads (dev режим)
+UPLOAD_DIR_ENV = os.getenv("SHAR_UPLOADS_DIR", "").strip()
+if UPLOAD_DIR_ENV:
+    UPLOAD_DIR = Path(UPLOAD_DIR_ENV).expanduser()
+else:
+    UPLOAD_DIR = Path(__file__).parent / "uploads"
+
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+print(f"[Storage] Upload directory: {UPLOAD_DIR}")
 
 # Upload файлов
 @app.post("/api/upload")
@@ -227,7 +236,164 @@ async def get_uploaded_file(filename: str):
 
 # Папка для аватаров
 AVATARS_DIR = UPLOAD_DIR / "avatars"
-AVATARS_DIR.mkdir(exist_ok=True)
+AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Папки для фоновых SVG чатов (light/dark), устойчивые к передеплоям через SHAR_UPLOADS_DIR
+CHAT_BACKGROUNDS_DIR = UPLOAD_DIR / "chat-backgrounds"
+CHAT_BACKGROUNDS_LIGHT_DIR = CHAT_BACKGROUNDS_DIR / "light"
+CHAT_BACKGROUNDS_DARK_DIR = CHAT_BACKGROUNDS_DIR / "dark"
+CHAT_BACKGROUNDS_LIGHT_GRADIENT_DIR = CHAT_BACKGROUNDS_DIR / "light-gradient"
+CHAT_BACKGROUNDS_DARK_GRADIENT_DIR = CHAT_BACKGROUNDS_DIR / "dark-gradient"
+CHAT_BACKGROUNDS_LIGHT_DIR.mkdir(parents=True, exist_ok=True)
+CHAT_BACKGROUNDS_DARK_DIR.mkdir(parents=True, exist_ok=True)
+CHAT_BACKGROUNDS_LIGHT_GRADIENT_DIR.mkdir(parents=True, exist_ok=True)
+CHAT_BACKGROUNDS_DARK_GRADIENT_DIR.mkdir(parents=True, exist_ok=True)
+
+CHAT_BACKGROUNDS_LIGHT_BG_DIR = CHAT_BACKGROUNDS_LIGHT_DIR / "backgrounds"
+CHAT_BACKGROUNDS_LIGHT_OVERLAY_DIR = CHAT_BACKGROUNDS_LIGHT_DIR / "overlays"
+CHAT_BACKGROUNDS_DARK_BG_DIR = CHAT_BACKGROUNDS_DARK_DIR / "backgrounds"
+CHAT_BACKGROUNDS_DARK_OVERLAY_DIR = CHAT_BACKGROUNDS_DARK_DIR / "overlays"
+CHAT_BACKGROUNDS_LIGHT_BG_DIR.mkdir(parents=True, exist_ok=True)
+CHAT_BACKGROUNDS_LIGHT_OVERLAY_DIR.mkdir(parents=True, exist_ok=True)
+CHAT_BACKGROUNDS_DARK_BG_DIR.mkdir(parents=True, exist_ok=True)
+CHAT_BACKGROUNDS_DARK_OVERLAY_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _get_theme_background_root(theme: str) -> Path:
+    normalized = str(theme or '').strip().lower()
+    if normalized == 'light':
+        return CHAT_BACKGROUNDS_LIGHT_DIR
+    if normalized == 'dark':
+        return CHAT_BACKGROUNDS_DARK_DIR
+    raise HTTPException(status_code=400, detail="theme must be 'light' or 'dark'")
+
+
+def _get_theme_asset_dirs(theme: str) -> Dict[str, List[Path]]:
+    normalized = str(theme or '').strip().lower()
+    if normalized == 'light':
+        return {
+            'backgrounds': [
+                CHAT_BACKGROUNDS_LIGHT_GRADIENT_DIR,
+                CHAT_BACKGROUNDS_LIGHT_BG_DIR,
+            ],
+            'overlays': [
+                CHAT_BACKGROUNDS_LIGHT_OVERLAY_DIR,
+                CHAT_BACKGROUNDS_LIGHT_DIR,
+            ],
+            'allowed_prefixes': ['light-gradient/', 'light/'],
+        }
+    if normalized == 'dark':
+        return {
+            'backgrounds': [
+                CHAT_BACKGROUNDS_DARK_GRADIENT_DIR,
+                CHAT_BACKGROUNDS_DARK_BG_DIR,
+            ],
+            'overlays': [
+                CHAT_BACKGROUNDS_DARK_OVERLAY_DIR,
+                CHAT_BACKGROUNDS_DARK_DIR,
+            ],
+            'allowed_prefixes': ['dark-gradient/', 'dark/'],
+        }
+    raise HTTPException(status_code=400, detail="theme must be 'light' or 'dark'")
+
+
+def _detect_chat_asset_kind(relative_path: str) -> str:
+    lower_path = str(relative_path or '').lower()
+    normalized_parts = [part for part in lower_path.replace('\\', '/').split('/') if part]
+    if normalized_parts:
+        folder_hints_overlay = {'overlay', 'overlays', 'накладки', 'nakladki'}
+        folder_hints_background = {'background', 'backgrounds', 'фон', 'фоны'}
+        for part in normalized_parts[:-1]:
+            if part in folder_hints_overlay:
+                return 'overlay'
+            if part in folder_hints_background:
+                return 'background'
+
+    overlay_markers = ('overlay', 'overlays', 'наклад', 'pattern', 'mask')
+    for marker in overlay_markers:
+        if marker in lower_path:
+            return 'overlay'
+    return 'background'
+
+
+def _collect_assets(theme: str, source_dirs: List[Path]) -> List[Dict[str, str]]:
+    allowed_ext = {'.svg', '.png', '.jpg', '.jpeg', '.webp'}
+    root_dir = CHAT_BACKGROUNDS_DIR
+    collected: List[Dict[str, str]] = []
+    seen_paths = set()
+    seen_names = set()
+
+    for source_dir in source_dirs:
+        if not source_dir.exists() or not source_dir.is_dir():
+            continue
+
+        for file_path in sorted(source_dir.rglob('*')):
+            if not file_path.is_file():
+                continue
+            if file_path.suffix.lower() not in allowed_ext:
+                continue
+
+            rel_path = file_path.relative_to(root_dir).as_posix()
+            lower_rel = rel_path.lower()
+            lower_name = file_path.name.lower()
+            if lower_rel in seen_paths or lower_name in seen_names:
+                continue
+            seen_paths.add(lower_rel)
+            seen_names.add(lower_name)
+
+            encoded_rel_path = quote(rel_path, safe='/')
+            collected.append({
+                'name': file_path.name,
+                'path': rel_path,
+                'url': f"/api/chat-backgrounds/{theme}/{encoded_rel_path}",
+            })
+
+    return collected
+
+
+def _list_chat_assets_for_theme(theme: str) -> Dict[str, List[Dict[str, str]]]:
+    directories = _get_theme_asset_dirs(theme)
+    backgrounds = _collect_assets(theme, directories['backgrounds'])
+    overlays = _collect_assets(theme, directories['overlays'])
+
+    return {
+        'backgrounds': backgrounds,
+        'overlays': overlays,
+    }
+
+
+@app.get("/api/chat-backgrounds")
+def list_chat_background_assets():
+    """Список загруженных фонов/накладок чата (light/dark)."""
+    return {
+        'light': _list_chat_assets_for_theme('light'),
+        'dark': _list_chat_assets_for_theme('dark'),
+    }
+
+
+@app.get("/api/chat-backgrounds/{theme}/{file_path:path}")
+def get_chat_background_file(theme: str, file_path: str):
+    """Отдача файла фона/накладки чата из persistent storage."""
+    _get_theme_background_root(theme)
+    root_dir = CHAT_BACKGROUNDS_DIR
+    normalized_rel = str(file_path or '').strip().replace('\\', '/')
+    if not normalized_rel:
+        raise HTTPException(status_code=400, detail='file path is required')
+
+    allowed_prefixes = _get_theme_asset_dirs(theme)['allowed_prefixes']
+    if not any(normalized_rel.lower().startswith(prefix) for prefix in allowed_prefixes):
+        raise HTTPException(status_code=400, detail='Invalid file path for theme')
+
+    resolved = (root_dir / normalized_rel).resolve()
+    try:
+        resolved.relative_to(root_dir.resolve())
+    except ValueError:
+        raise HTTPException(status_code=400, detail='Invalid file path')
+
+    if not resolved.exists() or not resolved.is_file():
+        raise HTTPException(status_code=404, detail='Chat background file not found')
+
+    return FileResponse(resolved)
 
 # Загрузка аватара пользователя
 @app.post("/api/avatars")
@@ -1955,6 +2121,7 @@ class UserUpdate(BaseModel):
     pinnedTools: Optional[List[str]] = None  # Закрепленные инструменты
     visibleTabs: Optional[Dict[str, bool]] = None  # Видимые вкладки навигации
     toolsOrder: Optional[List[str]] = None  # Порядок инструментов
+    chatSettings: Optional[Dict[str, Any]] = None  # Настройки чата (цвета/фон/шрифты)
 
 @app.post("/api/users/batch")
 def create_users_batch(users: List[Dict[str, Any]] = Body(...)):
@@ -4005,12 +4172,8 @@ def save_calculator_history(user_id: str, data: Dict[str, Any]):
 # ============== Todos & Links API ==============
 
 @app.get("/api/todos")
-def get_todos(userId: Optional[str] = None):
+def get_todos(userId: Optional[str] = None, taskId: Optional[str] = None):
     """Получить список задач"""
-    todos = db.get_tasks(user_id=userId) if userId else db.get_tasks()
-    lists = db.get_todo_lists(user_id=userId) if userId else db.get_todo_lists()
-    categories = db.get_todo_categories()
-
     stage_keys = {
         'stagesEnabled',
         'technicalSpecTabs',
@@ -4021,7 +4184,7 @@ def get_todos(userId: Optional[str] = None):
         'versionHistory',
         'delegatedById',
         'delegatedBy',
-        'chatId'  # Добавляем chatId для индикатора обсуждения
+        'chatId'
     }
 
     def hydrate_task(task: dict):
@@ -4030,16 +4193,21 @@ def get_todos(userId: Optional[str] = None):
         if isinstance(metadata, dict):
             for key in stage_keys:
                 if key in metadata:
-                    # ALWAYS use metadata value as source of truth (не проверяем key not in data)
                     data[key] = metadata[key]
-        
-        # Log stageMeta extraction
-        if task.get('id') and metadata.get('stageMeta'):
-            print(f"[GET /api/todos] 📊 Task {task.get('id')[:20]}... has stageMeta in metadata: {metadata.get('stageMeta')}")
-            print(f"[GET /api/todos] 📊 After extraction, data.stageMeta: {data.get('stageMeta')}")
-        
         return data
-    
+
+    # Если запрошена конкретная задача по ID — возвращаем только её (без фильтра по пользователю)
+    if taskId:
+        all_tasks = db.get_tasks()
+        task = next((t for t in all_tasks if str(t.get('id')) == str(taskId)), None)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return {"todos": [hydrate_task(task)], "lists": [], "categories": []}
+
+    todos = db.get_tasks(user_id=userId) if userId else db.get_tasks()
+    lists = db.get_todo_lists(user_id=userId) if userId else db.get_todo_lists()
+    categories = db.get_todo_categories()
+
     # Преобразуем snake_case в camelCase
     todos = [hydrate_task(todo) for todo in todos]
     lists = [snake_to_camel(list_item) for list_item in lists]
@@ -5310,10 +5478,18 @@ def pin_chat(chat_id: str, data_payload: dict):
     """Закрепить/открепить чат для пользователя"""
     user_id = data_payload.get('userId')
     raw_is_pinned = data_payload.get('isPinned', True)
+    raw_pin_order = data_payload.get('pinOrder')
     if isinstance(raw_is_pinned, str):
         is_pinned = raw_is_pinned.strip().lower() in ('1', 'true', 'yes', 'on')
     else:
         is_pinned = bool(raw_is_pinned)
+
+    pin_order: Optional[int] = None
+    if raw_pin_order is not None:
+        try:
+            pin_order = int(raw_pin_order)
+        except (TypeError, ValueError):
+            pin_order = None
     
     if not user_id:
         raise HTTPException(status_code=400, detail="userId is required")
@@ -5331,6 +5507,7 @@ def pin_chat(chat_id: str, data_payload: dict):
             "created_at": datetime.now().isoformat(),
             "read_messages_by_user": {},
             "pinned_by_user": {str(user_id): True},
+            "pinned_order_by_user": {str(user_id): pin_order if pin_order is not None else 0},
         }
         chat = db.create_chat(new_chat)
 
@@ -5347,6 +5524,7 @@ def pin_chat(chat_id: str, data_payload: dict):
             "created_at": datetime.now().isoformat(),
             "read_messages_by_user": {},
             "pinned_by_user": {str(user_id): True},
+            "pinned_order_by_user": {str(user_id): pin_order if pin_order is not None else 0},
         }
         chat = db.create_chat(new_chat)
 
@@ -5359,13 +5537,35 @@ def pin_chat(chat_id: str, data_payload: dict):
     if not isinstance(pinned_by_user, dict):
         pinned_by_user = {}
 
+    pinned_order_by_user = chat.get('pinned_order_by_user')
+    if pinned_order_by_user is None:
+        pinned_order_by_user = chat.get('pinnedOrderByUser')
+    if not isinstance(pinned_order_by_user, dict):
+        pinned_order_by_user = {}
+
     pinned_by_user[user_id] = is_pinned
 
-    updated = db.update_chat(chat_id, {'pinned_by_user': pinned_by_user})
+    if is_pinned:
+        if pin_order is None:
+            existing_orders: List[int] = []
+            for value in pinned_order_by_user.values():
+                try:
+                    existing_orders.append(int(value))
+                except (TypeError, ValueError):
+                    continue
+            pin_order = (max(existing_orders) + 1) if existing_orders else 0
+        pinned_order_by_user[user_id] = pin_order
+    else:
+        pinned_order_by_user.pop(user_id, None)
+
+    updated = db.update_chat(chat_id, {
+        'pinned_by_user': pinned_by_user,
+        'pinned_order_by_user': pinned_order_by_user,
+    })
     if not updated:
         raise HTTPException(status_code=500, detail="Failed to update chat pin state")
     
-    return {"success": True, "isPinned": is_pinned}
+    return {"success": True, "isPinned": is_pinned, "pinOrder": pin_order if is_pinned else None}
 
 @app.get("/api/chats/notifications/{user_id}")
 def get_or_create_notifications_chat(user_id: str):

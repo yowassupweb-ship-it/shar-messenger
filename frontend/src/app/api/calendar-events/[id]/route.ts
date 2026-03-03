@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
+const BACKEND_BASE_URL = (process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000')
+  .replace(/\/+$/, '')
+  .replace(/\/api$/i, '');
 
 // GET - получить событие по ID
 export async function GET(
@@ -8,7 +10,7 @@ export async function GET(
 ) {
   try {
     const params = await context.params;
-    const response = await fetch(`${BACKEND_URL}/api/calendar-events/${encodeURIComponent(params.id)}`, {
+    const response = await fetch(`${BACKEND_BASE_URL}/api/calendar-events/${encodeURIComponent(params.id)}`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store'
@@ -29,7 +31,7 @@ export async function PUT(
   try {
     const params = await context.params;
     const body = await request.json();
-    const response = await fetch(`${BACKEND_URL}/api/calendar-events/${encodeURIComponent(params.id)}`, {
+    const response = await fetch(`${BACKEND_BASE_URL}/api/calendar-events/${encodeURIComponent(params.id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -49,7 +51,7 @@ export async function DELETE(
 ) {
   try {
     const params = await context.params;
-    const response = await fetch(`${BACKEND_URL}/api/calendar-events/${encodeURIComponent(params.id)}`, {
+    const response = await fetch(`${BACKEND_BASE_URL}/api/calendar-events/${encodeURIComponent(params.id)}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' }
     });

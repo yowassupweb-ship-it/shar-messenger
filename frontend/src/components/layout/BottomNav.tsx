@@ -121,6 +121,49 @@ export default function BottomNav() {
   const isInChat = typeof window !== 'undefined' && pathname === '/messages' && new URLSearchParams(window.location.search).has('chat');
   const shouldHideMobile = isInChat;
 
+  // Скрываем когда открыты модальные окна (по наличию элементов с высоким z-index)
+  const [hasActiveModal, setHasActiveModal] = useState(false);
+  
+  useEffect(() => {
+    const checkForModals = () => {
+      // Проверяем наличие модальных окон по специфичным селекторам
+      const modalSelectors = [
+        '.fixed.inset-0.z-\\[60\\]', // модальные окна с z-[60]
+        '.fixed.inset-0[class*="z-[6"]', // модальные окна с z-[6x]
+        '.fixed.inset-0[class*="z-5"]', // модальные окна с z-5x
+        '[class*="content-plan-modal"]', // специфичные модальные окна
+      ];
+      
+      const hasModal = modalSelectors.some(selector => {
+        try {
+          return document.querySelector(selector) !== null;
+        } catch {
+          return false;
+        }
+      });
+      
+      setHasActiveModal(hasModal);
+    };
+
+    // Проверяем при изменении DOM
+    const observer = new MutationObserver(checkForModals);
+    observer.observe(document.body, { 
+      childList: true, 
+      subtree: true, 
+      attributes: true, 
+      attributeFilter: ['class'] 
+    });
+    
+    // Проверяем сразу и периодически
+    checkForModals();
+    const interval = setInterval(checkForModals, 100);
+    
+    return () => {
+      observer.disconnect();
+      clearInterval(interval);
+    };
+  }, []);
+
   const shouldUseMobileNav = isBelow773 || isTouchDevice;
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1024;
   const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 768;
@@ -167,7 +210,7 @@ export default function BottomNav() {
   return (
     <>
       {/* Mobile Bottom Navigation */}
-      <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-3 pb-[max(env(safe-area-inset-bottom),12px)] px-3 z-40 pointer-events-none select-none overflow-visible ${shouldHideMobile || !shouldUseMobileNav ? 'hidden' : 'flex'}`} style={{ background: 'transparent' }}>
+      <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-3 pb-[max(env(safe-area-inset-bottom),22px)] px-3 z-40 pointer-events-none select-none overflow-visible ${shouldHideMobile || !shouldUseMobileNav || hasActiveModal ? 'hidden' : 'flex'}`} style={{ background: 'transparent' }}>
         <div className="flex items-center gap-2 pointer-events-auto backdrop-blur-xl bg-gradient-to-b from-white/10 to-white/5 border border-[var(--border-light)] rounded-full px-3 py-1.5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_4px_20px_rgba(0,0,0,0.3)]">
           {visibleTabs.messages && (
             <button
@@ -229,7 +272,7 @@ export default function BottomNav() {
       </div>
 
       {/* Desktop Bottom Status Bar */}
-      <div className={`fixed bottom-0 left-0 right-0 h-[46px] backdrop-blur-xl border-t z-40 items-center justify-between px-4 bg-[var(--bg-glass)] border-[var(--border-glass)] overflow-visible ${shouldUseMobileNav ? 'hidden' : 'flex'}`} style={{ fontSize: '12px' }}>
+      <div className={`fixed bottom-0 left-0 right-0 h-[46px] backdrop-blur-xl border-t z-40 items-center justify-between px-4 bg-[var(--bg-glass)] border-[var(--border-glass)] overflow-visible ${shouldUseMobileNav || hasActiveModal ? 'hidden' : 'flex'}`} style={{ fontSize: '12px' }}>
         {/* Left side - Navigation */}
         <div className="flex items-center gap-1.5 px-1">
           {visibleTabs.messages && (

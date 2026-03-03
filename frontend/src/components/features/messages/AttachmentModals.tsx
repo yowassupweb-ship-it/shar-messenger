@@ -146,7 +146,15 @@ const AttachmentModals: React.FC<AttachmentModalsProps> = ({
                         setAttachments(prev => [...prev, {
                           type: 'task',
                           name: task.title,
-                          taskId: task.id
+                          taskId: task.id,
+                          assignedTo: task.assignedTo,
+                          assignedToId: task.assignedToId,
+                          assignedToIds: task.assignedToIds,
+                          assignedToNames: task.assignedToNames,
+                          assignedBy: task.assignedBy,
+                          assignedById: task.assignedById,
+                          status: task.status,
+                          priority: task.priority
                         }]);
                         setShowTaskPicker(false);
                       }}
@@ -175,7 +183,7 @@ const AttachmentModals: React.FC<AttachmentModalsProps> = ({
                             )}
                           </div>
                         </div>
-                        <FileText className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                        <FileText className="w-4 h-4 text-purple-400 flex-shrink-0" />
                       </div>
                     </button>
                   ))}
@@ -241,7 +249,12 @@ const AttachmentModals: React.FC<AttachmentModalsProps> = ({
                           setAttachments(prev => [...prev, {
                             type: 'event',
                             name: event.title,
-                            eventId: event.id
+                            eventId: event.id,
+                            organizerId: event.organizerId,
+                            organizerName: event.organizerName,
+                            participants: event.participants,
+                            date: event.start || event.date,
+                            eventType: event.type
                           }]);
                           setShowEventPicker(false);
                         }}
@@ -259,13 +272,13 @@ const AttachmentModals: React.FC<AttachmentModalsProps> = ({
                                 {new Date(event.start || event.date || '').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                               </span>
                               {event.type && (
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400">
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">
                                   {event.type}
                                 </span>
                               )}
                             </div>
                           </div>
-                          <Calendar className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                          <Calendar className="w-4 h-4 text-green-400 flex-shrink-0" />
                         </div>
                       </button>
                     ))}

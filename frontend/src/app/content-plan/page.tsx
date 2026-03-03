@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useTheme } from '@/contexts/ThemeContext';
 import { 
   Plus, 
   Calendar as CalendarIcon,
@@ -85,10 +86,22 @@ import ToastNotifications from '@/components/content-plan/ToastNotifications';
 export default function ContentPlanPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { theme } = useTheme();
+  const [chatSettings, setChatSettings] = useState({
+    chatBackgroundDark: '#0f172a',
+    chatBackgroundLight: '#f8fafc',
+    chatBackgroundImageDark: '',
+    chatBackgroundImageLight: '',
+    chatOverlayImageDark: '',
+    chatOverlayImageLight: '',
+    chatOverlayScale: 100,
+    chatOverlayOpacity: 1,
+  });
   
   // Используем hook для состояния
   const state = useContentPlanState();
   const [showShareModal, setShowShareModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'main' | 'media' | 'extra'>('main');
   const {
     posts, setPosts,
     users, setUsers,
@@ -139,8 +152,35 @@ export default function ContentPlanPage() {
     descriptionEditorRef,
     commentInputRef
   } = state;
+  const { availableEvents, setAvailableEvents } = state;
   
   const unreadCount = myNotifications.filter(n => !n.read).length;
+
+  useEffect(() => {
+    const loadChatSettings = () => {
+      const raw = localStorage.getItem('chatSettings');
+      if (!raw) return;
+      try {
+        const parsed = JSON.parse(raw);
+        setChatSettings(prev => ({ ...prev, ...parsed }));
+      } catch {
+        return;
+      }
+    };
+
+    const handleChatSettingsChanged = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail) {
+        setChatSettings(prev => ({ ...prev, ...(customEvent.detail || {}) }));
+      } else {
+        loadChatSettings();
+      }
+    };
+
+    loadChatSettings();
+    window.addEventListener('chatSettingsChanged', handleChatSettingsChanged as EventListener);
+    return () => window.removeEventListener('chatSettingsChanged', handleChatSettingsChanged as EventListener);
+  }, []);
   
 
   const removeToast = useCallback((toastId: string) => {
@@ -202,7 +242,7 @@ export default function ContentPlanPage() {
   };
 
   const weekDays = getWeekDays(currentWeekStart);
-  const platforms = ['telegram', 'vk', 'dzen', 'max', 'mailing', 'site'] as const;
+  const platforms: Platform[] = ['telegram', 'vk', 'dzen', 'max', 'mailing', 'site'];
 
   // Загрузка пользователей
   const loadUsers = useCallback(async () => {
@@ -257,9 +297,10 @@ export default function ContentPlanPage() {
   const loadPosts = useCallback(async (planIdOverride?: string) => {
     const targetPlanId = planIdOverride || activePlanId;
     try {
-      const [postsRes, linksRes] = await Promise.all([
+      const [postsRes, linksRes, eventsRes] = await Promise.all([
         fetch(`/api/content-plan?planId=${targetPlanId}`),
-        fetch('/api/links')
+        fetch('/api/links'),
+        fetch('/api/calendar-events')
       ]);
       
       if (postsRes.ok) {
@@ -270,6 +311,12 @@ export default function ContentPlanPage() {
       if (linksRes.ok) {
         const linksData = await linksRes.json();
         setAvailableLinks(linksData.links || []);
+      }
+      
+      if (eventsRes.ok) {
+        const eventsData = await eventsRes.json();
+        const eventsArray = Array.isArray(eventsData) ? eventsData : (eventsData.events || []);
+        setAvailableEvents(eventsArray);
       }
     } catch (error) {
       console.error('Error loading posts:', error);
@@ -510,7 +557,7 @@ export default function ContentPlanPage() {
   // Получение постов для дня
   const getPostsForDay = (date: Date) => {
     const dateKey = formatDateKey(date);
-    return posts.filter(p => {
+    const filtered = posts.filter(p => {
       // Фильтр по платформам
       if (selectedPlatformFilters.length > 0 && !selectedPlatformFilters.includes(p.platform)) {
         return false;
@@ -524,7 +571,17 @@ export default function ContentPlanPage() {
         }
       }
       return p.publishDate === dateKey;
-    }).sort((a, b) => {
+    });
+
+    // Дедупликация по ID
+    const unique = filtered.reduce((acc, current) => {
+      if (!acc.find(item => item.id === current.id)) {
+        acc.push(current);
+      }
+      return acc;
+    }, [] as typeof posts);
+
+    return unique.sort((a, b) => {
       if (a.publishTime && b.publishTime) {
         return a.publishTime.localeCompare(b.publishTime);
       }
@@ -557,7 +614,7 @@ export default function ContentPlanPage() {
     setDragOverDate(dateKey);
   };
 
-  const handleDragLeave = () => {
+  const handleDragLeave = (e?: React.DragEvent) => {
     setDragOverDate(null);
   };
 
@@ -650,6 +707,7 @@ export default function ContentPlanPage() {
           linkId: postForm.linkId,
           linkUrl: postForm.linkUrl,
           linkTitle: postForm.linkTitle,
+          eventId: postForm.eventId,
           createdBy: myAccountId || undefined
         })
       });
@@ -692,7 +750,8 @@ export default function ContentPlanPage() {
           assignedToIds: postForm.assignedToIds,
           linkId: postForm.linkId,
           linkUrl: postForm.linkUrl,
-          linkTitle: postForm.linkTitle
+          linkTitle: postForm.linkTitle,
+          eventId: postForm.eventId
         })
       });
       
@@ -1043,12 +1102,15 @@ export default function ContentPlanPage() {
 
   // Переключение участника
   const toggleParticipant = (userId: string) => {
-    setPostForm(prev => ({
-      ...prev,
-      participants: prev.participants.includes(userId)
-        ? prev.participants.filter(p => p !== userId)
-        : [...prev.participants, userId]
-    }));
+    setPostForm(prev => {
+      const currentParticipants = prev.participants || [];
+      return {
+        ...prev,
+        participants: currentParticipants.includes(userId)
+          ? currentParticipants.filter(p => p !== userId)
+          : [...currentParticipants, userId]
+      };
+    });
   };
 
   const openAddPost = (date?: Date) => {
@@ -1141,7 +1203,8 @@ export default function ContentPlanPage() {
       assignedToIds: (updatedPost as any).assignedToIds || [],
       linkId: updatedPost.linkId,
       linkUrl: updatedPost.linkUrl,
-      linkTitle: updatedPost.linkTitle
+      linkTitle: updatedPost.linkTitle,
+      eventId: updatedPost.eventId
     };
     setPostForm(newForm);
     initialFormRef.current = newForm;
@@ -1205,22 +1268,81 @@ export default function ContentPlanPage() {
   };
 
   if (isLoading) {
+    const loadingBackgroundColor = theme === 'dark'
+      ? (chatSettings?.chatBackgroundDark || '#0f172a')
+      : (chatSettings?.chatBackgroundLight || '#f8fafc');
+    const loadingBackgroundImage = theme === 'dark'
+      ? String(chatSettings?.chatBackgroundImageDark || '').trim()
+      : String(chatSettings?.chatBackgroundImageLight || '').trim();
+
     return (
-      <div className="min-h-screen bg-[#ededed] dark:bg-[#0d0d0d] flex items-center justify-center">
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{
+          backgroundColor: loadingBackgroundColor,
+          ...(loadingBackgroundImage
+            ? {
+                backgroundImage: `url('${loadingBackgroundImage}')`,
+                backgroundSize: 'cover',
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'center center'
+              }
+            : {})
+        }}
+      >
         <div className="animate-spin w-8 h-8 border-2 border-gray-400 dark:border-white/30 border-t-transparent rounded-full"></div>
       </div>
     );
   }
 
   const dayNames = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
+  const pageBackgroundColor = theme === 'dark'
+    ? (chatSettings?.chatBackgroundDark || '#0f172a')
+    : (chatSettings?.chatBackgroundLight || '#f8fafc');
+  const pageBackgroundImage = theme === 'dark'
+    ? String(chatSettings?.chatBackgroundImageDark || '').trim()
+    : String(chatSettings?.chatBackgroundImageLight || '').trim();
+  const pageOverlayImage = theme === 'dark'
+    ? String(chatSettings?.chatOverlayImageDark || '').trim()
+    : String(chatSettings?.chatOverlayImageLight || '').trim();
+  const pageOverlayScale = Math.max(20, Math.min(200, Number(chatSettings?.chatOverlayScale ?? 100) || 100));
+  const pageOverlayOpacity = Math.max(0, Math.min(1, Number(chatSettings?.chatOverlayOpacity ?? 1) || 1));
 
   return (
-    <div className="h-screen flex flex-col bg-[#ededed] dark:bg-[#0d0d0d] text-gray-900 dark:text-white overflow-hidden">
+    <div
+      className="h-screen flex flex-col text-gray-900 dark:text-white relative"
+      style={{
+        backgroundColor: pageBackgroundColor,
+        ...(pageBackgroundImage
+          ? {
+              backgroundImage: `url('${pageBackgroundImage}')`,
+              backgroundSize: 'cover',
+              backgroundRepeat: 'no-repeat',
+              backgroundPosition: 'center center'
+            }
+          : {})
+      }}
+    >
+      {pageOverlayImage && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: `url('${pageOverlayImage}')`,
+            backgroundSize: `${pageOverlayScale * 3}px`,
+            backgroundRepeat: 'repeat',
+            backgroundPosition: 'center center',
+            opacity: pageOverlayOpacity,
+            zIndex: 1,
+          }}
+        />
+      )}
+
+      <div className="relative z-10 h-full flex flex-col min-h-0 pt-[100px] md:pt-[110px]">
       {/* Header */}
-      <header className="flex-shrink-0 px-3 py-2 border-b border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[var(--bg-secondary)] backdrop-blur-xl flex items-center gap-2 overflow-visible">
+      <header className="absolute top-0 left-0 right-0 z-50 flex-shrink-0 px-3 md:px-4 py-2 md:py-3 border-none flex items-center gap-2 overflow-visible">
         <Link
           href="/"
-          className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl text-gray-600 dark:text-white/70 transition-all mr-2"
+          className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[var(--shadow-card)] backdrop-blur-xl text-[var(--text-primary)] transition-all mr-2"
           title="На главную"
         >
           <ArrowLeft className="w-4 h-4" strokeWidth={2} />
@@ -1230,7 +1352,7 @@ export default function ContentPlanPage() {
         <div className="relative mr-2 sm:mr-3" data-plan-selector>
           <button
             onClick={() => setShowPlanSelector(!showPlanSelector)}
-            className="flex items-center gap-2 px-3 h-10 bg-gradient-to-br from-white/15 to-white/5 hover:from-white/20 hover:to-white/10 rounded-[20px] transition-all text-sm border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_6px_rgba(0,0,0,0.1)] backdrop-blur-xl"
+            className="flex items-center gap-2 px-3 h-10 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] rounded-[20px] transition-all text-sm border border-[var(--border-light)] shadow-[var(--shadow-card)] backdrop-blur-xl"
             style={{ borderLeft: `3px solid ${contentPlans.find(p => p.id === activePlanId)?.color || '#8B5CF6'}` }}
           >
             <span className="max-w-[130px] truncate text-gray-900 dark:text-white">
@@ -1361,12 +1483,14 @@ export default function ContentPlanPage() {
         <ContentPlanHeader
           viewMode={viewMode}
           setViewMode={setViewMode}
+          currentWeekStart={currentWeekStart}
           weekDays={weekDays}
           currentMonth={currentMonth}
           platforms={platforms}
-          selectedPlatformFilters={selectedPlatformFilters}
+          selectedPlatformFilters={selectedPlatformFilters as Platform[]}
           showFilters={showFilters}
           setShowFilters={setShowFilters}
+          setSelectedPlatformFilters={setSelectedPlatformFilters as (filters: Platform[]) => void}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           handleGoToPreviousWeek={handleGoToPreviousWeek}
@@ -1420,1261 +1544,233 @@ export default function ContentPlanPage() {
         />
       )}
 
-      {/* Modal - 3-column layout like todos */}
+      {/* Modal - Compact layout */}
       {showAddPost && (
         <div 
           className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
           onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
         >
-          <div className="content-plan-modal pointer-events-auto bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-2xl w-full h-full max-w-[1700px] shadow-2xl flex flex-col overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between px-3 sm:px-4 border-b border-gray-200 dark:border-white/20 bg-white/85 dark:bg-[var(--bg-glass)]/85 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_6px_18px_rgba(0,0,0,0.12)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_8px_24px_rgba(0,0,0,0.22)] flex-shrink-0" style={{ minHeight: '40px', maxHeight: '40px' }}>
-              <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-[10px] bg-gradient-to-br from-purple-500/25 to-purple-600/20 border border-purple-400/30 flex items-center justify-center shadow-[inset_0_1px_2px_rgba(255,255,255,0.25)]">
-                  <Edit3 className="w-3.5 h-3.5 text-purple-600 dark:text-purple-300" />
-                </div>
-                <h3 className="text-sm sm:text-base font-semibold truncate">
+          <div className="bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-2xl w-full max-w-2xl md:max-w-[95vw] max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+            {/* Header with tabs */}
+            <div className="flex-shrink-0">
+              <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                  <Edit3 className="w-5 h-5 text-purple-400" />
                   {editingPost ? 'Редактировать публикацию' : 'Новая публикация'}
-                </h3>
-                {/* Действия с постом */}
-                {editingPost && (
-                  <div className="flex items-center gap-1 ml-1 sm:ml-2">
-                    <button
-                      onClick={() => copyPostLink(editingPost.id)}
-                      className="w-7 h-7 rounded-full border border-gray-300 dark:border-white/20 bg-white/80 dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/20 transition-colors text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white flex items-center justify-center"
-                      title="Копировать ссылку"
-                    >
-                      <Link2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => copyPost(editingPost)}
-                      className="w-7 h-7 rounded-full border border-gray-300 dark:border-white/20 bg-white/80 dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/20 transition-colors text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white flex items-center justify-center"
-                      title="Создать копию"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={closeModal}
-                className="w-8 h-8 rounded-full border border-gray-300 dark:border-white/20 bg-white/80 dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/20 transition-colors flex items-center justify-center"
-              >
-                <X className="w-4 h-4 text-gray-500 dark:text-white/50" />
-              </button>
-            </div>
+                </h2>
 
-            <div className="px-3 py-2 border-b border-[var(--border-color)] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] backdrop-blur-xl">
-              <div className="inline-flex items-center gap-1 p-1 rounded-[18px] bg-gray-100 dark:bg-[var(--bg-tertiary)] border border-gray-200 dark:border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
-                <button
-                  onClick={() => document.getElementById('cp-modal-left')?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' })}
-                  className="px-2.5 py-1.5 text-[11px] rounded-[12px] border border-gray-300 dark:border-white/20 bg-white dark:bg-[var(--bg-secondary)] text-gray-900 dark:text-white shadow-[0_1px_2px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.28)]"
-                >
-                  Поля
-                </button>
-                <button
-                  onClick={() => document.getElementById('cp-modal-center')?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })}
-                  className="px-2.5 py-1.5 text-[11px] rounded-[12px] border border-transparent text-gray-600 dark:text-white/75 hover:bg-gray-200 dark:hover:bg-white/10 hover:border-gray-300 dark:hover:border-white/15 transition-all"
-                >
-                  Текст
-                </button>
-                <button
-                  onClick={() => document.getElementById('cp-modal-right')?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'end' })}
-                  className="px-2.5 py-1.5 text-[11px] rounded-[12px] border border-transparent text-gray-600 dark:text-white/75 hover:bg-gray-200 dark:hover:bg-white/10 hover:border-gray-300 dark:hover:border-white/15 transition-all"
-                >
-                  Комментарии
-                </button>
-              </div>
-            </div>
-            
-            {/* 3-column content */}
-            <div className="flex flex-1 overflow-y-auto lg:overflow-hidden flex-col lg:flex-row">
-              {/* Left column - Fields */}
-              <div id="cp-modal-left" className="w-full lg:flex-1 flex-shrink-0 p-3 sm:p-4 overflow-y-auto border-b lg:border-b-0 lg:border-r border-[var(--border-color)] bg-gradient-to-b from-white/5 to-white/10 dark:from-[var(--bg-glass-active)] dark:to-[var(--bg-glass)] space-y-3 sm:space-y-4 lg:rounded-none rounded-t-xl">
-                {/* Title */}
-                <div>
-                  <input
-                    type="text"
-                    value={postForm.title}
-                    onChange={(e) => setPostForm(prev => ({ ...prev, title: e.target.value }))}
-                    placeholder="Заголовок публикации..."
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-sm sm:text-base font-medium focus:outline-none focus:border-purple-500/50 transition-colors"
-                    autoFocus
-                  />
-                </div>
-
-                {/* Status Buttons */}
-                <div>
-                  <label className="block text-xs font-medium mb-2 text-gray-500 dark:text-white/50">Статус</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {Object.entries(STATUS_CONFIG).map(([key, config]) => (
-                      <button
-                        key={key}
-                        onClick={() => {
-                          const newStatus = key as 'draft' | 'scheduled' | 'approved';
-                          setPostForm(prev => ({ ...prev, postStatus: newStatus }));
-                          // Автосохранение статуса для существующих постов
-                          if (editingPost) {
-                            autoSaveStatus(newStatus);
-                          }
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                          postForm.postStatus === key
-                            ? `${config.bg} ${config.color} ring-1 ring-current`
-                            : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-white/50 hover:bg-gray-200 dark:hover:bg-white/10'
-                        }`}
-                      >
-                        {config.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Platform Dropdown */}
-                <div className="relative">
-                  <label className="block text-xs font-medium mb-2 text-gray-500 dark:text-white/50">Канал</label>
-                  <button
-                    onClick={() => setOpenDropdown(openDropdown === 'platform' ? null : 'platform')}
-                    className="w-full px-3 py-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-gray-300 dark:hover:border-white/20 transition-all"
-                  >
-                    <div className="flex items-center gap-2">
-                      {selectedPlatform && (
-                        <>
-                          {PLATFORM_CONFIG[selectedPlatform].icon ? (
-                            <div className={`flex items-center justify-center ${selectedPlatform === 'dzen' ? 'bg-white rounded-full p-0.5' : ''}`}>
-                              <Image 
-                                src={PLATFORM_CONFIG[selectedPlatform].icon} 
-                                alt="" 
-                                width={(selectedPlatform === 'telegram' || selectedPlatform === 'vk') ? 22 : 18} 
-                                height={(selectedPlatform === 'telegram' || selectedPlatform === 'vk') ? 22 : 18}
-                                className={(selectedPlatform === 'telegram' || selectedPlatform === 'vk') ? 'w-5 h-5 object-contain' : 'w-4 h-4 object-contain'}
-                              />
-                            </div>
-                          ) : selectedPlatform === 'site' ? (
-                            <Globe className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
-                          ) : (
-                            <Mail className="w-4 h-4 text-amber-500 dark:text-amber-400" />
-                          )}
-                          <span>{PLATFORM_CONFIG[selectedPlatform].name}</span>
-                        </>
-                      )}
-                      {!selectedPlatform && <span className="text-gray-400 dark:text-white/40">Выберите канал...</span>}
-                    </div>
-                    <ChevronDown className={`w-4 h-4 text-gray-400 dark:text-white/40 transition-transform ${openDropdown === 'platform' ? 'rotate-180' : ''}`} />
-                  </button>
-                  {openDropdown === 'platform' && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 overflow-hidden">
-                      {platforms.map(platform => {
-                        const config = PLATFORM_CONFIG[platform];
-                        const isLargeIcon = platform === 'telegram' || platform === 'vk';
-                        return (
-                          <button
-                            key={platform}
-                            onClick={() => {
-                              setSelectedPlatform(platform);
-                              const defaultContentType = PLATFORM_CONTENT_TYPES[platform][0].id as any;
-                              setPostForm(prev => ({ ...prev, platform, contentType: defaultContentType }));
-                              setOpenDropdown(null);
-                            }}
-                            className={`w-full px-3 py-2.5 text-left flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${
-                              selectedPlatform === platform ? 'bg-gray-50 dark:bg-white/5' : 'text-gray-600 dark:text-white/70'
-                            }`}
-                          >
-                            {config.icon ? (
-                              <div className={`flex items-center justify-center ${platform === 'dzen' ? 'bg-white rounded-full p-0.5' : ''}`}>
-                                <Image 
-                                  src={config.icon} 
-                                  alt="" 
-                                  width={isLargeIcon ? 22 : 18} 
-                                  height={isLargeIcon ? 22 : 18}
-                                  className={isLargeIcon ? 'w-5 h-5 object-contain' : 'w-4 h-4 object-contain'}
-                                />
-                              </div>
-                            ) : platform === 'site' ? (
-                              <Globe className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
-                            ) : (
-                              <Mail className="w-4 h-4 text-amber-500 dark:text-amber-400" />
-                            )}
-                            <span className="text-sm">{config.name}</span>
-                            {selectedPlatform === platform && (
-                              <Check className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 ml-auto" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* Content Type */}
-                {selectedPlatform && getAvailableContentTypes().length > 1 && (
-                  <div className="relative">
-                    <label className="block text-xs font-medium mb-2 text-gray-500 dark:text-white/50">Тип контента</label>
-                    <button
-                      onClick={() => setOpenDropdown(openDropdown === 'contentType' ? null : 'contentType')}
-                      className="w-full px-3 py-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-gray-300 dark:hover:border-white/20 transition-all"
-                    >
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-gray-400 dark:text-white/40" />
-                        <span>{CONTENT_TYPE_LABELS[postForm.contentType]}</span>
-                      </div>
-                      <ChevronDown className={`w-4 h-4 text-gray-400 dark:text-white/40 transition-transform ${openDropdown === 'contentType' ? 'rotate-180' : ''}`} />
-                    </button>
-                    {openDropdown === 'contentType' && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 overflow-hidden">
-                        {getAvailableContentTypes().map(type => (
-                          <button
-                            key={type.id}
-                            onClick={() => {
-                              setPostForm(prev => ({ ...prev, contentType: type.id as any }));
-                              setOpenDropdown(null);
-                            }}
-                            className={`w-full px-3 py-2.5 text-left flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${
-                              postForm.contentType === type.id ? 'bg-gray-50 dark:bg-white/5' : 'text-gray-600 dark:text-white/70'
-                            }`}
-                          >
-                            <FileText className="w-4 h-4 text-gray-400 dark:text-white/40" />
-                            <span className="text-sm">{type.label}</span>
-                            {postForm.contentType === type.id && (
-                              <Check className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 ml-auto" />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Заказчик */}
-                <div className="relative">
-                  <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
-                    <User className="w-2.5 h-2.5" />
-                    Заказчик
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setOpenDropdown(openDropdown === 'assignedBy' ? null : 'assignedBy')}
-                    className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-gray-300 dark:hover:border-white/20 transition-all"
-                  >
-                    <span className={postForm.assignedById ? '' : 'text-gray-400 dark:text-white/40'}>
-                      {postForm.assignedById 
-                        ? users.find(p => p.id === postForm.assignedById)?.name || 'Выберите заказчика'
-                        : 'Выберите заказчика'}
-                    </span>
-                    <ChevronDown className={`w-3 h-3 text-gray-400 dark:text-white/40 transition-transform ${openDropdown === 'assignedBy' ? 'rotate-180' : ''}`} />
-                  </button>
-                  {openDropdown === 'assignedBy' && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPostForm(prev => ({ ...prev, assignedById: '' }));
-                          setOpenDropdown(null);
-                        }}
-                        className="w-full px-3 py-1.5 text-left text-gray-500 dark:text-white/50 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-xs border-b border-gray-200 dark:border-white/10"
-                      >
-                        Очистить выбор
-                      </button>
-                      {users.filter(p => p.role === 'customer' || p.role === 'universal').map(person => (
-                        <button
-                          key={person.id}
-                          type="button"
-                          onClick={() => {
-                            setPostForm(prev => ({ ...prev, assignedById: person.id }));
-                            setOpenDropdown(null);
-                          }}
-                          className={`w-full px-3 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-xs flex items-center justify-between ${
-                            postForm.assignedById === person.id ? 'bg-gray-50 dark:bg-white/5' : 'text-gray-600 dark:text-white/70'
-                          }`}
-                        >
-                          <span>{person.name}</span>
-                        </button>
-                      ))}
-                      {users.filter(p => p.role === 'customer' || p.role === 'universal').length === 0 && (
-                        <div className="px-3 py-2 text-xs text-gray-400 dark:text-white/40">
-                          Нет пользователей с ролью «заказчик»
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Исполнители */}
-                <div className="relative">
-                  <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
-                    <Users className="w-2.5 h-2.5" />
-                    Исполнители
-                  </label>
-                  <div
-                    onClick={() => setOpenDropdown(openDropdown === 'assignedTo' ? null : 'assignedTo')}
-                    className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-gray-300 dark:hover:border-white/20 transition-all min-h-[38px] cursor-pointer"
-                  >
-                    <div className="flex flex-wrap gap-1">
-                      {postForm.assignedToIds && postForm.assignedToIds.length > 0 ? (
-                        postForm.assignedToIds.map(id => {
-                          const person = users.find(p => p.id === id);
-                          return person ? (
-                            <span key={id} className="text-xs bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded flex items-center gap-1">
-                              {person.name}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPostForm(prev => ({
-                                    ...prev,
-                                    assignedToIds: prev.assignedToIds.filter(i => i !== id)
-                                  }));
-                                }}
-                                className="hover:text-green-800 dark:hover:text-white"
-                              >
-                                <X className="w-2.5 h-2.5" />
-                              </button>
-                            </span>
-                          ) : null;
-                        })
-                      ) : (
-                        <span className="text-gray-400 dark:text-white/40">Выберите исполнителей</span>
-                      )}
-                    </div>
-                    <ChevronDown className={`w-3 h-3 text-gray-400 dark:text-white/40 transition-transform flex-shrink-0 ${openDropdown === 'assignedTo' ? 'rotate-180' : ''}`} />
-                  </div>
-                  {openDropdown === 'assignedTo' && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPostForm(prev => ({ ...prev, assignedToIds: [] }));
-                          setOpenDropdown(null);
-                        }}
-                        className="w-full px-3 py-1.5 text-left text-gray-500 dark:text-white/50 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-xs border-b border-gray-200 dark:border-white/10"
-                      >
-                        Очистить выбор
-                      </button>
-                      {users.filter(p => p.role === 'executor' || p.role === 'universal').map(person => {
-                        const isSelected = postForm.assignedToIds?.includes(person.id);
-                        return (
-                          <button
-                            key={person.id}
-                            type="button"
-                            onClick={() => {
-                              const currentIds = postForm.assignedToIds || [];
-                              let newIds: string[];
-                              
-                              if (isSelected) {
-                                newIds = currentIds.filter(id => id !== person.id);
-                              } else {
-                                newIds = [...currentIds, person.id];
-                              }
-                              
-                              setPostForm(prev => ({ ...prev, assignedToIds: newIds }));
-                            }}
-                            className={`w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-xs flex items-center justify-between ${
-                              isSelected ? 'bg-green-50 dark:bg-green-500/10' : ''
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <div className={`w-4 h-4 rounded border flex items-center justify-center ${
-                                isSelected ? 'bg-green-500 border-green-500' : 'border-gray-300 dark:border-white/30'
-                              }`}>
-                                {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
-                              </div>
-                              <span className={isSelected ? '' : 'text-gray-600 dark:text-white/70'}>{person.name}</span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                      {users.filter(p => p.role === 'executor' || p.role === 'universal').length === 0 && (
-                        <div className="px-3 py-2 text-xs text-gray-400 dark:text-white/40">
-                          Нет пользователей с ролью «исполнитель»
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Date and Time */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium mb-2 text-gray-500 dark:text-white/50">Дата</label>
-                    <input
-                      type="date"
-                      value={postForm.publishDate}
-                      onChange={(e) => setPostForm(prev => ({ ...prev, publishDate: e.target.value }))}
-                      className="w-full px-3 py-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm focus:outline-none focus:border-purple-500/50 transition-colors dark:[color-scheme:dark]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-2 text-gray-500 dark:text-white/50">Время</label>
-                    <input
-                      type="time"
-                      value={postForm.publishTime}
-                      onChange={(e) => setPostForm(prev => ({ ...prev, publishTime: e.target.value }))}
-                      className="w-full px-3 py-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm focus:outline-none focus:border-purple-500/50 transition-colors dark:[color-scheme:dark]"
-                    />
-                  </div>
-                </div>
-
-                {/* Link */}
-                <div className="relative">
-                  <label className="block text-[10px] font-medium text-gray-500 dark:text-white/50 mb-1 uppercase tracking-wide flex items-center gap-1">
-                    <Link2 className="w-2.5 h-2.5" />
-                    Прикреплённая ссылка
-                  </label>
-                  {postForm.linkId ? (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg">
-                      <Link2 className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
-                      <a 
-                        href={postForm.linkUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 truncate flex-1"
-                        title={postForm.linkUrl}
-                      >
-                        {postForm.linkTitle || postForm.linkUrl}
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() => setPostForm(prev => ({ ...prev, linkId: undefined, linkUrl: undefined, linkTitle: undefined }))}
-                        className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white flex-shrink-0"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                      <a 
-                        href={postForm.linkUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded text-gray-400 dark:text-white/40 hover:text-blue-500 dark:hover:text-blue-400 flex-shrink-0"
-                        title="Открыть ссылку"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setOpenDropdown(openDropdown === 'link' ? null : 'link')}
-                        className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-left flex items-center justify-between hover:border-gray-300 dark:hover:border-white/20 transition-all"
-                      >
-                        <span className="text-gray-400 dark:text-white/40 text-xs">Выбрать ссылку из базы...</span>
-                        <ChevronDown className={`w-3 h-3 text-gray-400 dark:text-white/40 transition-transform ${openDropdown === 'link' ? 'rotate-180' : ''}`} />
-                      </button>
-                      {openDropdown === 'link' && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 max-h-60 overflow-hidden flex flex-col">
-                          <div className="p-2 border-b border-gray-200 dark:border-white/10">
-                            <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-50 dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10">
-                              <Search className="w-3 h-3 text-gray-400 dark:text-white/40" />
-                              <input
-                                type="text"
-                                value={linksSearchQuery}
-                                onChange={(e) => setLinksSearchQuery(e.target.value)}
-                                placeholder="Поиск ссылки..."
-                                className="bg-transparent text-xs placeholder-gray-400 dark:placeholder-white/30 outline-none flex-1"
-                                autoFocus
-                              />
-                            </div>
-                          </div>
-                          <div className="overflow-y-auto flex-1">
-                            {availableLinks.length === 0 ? (
-                              <div className="px-3 py-4 text-center text-gray-400 dark:text-white/40 text-xs">
-                                Нет сохранённых ссылок
-                              </div>
-                            ) : (
-                              availableLinks
-                                .filter(link => 
-                                  !linksSearchQuery || 
-                                  link.title.toLowerCase().includes(linksSearchQuery.toLowerCase()) ||
-                                  link.url.toLowerCase().includes(linksSearchQuery.toLowerCase())
-                                )
-                                .slice(0, 20)
-                                .map(link => (
-                                  <button
-                                    key={link.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setPostForm(prev => ({ 
-                                        ...prev, 
-                                        linkId: link.id, 
-                                        linkUrl: link.url, 
-                                        linkTitle: link.title 
-                                      }));
-                                      setOpenDropdown(null);
-                                      setLinksSearchQuery('');
-                                    }}
-                                    className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex items-center gap-2 border-b border-gray-100 dark:border-white/5 last:border-0"
-                                  >
-                                    {link.favicon ? (
-                                      <img src={link.favicon} alt="" className="w-4 h-4 rounded flex-shrink-0" />
-                                    ) : (
-                                      <Link2 className="w-4 h-4 text-gray-400 dark:text-white/40 flex-shrink-0" />
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                      <div className="text-xs truncate">{link.title}</div>
-                                      <div className="text-[10px] text-gray-400 dark:text-white/40 truncate">{link.url}</div>
-                                    </div>
-                                  </button>
-                                ))
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {/* Created info */}
-                {editingPost && (
-                  <div className="pt-3 border-t border-gray-200 dark:border-white/10 text-[10px] text-gray-400 dark:text-white/30 space-y-1">
-                    <div>Создано: {new Date(editingPost.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
-                    {editingPost.createdBy && users.find(u => u.id === editingPost.createdBy) && (
-                      <div className="flex items-center gap-1.5">
-                        <span>Автор:</span>
-                        <span 
-                          className="px-1.5 py-0.5 rounded text-white text-[9px]"
-                          style={{ backgroundColor: users.find(u => u.id === editingPost.createdBy)?.color }}
-                        >
-                          {users.find(u => u.id === editingPost.createdBy)?.name}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Middle column - Description */}
-              <div id="cp-modal-center" className="w-full lg:flex-1 flex flex-col bg-gradient-to-b from-white/5 to-white/10 dark:from-[var(--bg-glass-active)] dark:to-[var(--bg-glass)] border-b lg:border-b-0 lg:border-r border-[var(--border-color)]">
-                {/* Description Header with Formatting */}
-                <div className="px-3 py-2 border-b border-[var(--border-color)]">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                      <span className="text-xs font-medium text-gray-600 dark:text-white/70">Текст публикации</span>
-                    </div>
-                  </div>
-                  {/* Compact formatting toolbar - single row */}
-                  <div className="flex items-center gap-0.5 overflow-x-auto pb-1">
-                    <button type="button" onClick={() => { document.execCommand('bold', false); document.getElementById('post-text-editor')?.focus(); }} className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors" title="Жирный">
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42zM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3v-3zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>
-                    </button>
-                    <button type="button" onClick={() => { document.execCommand('italic', false); document.getElementById('post-text-editor')?.focus(); }} className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors" title="Курсив">
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z"/></svg>
-                    </button>
-                    <button type="button" onClick={() => { document.execCommand('underline', false); document.getElementById('post-text-editor')?.focus(); }} className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors" title="Подчёркнутый">
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17c3.31 0 6-2.69 6-6V3h-2.5v8c0 1.93-1.57 3.5-3.5 3.5S8.5 12.93 8.5 11V3H6v8c0 3.31 2.69 6 6 6zm-7 2v2h14v-2H5z"/></svg>
-                    </button>
-                    <button type="button" onClick={() => { document.execCommand('strikeThrough', false); document.getElementById('post-text-editor')?.focus(); }} className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors" title="Зачёркнутый">
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M10 19h4v-3h-4v3zM5 4v3h5v3h4V7h5V4H5zM3 14h18v-2H3v2z"/></svg>
-                    </button>
-                    <div className="w-px h-4 bg-gray-200 dark:bg-white/10 mx-0.5" />
-                    <button type="button" onClick={() => { document.execCommand('insertUnorderedList', false); document.getElementById('post-text-editor')?.focus(); }} className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors" title="Список">
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z"/></svg>
-                    </button>
-                    <button type="button" onClick={() => { document.execCommand('insertOrderedList', false); document.getElementById('post-text-editor')?.focus(); }} className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors" title="Нумерация">
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 10.9V10H2v1zm5-6v2h14V5H7zm0 14h14v-2H7v2zm0-6h14v-2H7v2z"/></svg>
-                    </button>
-                    <div className="w-px h-4 bg-gray-200 dark:bg-white/10 mx-0.5" />
-                    <div className="relative">
-                      <button type="button" onClick={() => setOpenDropdown(openDropdown === 'textSize' ? null : 'textSize')} className="flex items-center gap-0.5 p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors" title="Размер">
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M9 4v3h5v12h3V7h5V4H9zm-6 8h3v7h3v-7h3V9H3v3z"/></svg>
-                        <ChevronDown className="w-2.5 h-2.5" />
-                      </button>
-                      {openDropdown === 'textSize' && (
-                        <div className="absolute top-full left-0 mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl z-50 min-w-[100px] overflow-hidden">
-                          <button type="button" onClick={() => { document.execCommand('formatBlock', false, '<h1>'); document.getElementById('post-text-editor')?.focus(); setOpenDropdown(null); }} className="w-full px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-white/5 text-sm font-bold">H1</button>
-                          <button type="button" onClick={() => { document.execCommand('formatBlock', false, '<h2>'); document.getElementById('post-text-editor')?.focus(); setOpenDropdown(null); }} className="w-full px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-white/5 text-xs font-semibold">H2</button>
-                          <button type="button" onClick={() => { document.execCommand('formatBlock', false, '<h3>'); document.getElementById('post-text-editor')?.focus(); setOpenDropdown(null); }} className="w-full px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-white/5 text-xs font-medium">H3</button>
-                          <button type="button" onClick={() => { document.execCommand('formatBlock', false, '<div>'); document.getElementById('post-text-editor')?.focus(); setOpenDropdown(null); }} className="w-full px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-white/5 text-xs text-gray-500">Текст</button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="w-px h-4 bg-gray-200 dark:bg-white/10 mx-0.5" />
-                    <button type="button" onClick={() => { setLinkUrlInput(''); setShowLinkUrlModal(true); }} className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors" title="Ссылка">
-                      <Link2 className="w-4 h-4" />
-                    </button>
-                    <button type="button" onClick={() => { document.execCommand('removeFormat', false); document.getElementById('post-text-editor')?.focus(); }} className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white transition-colors" title="Очистить">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-                
-                {/* WYSIWYG Editor */}
-                <div className="flex-1 p-2 overflow-y-auto flex flex-col relative">
-                  {/* Uploaded media preview - Telegram-style grid up to 6 photos */}
-                  {postForm.mediaUrls.length > 0 && (
-                    <div className="mb-3 rounded-xl overflow-hidden border border-gray-200 dark:border-white/10">
-                      {(() => {
-                        const urls = postForm.mediaUrls.slice(0, 6);
-                        const count = urls.length;
-                        
-                        // Telegram-style layouts
-                        if (count === 1) {
-                          return (
-                            <div className="relative group">
-                              <img src={urls[0]} alt="" className="w-full max-h-[280px] object-cover" />
-                              <button type="button" onClick={() => setPostForm(prev => ({ ...prev, mediaUrls: prev.mediaUrls.filter((_, i) => i !== 0) }))} className="absolute top-2 right-2 w-7 h-7 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-4 h-4 text-white" /></button>
-                            </div>
-                          );
-                        }
-                        
-                        if (count === 2) {
-                          return (
-                            <div className="grid grid-cols-2 gap-0.5">
-                              {urls.map((url, idx) => (
-                                <div key={idx} className="relative group">
-                                  <img src={url} alt="" className="w-full h-[140px] object-cover" />
-                                  <button type="button" onClick={() => setPostForm(prev => ({ ...prev, mediaUrls: prev.mediaUrls.filter((_, i) => i !== idx) }))} className="absolute top-2 right-2 w-6 h-6 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3.5 h-3.5 text-white" /></button>
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        }
-                        
-                        if (count === 3) {
-                          return (
-                            <div className="grid grid-cols-3 gap-0.5" style={{ gridTemplateRows: '140px 70px' }}>
-                              <div className="relative group row-span-2 col-span-2">
-                                <img src={urls[0]} alt="" className="w-full h-full object-cover" />
-                                <button type="button" onClick={() => setPostForm(prev => ({ ...prev, mediaUrls: prev.mediaUrls.filter((_, i) => i !== 0) }))} className="absolute top-2 right-2 w-6 h-6 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3.5 h-3.5 text-white" /></button>
-                              </div>
-                              {urls.slice(1).map((url, idx) => (
-                                <div key={idx} className="relative group">
-                                  <img src={url} alt="" className="w-full h-full object-cover" />
-                                  <button type="button" onClick={() => setPostForm(prev => ({ ...prev, mediaUrls: prev.mediaUrls.filter((_, i) => i !== idx + 1) }))} className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3 h-3 text-white" /></button>
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        }
-                        
-                        if (count === 4) {
-                          return (
-                            <div className="grid grid-cols-2 gap-0.5">
-                              {urls.map((url, idx) => (
-                                <div key={idx} className="relative group">
-                                  <img src={url} alt="" className="w-full h-[100px] object-cover" />
-                                  <button type="button" onClick={() => setPostForm(prev => ({ ...prev, mediaUrls: prev.mediaUrls.filter((_, i) => i !== idx) }))} className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3 h-3 text-white" /></button>
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        }
-                        
-                        if (count === 5) {
-                          return (
-                            <div className="grid grid-cols-6 gap-0.5" style={{ gridTemplateRows: '120px 80px' }}>
-                              <div className="relative group col-span-3">
-                                <img src={urls[0]} alt="" className="w-full h-full object-cover" />
-                                <button type="button" onClick={() => setPostForm(prev => ({ ...prev, mediaUrls: prev.mediaUrls.filter((_, i) => i !== 0) }))} className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3 h-3 text-white" /></button>
-                              </div>
-                              <div className="relative group col-span-3">
-                                <img src={urls[1]} alt="" className="w-full h-full object-cover" />
-                                <button type="button" onClick={() => setPostForm(prev => ({ ...prev, mediaUrls: prev.mediaUrls.filter((_, i) => i !== 1) }))} className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3 h-3 text-white" /></button>
-                              </div>
-                              {urls.slice(2).map((url, idx) => (
-                                <div key={idx} className="relative group col-span-2">
-                                  <img src={url} alt="" className="w-full h-full object-cover" />
-                                  <button type="button" onClick={() => setPostForm(prev => ({ ...prev, mediaUrls: prev.mediaUrls.filter((_, i) => i !== idx + 2) }))} className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3 h-3 text-white" /></button>
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        }
-                        
-                        // 6 photos: 3 + 3
-                        return (
-                          <div className="grid grid-cols-3 gap-0.5">
-                            {urls.map((url, idx) => (
-                              <div key={idx} className="relative group">
-                                <img src={url} alt="" className="w-full h-[80px] object-cover" />
-                                <button type="button" onClick={() => setPostForm(prev => ({ ...prev, mediaUrls: prev.mediaUrls.filter((_, i) => i !== idx) }))} className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-3 h-3 text-white" /></button>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                      {postForm.mediaUrls.length > 6 && (
-                        <div className="text-center text-xs text-white/40 py-1 bg-white/5">
-                          +{postForm.mediaUrls.length - 6} ещё
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  <div
-                    ref={descriptionEditorRef}
-                    id="post-text-editor"
-                    contentEditable
-                    suppressContentEditableWarning
-                    spellCheck="true"
-                    lang="ru"
-                    onInput={(e) => {
-                      const target = e.target as HTMLDivElement;
-                      setPostForm(prev => ({ ...prev, postText: target.innerHTML }));
-                      
-                      // Проверяем @ для упоминаний
-                      const text = target.innerText || '';
-                      const selection = window.getSelection();
-                      if (selection && selection.rangeCount > 0) {
-                        const range = selection.getRangeAt(0);
-                        const cursorPos = range.startOffset;
-                        const textBeforeCursor = text.slice(0, text.lastIndexOf(target.innerText.slice(0, cursorPos)) + cursorPos);
-                        
-                        // Находим последний @ перед курсором
-                        let lastAtIndex = -1;
-                        for (let i = textBeforeCursor.length - 1; i >= 0; i--) {
-                          if (textBeforeCursor[i] === '@') {
-                            if (i === 0 || /[\s\n]/.test(textBeforeCursor[i - 1])) {
-                              lastAtIndex = i;
-                              break;
-                            }
-                          }
-                          if (/\s/.test(textBeforeCursor[i])) break;
-                        }
-                        
-                        if (lastAtIndex !== -1) {
-                          const afterAt = textBeforeCursor.slice(lastAtIndex + 1);
-                          if (!afterAt.includes(' ') && !afterAt.includes('\n')) {
-                            setShowMentionDropdown(true);
-                            setMentionFilter(afterAt);
-                          } else {
-                            setShowMentionDropdown(false);
-                          }
-                        } else {
-                          setShowMentionDropdown(false);
-                        }
-                      }
-                    }}
-                    onBlur={(e) => {
-                      const target = e.target as HTMLDivElement;
-                      setPostForm(prev => ({ ...prev, postText: target.innerHTML }));
-                      // Закрываем dropdown с небольшой задержкой, чтобы клик по элементу сработал
-                      setTimeout(() => setShowMentionDropdown(false), 200);
-                    }}
-                    onClick={(e) => {
-                      // Обрабатываем клики по ссылкам
-                      const target = e.target as HTMLElement;
-                      if (target.tagName === 'A' && target.getAttribute('href')) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        window.open(target.getAttribute('href')!, '_blank', 'noopener,noreferrer');
-                      }
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      e.currentTarget.style.borderColor = 'rgb(147, 51, 234)';
-                      e.currentTarget.style.backgroundColor = 'rgba(147, 51, 234, 0.05)';
-                    }}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      e.currentTarget.style.borderColor = '';
-                      e.currentTarget.style.backgroundColor = '';
-                    }}
-                    onDrop={async (e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      e.currentTarget.style.borderColor = '';
-                      e.currentTarget.style.backgroundColor = '';
-                      
-                      const files = e.dataTransfer.files;
-                      if (files && files.length > 0) {
-                        const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
-                        if (imageFiles.length > 0) {
-                          // Upload images and add to mediaUrls
-                          for (const file of imageFiles) {
-                            const formData = new FormData();
-                            formData.append('file', file);
-                            try {
-                              const uploadRes = await fetch('/api/upload', {
-                                method: 'POST',
-                                body: formData
-                              });
-                              if (uploadRes.ok) {
-                                const { url } = await uploadRes.json();
-                                setPostForm(prev => ({ ...prev, mediaUrls: [...prev.mediaUrls, url] }));
-                              }
-                            } catch (error) {
-                              console.error('Error uploading image:', error);
-                            }
-                          }
-                        }
-                      }
-                    }}
-                    onPaste={async (e) => {
-                      // Check for images in clipboard
-                      const items = e.clipboardData.items;
-                      let hasImage = false;
-                      for (let i = 0; i < items.length; i++) {
-                        const item = items[i];
-                        if (item.type.indexOf('image') !== -1) {
-                          hasImage = true;
-                          e.preventDefault();
-                          const blob = item.getAsFile();
-                          if (blob) {
-                            const formData = new FormData();
-                            formData.append('file', blob, 'pasted-image.png');
-                            try {
-                              const uploadRes = await fetch('/api/upload', {
-                                method: 'POST',
-                                body: formData
-                              });
-                              if (uploadRes.ok) {
-                                const { url } = await uploadRes.json();
-                                setPostForm(prev => ({ ...prev, mediaUrls: [...prev.mediaUrls, url] }));
-                              }
-                            } catch (error) {
-                              console.error('Error uploading pasted image:', error);
-                            }
-                          }
-                          break;
-                        }
-                      }
-                      // If no image, paste as text/html
-                      if (!hasImage) {
-                        e.preventDefault();
-                        const text = e.clipboardData.getData('text/html') || e.clipboardData.getData('text/plain');
-                        document.execCommand('insertHTML', false, text);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      // Ctrl+B for bold
-                      if (e.ctrlKey && e.key === 'b') {
-                        e.preventDefault();
-                        document.execCommand('bold', false);
-                      }
-                      // Ctrl+I for italic
-                      if (e.ctrlKey && e.key === 'i') {
-                        e.preventDefault();
-                        document.execCommand('italic', false);
-                      }
-                      // Ctrl+U for underline
-                      if (e.ctrlKey && e.key === 'u') {
-                        e.preventDefault();
-                        document.execCommand('underline', false);
-                      }
-                      // ESC закрывает dropdown
-                      if (e.key === 'Escape' && showMentionDropdown) {
-                        e.preventDefault();
-                        setShowMentionDropdown(false);
-                      }
-                    }}
-                    className="w-full flex-1 min-h-[200px] px-3 py-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-sm placeholder-gray-400 dark:placeholder-white/30 overflow-y-auto focus:outline-none focus:border-purple-400 dark:focus:border-purple-500/30 transition-all leading-relaxed [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-medium [&_h3]:mb-1 [&_ul]:list-disc [&_ul]:ml-4 [&_ol]:list-decimal [&_ol]:ml-4 [&_a]:text-blue-500 dark:[&_a]:text-blue-400 [&_a]:underline [&_a]:cursor-pointer [&_li]:ml-2 [&_div]:text-sm [&_div]:font-normal [&_p]:text-sm [&_p]:font-normal [&_b]:font-bold [&_strong]:font-bold [&_i]:italic [&_em]:italic [&_u]:underline"
-                    style={{ minHeight: '200px' }}
-                  />
-                  
-                  {/* Dropdown упоминаний */}
-                  {showMentionDropdown && (
-                    <div className="absolute bottom-2 left-2 right-2 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-lg shadow-xl max-h-48 overflow-y-auto z-10">
-                      {users
-                        .filter(p => !mentionFilter || p.name.toLowerCase().includes(mentionFilter.toLowerCase()))
-                        .slice(0, 8)
-                        .map(person => (
-                          <button
-                            key={person.id}
-                            type="button"
-                            onMouseDown={(e) => {
-                              e.preventDefault(); // Предотвращаем onBlur
-                              // Вставляем упоминание
-                              if (descriptionEditorRef.current) {
-                                const text = descriptionEditorRef.current.innerText || '';
-                                let lastAtIndex = -1;
-                                for (let i = text.length - 1; i >= 0; i--) {
-                                  if (text[i] === '@') {
-                                    if (i === 0 || /[\s\n]/.test(text[i - 1])) {
-                                      lastAtIndex = i;
-                                      break;
-                                    }
-                                  }
-                                  if (/\s/.test(text[i])) break;
-                                }
-                                if (lastAtIndex !== -1) {
-                                  const beforeAt = text.slice(0, lastAtIndex);
-                                  const afterMention = text.slice(lastAtIndex + 1 + mentionFilter.length);
-                                  const newText = beforeAt + '@' + person.name + ' ' + afterMention;
-                                  descriptionEditorRef.current.innerText = newText;
-                                  setPostForm(prev => ({ ...prev, postText: descriptionEditorRef.current!.innerHTML }));
-                                  
-                                  // Устанавливаем курсор после упоминания
-                                  const range = document.createRange();
-                                  const sel = window.getSelection();
-                                  const textNode = descriptionEditorRef.current.firstChild;
-                                  if (textNode) {
-                                    range.setStart(textNode, beforeAt.length + person.name.length + 2);
-                                    range.collapse(true);
-                                    sel?.removeAllRanges();
-                                    sel?.addRange(range);
-                                  }
-                                }
-                              }
-                              setShowMentionDropdown(false);
-                              descriptionEditorRef.current?.focus();
-                            }}
-                            className="w-full px-3 py-2 text-left text-xs hover:bg-gray-50 dark:hover:bg-white/5 flex items-center gap-2 transition-colors border-b border-gray-100 dark:border-white/5 last:border-0"
-                          >
-                            <div 
-                              className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px]"
-                              style={{ backgroundColor: person.color }}
-                            >
-                              {person.name.charAt(0)}
-                            </div>
-                            <span className="text-gray-700 dark:text-white/80">{person.name}</span>
-                            <span className="text-[9px] text-gray-400 dark:text-white/30 ml-auto">{person.role === 'executor' ? 'Исполнитель' : person.role === 'customer' ? 'Заказчик' : 'Универсал'}</span>
-                          </button>
-                        ))}
-                      {users.filter(p => !mentionFilter || p.name.toLowerCase().includes(mentionFilter.toLowerCase())).length === 0 && (
-                        <div className="px-3 py-4 text-center text-gray-400 dark:text-white/40 text-xs">
-                          Пользователи не найдены
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {descriptionEditorRef.current && !descriptionEditorRef.current.innerHTML && (
-                    <div className="absolute top-4 left-5 text-sm text-gray-400 dark:text-white/30 pointer-events-none">
-                      Введите текст публикации... (@упомянуть)
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Right column - Comments */}
-              <div id="cp-modal-right" className="w-full lg:flex-1 flex flex-col bg-gradient-to-b from-white/5 to-white/10 dark:from-[var(--bg-glass-active)] dark:to-[var(--bg-glass)]">
-                {/* Comments Header */}
-                <div className="px-3 py-2 border-b border-[var(--border-color)] flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <MessageCircle className="w-4 h-4 text-blue-500 dark:text-blue-400" />
-                    <span className="text-xs font-medium text-gray-600 dark:text-white/70">Комментарии</span>
-                    {editingPost?.comments && editingPost.comments.length > 0 && (
-                      <span className="text-[10px] bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-full">
-                        {editingPost.comments.length}
-                      </span>
-                    )}
-                  </div>
-                  {!myAccountId && (
-                    <div className="flex items-center gap-1 text-[10px] text-orange-400" title="Выберите профиль для комментирования">
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-                    </div>
-                  )}
-                </div>
-                
-                {/* Comments List - Chat Style */}
-                <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[150px] lg:min-h-[200px]">
-                  {!editingPost ? (
-                    <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-white/30 py-8">
-                      <MessageCircle className="w-8 h-8 mb-2 opacity-50" />
-                      <p className="text-xs">Комментарии доступны после сохранения</p>
-                    </div>
-                  ) : (!editingPost.comments || editingPost.comments.length === 0) ? (
-                    <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-white/30 py-8">
-                      <MessageCircle className="w-8 h-8 mb-2 opacity-50" />
-                      <p className="text-xs">Нет комментариев</p>
-                      <p className="text-[10px] mt-1">Начните обсуждение</p>
-                    </div>
-                  ) : (
-                    editingPost.comments.map(comment => {
-                      const author = users.find(u => u.id === comment.authorId);
-                      const isMyComment = comment.authorId === myAccountId;
-                      const isEditing = editingCommentId === comment.id;
-                      
-                      return (
-                        <div
-                          key={comment.id}
-                          className={`flex ${isMyComment ? 'justify-end' : 'justify-start'} group`}
-                        >
-                          <div className={`max-w-[90%] ${isMyComment ? 'order-2' : ''}`}>
-                            <div className={`rounded-xl px-3 py-2 relative ${
-                              isMyComment 
-                                ? 'bg-blue-100 dark:bg-blue-500/20 rounded-br-sm' 
-                                : 'bg-gray-100 dark:bg-white/5 rounded-bl-sm'
-                            }`}>
-                              {/* Автор комментария */}
-                              <p className={`text-[10px] font-medium mb-0.5 ${isMyComment ? 'text-blue-600 dark:text-blue-300' : 'text-blue-500 dark:text-blue-400'}`}>
-                                {author?.name || 'Неизвестный'}
-                              </p>
-                              
-                              {isEditing ? (
-                                <div className="space-y-2">
-                                  <textarea
-                                    value={editingCommentText}
-                                    onChange={(e) => setEditingCommentText(e.target.value)}
-                                    className="w-full px-2 py-1 bg-white dark:bg-white/10 border border-gray-300 dark:border-white/20 rounded text-xs resize-none focus:outline-none"
-                                    rows={2}
-                                    autoFocus
-                                  />
-                                  <div className="flex gap-1 justify-end">
-                                    <button
-                                      onClick={() => {
-                                        setEditingCommentId(null);
-                                        setEditingCommentText('');
-                                      }}
-                                      className="px-2 py-0.5 text-[10px] text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white"
-                                    >
-                                      Отмена
-                                    </button>
-                                    <button
-                                      onClick={() => updateComment(editingPost.id, comment.id, editingCommentText)}
-                                      className="px-2 py-0.5 text-[10px] bg-blue-100 dark:bg-blue-500/30 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-200 dark:hover:bg-blue-500/40"
-                                    >
-                                      Сохранить
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <>
-                                  <p className="text-xs text-gray-700 dark:text-white/90 whitespace-pre-wrap break-words"
-                                     dangerouslySetInnerHTML={{ 
-                                       __html: comment.text
-                                         .replace(
-                                           /(https?:\/\/[^\s<>"']+)/gi,
-                                           '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 underline">$1</a>'
-                                         )
-                                         .replace(
-                                           /@([a-zA-Zа-яА-ЯёЁ0-9_]+(?:\s+[a-zA-Zа-яА-ЯёЁ0-9_]+)?)/g, 
-                                           '<span class="text-blue-400 font-medium">@$1</span>'
-                                         ) 
-                                     }}
-                                  />
-                                  <div className="flex items-center justify-between mt-1">
-                                    <p className="text-[9px] text-gray-400 dark:text-white/30">
-                                      {new Date(comment.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                                    </p>
-                                    {/* Действия с комментарием */}
-                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      {/* Ответить */}
-                                      <button
-                                        onClick={() => startReply(comment)}
-                                        className="p-0.5 text-gray-400 dark:text-white/30 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-                                        title="Ответить"
-                                      >
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                                        </svg>
-                                      </button>
-                                      
-                                      {/* Редактировать (только свои) */}
-                                      {isMyComment && (
-                                        <button
-                                          onClick={() => {
-                                            setEditingCommentId(comment.id);
-                                            setEditingCommentText(comment.text);
-                                          }}
-                                          className="p-0.5 text-gray-400 dark:text-white/30 hover:text-yellow-500 dark:hover:text-yellow-400 transition-colors"
-                                          title="Редактировать"
-                                        >
-                                          <Edit3 className="w-3 h-3" />
-                                        </button>
-                                      )}
-                                      
-                                      {/* Удалить (только свои) */}
-                                      {isMyComment && (
-                                        <button
-                                          onClick={() => {
-                                            if (confirm('Удалить комментарий?')) {
-                                              deleteComment(editingPost.id, comment.id);
-                                            }
-                                          }}
-                                          className="p-0.5 text-gray-400 dark:text-white/30 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                                          title="Удалить"
-                                        >
-                                          <Trash2 className="w-3 h-3" />
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                {/* Ответ на комментарий */}
-                {replyingToComment && (
-                  <div className="px-2 py-1 border-t border-gray-200 dark:border-white/10 bg-blue-50 dark:bg-blue-500/5 flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-[10px] text-blue-500 dark:text-blue-400">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                      </svg>
-                      <span>Ответ для {users.find(u => u.id === replyingToComment.authorId)?.name || 'Пользователь'}</span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setReplyingToComment(null);
-                        setNewComment('');
-                      }}
-                      className="p-0.5 text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                )}
-                
-                {/* Add Comment - Chat Style */}
-                {editingPost && myAccountId ? (
-                  <div className="p-2 border-t border-gray-200 dark:border-white/10">
-                    <div className="relative">
-                      <textarea
-                        ref={commentInputRef}
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            if (newComment.trim()) {
-                              addComment();
-                            }
-                          }
-                        }}
-                        placeholder="Написать комментарий..."
-                        className="w-full px-3 py-2 pr-12 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-xs text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-white/30 resize-none focus:outline-none focus:border-blue-500/30 transition-all"
-                        rows={1}
-                        style={{
-                          minHeight: '40px',
-                          maxHeight: '120px',
-                          overflowY: newComment.split('\n').length > 5 ? 'auto' : 'hidden',
-                          height: 'auto'
-                        }}
-                        onInput={(e) => {
-                          const target = e.target as HTMLTextAreaElement;
-                          target.style.height = 'auto';
-                          const lines = target.value.split('\n').length;
-                          if (lines <= 5) {
-                            target.style.height = `${target.scrollHeight}px`;
-                          } else {
-                            target.style.height = '120px';
-                          }
-                        }}
-                      />
-                      <button
-                        onClick={() => {
-                          if (newComment.trim()) {
-                            addComment();
-                          }
-                        }}
-                        disabled={!newComment.trim()}
-                        className="absolute right-2 bottom-2 w-8 h-8 flex items-center justify-center bg-blue-500 hover:bg-blue-600 disabled:bg-gray-200 dark:disabled:bg-white/10 disabled:text-gray-400 dark:disabled:text-white/30 text-white rounded-full transition-all shadow-lg"
-                      >
-                        <Send className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ) : editingPost ? (
-                  <div className="p-3 border-t border-gray-200 dark:border-white/10 bg-orange-50 dark:bg-orange-500/5">
-                    <div className="flex items-center justify-center gap-2 text-orange-500 dark:text-orange-400">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-                      <p className="text-[10px]">
-                        Выберите профиль в настройках для комментирования
-                      </p>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-            
-            {/* Footer with save button */}
-            <div className="flex justify-between items-center px-4 py-2.5 border-t border-gray-200 dark:border-white/20 bg-white/85 dark:bg-[var(--bg-glass)]/85 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_-6px_18px_rgba(0,0,0,0.12)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_-8px_24px_rgba(0,0,0,0.22)] rounded-b-2xl flex-shrink-0">
-              <div className="text-[10px] text-gray-400 dark:text-white/30">
-                {!editingPost && 'Новая публикация'}
-                {isDirty && <span className="ml-2 text-amber-500 dark:text-amber-400">• Несохранённые изменения</span>}
-              </div>
-              <div className="flex gap-2">
-                {editingPost && (
-                  <button
-                    onClick={() => deletePost(editingPost.id)}
-                    className="px-3 py-1.5 text-red-500 dark:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors text-xs"
-                  >
-                    Удалить
-                  </button>
-                )}
                 <button
                   onClick={closeModal}
-                  className="px-3 py-1.5 text-gray-500 dark:text-white/60 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-all text-xs font-medium"
+                  className="p-2 rounded-lg hover:bg-[var(--bg-glass-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all"
                 >
-                  Отмена
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex items-center gap-1 px-4 md:px-6 border-b border-white/[0.06]">
+                <button
+                  onClick={() => setActiveTab('main')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors relative ${
+                    activeTab === 'main'
+                      ? 'text-purple-400 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-purple-500'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  Основное
                 </button>
                 <button
-                  onClick={editingPost ? updatePost : addPost}
-                  disabled={!postForm.title.trim() || !postForm.platform || !postForm.publishDate}
-                  className="px-4 py-1.5 rounded-2xl bg-gradient-to-br from-blue-500/90 to-blue-600/90 text-white hover:from-blue-500 hover:to-blue-600 transition-all text-xs font-semibold border border-blue-400/40 shadow-[0_6px_16px_rgba(37,99,235,0.35)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => setActiveTab('media')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors relative ${
+                    activeTab === 'media'
+                      ? 'text-purple-400 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-purple-500'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
                 >
-                  {editingPost ? 'Сохранить изменения' : 'Создать публикацию'}
+                  Медиа
+                </button>
+                <button
+                  onClick={() => setActiveTab('extra')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors relative ${
+                    activeTab === 'extra'
+                      ? 'text-purple-400 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-purple-500'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  Дополнительно
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Link URL Input Modal */}
-      {showLinkUrlModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-white/10">
-              <h3 className="text-sm font-semibold">Вставить ссылку</h3>
-              <button 
-                onClick={() => setShowLinkUrlModal(false)} 
-                className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors"
-              >
-                <X className="w-4 h-4 text-gray-500 dark:text-white/60" />
-              </button>
-            </div>
-            <div className="px-5 py-4 space-y-4">
+
+            {/* Content with tabs */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              {activeTab === 'main' && (
+                <>
+                  {/* Title */}
+                  <div>
+                    <label className="block text-xs text-white/50 mb-2">Заголовок</label>
+                    <input
+                      type="text"
+                      value={postForm.title}
+                      onChange={(e) => setPostForm(prev => ({ ...prev, title: e.target.value }))}
+                      placeholder="Заголовок публикации..."
+                      className="w-full px-4 py-2.5 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] text-sm focus:outline-none focus:border-purple-500/50"
+                      autoFocus
+                    />
+                  </div>
+
+              {/* Status */}
               <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-white/60 mb-1.5">URL ссылки</label>
-                <input
-                  type="url"
-                  value={linkUrlInput}
-                  onChange={(e) => setLinkUrlInput(e.target.value)}
-                  placeholder="https://example.com"
-                  className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm focus:outline-none focus:border-purple-400 dark:focus:border-purple-500/30"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && linkUrlInput) {
-                      const editor = document.getElementById('post-text-editor');
-                      if (editor) {
-                        document.execCommand('createLink', false, linkUrlInput);
-                        editor.focus();
-                      }
-                      setShowLinkUrlModal(false);
-                      setLinkUrlInput('');
+                <label className="block text-xs text-white/50 mb-2">Статус</label>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(STATUS_CONFIG).map(([key, config]) => (
+                    <button
+                      key={key}
+                      onClick={() => {
+                        const newStatus = key as 'draft' | 'scheduled' | 'approved';
+                        setPostForm(prev => ({ ...prev, postStatus: newStatus }));
+                        if (editingPost) {
+                          autoSaveStatus(newStatus);
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        postForm.postStatus === key
+                          ? `${config.bg} ${config.color} ring-1 ring-current`
+                          : 'bg-[var(--bg-glass)] text-[var(--text-secondary)] hover:bg-[var(--bg-glass-hover)]'
+                      }`}
+                    >
+                      {config.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Platform */}
+              <div>
+                <label className="block text-xs text-white/50 mb-2">Канал</label>
+                <select
+                  value={selectedPlatform || ''}
+                  onChange={(e) => {
+                    const platform = e.target.value as Platform | '';
+                    if (!platform) {
+                      setSelectedPlatform(null);
+                      setPostForm(prev => ({ ...prev, platform: null }));
+                      return;
                     }
-                    if (e.key === 'Escape') {
-                      setShowLinkUrlModal(false);
-                    }
+                    setSelectedPlatform(platform);
+                    const defaultContentType = PLATFORM_CONTENT_TYPES[platform][0].id as any;
+                    setPostForm(prev => ({ ...prev, platform, contentType: defaultContentType }));
                   }}
+                  className="w-full px-4 py-2.5 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] text-sm focus:outline-none focus:border-purple-500/50"
+                >
+                  <option value="" className="bg-[var(--bg-tertiary)]">Выберите канал...</option>
+                  {platforms.map(platform => (
+                    <option key={platform} value={platform} className="bg-[var(--bg-tertiary)]">{PLATFORM_CONFIG[platform].name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Content Type */}
+              {selectedPlatform && getAvailableContentTypes().length > 1 && (
+                <div>
+                  <label className="block text-xs text-white/50 mb-2">Тип контента</label>
+                  <select
+                    value={postForm.contentType}
+                    onChange={(e) => setPostForm(prev => ({ ...prev, contentType: e.target.value as any }))}
+                    className="w-full px-4 py-2.5 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] text-sm focus:outline-none focus:border-purple-500/50"
+                  >
+                    {getAvailableContentTypes().map(type => (
+                      <option key={type.id} value={type.id} className="bg-[var(--bg-tertiary)]">{type.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Text Content */}
+              <div>
+                <label className="block text-xs text-white/50 mb-2">Текст публикации</label>
+                <textarea
+                  value={postForm.postText}
+                  onChange={(e) => setPostForm(prev => ({ ...prev, postText: e.target.value }))}
+                  placeholder="Введите текст публикации..."
+                  rows={4}
+                  className="w-full px-4 py-2.5 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] text-sm focus:outline-none focus:border-purple-500/50 resize-none"
                 />
               </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowLinkUrlModal(false)}
-                  className="px-4 py-2 text-sm text-gray-600 dark:text-white/60 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors"
-                >
-                  Отмена
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (linkUrlInput) {
-                      const editor = document.getElementById('post-text-editor');
-                      if (editor) {
-                        document.execCommand('createLink', false, linkUrlInput);
-                        editor.focus();
-                      }
-                      setShowLinkUrlModal(false);
-                      setLinkUrlInput('');
-                    }
-                  }}
-                  disabled={!linkUrlInput}
-                  className="px-4 py-2 text-sm bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Вставить
-                </button>
+
+              {/* Date and Time */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-white/50 mb-2">Дата</label>
+                  <input
+                    type="date"
+                    value={postForm.publishDate}
+                    onChange={(e) => setPostForm(prev => ({ ...prev, publishDate: e.target.value }))}
+                    className="w-full px-4 py-2.5 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] text-sm focus:outline-none focus:border-purple-500/50 dark:[color-scheme:dark]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/50 mb-2">Время</label>
+                  <input
+                    type="time"
+                    value={postForm.publishTime}
+                    onChange={(e) => setPostForm(prev => ({ ...prev, publishTime: e.target.value }))}
+                    className="w-full px-4 py-2.5 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] text-sm focus:outline-none focus:border-purple-500/50 dark:[color-scheme:dark]"
+                  />
+                </div>
               </div>
+
+              {/* Event Attachment */}
+              <div>
+                <label className="block text-xs text-white/50 mb-2">Привязка к событию (опционально)</label>
+                <select
+                  value={postForm.eventId || ''}
+                  onChange={(e) => setPostForm(prev => ({ ...prev, eventId: e.target.value || undefined }))}
+                  className="w-full px-4 py-2.5 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] text-sm focus:outline-none focus:border-purple-500/50"
+                >
+                  <option value="" className="bg-[var(--bg-tertiary)]">Без привязки к событию</option>
+                  {availableEvents.length === 0 ? (
+                    <option disabled className="bg-[var(--bg-tertiary)]">Нет доступных мероприятий</option>
+                  ) : (
+                    availableEvents.map(event => (
+                      <option key={event.id} value={event.id} className="bg-[var(--bg-tertiary)]">
+                        {event.title} {event.startDate && `(${new Date(event.startDate).toLocaleDateString('ru-RU')})`}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+                </>
+              )}
+
+              {activeTab === 'media' && (
+                <div>
+                  <p className="text-[var(--text-muted)] text-sm">Медиа контент будет добавлен позже</p>
+                </div>
+              )}
+
+              {activeTab === 'extra' && (
+                <div>
+                  <p className="text-[var(--text-muted)] text-sm">Дополнительные настройки будут добавлены позже</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer with buttons */}
+            <div className="flex gap-3 pt-2 px-6 pb-6">
+              <button
+                onClick={editingPost ? updatePost : addPost}
+                disabled={!postForm.title.trim() || !postForm.platform || !postForm.publishDate}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl font-medium hover:from-purple-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {editingPost ? 'Сохранить изменения' : 'Создать публикацию'}
+              </button>
+              <button
+                onClick={closeModal}
+                className="px-4 py-2.5 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-xl text-[var(--text-secondary)] hover:bg-[var(--bg-glass-hover)] transition-all"
+              >
+                Отмена
+              </button>
             </div>
           </div>
         </div>
@@ -2687,6 +1783,8 @@ export default function ContentPlanPage() {
         onClearAll={() => setToasts([])}
         onOpenPost={openEditPost}
       />
+
+      
 
       {/* Create Content Plan Modal */}
       <CreatePlanModal
@@ -2733,6 +1831,7 @@ export default function ContentPlanPage() {
         resourceId={activePlanId}
         resourceName={contentPlans.find(p => p.id === activePlanId)?.name || 'Контент-план'}
       />
+      </div>
     </div>
   );
 }

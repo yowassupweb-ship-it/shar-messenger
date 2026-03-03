@@ -13,10 +13,10 @@ interface ContentPlanCalendarProps {
   dragOverDate: string | null;
   getPostsForDay: (day: Date) => ContentPost[];
   handleDragOver: (e: React.DragEvent, dateKey: string) => void;
-  handleDragLeave: () => void;
   handleDrop: (e: React.DragEvent, date: Date) => void;
   handleDragStart: (e: React.DragEvent, post: ContentPost) => void;
-  handleDragEnd: () => void;
+  handleDragEnd: (e: React.DragEvent) => void;
+  handleDragLeave: (e?: React.DragEvent) => void;
   openEditPost: (post: ContentPost) => void;
   openAddPost: (date: Date) => void;
 }
@@ -59,7 +59,7 @@ export default function ContentPlanCalendar({
                 key={idx}
                 className={`group min-h-[100px] sm:min-h-[140px] p-1.5 sm:p-2 border-r border-b border-gray-100 dark:border-white/5 last:border-r-0 transition-all ${
                   !isCurrentMonth ? 'bg-gray-100 dark:bg-black/20' : 'bg-white dark:bg-transparent'
-                } ${isDropTarget ? 'bg-purple-100 dark:bg-purple-500/20 ring-2 ring-inset ring-purple-500/50' : ''} ${isToday ? 'bg-purple-50 dark:bg-purple-500/5' : ''}`}
+                } ${isDropTarget ? 'bg-purple-100 dark:bg-purple-800 ring-2 ring-inset ring-purple-500/50' : ''} ${isToday ? 'bg-purple-100 dark:bg-purple-900' : ''}`}
                 onDragOver={(e) => handleDragOver(e, dateKey)}
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, date)}
@@ -67,7 +67,11 @@ export default function ContentPlanCalendar({
                 {/* Day Number */}
                 <div className="flex items-center justify-between mb-1 px-0.5 sm:px-1">
                   <span className={`text-[10px] sm:text-xs font-medium ${
-                    isToday ? 'text-purple-600 dark:text-purple-400' : isCurrentMonth ? 'text-gray-700 dark:text-white/70' : 'text-gray-400 dark:text-white/30'
+                    isToday
+                      ? 'text-purple-900 dark:text-purple-100 bg-purple-300 dark:bg-purple-700 border border-purple-400 dark:border-purple-500 rounded-md px-1.5 py-0.5 shadow-[0_1px_4px_rgba(168,85,247,0.25)]'
+                      : isCurrentMonth
+                        ? 'text-gray-700 dark:text-white/70'
+                        : 'text-gray-400 dark:text-white/30'
                   }`}>
                     {date.getDate()}
                   </span>

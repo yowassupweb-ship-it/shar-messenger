@@ -64,7 +64,7 @@ const ChatItem = React.memo<ChatItemProps>(({
               isOnline={otherUser?.isOnline}
             />
             {hasUnread && (
-              <div className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 px-1.5 rounded-full bg-gradient-to-br from-[#007aff]/80 to-[#007aff]/60 backdrop-blur-sm border-2 border-[var(--bg-secondary)] text-white text-[10px] font-bold flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,122,255,0.3)]">
+              <div className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 px-1.5 rounded-full bg-gradient-to-br from-[#007aff]/80 to-[#007aff]/60 backdrop-blur-md border-2 border-[var(--bg-secondary)] text-white text-[10px] font-bold flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,122,255,0.3)]">
                 {chat.unreadCount! > 9 ? '9+' : chat.unreadCount}
               </div>
             )}
@@ -90,7 +90,7 @@ const ChatItem = React.memo<ChatItemProps>(({
             )}
             {hasUnread && (
               <div className="flex items-center gap-1.5 mt-2">
-                <div className="min-w-[16px] h-4 px-1 rounded-full bg-gradient-to-br from-[#007aff]/80 to-[#007aff]/60 backdrop-blur-sm border border-white/20 text-white text-[9px] font-bold flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,122,255,0.3)]">
+                <div className="min-w-[16px] h-4 px-1 rounded-full bg-gradient-to-br from-[#007aff]/80 to-[#007aff]/60 backdrop-blur-md border border-white/20 text-white text-[9px] font-bold flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,122,255,0.3)]">
                   {chat.unreadCount! > 9 ? '9+' : chat.unreadCount}
                 </div>
                 <span className="text-[10px] text-cyan-400">непрочитанных</span>
@@ -145,7 +145,7 @@ const ChatItem = React.memo<ChatItemProps>(({
                     {chat.lastMessage.authorName}: {chat.lastMessage.content}
                   </p>
                   {hasUnread && (
-                    <div className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-gradient-to-br from-[#007aff]/80 to-[#007aff]/60 backdrop-blur-sm border border-white/20 text-white text-[10px] font-bold flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,122,255,0.3)]">
+                    <div className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-gradient-to-br from-[#007aff]/80 to-[#007aff]/60 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,122,255,0.3)]">
                       {chat.unreadCount}
                     </div>
                   )}
@@ -170,12 +170,12 @@ const ChatItem = React.memo<ChatItemProps>(({
   return (
     <div
       key={chat.id}
-      className={`relative group mx-2 rounded-[50px] overflow-hidden backdrop-blur-xl transition-all duration-300 ${
+      className={`relative group mx-2 rounded-[50px] overflow-hidden transition-all duration-300 ${
         isSelected 
           ? 'bg-gradient-to-br from-[#007aff]/30 to-[#007aff]/10 border border-[#007aff]/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_3px_8px_rgba(59,130,246,0.2)]' 
           : 'bg-gradient-to-br from-white/10 to-white/5 hover:from-white/15 hover:to-white/8 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_2px_8px_rgba(0,0,0,0.2)]'
       }`}
-      style={{ contentVisibility: 'auto', containIntrinsicSize: '76px 76px' }}
+      style={{ contentVisibility: 'auto', containIntrinsicSize: '76px 76px', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
       onContextMenu={(e) => onContextMenu(e, chat)}
     >
       <button
@@ -212,7 +212,7 @@ const ChatItem = React.memo<ChatItemProps>(({
                   {chat.lastMessage.authorName}: {chat.lastMessage.content}
                 </p>
                 {hasUnread && (
-                  <div className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-gradient-to-br from-[#007aff]/80 to-[#007aff]/60 backdrop-blur-sm border border-white/20 text-white text-[10px] font-bold flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,122,255,0.3)]">
+                  <div className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-gradient-to-br from-[#007aff]/80 to-[#007aff]/60 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,122,255,0.3)]">
                     {chat.unreadCount}
                   </div>
                 )}

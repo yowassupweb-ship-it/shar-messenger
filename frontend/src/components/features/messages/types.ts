@@ -59,6 +59,7 @@ export interface Chat {
   createdAt: string;
   readMessagesByUser?: Record<string, string>;
   pinnedByUser?: Record<string, boolean>;
+  pinnedOrderByUser?: Record<string, number>;
   archivedByUser?: Record<string, boolean>;
   isArchivedForUser?: boolean;
   discussionStatus?: string;
