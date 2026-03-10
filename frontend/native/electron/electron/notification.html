@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      overflow: hidden;
+      background: transparent;
+      -webkit-app-region: no-drag;
+    }
+
+    .notification-container {
+      width: 360px;
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(20px);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15),
+                  0 0 0 1px rgba(255, 255, 255, 0.2),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.8);
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .notification-container {
+        background: rgba(30, 30, 35, 0.95);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
+                    0 0 0 1px rgba(255, 255, 255, 0.1),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      }
+    }
+
+    .notification-container:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2),
+                  0 0 0 1px rgba(255, 255, 255, 0.25),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    .notification-content {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      font-size: 20px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    .text-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .notification-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .sender-name {
+      font-weight: 600;
+      font-size: 15px;
+      color: #1a1a1a;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .sender-name {
+        color: #ffffff;
+      }
+    }
+
+    .timestamp {
+      font-size: 12px;
+      color: #8e8e93;
+      white-space: nowrap;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .timestamp {
+        color: #999999;
+      }
+    }
+
+    .chat-name {
+      font-size: 13px;
+      color: #007aff;
+      margin-bottom: 2px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .message-text {
+      font-size: 14px;
+      line-height: 1.4;
+      color: #3c3c43;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .message-text {
+        color: #e0e0e0;
+      }
+    }
+
+    .badge {
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      background: #ff3b30;
+      color: white;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(255, 59, 48, 0.4);
+      min-width: 18px;
+      text-align: center;
+    }
+
+    .close-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.05);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: all 0.2s ease;
+      color: #666;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .notification-container:hover .close-btn {
+      opacity: 1;
+    }
+
+    .close-btn:hover {
+      background: rgba(0, 0, 0, 0.1);
+      transform: scale(1.1);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .close-btn {
+        background: rgba(255, 255, 255, 0.1);
+        color: #ccc;
+      }
+      
+      .close-btn:hover {
+        background: rgba(255, 255, 255, 0.15);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="notification-container" id="notification">
+    <button class="close-btn" id="closeBtn" title="Закрыть">×</button>
+    <div class="notification-content">
+      <div class="avatar" id="avatar">
+        <span id="avatarText"></span>
+      </div>
+      <div class="text-content">
+        <div class="notification-header">
+          <div class="sender-name" id="senderName"></div>
+          <div class="timestamp" id="timestamp"></div>
+        </div>
+        <div class="chat-name" id="chatName" style="display: none;"></div>
+        <div class="message-text" id="messageText"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    // Получаем данные уведомления
+    ipcRenderer.on('notification-data', (event, data) => {
+      const {
+        senderName,
+        chatName,
+        message,
+        avatar,
+        timestamp,
+        badge,
+        chatId
+      } = data;
+
+      // Устанавливаем имя отправителя
+      document.getElementById('senderName').textContent = senderName || 'Неизвестный';
+
+      // Устанавливаем название чата (если групповой)
+      if (chatName && chatName !== senderName) {
+        const chatNameEl = document.getElementById('chatName');
+        chatNameEl.textContent = chatName;
+        chatNameEl.style.display = 'block';
+      }
+
+      // Устанавливаем текст сообщения
+      document.getElementById('messageText').textContent = message || 'Новое сообщение';
+
+      // Устанавливаем время
+      const timeString = timestamp ? formatTime(timestamp) : 'только что';
+      document.getElementById('timestamp').textContent = timeString;
+
+      // Устанавливаем аватар
+      const avatarEl = document.getElementById('avatar');
+      const avatarTextEl = document.getElementById('avatarText');
+      
+      if (avatar && avatar.startsWith('http')) {
+        const img = document.createElement('img');
+        img.src = avatar;
+        img.onerror = () => {
+          // Если загрузка не удалась, показываем инициалы
+          avatarTextEl.textContent = getInitials(senderName);
+        };
+        avatarEl.appendChild(img);
+      } else {
+        avatarTextEl.textContent = getInitials(senderName);
+      }
+
+      // Устанавливаем бейдж (если есть)
+      if (badge && badge > 0) {
+        const badgeEl = document.createElement('div');
+        badgeEl.className = 'badge';
+        badgeEl.textContent = badge > 99 ? '99+' : badge;
+        avatarEl.style.position = 'relative';
+        avatarEl.appendChild(badgeEl);
+      }
+
+      // Клик по уведомлению - открываем чат
+      document.getElementById('notification').addEventListener('click', (e) => {
+        if (!e.target.closest('#closeBtn')) {
+          ipcRenderer.send('notification-click', { chatId });
+        }
+      });
+
+      // Кнопка закрытия
+      document.getElementById('closeBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        ipcRenderer.send('notification-close');
+      });
+
+      // Автозакрытие через 5 секунд
+      setTimeout(() => {
+        ipcRenderer.send('notification-close');
+      }, 5000);
+    });
+
+    function getInitials(name) {
+      if (!name) return '?';
+      const parts = name.trim().split(/\s+/);
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+      }
+      return name.substring(0, 2).toUpperCase();
+    }
+
+    function formatTime(timestamp) {
+      const date = new Date(timestamp);
+      const now = new Date();
+      const diff = now - date;
+
+      if (diff < 60000) return 'только что';
+      if (diff < 3600000) return `${Math.floor(diff / 60000)} мин назад`;
+      
+      const hours = date.getHours().toString().padStart(2, '0');
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      return `${hours}:${minutes}`;
+    }
+
+    // Предотвращаем выделение текста
+    document.addEventListener('selectstart', (e) => e.preventDefault());
+  </script>
+</body>
+</html>

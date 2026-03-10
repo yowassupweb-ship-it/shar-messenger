@@ -1,0 +1,54 @@
+{
+  "name": "shar-electron-client",
+  "version": "0.1.0",
+  "private": true,
+  "author": "Shar OS",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "electron electron/main.cjs",
+    "start": "electron electron/main.cjs",
+    "build": "electron-builder"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^37.7.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "ru.shar.electron",
+    "productName": "Shar Messenger Electron",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "icon": "electron/icon.png",
+    "publish": {
+      "provider": "generic",
+      "url": "https://vokrug-sveta.shar-os.ru/updates"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "electron/icon.png",
+      "publish": {
+        "provider": "generic",
+        "url": "https://vokrug-sveta.shar-os.ru/updates"
+      }
+    },
+    "mac": {
+      "icon": "electron/icon.png"
+    },
+    "linux": {
+      "icon": "electron/icon.png"
+    }
+  }
+}

@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Shar OS | Balanced Deep</title>
+	<link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Syne:wght@700&display=swap" rel="stylesheet">
+	<style>
+		* { margin: 0; padding: 0; box-sizing: border-box; }
+
+		html,
+		body {
+			width: 100%;
+			height: 100%;
+			overflow: hidden;
+			background: #0a0e27;
+			font-family: sans-serif;
+			cursor: default;
+		}
+
+		#webGLApp {
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			z-index: 1;
+		}
+
+		.center-stack {
+			position: fixed;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -54%);
+			z-index: 12;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: 16px;
+			pointer-events: none;
+		}
+
+		.logo {
+			width: 149px;
+			height: 149px;
+			object-fit: contain;
+			filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.35));
+			animation: logoPulse 2s ease-in-out infinite;
+		}
+
+		.heading {
+			position: relative;
+			transform: scaleX(1.05);
+			color: white;
+			text-align: center;
+			font-family: "Dela Gothic One", cursive;
+			font-size: clamp(1.74rem, 3.48vw, 2.88rem);
+			letter-spacing: -0.01em;
+			text-shadow: 0 15px 50px rgba(0, 0, 0, 0.25);
+			opacity: 0.98;
+		}
+
+		.status {
+			position: fixed;
+			bottom: 2.2rem;
+			left: 50%;
+			transform: translateX(-50%);
+			z-index: 10;
+			color: rgba(255, 255, 255, 0.55);
+			font-family: "Syne", sans-serif;
+			font-size: 0.88rem;
+			text-transform: none;
+			letter-spacing: 0.06em;
+			white-space: nowrap;
+		}
+
+		@keyframes logoPulse {
+			0%, 100% { transform: scale(1); opacity: 1; }
+			50% { transform: scale(1.05); opacity: 0.9; }
+		}
+
+	</style>
+</head>
+<body>
+	<div id="webGLApp"></div>
+	<div class="center-stack">
+		<img class="logo" src="../../../../Group 6.png" alt="Shar OS" onerror="this.src='./icon.png'" />
+		<h1 class="heading">Шар OS</h1>
+	</div>
+	<div class="status">Запуск рабочего пространства...</div>
+
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+	<script id="vertexShader" type="x-shader/x-vertex">
+		varying vec2 vUv;
+		void main() {
+			vUv = uv;
+			gl_Position = vec4(position, 1.0);
+		}
+	</script>
+
+	<script id="fragmentShader" type="x-shader/x-fragment">
+		uniform float uTime;
+		uniform vec2 uResolution;
+		uniform vec3 uColor1;
+		uniform vec3 uColor2;
+		uniform vec3 uDarkNavy;
+		uniform float uSpeed;
+		uniform float uGrainIntensity;
+		varying vec2 vUv;
+
+		float grain(vec2 uv, float time) {
+			vec2 grainUv = uv * uResolution * 0.5;
+			float grainValue = fract(sin(dot(grainUv + time, vec2(12.9898, 78.233))) * 43758.5453);
+			return grainValue * 2.0 - 1.0;
+		}
+
+		vec3 getGradientColor(vec2 uv, float time) {
+			float gradientRadius = 0.5;
+
+			vec2 c1 = vec2(0.5 + sin(time * uSpeed * 0.4) * 0.4, 0.5 + cos(time * uSpeed * 0.5) * 0.4);
+			vec2 c2 = vec2(0.5 + cos(time * uSpeed * 0.6) * 0.5, 0.5 + sin(time * uSpeed * 0.45) * 0.5);
+			vec2 c3 = vec2(0.5 + sin(time * uSpeed * 0.35) * 0.45, 0.5 + cos(time * uSpeed * 0.55) * 0.45);
+			vec2 c4 = vec2(0.5 + cos(time * uSpeed * 0.5) * 0.4, 0.5 + sin(time * uSpeed * 0.4) * 0.4);
+			vec2 c5 = vec2(0.5 + sin(time * uSpeed * 0.7) * 0.35, 0.5 + cos(time * uSpeed * 0.6) * 0.35);
+			vec2 c6 = vec2(0.5 + cos(time * uSpeed * 0.45) * 0.5, 0.5 + sin(time * uSpeed * 0.65) * 0.5);
+			vec2 c7 = vec2(0.5 + sin(time * uSpeed * 0.55) * 0.38, 0.5 + cos(time * uSpeed * 0.48) * 0.42);
+			vec2 c8 = vec2(0.5 + cos(time * uSpeed * 0.65) * 0.36, 0.5 + sin(time * uSpeed * 0.52) * 0.44);
+			vec2 c9 = vec2(0.5 + sin(time * uSpeed * 0.42) * 0.41, 0.5 + cos(time * uSpeed * 0.58) * 0.39);
+			vec2 c10 = vec2(0.5 + cos(time * uSpeed * 0.48) * 0.37, 0.5 + sin(time * uSpeed * 0.62) * 0.43);
+			vec2 c11 = vec2(0.5 + sin(time * uSpeed * 0.68) * 0.33, 0.5 + cos(time * uSpeed * 0.44) * 0.46);
+			vec2 c12 = vec2(0.5 + cos(time * uSpeed * 0.38) * 0.39, 0.5 + sin(time * uSpeed * 0.56) * 0.41);
+
+			float d3 = length(uv - (c3 * vec2(0.8, 0.8) + vec2(0.1, 0.1)));
+			float d7 = length(uv - (c7 * vec2(0.9, 0.9) + vec2(0.05, 0.05)));
+			float d11 = length(uv - c11);
+
+			float influence3 = 1.0 - smoothstep(0.0, gradientRadius * 1.2, d3);
+			float influence7 = 1.0 - smoothstep(0.0, gradientRadius, d7);
+
+			float influence1 = 1.0 - smoothstep(0.0, gradientRadius, length(uv - c1));
+			float influence2 = 1.0 - smoothstep(0.0, gradientRadius, length(uv - c2));
+			float influence4 = 1.0 - smoothstep(0.0, gradientRadius, length(uv - c4));
+			float influence5 = 1.0 - smoothstep(0.0, gradientRadius, length(uv - c5));
+			float influence6 = 1.0 - smoothstep(0.0, gradientRadius, length(uv - c6));
+			float influence8 = 1.0 - smoothstep(0.0, gradientRadius, length(uv - c8));
+			float influence9 = 1.0 - smoothstep(0.0, gradientRadius, length(uv - c9));
+			float influence10 = 1.0 - smoothstep(0.0, gradientRadius, length(uv - c10));
+			float influence11 = 1.0 - smoothstep(0.0, gradientRadius, d11);
+			float influence12 = 1.0 - smoothstep(0.0, gradientRadius, length(uv - c12));
+
+			vec3 color = vec3(0.0);
+			color += uColor1 * influence1 * (0.55 + 0.45 * sin(time * uSpeed));
+			color += uColor1 * influence3 * (0.65 + 0.45 * sin(time * uSpeed * 0.8));
+			color += uColor1 * influence5 * (0.55 + 0.45 * sin(time * uSpeed * 1.1));
+			color += uColor1 * influence7 * (0.60 + 0.45 * sin(time * uSpeed * 1.4));
+			color += uColor1 * influence9 * (0.55 + 0.45 * sin(time * uSpeed * 1.6));
+			color += uColor1 * influence11 * (0.55 + 0.45 * sin(time * uSpeed * 1.8));
+
+			color += uColor2 * influence2 * (0.55 + 0.45 * cos(time * uSpeed * 1.2));
+			color += uColor2 * influence4 * (0.55 + 0.45 * cos(time * uSpeed * 1.3));
+			color += uColor2 * influence6 * (0.55 + 0.45 * cos(time * uSpeed * 0.9));
+			color += uColor2 * influence8 * (0.55 + 0.45 * cos(time * uSpeed * 1.5));
+			color += uColor2 * influence10 * (0.55 + 0.45 * cos(time * uSpeed * 1.7));
+			color += uColor2 * influence12 * (0.55 + 0.45 * cos(time * uSpeed * 1.9));
+
+			color = clamp(color, vec3(0.0), vec3(1.0));
+			color = mix(uDarkNavy, color, 0.6);
+			return color;
+		}
+
+		void main() {
+			vec2 uv = vUv;
+			vec3 color = getGradientColor(uv, uTime);
+			float grainValue = grain(uv, uTime);
+			float grainMask = smoothstep(1.0, 0.3, length(uv - vec2(0.85, 0.85)));
+			color += grainValue * uGrainIntensity * grainMask;
+			color = clamp(color, vec3(0.0), vec3(1.0));
+			gl_FragColor = vec4(color, 1.0);
+		}
+	</script>
+
+	<script>
+		const container = document.getElementById('webGLApp');
+		const scene = new THREE.Scene();
+		const camera = new THREE.Camera();
+		const renderer = new THREE.WebGLRenderer({ antialias: true });
+		renderer.setSize(window.innerWidth, window.innerHeight);
+		renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+		container.appendChild(renderer.domElement);
+
+		const uniforms = {
+			uTime: { value: 1.0 },
+			uResolution: { value: new THREE.Vector2(renderer.domElement.width, renderer.domElement.height) },
+			uColor1: { value: new THREE.Vector3(0.945, 0.353, 0.133) },
+			uColor2: { value: new THREE.Vector3(0.039, 0.055, 0.153) },
+			uDarkNavy: { value: new THREE.Vector3(0.039, 0.055, 0.153) },
+			uSpeed: { value: 0.20 },
+			uGrainIntensity: { value: 0.07 }
+		};
+
+		const geometry = new THREE.PlaneGeometry(2, 2);
+		const material = new THREE.ShaderMaterial({
+			uniforms,
+			vertexShader: document.getElementById('vertexShader').textContent,
+			fragmentShader: document.getElementById('fragmentShader').textContent
+		});
+
+		const mesh = new THREE.Mesh(geometry, material);
+		scene.add(mesh);
+
+		const clock = new THREE.Clock();
+
+		function animate() {
+			uniforms.uTime.value += clock.getDelta();
+			renderer.render(scene, camera);
+			requestAnimationFrame(animate);
+		}
+
+		function onWindowResize() {
+			renderer.setSize(window.innerWidth, window.innerHeight);
+			uniforms.uResolution.value.x = renderer.domElement.width;
+			uniforms.uResolution.value.y = renderer.domElement.height;
+		}
+
+		window.addEventListener('resize', onWindowResize);
+		animate();
+	</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Shar OS Loading</title>
+	<style>
+		html, body {
+			margin: 0;
+			width: 100%;
+			height: 100%;
+			overflow: hidden;
+			font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+			background: transparent;
+		}
+
+		.wrap {
+			position: fixed;
+			inset: 0;
+			display: grid;
+			place-items: center;
+			background: radial-gradient(100% 100% at 50% 0%, #1f2943 0%, #0b1220 52%, #05070d 100%);
+		}
+
+		canvas#bg {
+			position: absolute;
+			inset: 0;
+			width: 100%;
+			height: 100%;
+			opacity: .9;
+		}
+
+		.content {
+			position: relative;
+			z-index: 2;
+			width: min(560px, 80vw);
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: 14px;
+			color: #fff;
+			text-align: center;
+		}
+
+		.logo {
+			width: 86px;
+			height: 86px;
+			object-fit: contain;
+			filter: drop-shadow(0 8px 24px rgba(61, 124, 255, .45));
+			animation: pulse 2.2s ease-in-out infinite;
+		}
+
+		.title {
+			font-size: 28px;
+			font-weight: 700;
+			letter-spacing: .02em;
+		}
+
+		.subtitle {
+			font-size: 13px;
+			color: rgba(255,255,255,.72);
+			margin-top: -4px;
+		}
+
+		.progress {
+			width: min(460px, 76vw);
+			height: 6px;
+			border-radius: 999px;
+			background: rgba(255,255,255,.16);
+			overflow: hidden;
+			margin-top: 10px;
+			box-shadow: inset 0 1px 2px rgba(0,0,0,.4);
+		}
+
+		.progress > span {
+			display: block;
+			height: 100%;
+			width: 0%;
+			background: linear-gradient(90deg, #77a8ff, #3b82f6 40%, #4f46e5 100%);
+			box-shadow: 0 0 16px rgba(79, 70, 229, .65);
+			animation: fill 3s linear forwards;
+		}
+
+		@keyframes fill {
+			from { width: 0%; }
+			to { width: 100%; }
+		}
+
+		@keyframes pulse {
+			0%, 100% { transform: scale(1); opacity: 1; }
+			50% { transform: scale(1.06); opacity: .9; }
+		}
+	</style>
+</head>
+<body>
+	<div class="wrap">
+		<canvas id="bg"></canvas>
+		<div class="content">
+			<img class="logo" src="./icon.png" alt="Shar OS" />
+			<div class="title">Shar OS</div>
+			<div class="subtitle">Запуск рабочего пространства</div>
+			<div class="progress"><span></span></div>
+		</div>
+	</div>
+
+	<script>
+		const canvas = document.getElementById('bg');
+		const gl = canvas.getContext('webgl', { antialias: true, alpha: true });
+
+		if (!gl) {
+			console.warn('WebGL is not available, splash fallback mode enabled');
+		} else {
+			const vertexSrc = `
+				attribute vec2 aPos;
+				varying vec2 vUv;
+				void main() {
+					vUv = (aPos + 1.0) * 0.5;
+					gl_Position = vec4(aPos, 0.0, 1.0);
+				}
+			`;
+
+			const fragmentSrc = `
+				precision highp float;
+				varying vec2 vUv;
+				uniform vec2 uRes;
+				uniform float uTime;
+
+				float hash(vec2 p) {
+					p = fract(p * vec2(123.34, 345.45));
+					p += dot(p, p + 34.345);
+					return fract(p.x * p.y);
+				}
+
+				float noise(vec2 p) {
+					vec2 i = floor(p);
+					vec2 f = fract(p);
+					float a = hash(i);
+					float b = hash(i + vec2(1.0, 0.0));
+					float c = hash(i + vec2(0.0, 1.0));
+					float d = hash(i + vec2(1.0, 1.0));
+					vec2 u = f * f * (3.0 - 2.0 * f);
+					return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+				}
+
+				void main() {
+					vec2 uv = vUv;
+					vec2 p = (uv - 0.5) * vec2(uRes.x / uRes.y, 1.0);
+
+					float t = uTime * 0.25;
+					float wave = sin((p.x * 2.4 + t) * 2.2) * 0.06 + cos((p.y * 2.0 - t) * 2.4) * 0.05;
+					float n = noise(p * 3.0 + vec2(t, -t));
+					float glow = smoothstep(0.75, 0.08, length(p + vec2(0.0, wave * 1.7)));
+
+					vec3 base = vec3(0.03, 0.06, 0.12);
+					vec3 c1 = vec3(0.20, 0.35, 0.95);
+					vec3 c2 = vec3(0.45, 0.18, 0.95);
+					vec3 col = base;
+					col += c1 * glow * (0.45 + n * 0.5);
+					col += c2 * glow * (0.25 + (1.0 - n) * 0.35);
+					col += vec3(0.10, 0.18, 0.32) * (0.18 + 0.12 * sin(t + p.y * 4.0));
+
+					float vignette = smoothstep(1.12, 0.22, length(uv - 0.5));
+					col *= vignette;
+
+					gl_FragColor = vec4(col, 0.96);
+				}
+			`;
+
+			function createShader(type, source) {
+				const shader = gl.createShader(type);
+				gl.shaderSource(shader, source);
+				gl.compileShader(shader);
+				if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+					console.error(gl.getShaderInfoLog(shader));
+					gl.deleteShader(shader);
+					return null;
+				}
+				return shader;
+			}
+
+			const vs = createShader(gl.VERTEX_SHADER, vertexSrc);
+			const fs = createShader(gl.FRAGMENT_SHADER, fragmentSrc);
+			const program = gl.createProgram();
+			gl.attachShader(program, vs);
+			gl.attachShader(program, fs);
+			gl.linkProgram(program);
+			gl.useProgram(program);
+
+			const buffer = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+				-1, -1,
+				 1, -1,
+				-1,  1,
+				 1,  1,
+			]), gl.STATIC_DRAW);
+
+			const aPos = gl.getAttribLocation(program, 'aPos');
+			gl.enableVertexAttribArray(aPos);
+			gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+			const uRes = gl.getUniformLocation(program, 'uRes');
+			const uTime = gl.getUniformLocation(program, 'uTime');
+
+			function resize() {
+				const dpr = Math.min(window.devicePixelRatio || 1, 2);
+				canvas.width = Math.floor(window.innerWidth * dpr);
+				canvas.height = Math.floor(window.innerHeight * dpr);
+				gl.viewport(0, 0, canvas.width, canvas.height);
+			}
+
+			window.addEventListener('resize', resize);
+			resize();
+
+			const startedAt = performance.now();
+			function render(now) {
+				const time = (now - startedAt) / 1000;
+				gl.uniform2f(uRes, canvas.width, canvas.height);
+				gl.uniform1f(uTime, time);
+				gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+				requestAnimationFrame(render);
+			}
+			requestAnimationFrame(render);
+		}
+	</script>
+</body>
+</html>

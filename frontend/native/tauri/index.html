@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shar Messenger Tauri</title>
+    <script type="module" src="/src/main.js"></script>
+  </head>
+  <body>
+    <div class="boot-shell">
+      <div class="card">
+        <div class="badge">Tauri shell</div>
+        <h1>Подключение к удалённому приложению…</h1>
+        <p class="description">
+          Эта оболочка открывает опубликованную веб-версию Shar Messenger, которая уже работает с удалённым бекендом.
+        </p>
+        <div class="row">
+          <span class="label">Удалённый URL</span>
+          <span class="value" id="remote-url">загрузка…</span>
+        </div>
+        <div class="row">
+          <span class="label">Статус</span>
+          <span class="value" id="status">инициализация</span>
+        </div>
+        <div class="actions">
+          <button id="retry-button" type="button">Открыть вручную</button>
+        </div>
+        <p class="hint" id="hint"></p>
+      </div>
+    </div>
+  </body>
+</html>
