@@ -4,8 +4,11 @@ const { app, BrowserWindow, Menu, shell, ipcMain } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const dotenv = require('dotenv');
 
-dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
-dotenv.config({ path: path.join(__dirname, '..', '.env') });
+// Load environment variables based on NODE_ENV
+const isDev = process.env.NODE_ENV !== 'production' && !app.isPackaged;
+const envFile = isDev ? '.env.local' : '.env.production';
+dotenv.config({ path: path.join(__dirname, '..', envFile) });
+dotenv.config({ path: path.join(__dirname, '..', '.env') }); // Fallback to .env
 
 // Auto-updater configuration
 const UPDATE_SERVER_URL = 'https://vokrug-sveta.shar-os.ru/updates';
