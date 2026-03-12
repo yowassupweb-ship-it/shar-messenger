@@ -553,6 +553,17 @@ export default function AccountPage() {
     };
   }, [currentUser?.id, currentUser?.name]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.sharDesktop?.onOpenRoute) return;
+
+    const unsubscribe = window.sharDesktop.onOpenRoute((url: string) => {
+      if (!url) return;
+      router.push(url, { scroll: false });
+    });
+
+    return unsubscribe;
+  }, [router]);
+
   const handleLogout = () => {
     browserPushRef.current?.stop();
     browserPushRef.current = null;
@@ -699,7 +710,7 @@ export default function AccountPage() {
     }
   };
 
-  const isChatStyledTab = activeTab === 'tasks' || activeTab === 'contacts' || activeTab === 'tools' || activeTab === 'links';
+  const isChatStyledTab = activeTab === 'tasks' || activeTab === 'contacts' || activeTab === 'tools' || activeTab === 'links' || activeTab === 'calendar';
   const accountChatBackgroundColor = theme === 'dark'
     ? (chatSettings?.chatBackgroundDark || '#0f172a')
     : (chatSettings?.chatBackgroundLight || '#f8fafc');
@@ -717,7 +728,7 @@ export default function AccountPage() {
 
   return (
     <div
-      className={`h-screen w-full max-w-full min-w-0 theme-text flex flex-col transition-colors duration-300 overflow-hidden overflow-x-hidden relative ${(activeTab === 'messages' || activeTab === 'tasks' || activeTab === 'contacts' || activeTab === 'tools' || activeTab === 'links') ? '' : 'theme-bg'}`}
+      className={`h-screen w-full max-w-full min-w-0 theme-text flex flex-col transition-colors duration-300 overflow-hidden overflow-x-hidden relative ${(activeTab === 'tasks' || activeTab === 'contacts' || activeTab === 'tools' || activeTab === 'links' || activeTab === 'calendar') ? '' : 'theme-bg'}`}
       style={isChatStyledTab
         ? {
             backgroundColor: accountChatBackgroundColor,
@@ -734,12 +745,13 @@ export default function AccountPage() {
     >
       {isChatStyledTab && accountChatOverlayImage && (
         <div
-          className="absolute inset-0 pointer-events-none"
+          className="fixed inset-0 pointer-events-none"
           style={{
             backgroundImage: `url('${accountChatOverlayImage}')`,
             backgroundSize: `${accountOverlayScale * 3}px`,
             backgroundRepeat: 'repeat',
             backgroundPosition: 'center center',
+            backgroundAttachment: 'fixed',
             opacity: accountOverlayOpacity,
             zIndex: 1,
           }}

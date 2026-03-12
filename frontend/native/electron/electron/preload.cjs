@@ -3,13 +3,22 @@ const path = require('path');
 const { contextBridge, ipcRenderer } = require('electron');
 
 function getLogoDataUrl() {
-  try {
-    const logoPath = path.resolve(__dirname, '../../../../favicon.png');
-    const fileBuffer = fs.readFileSync(logoPath);
-    return `data:image/png;base64,${fileBuffer.toString('base64')}`;
-  } catch {
-    return '/favicon.png';
+  const logoCandidates = [
+    path.join(__dirname, 'icon.png'),
+    path.resolve(__dirname, '../../../../Group 8.png'),
+  ];
+
+  for (const logoPath of logoCandidates) {
+    try {
+      if (!fs.existsSync(logoPath)) continue;
+      const fileBuffer = fs.readFileSync(logoPath);
+      return `data:image/png;base64,${fileBuffer.toString('base64')}`;
+    } catch {
+      // ignore and try next candidate
+    }
   }
+
+  return '/favicon.png';
 }
 
 const logoSrc = getLogoDataUrl();
@@ -49,6 +58,11 @@ contextBridge.exposeInMainWorld('sharDesktop', {
     const handler = (_, chatId) => callback(chatId);
     ipcRenderer.on('open-chat', handler);
     return () => ipcRenderer.removeListener('open-chat', handler);
+  },
+  onOpenRoute: (callback) => {
+    const handler = (_, url) => callback(url);
+    ipcRenderer.on('open-route', handler);
+    return () => ipcRenderer.removeListener('open-route', handler);
   },
 });
 

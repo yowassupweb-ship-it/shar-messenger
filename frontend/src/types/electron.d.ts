@@ -1,11 +1,15 @@
 export interface NotificationData {
-  senderName: string;
+  senderName?: string;
+  title?: string;
+  subtitle?: string;
   chatName?: string;
   message: string;
   avatar?: string;
   timestamp?: string | number;
   badge?: number;
   chatId?: string;
+  url?: string;
+  kind?: 'message' | 'task' | 'event' | 'system';
 }
 
 export interface WindowControls {
@@ -25,6 +29,7 @@ export interface SharDesktop {
   windowControls: WindowControls;
   showNotification: (data: NotificationData) => Promise<void>;
   onOpenChat: (callback: (chatId: string) => void) => () => void;
+  onOpenRoute: (callback: (url: string) => void) => () => void;
 }
 
 declare global {

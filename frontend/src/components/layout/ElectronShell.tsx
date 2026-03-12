@@ -6,22 +6,6 @@ import { usePathname } from 'next/navigation';
 import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 
-declare global {
-  interface Window {
-    sharDesktop?: {
-      platform?: string;
-      openExternal?: (url?: string) => Promise<void>;
-      windowControls?: {
-        minimize: () => Promise<void>;
-        toggleMaximize: () => Promise<boolean>;
-        close: () => Promise<void>;
-        isMaximized: () => Promise<boolean>;
-        onMaximizedChanged: (callback: (value: boolean) => void) => (() => void) | void;
-      };
-    };
-  }
-}
-
 interface ElectronShellProps {
   children: ReactNode;
 }
@@ -106,8 +90,8 @@ export default function ElectronShell({ children }: ElectronShellProps) {
           style={{ WebkitAppRegion: 'drag' } as CSSProperties}
         >
           <div className="min-w-0 flex flex-1 items-center gap-2 px-0.5">
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--border-light)] bg-gradient-to-br from-white/10 to-white/5 text-[var(--text-primary)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm">
-              <Image src="/favicon.png" alt="Shar OS" width={22} height={22} className="h-[22px] w-[22px] object-contain" priority />
+              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center">
+                <Image src="/group-6.png" alt="Shar OS" width={28} height={28} className="h-[28px] w-[28px] object-contain" priority />
             </div>
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold text-[var(--text-primary)]">

@@ -182,11 +182,11 @@ export default function ImageModal({
         </button>
       </div>
       
-      <div className="w-full h-full flex items-center justify-center p-4 md:p-8" onClick={(e) => e.stopPropagation()}>
+      <div className="w-screen h-screen flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
         <img 
           src={imageUrl}
           alt="Full size"
-          className="object-contain transition-transform duration-200 select-none max-w-full max-h-full"
+          className="w-full h-full object-contain transition-transform duration-200 select-none"
           style={{ 
             transform: `scale(${zoom})`,
             cursor: zoom > 1 ? 'grab' : 'default',

@@ -502,7 +502,7 @@ export default function ChatHeader({
                 className={glassRoundButtonClass}
                 title="Действия с чатом"
               >
-                <MoreVertical className="w-4 h-4 text-[var(--text-primary)]" />
+                <MoreVertical className="w-5 h-5 text-[var(--text-primary)]" />
               </button>
               {showChatMenu && (
                 <div className="absolute right-0 top-full mt-1 w-48 rounded-lg shadow-2xl z-50 py-1 overflow-hidden bg-[var(--bg-secondary)] border border-[var(--border-color)] backdrop-blur-xl">

@@ -82,6 +82,7 @@ export default function UserSettingsPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [notifications, setNotifications] = useState(true);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [saveNotice, setSaveNotice] = useState<string>('');
   const [editForm, setEditForm] = useState({ personalPhone: '', workPhone: '', workSchedule: '', position: '', department: '' });
@@ -210,6 +211,20 @@ export default function UserSettingsPage() {
     };
 
     void loadChatAssets();
+  }, []);
+
+  useEffect(() => {
+    // Проверяем статус разрешений на уведомления
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationPermission(Notification.permission);
+      
+      // Обновляем статус каждые 3 секунды (если пользователь изменит в браузере)
+      const interval = setInterval(() => {
+        setNotificationPermission(Notification.permission);
+      }, 3000);
+      
+      return () => clearInterval(interval);
+    }
   }, []);
 
   const saveSettings = async (newSettings: typeof chatSettings) => {
@@ -884,7 +899,7 @@ export default function UserSettingsPage() {
               </div>
             </Card>
 
-            <Card title="Уведомления" subtitle="Локальные настройки интерфейса">
+            <Card title="Уведомления" subtitle="Управление системными уведомлениями браузера">
               <div className="h-12 rounded-xl border border-[var(--border-light)] bg-[var(--bg-secondary)]/70 px-3 flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg border border-[var(--border-light)] bg-[var(--bg-glass)] flex items-center justify-center">
                   <Bell className="w-4 h-4 text-[var(--text-primary)]" />
@@ -892,6 +907,95 @@ export default function UserSettingsPage() {
                 <span className="flex-1 text-sm text-[var(--text-primary)]">Уведомления</span>
                 <ToggleSwitch checked={notifications} onChange={setNotifications} />
               </div>
+              
+              {/* Статус разрешений */}
+              <div className="mt-3 p-3 rounded-xl border border-[var(--border-light)] bg-[var(--bg-secondary)]/50">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-medium text-[var(--text-muted)]">Статус разрешений:</span>
+                  <span className={`text-xs font-semibold ${
+                    notificationPermission === 'granted' ? 'text-green-500' :
+                    notificationPermission === 'denied' ? 'text-red-500' :
+                    'text-yellow-500'
+                  }`}>
+                    {notificationPermission === 'granted' ? '✓ Разрешены' :
+                     notificationPermission === 'denied' ? '✗ Заблокированы' :
+                     '⚠ Не запрошены'}
+                  </span>
+                </div>
+                {notificationPermission === 'denied' && (
+                  <p className="text-xs text-[var(--text-muted)] mt-1">
+                    Разрешите уведомления в настройках браузера
+                  </p>
+                )}
+                {notificationPermission === 'default' && (
+                  <p className="text-xs text-[var(--text-muted)] mt-1">
+                    Нажмите на кнопку ниже для запроса разрешений
+                  </p>
+                )}
+              </div>
+
+              {/* Кнопка запроса разрешений */}
+              {notificationPermission === 'default' && (
+                <button
+                  onClick={async () => {
+                    try {
+                      if (typeof window !== 'undefined' && 'Notification' in window) {
+                        const permission = await Notification.requestPermission();
+                        setNotificationPermission(permission);
+                        if (permission === 'granted') {
+                          new Notification('Разрешения получены! 🎉', {
+                            body: 'Теперь вы будете получать уведомления',
+                            icon: '/Group 8.png',
+                            tag: 'permission-granted'
+                          });
+                        }
+                      }
+                    } catch (error) {
+                      console.error('Ошибка запроса разрешений:', error);
+                    }
+                  }}
+                  className="mt-3 w-full h-11 rounded-xl border-2 border-[var(--accent-primary)] bg-gradient-to-r from-[var(--accent-primary)] to-[var(--accent-primary)]/80 hover:from-[var(--accent-primary)]/90 hover:to-[var(--accent-primary)]/70 transition-all px-3 text-sm font-semibold text-white flex items-center justify-center gap-2 shadow-lg"
+                >
+                  <Bell className="w-4 h-4" />
+                  Разрешить уведомления
+                </button>
+              )}
+
+              {/* Кнопка тестирования */}
+              {notificationPermission === 'granted' && (
+                <button
+                  onClick={async () => {
+                    try {
+                      if (typeof window !== 'undefined' && window.sharDesktop?.showNotification) {
+                        await window.sharDesktop.showNotification({
+                          title: 'Тестовое уведомление',
+                          subtitle: 'Shar OS',
+                          message: 'Кастомные уведомления работают корректно. Вы будете получать задачи, события и новые сообщения.',
+                          timestamp: Date.now(),
+                          url: '/account?tab=settings',
+                          kind: 'system',
+                        });
+                      } else if (typeof window !== 'undefined' && 'Notification' in window) {
+                        new Notification('Тестовое уведомление 🔔', {
+                          body: 'Уведомления работают корректно! Вы будете получать напоминания о задачах, событиях и новых сообщениях.',
+                          icon: '/Group 8.png',
+                          badge: '/Group 8.png',
+                          tag: 'test-notification',
+                          requireInteraction: false,
+                          silent: false
+                        });
+                      }
+                    } catch (error) {
+                      console.error('Ошибка тестирования уведомлений:', error);
+                      alert('Ошибка при тестировании уведомлений. Проверьте консоль для деталей.');
+                    }
+                  }}
+                  className="mt-3 w-full h-11 rounded-xl border border-[var(--border-light)] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] backdrop-blur-xl transition-all px-3 text-sm font-medium text-[var(--text-primary)] flex items-center justify-center gap-2 shadow-[var(--shadow-card)]"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Отправить тестовое уведомление
+                </button>
+              )}
             </Card>
 
             <Card title="Выход" subtitle="Сессия и безопасность">

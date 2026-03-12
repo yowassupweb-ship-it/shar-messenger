@@ -107,13 +107,13 @@ const ChatItem = React.memo<ChatItemProps>(({
     return (
       <div
         key={chat.id}
-        className={`relative group ${isSelected ? 'bg-[var(--bg-tertiary)]' : ''}`}
+        className={`relative group mx-1 my-0.5 rounded-2xl overflow-hidden ${isSelected ? 'bg-[var(--bg-tertiary)]' : ''}`}
         style={{ contentVisibility: 'auto', containIntrinsicSize: '72px 72px' }}
         onContextMenu={(e) => onContextMenu(e, chat)}
       >
         <button
           onClick={() => onSelect(chat)}
-          className="w-full px-3 py-2.5 hover:bg-[var(--bg-tertiary)] transition-all text-left touch-manipulation"
+          className="w-full px-3 py-2.5 hover:bg-[var(--bg-tertiary)] transition-all text-left touch-manipulation rounded-2xl overflow-hidden"
         >
           <div className="flex gap-2 items-center">
             <Avatar
@@ -172,15 +172,22 @@ const ChatItem = React.memo<ChatItemProps>(({
       key={chat.id}
       className={`relative group mx-2 rounded-[50px] overflow-hidden transition-all duration-300 ${
         isSelected 
-          ? 'bg-gradient-to-br from-[#007aff]/30 to-[#007aff]/10 border border-[#007aff]/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_3px_8px_rgba(59,130,246,0.2)]' 
-          : 'bg-gradient-to-br from-white/10 to-white/5 hover:from-white/15 hover:to-white/8 border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_2px_8px_rgba(0,0,0,0.2)]'
+          ? 'bg-gradient-to-br from-[#007aff]/30 to-[#007aff]/10 shadow-[inset_0_0_0_1.5px_rgba(0,122,255,0.5),inset_0_1px_2px_rgba(255,255,255,0.2),0_3px_8px_rgba(59,130,246,0.2)]' 
+          : 'bg-gradient-to-br from-white/10 to-white/5 hover:from-white/15 hover:to-white/8 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2),inset_0_1px_2px_rgba(255,255,255,0.2),0_2px_8px_rgba(0,0,0,0.2)]'
       }`}
-      style={{ contentVisibility: 'auto', containIntrinsicSize: '76px 76px', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
+      style={{ 
+        contentVisibility: 'auto', 
+        containIntrinsicSize: '76px 76px', 
+        backdropFilter: 'blur(20px)', 
+        WebkitBackdropFilter: 'blur(20px)',
+        isolation: 'isolate',
+        contain: 'layout paint'
+      }}
       onContextMenu={(e) => onContextMenu(e, chat)}
     >
       <button
         onClick={() => onSelect(chat)}
-        className="w-full px-2 py-2 transition-all text-left touch-manipulation"
+        className="w-full px-2 py-2 transition-all text-left touch-manipulation rounded-[50px] overflow-hidden"
       >
         <div className="flex gap-2 items-center">
           <Avatar

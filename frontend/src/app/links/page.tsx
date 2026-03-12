@@ -1100,7 +1100,7 @@ export default function LinksPage() {
                     onTouchMove={handleTouchMoveContext}
                     onTouchEnd={handleTouchEndContext}
                     onTouchCancel={handleTouchEndContext}
-                    className="rounded-2xl bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] backdrop-blur-xl shadow-[var(--shadow-card)] p-3 min-w-[300px] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] flex flex-col h-full"
+                    className="rounded-2xl bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] backdrop-blur-xl shadow-[var(--shadow-card)] p-3 hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] flex flex-col h-full overflow-hidden"
                   >
                     <div className="flex items-start gap-2">
                       <img
@@ -1167,9 +1167,10 @@ export default function LinksPage() {
 
                       <button
                         onClick={() => openLink(item)}
-                        className="h-8 px-3 rounded-full border border-[var(--border-color)] bg-gradient-to-br from-[var(--bg-glass)] to-[var(--bg-secondary)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] text-xs font-medium inline-flex items-center gap-1.5 backdrop-blur-md shadow-[inset_0_1px_1px_rgba(255,255,255,0.18),0_4px_12px_rgba(0,0,0,0.12)]"
+                        className="h-8 sm:px-3 rounded-full border border-[var(--border-color)] bg-gradient-to-br from-[var(--bg-glass)] to-[var(--bg-secondary)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] text-xs font-medium inline-flex items-center gap-1.5 backdrop-blur-md shadow-[inset_0_1px_1px_rgba(255,255,255,0.18),0_4px_12px_rgba(0,0,0,0.12)] w-8 sm:w-auto justify-center sm:justify-start"
+                        title="Открыть ссылку"
                       >
-                        Открыть
+                        <span className="hidden sm:inline">Открыть</span>
                         <ExternalLink className="w-3.5 h-3.5 text-emerald-500" />
                       </button>
                     </div>

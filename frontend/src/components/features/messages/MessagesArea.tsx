@@ -63,11 +63,9 @@ export default function MessagesArea({
   hasPinnedMessage = false,
 }: MessagesAreaProps) {
   const [hasRealOverflow, setHasRealOverflow] = useState(false);
-  const [showAllMessages, setShowAllMessages] = useState(false);
   const [dockOffsetPx, setDockOffsetPx] = useState(96);
   const dockOffsetRef = useRef(96);
   const previousDockOffsetRef = useRef(96);
-  const initialRenderLimit = 40;
   const containerClass = isDesktopView
     ? `flex-1 min-h-[260px] overflow-x-hidden overscroll-contain p-4 ${hasPinnedMessage ? 'pt-28' : 'pt-16'} pb-0 bg-transparent scrollbar-hide-mobile`
     : `flex-1 min-h-[220px] overflow-x-hidden overscroll-contain p-[3px] ${hasPinnedMessage ? 'pt-[164px]' : 'pt-[120px]'} pb-0 bg-transparent scrollbar-hide-mobile`;
@@ -129,11 +127,7 @@ export default function MessagesArea({
     if (!messageSearchQuery.trim()) return true;
     return message.content.toLowerCase().includes(messageSearchQuery.toLowerCase());
   });
-  const visibleMessages = useMemo(() => {
-    if (messageSearchQuery.trim()) return filteredMessages;
-    if (showAllMessages) return filteredMessages;
-    return filteredMessages.slice(-initialRenderLimit);
-  }, [filteredMessages, messageSearchQuery, showAllMessages]);
+  const visibleMessages = filteredMessages;
 
   const chronologicallySortedMessages = useMemo(() => {
     return [...messages].sort((a, b) => {
@@ -244,28 +238,6 @@ export default function MessagesArea({
       window.removeEventListener('composer-resize', updateDockOffset as EventListener);
     };
   }, [composerContainerRef, messagesEndRef, selectedChat.id, isDesktopView]);
-
-  useEffect(() => {
-    setShowAllMessages(false);
-
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    let idleId: number | null = null;
-
-    const promote = () => setShowAllMessages(true);
-
-    if (typeof window !== 'undefined' && typeof (window as any).requestIdleCallback === 'function') {
-      idleId = (window as any).requestIdleCallback(promote, { timeout: 300 });
-    }
-
-    timeoutId = setTimeout(promote, 180);
-
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-      if (idleId !== null && typeof window !== 'undefined' && typeof (window as any).cancelIdleCallback === 'function') {
-        (window as any).cancelIdleCallback(idleId);
-      }
-    };
-  }, [selectedChat.id, messageSearchQuery]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

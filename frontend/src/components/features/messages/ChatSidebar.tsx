@@ -185,7 +185,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       className={`
         ${selectedChat && isMobileView ? 'hidden' : 'flex'} 
         ${isCollapsed ? 'w-[84px] min-w-[84px]' : isMobileView ? 'w-full' : 'w-full md:w-80 md:min-w-80'} 
-        flex-col h-full min-h-0 flex-shrink-0 max-w-full relative z-10 shadow-[var(--shadow-card)]
+        flex-col h-full min-h-0 flex-shrink-0 max-w-full relative z-10 shadow-[var(--shadow-card)] overflow-hidden
       `}
       style={{
         borderRadius: isMobileView ? '0' : '20px',
@@ -194,19 +194,10 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
         borderColor: 'var(--border-light)',
         borderStyle: 'solid',
         borderWidth: isMobileView ? '0 1px 0 0' : '1px',
+        backgroundColor: 'var(--bg-secondary)',
       }}
       onCopy={(e) => e.preventDefault()}
     >
-      {/* Background layer for 100% reliable blur without destroying child blurs */}
-      <div 
-        className="absolute inset-0 z-0 pointer-events-none rounded-[20px] overflow-hidden"
-        style={{
-          borderRadius: isMobileView ? '0' : '20px',
-          backgroundColor: 'var(--bg-glass)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-        }}
-      />
       
       {/* Search / New Chat Button */}
       <div className="absolute top-0 left-0 right-0 z-20 bg-transparent">
@@ -271,7 +262,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
       {/* Chats list */}
       <div
-        className="relative z-10 flex-1 min-h-0 overflow-y-auto pt-[56px] md:pt-[58px] pb-[calc(env(safe-area-inset-bottom)+80px)] md:pb-4 bg-transparent"
+        className="relative z-10 flex-1 min-h-0 overflow-y-auto overflow-x-hidden pt-[56px] md:pt-[58px] pb-[calc(env(safe-area-inset-bottom)+80px)] md:pb-4 bg-transparent"
         style={{
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',

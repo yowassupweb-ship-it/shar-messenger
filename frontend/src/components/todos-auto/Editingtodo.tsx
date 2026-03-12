@@ -1776,7 +1776,7 @@ const Editingtodo = memo(function Editingtodo({
         <div className="fixed inset-0 bg-transparent flex items-start justify-center z-[100]">
           <div className="bg-white dark:bg-[var(--bg-secondary)] w-full h-screen flex flex-col overflow-hidden select-none relative">
             {/* Шапка */}
-            <div className="flex items-center justify-between px-3 sm:px-4 border-b border-gray-200 dark:border-white/20 bg-white/85 dark:bg-[var(--bg-glass)]/85 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_6px_18px_rgba(0,0,0,0.12)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_8px_24px_rgba(0,0,0,0.22)] flex-shrink-0" style={{ minHeight: '40px', maxHeight: '40px' }}>
+            <div className="flex items-center justify-between px-3 sm:px-4 border-b border-gray-200 dark:border-white/20 bg-white/85 dark:bg-[var(--bg-glass)]/85 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_6px_18px_rgba(0,0,0,0.12)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_8px_24px_rgba(0,0,0,0.22)] flex-shrink-0" style={{ marginTop: '30px', minHeight: '40px', maxHeight: '40px' }}>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   onClick={() => {

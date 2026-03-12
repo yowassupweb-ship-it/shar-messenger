@@ -18,67 +18,97 @@
     }
 
     .notification-container {
-      width: 360px;
-      background: rgba(255, 255, 255, 0.98);
-      backdrop-filter: blur(20px);
-      border-radius: 16px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15),
-                  0 0 0 1px rgba(255, 255, 255, 0.2),
-                  inset 0 1px 0 rgba(255, 255, 255, 0.8);
-      padding: 14px 16px;
+      width: 380px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%);
+      backdrop-filter: blur(24px);
+      border-radius: 0;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12),
+                  0 0 0 1px rgba(255, 255, 255, 0.3),
+                  inset 0 1px 2px rgba(255, 255, 255, 0.9);
+      padding: 12px 14px;
       cursor: pointer;
-      transition: all 0.2s ease;
-      animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      animation: slideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .notification-container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #007aff, #0a84ff);
+      opacity: 0.8;
     }
 
     @media (prefers-color-scheme: dark) {
       .notification-container {
-        background: rgba(30, 30, 35, 0.95);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
-                    0 0 0 1px rgba(255, 255, 255, 0.1),
-                    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        background: linear-gradient(135deg, rgba(28, 28, 30, 0.98) 0%, rgba(20, 20, 22, 0.98) 100%);
+        box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5),
+                    0 0 0 1px rgba(255, 255, 255, 0.12),
+                    inset 0 1px 2px rgba(255, 255, 255, 0.08);
       }
     }
 
     .notification-container:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2),
-                  0 0 0 1px rgba(255, 255, 255, 0.25),
-                  inset 0 1px 0 rgba(255, 255, 255, 0.9);
+      transform: translateY(-4px) scale(1.01);
+      box-shadow: 0 16px 56px rgba(0, 0, 0, 0.2),
+                  0 0 0 1px rgba(0, 122, 255, 0.3),
+                  inset 0 1px 2px rgba(255, 255, 255, 1);
     }
 
     @keyframes slideIn {
       from {
-        transform: translateX(400px);
+        transform: translateX(420px) scale(0.9);
         opacity: 0;
       }
       to {
-        transform: translateX(0);
+        transform: translateX(0) scale(1);
         opacity: 1;
+      }
+    }
+
+    @keyframes slideOut {
+      from {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+      }
+      to {
+        transform: translateX(420px) scale(0.9);
+        opacity: 0;
       }
     }
 
     .notification-content {
       display: flex;
-      gap: 12px;
+      gap: 11px;
       align-items: flex-start;
     }
 
     .avatar {
-      width: 48px;
-      height: 48px;
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
       flex-shrink: 0;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #007aff 0%, #0a84ff 100%);
       display: flex;
       align-items: center;
       justify-content: center;
       color: white;
-      font-weight: 600;
-      font-size: 20px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      font-weight: 700;
+      font-size: 16px;
+      box-shadow: 0 4px 16px rgba(0, 122, 255, 0.3),
+                  0 0 0 2px rgba(255, 255, 255, 0.2);
       position: relative;
       overflow: hidden;
+      transition: transform 0.2s ease;
+    }
+
+    .notification-container:hover .avatar {
+      transform: scale(1.05);
     }
 
     .avatar img {
@@ -103,23 +133,24 @@
     }
 
     .sender-name {
-      font-weight: 600;
-      font-size: 15px;
-      color: #1a1a1a;
+      font-weight: 700;
+      font-size: 13px;
+      color: #1d1d1f;
       flex: 1;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      letter-spacing: -0.01em;
     }
 
     @media (prefers-color-scheme: dark) {
       .sender-name {
-        color: #ffffff;
+        color: #f5f5f7;
       }
     }
 
     .timestamp {
-      font-size: 12px;
+      font-size: 10px;
       color: #8e8e93;
       white-space: nowrap;
     }
@@ -131,25 +162,72 @@
     }
 
     .chat-name {
-      font-size: 13px;
+      font-size: 11px;
       color: #007aff;
       margin-bottom: 2px;
-      font-weight: 500;
+      font-weight: 600;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
+    .kind-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 4px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      background: rgba(0, 122, 255, 0.12);
+      color: #007aff;
+      width: fit-content;
+    }
+
+    .kind-pill[data-kind="task"] {
+      background: rgba(59, 130, 246, 0.14);
+      color: #2563eb;
+    }
+
+    .kind-pill[data-kind="event"] {
+      background: rgba(139, 92, 246, 0.14);
+      color: #7c3aed;
+    }
+
+    .kind-pill[data-kind="system"] {
+      background: rgba(107, 114, 128, 0.14);
+      color: #4b5563;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .kind-pill[data-kind="task"] {
+        color: #60a5fa;
+      }
+
+      .kind-pill[data-kind="event"] {
+        color: #c084fc;
+      }
+
+      .kind-pill[data-kind="system"] {
+        color: #d1d5db;
+      }
+    }
+
     .message-text {
-      font-size: 14px;
-      line-height: 1.4;
+      font-size: 12px;
+      line-height: 1.3;
       color: #3c3c43;
       display: -webkit-box;
+      line-clamp: 3;
       -webkit-line-clamp: 3;
       -webkit-box-orient: vertical;
       overflow: hidden;
       word-wrap: break-word;
       overflow-wrap: break-word;
+      font-weight: 400;
     }
 
     @media (prefers-color-scheme: dark) {
@@ -164,9 +242,9 @@
       right: -2px;
       background: #ff3b30;
       color: white;
-      font-size: 11px;
+      font-size: 9px;
       font-weight: 600;
-      padding: 2px 6px;
+      padding: 2px 5px;
       border-radius: 10px;
       box-shadow: 0 2px 8px rgba(255, 59, 48, 0.4);
       min-width: 18px;
@@ -177,10 +255,10 @@
       position: absolute;
       top: 8px;
       right: 8px;
-      width: 24px;
-      height: 24px;
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
-      background: rgba(0, 0, 0, 0.05);
+      background: rgba(0, 0, 0, 0.06);
       border: none;
       cursor: pointer;
       display: flex;
@@ -188,9 +266,18 @@
       justify-content: center;
       opacity: 0;
       transition: all 0.2s ease;
-      color: #666;
-      font-size: 16px;
+      color: #86868b;
+      font-size: 14px;
       font-weight: 600;
+      line-height: 1;
+    }
+
+    .avatar-icon {
+      width: 18px;
+      height: 18px;
+      display: block;
+      color: #ffffff;
+      opacity: 0.95;
     }
 
     .notification-container:hover .close-btn {
@@ -198,8 +285,13 @@
     }
 
     .close-btn:hover {
-      background: rgba(0, 0, 0, 0.1);
-      transform: scale(1.1);
+      background: rgba(0, 0, 0, 0.12);
+      transform: scale(1.08);
+      color: #3c3c43;
+    }
+
+    .close-btn:active {
+      transform: scale(0.95);
     }
 
     @media (prefers-color-scheme: dark) {
@@ -222,6 +314,7 @@
         <span id="avatarText"></span>
       </div>
       <div class="text-content">
+        <div class="kind-pill" id="kindPill" style="display: none;"></div>
         <div class="notification-header">
           <div class="sender-name" id="senderName"></div>
           <div class="timestamp" id="timestamp"></div>
@@ -238,27 +331,42 @@
     // Получаем данные уведомления
     ipcRenderer.on('notification-data', (event, data) => {
       const {
+        title,
+        subtitle,
         senderName,
         chatName,
         message,
         avatar,
         timestamp,
         badge,
-        chatId
+        chatId,
+        url,
+        kind
       } = data;
 
+      const resolvedTitle = senderName || title || 'Новое уведомление';
+      const resolvedSubtitle = chatName || subtitle || '';
+      const resolvedMessage = message || 'Откройте приложение, чтобы посмотреть детали';
+
       // Устанавливаем имя отправителя
-      document.getElementById('senderName').textContent = senderName || 'Неизвестный';
+      document.getElementById('senderName').textContent = resolvedTitle;
+
+      const kindPillEl = document.getElementById('kindPill');
+      if (kind) {
+        kindPillEl.textContent = kind === 'task' ? 'Задача' : kind === 'event' ? 'Событие' : kind === 'system' ? 'Система' : 'Сообщение';
+        kindPillEl.dataset.kind = kind;
+        kindPillEl.style.display = 'inline-flex';
+      }
 
       // Устанавливаем название чата (если групповой)
-      if (chatName && chatName !== senderName) {
+      if (resolvedSubtitle && resolvedSubtitle !== resolvedTitle) {
         const chatNameEl = document.getElementById('chatName');
-        chatNameEl.textContent = chatName;
+        chatNameEl.textContent = resolvedSubtitle;
         chatNameEl.style.display = 'block';
       }
 
       // Устанавливаем текст сообщения
-      document.getElementById('messageText').textContent = message || 'Новое сообщение';
+      document.getElementById('messageText').textContent = resolvedMessage;
 
       // Устанавливаем время
       const timeString = timestamp ? formatTime(timestamp) : 'только что';
@@ -267,17 +375,18 @@
       // Устанавливаем аватар
       const avatarEl = document.getElementById('avatar');
       const avatarTextEl = document.getElementById('avatarText');
+      avatarEl.querySelectorAll('img, .badge').forEach((node) => node.remove());
+      avatarTextEl.textContent = '';
       
       if (avatar && avatar.startsWith('http')) {
         const img = document.createElement('img');
         img.src = avatar;
         img.onerror = () => {
-          // Если загрузка не удалась, показываем инициалы
-          avatarTextEl.textContent = getInitials(senderName);
+          avatarTextEl.innerHTML = getBellSvg();
         };
         avatarEl.appendChild(img);
       } else {
-        avatarTextEl.textContent = getInitials(senderName);
+        avatarTextEl.innerHTML = getBellSvg();
       }
 
       // Устанавливаем бейдж (если есть)
@@ -292,7 +401,7 @@
       // Клик по уведомлению - открываем чат
       document.getElementById('notification').addEventListener('click', (e) => {
         if (!e.target.closest('#closeBtn')) {
-          ipcRenderer.send('notification-click', { chatId });
+          ipcRenderer.send('notification-click', { chatId, url });
         }
       });
 
@@ -302,19 +411,11 @@
         ipcRenderer.send('notification-close');
       });
 
-      // Автозакрытие через 5 секунд
-      setTimeout(() => {
-        ipcRenderer.send('notification-close');
-      }, 5000);
+      // Уведомление будет висеть пока его не закроют вручную
     });
 
-    function getInitials(name) {
-      if (!name) return '?';
-      const parts = name.trim().split(/\s+/);
-      if (parts.length >= 2) {
-        return (parts[0][0] + parts[1][0]).toUpperCase();
-      }
-      return name.substring(0, 2).toUpperCase();
+    function getBellSvg() {
+      return '<svg class="avatar-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M10 17a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
     }
 
     function formatTime(timestamp) {

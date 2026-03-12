@@ -154,10 +154,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
     textarea.style.overflowY = nextHeight >= maxHeight ? 'auto' : 'hidden';
   }, [messageInputRef]);
 
-  const actionButtonClass = 'w-11 h-11 rounded-full bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] flex items-center justify-center transition-all duration-200 shadow-[var(--shadow-card)] border border-[var(--border-light)] backdrop-blur-sm flex-shrink-0 text-[var(--text-secondary)]';
-  const attachmentButtonClass = 'w-11 h-11 rounded-full bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] flex items-center justify-center transition-all duration-200 shadow-[var(--shadow-card)] border border-[var(--border-light)] backdrop-blur-sm flex-shrink-0 text-[var(--text-primary)]';
+  const actionButtonClass = 'w-11 h-11 rounded-full bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] flex items-center justify-center transition-all duration-200 shadow-[var(--shadow-card)] border border-[var(--border-light)] backdrop-blur-xl flex-shrink-0 text-[var(--text-secondary)]';
+  const attachmentButtonClass = 'w-11 h-11 rounded-full bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] flex items-center justify-center transition-all duration-200 shadow-[var(--shadow-card)] border border-[var(--border-light)] backdrop-blur-xl flex-shrink-0 text-[var(--text-primary)]';
   const hasComposerContextBlock = Boolean(editingMessageId || replyToMessage);
-  const composerContextBlockClass = 'mb-1 h-[42px] px-3 rounded-[18px] backdrop-blur-xl bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[var(--shadow-card)] flex items-center justify-between gap-2';
+  const composerContextBlockClass = 'mb-1 h-[42px] px-3 rounded-[18px] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[var(--shadow-card)] backdrop-blur-xl flex items-center justify-between gap-2';
   const composerContextCloseButtonClass = 'w-6 h-6 rounded-full hover:bg-[var(--bg-glass-hover)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0';
 
   const uploadAndAttachFiles = React.useCallback(async (files: File[]) => {
@@ -288,7 +288,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
     >
       {/* Drag overlay */}
       {isDragging && (
-        <div className="absolute inset-x-3 inset-y-0 bg-gradient-to-br from-blue-500/30 via-cyan-500/25 to-purple-500/30 border-4 border-blue-400/80 border-dashed rounded-[24px] flex items-center justify-center pointer-events-none z-50 backdrop-blur-md shadow-2xl">
+        <div className="absolute inset-x-3 inset-y-0 bg-gradient-to-br from-blue-500/30 via-cyan-500/25 to-purple-500/30 border-4 border-blue-400/80 border-dashed rounded-[24px] flex items-center justify-center pointer-events-none z-50 shadow-2xl">
           <div className="text-center animate-bounce">
             <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-500/40 to-cyan-500/40 border-4 border-blue-400/70 flex items-center justify-center shadow-lg">
               <Upload className="w-10 h-10 text-blue-300 animate-pulse" />
@@ -302,7 +302,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       {/* Attachments preview */}
       {isUploadingAttachments && (
         <div className="mb-2 px-2 md:px-4 lg:px-8">
-          <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-[var(--text-secondary)] backdrop-blur-xl bg-[var(--bg-glass)] border border-[var(--border-color)] shadow-[var(--shadow-glass)]">
+          <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-[var(--text-secondary)] bg-[var(--bg-glass)] border border-[var(--border-color)] shadow-[var(--shadow-glass)]">
             <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent-primary)]" />
             <span>Загрузка вложений...</span>
           </div>
@@ -312,7 +312,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       {!selectedChat?.isNotificationsChat && attachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2 px-2 md:px-4 lg:px-8">
           {attachments.map((att, idx) => (
-            <div key={idx} className="backdrop-blur-xl bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg px-3 py-1.5 text-xs text-[var(--text-secondary)] flex items-center gap-2 shadow-[var(--shadow-glass)]">
+            <div key={idx} className="bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg px-3 py-1.5 text-xs text-[var(--text-secondary)] flex items-center gap-2 shadow-[var(--shadow-glass)]">
               {att.type === 'task' && <FileText className="w-3 h-3" />}
               {att.type === 'link' && <LinkIcon className="w-3 h-3" />}
               {att.type === 'event' && <Calendar className="w-3 h-3" />}
@@ -334,7 +334,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         <div className="flex justify-center items-center w-full px-2 md:px-4 lg:px-8">
           <button
             onClick={() => alert('Функция отключения звука будет реализована')}
-            className="h-11 px-6 rounded-full backdrop-blur-xl bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 flex items-center justify-center gap-2 text-amber-400 font-medium transition-all shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4)]"
+            className="h-11 px-6 rounded-full bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 flex items-center justify-center gap-2 text-amber-400 font-medium transition-all shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4)]"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
@@ -470,7 +470,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
             
             <textarea
               ref={messageInputRef}
-              onSelect={handleTextSelection}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                handleTextSelection();
+              }}
               onFocus={() => {
                 isUserActiveRef.current = true;
                 lastActivityTimeRef.current = Date.now();
@@ -534,7 +537,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
             {/* Mention suggestions */}
             {showMentionSuggestions && selectedChat?.isGroup && (
-              <div className="absolute bottom-full left-0 right-0 mb-1 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg shadow-[var(--shadow-card)] backdrop-blur-xl max-h-48 overflow-y-auto z-50">
+              <div className="absolute bottom-full left-0 right-0 mb-1 bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg shadow-[var(--shadow-card)] max-h-48 overflow-y-auto z-50">
                 {(() => {
                   const participants = users.filter(u => 
                     selectedChat.participantIds?.includes(u.id) && 
@@ -607,7 +610,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 void updateMessage(editingMessageId, messageText);
               }}
               disabled={isUploadingAttachments}
-              className="w-11 h-11 rounded-full backdrop-blur-2xl bg-gradient-to-br from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 border border-white/30 flex items-center justify-center text-white transition-all flex-shrink-0 shadow-[0_8px_32px_-8px_rgba(34,197,94,0.6),inset_0_1px_2px_rgba(255,255,255,0.2)] hover:shadow-[0_8px_40px_-8px_rgba(34,197,94,0.8),inset_0_1px_2px_rgba(255,255,255,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-11 h-11 rounded-full bg-gradient-to-br from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 border border-white/30 flex items-center justify-center text-white transition-all flex-shrink-0 shadow-[0_8px_32px_-8px_rgba(34,197,94,0.6),inset_0_1px_2px_rgba(255,255,255,0.2)] hover:shadow-[0_8px_40px_-8px_rgba(34,197,94,0.8),inset_0_1px_2px_rgba(255,255,255,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isUploadingAttachments ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
             </button>
@@ -616,7 +619,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
               onMouseDown={(e) => e.preventDefault()}
               onClick={sendMessage}
               disabled={selectedChat?.isNotificationsChat || isUploadingAttachments}
-              className="w-11 h-11 rounded-full backdrop-blur-2xl bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 border border-[var(--border-light)] disabled:from-[var(--bg-glass)] disabled:to-[var(--bg-glass)] disabled:border-[var(--border-color)] flex items-center justify-center text-white disabled:text-[var(--text-muted)] transition-all flex-shrink-0 shadow-[0_8px_32px_-8px_rgba(59,130,246,0.6),inset_0_1px_2px_rgba(255,255,255,0.2)] hover:shadow-[0_8px_40px_-8px_rgba(59,130,246,0.8),inset_0_1px_2px_rgba(255,255,255,0.25)] disabled:shadow-none disabled:cursor-not-allowed"
+              className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 border border-[var(--border-light)] disabled:from-[var(--bg-glass)] disabled:to-[var(--bg-glass)] disabled:border-[var(--border-color)] flex items-center justify-center text-white disabled:text-[var(--text-muted)] transition-all flex-shrink-0 shadow-[0_8px_32px_-8px_rgba(59,130,246,0.6),inset_0_1px_2px_rgba(255,255,255,0.2)] hover:shadow-[0_8px_40px_-8px_rgba(59,130,246,0.8),inset_0_1px_2px_rgba(255,255,255,0.25)] disabled:shadow-none disabled:cursor-not-allowed"
             >
               {isUploadingAttachments ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </button>

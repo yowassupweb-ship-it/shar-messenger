@@ -150,6 +150,8 @@ export default function MessagesPage() {
   const [showTextFormatMenu, setShowTextFormatMenu] = useState(false);
   const [formatMenuPosition, setFormatMenuPosition] = useState({ top: 0, left: 0 });
   const [textSelection, setTextSelection] = useState({ start: 0, end: 0, text: '' });
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
   const [showMessageContextMenu, setShowMessageContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ top: 0, left: 0 });
   const [contextMenuMessage, setContextMenuMessage] = useState<Message | null>(null);
@@ -183,15 +185,15 @@ export default function MessagesPage() {
     bubbleColorOpponentLight: '#e5e7eb',
     bubbleTextColor: '#ffffff',
     bubbleTextColorLight: '#ffffff',
-    chatBackgroundDark: '/images/backgrounds/graphite-05.jpg',
-    chatBackgroundLight: '/images/gradients/Autumn.png',
-    chatBackgroundImageDark: '/images/backgrounds/graphite-05.jpg',
-    chatBackgroundImageLight: '/images/gradients/Autumn.png',
-    chatOverlayImageDark: '/images/overlays/Cats.svg',
-    chatOverlayImageLight: '/images/overlays/Cats.svg',
-    chatOverlayScale: 140,
-    chatOverlayOpacity: 0.07,
-    bubbleOpacity: 1,
+    chatBackgroundDark: '#0f172a',
+    chatBackgroundLight: '#f8fafc',
+    chatBackgroundImageDark: '',
+    chatBackgroundImageLight: '',
+    chatOverlayImageDark: '',
+    chatOverlayImageLight: '',
+    chatOverlayScale: 100,
+    chatOverlayOpacity: 1,
+    bubbleOpacity: 0.92,
     colorPreset: 0
   });
   
@@ -520,15 +522,15 @@ export default function MessagesPage() {
       bubbleTextColorLight: '#ffffff',
       bubbleColorOpponent: '#38414d',
       bubbleColorOpponentLight: '#e5e7eb',
-      chatBackgroundDark: '/images/backgrounds/graphite-05.jpg',
-      chatBackgroundLight: '/images/gradients/Autumn.png',
-      chatBackgroundImageDark: '/images/backgrounds/graphite-05.jpg',
-      chatBackgroundImageLight: '/images/gradients/Autumn.png',
-      chatOverlayImageDark: '/images/overlays/Cats.svg',
-      chatOverlayImageLight: '/images/overlays/Cats.svg',
-      chatOverlayScale: 140,
-      chatOverlayOpacity: 0.07,
-      bubbleOpacity: 1,
+      chatBackgroundDark: '#0f172a',
+      chatBackgroundLight: '#f8fafc',
+      chatBackgroundImageDark: '',
+      chatBackgroundImageLight: '',
+      chatOverlayImageDark: '',
+      chatOverlayImageLight: '',
+      chatOverlayScale: 100,
+      chatOverlayOpacity: 1,
+      bubbleOpacity: 0.92,
       colorPreset: 0,
     };
 
@@ -536,10 +538,18 @@ export default function MessagesPage() {
     if (savedSettings) {
       const settings = { ...defaultSettings, ...JSON.parse(savedSettings) };
       setChatSettings(settings);
+      console.log('[Messages] Загружены настройки чата:', {
+        overlayDark: settings.chatOverlayImageDark,
+        overlayLight: settings.chatOverlayImageLight,
+        scale: settings.chatOverlayScale,
+        opacity: settings.chatOverlayOpacity
+      });
       // Устанавливаем CSS переменную для desktop font size при загрузке
       if (settings.fontSize) {
         document.documentElement.style.setProperty('--desktop-font-size', `${settings.fontSize}px`);
       }
+    } else {
+      console.log('[Messages] Нет сохраненных настроек, используем дефолтные');
     }
     
     // Слушатель изменений настроек
@@ -562,6 +572,25 @@ export default function MessagesPage() {
     loadCurrentUser();
     loadUsers();
   }, []);
+
+  // Обработчик открытия чата из уведомлений Electron
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.sharDesktop?.onOpenChat) return;
+
+    const unsubscribe = window.sharDesktop.onOpenChat((chatId: string) => {
+      console.log('Opening chat from notification:', chatId);
+      const chat = chats.find(c => c.id === chatId);
+      if (chat) {
+        selectChat(chat);
+      }
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [chats]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1025,97 +1054,118 @@ export default function MessagesPage() {
   const handleTextSelection = useCallback(() => {
     if (!messageInputRef.current) return;
     
-    // Debounce для предотвращения блокировки на каждое движение мыши
-    if (selectionDebounceRef.current) {
-      clearTimeout(selectionDebounceRef.current);
-    }
+    const start = messageInputRef.current.selectionStart;
+    const end = messageInputRef.current.selectionEnd;
+    const selectedText = messageInputRef.current.value.substring(start, end);
     
-    selectionDebounceRef.current = setTimeout(() => {
-      if (!messageInputRef.current) return;
+    // Показываем меню только если выделен текст (больше 0 символов)
+    if (selectedText && start !== end) {
+      setTextSelection({ start, end, text: selectedText });
       
-      const start = messageInputRef.current.selectionStart;
-      const end = messageInputRef.current.selectionEnd;
-      const selectedText = messageInputRef.current.value.substring(start, end);
+      if (!messageInputRef.current || !composerContainerRef.current) return;
+      const composerRect = composerContainerRef.current.getBoundingClientRect();
+
+      // Показываем меню на 5px выше инпута (нижняя граница меню)
+      const menuWidth = 220; // Примерная ширина меню
+      const menuHeight = 280; // Примерная высота меню (с открытым подменю)
       
-      // Показываем меню только если выделено больше 3 символов
-      if (selectedText && start !== end && selectedText.length > 3) {
-        setTextSelection({ start, end, text: selectedText });
-        
-        // Используем requestAnimationFrame для getBoundingClientRect (избегаем блокировки)
-        requestAnimationFrame(() => {
-          if (!messageInputRef.current) return;
-          const textarea = messageInputRef.current;
-          const rect = textarea.getBoundingClientRect();
+      let menuLeft = composerRect.left + composerRect.width / 2;
+      let menuTop = composerRect.top - 5; // 5px от верхней границы инпута
 
-          const styles = window.getComputedStyle(textarea);
-          const paddingLeft = parseFloat(styles.paddingLeft || '0') || 0;
-          const paddingRight = parseFloat(styles.paddingRight || '0') || 0;
-          const paddingTop = parseFloat(styles.paddingTop || '0') || 0;
-          const lineHeight = parseFloat(styles.lineHeight || '20') || 20;
-          const contentWidth = Math.max(40, textarea.clientWidth - paddingLeft - paddingRight);
-
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          if (!ctx) return;
-          ctx.font = styles.font || `${styles.fontSize} ${styles.fontFamily}`;
-
-          const getCaretCoords = (index: number) => {
-            const text = textarea.value.slice(0, Math.max(0, Math.min(index, textarea.value.length)));
-            let line = 0;
-            let x = 0;
-
-            for (let i = 0; i < text.length; i += 1) {
-              const char = text[i];
-
-              if (char === '\n') {
-                line += 1;
-                x = 0;
-                continue;
-              }
-
-              const charWidth = ctx.measureText(char).width;
-
-              if (x > 0 && x + charWidth > contentWidth) {
-                line += 1;
-                x = 0;
-              }
-
-              x += charWidth;
-            }
-
-            return { line, x };
-          };
-
-          const startCaret = getCaretCoords(start);
-          const endCaret = getCaretCoords(end);
-
-          const isSameLine = startCaret.line === endCaret.line;
-          const selectedCenterX = isSameLine
-            ? (startCaret.x + endCaret.x) / 2
-            : contentWidth / 2;
-
-          const menuLeft = rect.left + paddingLeft + selectedCenterX;
-          const menuTop = rect.top + paddingTop + (Math.min(startCaret.line, endCaret.line) * lineHeight) - 44;
-
-          const clampedLeft = Math.max(24, Math.min(window.innerWidth - 24, menuLeft));
-          const clampedTop = Math.max(8, menuTop);
-
-          setFormatMenuPosition({
-            top: clampedTop,
-            left: clampedLeft
-          });
-          setShowTextFormatMenu(true);
-        });
-      } else {
-        setShowTextFormatMenu(false);
+      // Проверка правой границы
+      if (menuLeft + menuWidth / 2 > window.innerWidth - 24) {
+        menuLeft = window.innerWidth - menuWidth / 2 - 24;
       }
-    }, 200); // Увеличен debounce до 200ms для лучшего INP
+      // Проверка левой границы
+      if (menuLeft - menuWidth / 2 < 24) {
+        menuLeft = menuWidth / 2 + 24;
+      }
+      // Проверка верхней границы
+      if (menuTop - menuHeight < 8) {
+        menuTop = menuHeight + 8;
+      }
+
+      setFormatMenuPosition({
+        top: menuTop,
+        left: menuLeft
+      });
+      setShowTextFormatMenu(true);
+      
+      // Сохраняем выделение текста
+      setTimeout(() => {
+        if (messageInputRef.current) {
+          messageInputRef.current.setSelectionRange(start, end);
+        }
+      }, 0);
+    } else {
+      setShowTextFormatMenu(false);
+    }
   }, []);
 
-  const applyFormatting = (formatType: 'bold' | 'italic' | 'underline' | 'link') => {
+  const applyFormatting = (formatType: 'bold' | 'italic' | 'underline' | 'link' | 'strikethrough' | 'code' | 'spoiler' | 'copy' | 'paste' | 'cut' | 'selectAll') => {
     if (!messageInputRef.current) return;
     
-    const { start, end, text } = textSelection;
+    const selectionStart = messageInputRef.current.selectionStart ?? 0;
+    const selectionEnd = messageInputRef.current.selectionEnd ?? 0;
+    const selectionText = messageInputRef.current.value.substring(selectionStart, selectionEnd);
+    const hasCurrentSelection = selectionStart !== selectionEnd;
+    const hasSavedSelection = textSelection.start !== textSelection.end;
+    const start = hasCurrentSelection ? selectionStart : (hasSavedSelection ? textSelection.start : selectionStart);
+    const end = hasCurrentSelection ? selectionEnd : (hasSavedSelection ? textSelection.end : selectionEnd);
+    const text = hasCurrentSelection ? selectionText : (textSelection.text || selectionText);
+    
+    // Операции буфера обмена
+    if (formatType === 'copy') {
+      navigator.clipboard.writeText(text);
+      setShowTextFormatMenu(false);
+      return;
+    }
+    
+    if (formatType === 'cut') {
+      navigator.clipboard.writeText(text);
+      const currentValue = messageInputRef.current.value;
+      const newText = currentValue.substring(0, start) + currentValue.substring(end);
+      messageInputRef.current.value = newText;
+      setNewMessage(newText);
+      setShowTextFormatMenu(false);
+      syncComposerHeight(newText);
+      setTimeout(() => {
+        if (messageInputRef.current) {
+          messageInputRef.current.focus();
+          messageInputRef.current.setSelectionRange(start, start);
+        }
+      }, 0);
+      return;
+    }
+    
+    if (formatType === 'paste') {
+      navigator.clipboard.readText().then(clipText => {
+        if (!messageInputRef.current) return;
+        const currentValue = messageInputRef.current.value;
+        const newText = currentValue.substring(0, start) + clipText + currentValue.substring(end);
+        messageInputRef.current.value = newText;
+        setNewMessage(newText);
+        setShowTextFormatMenu(false);
+        syncComposerHeight(newText);
+        setTimeout(() => {
+          if (messageInputRef.current) {
+            messageInputRef.current.focus();
+            messageInputRef.current.setSelectionRange(start + clipText.length, start + clipText.length);
+          }
+        }, 0);
+      }).catch(() => {
+        // Если нет доступа к буферу обмена, просто закрываем меню
+        setShowTextFormatMenu(false);
+      });
+      return;
+    }
+    
+    if (formatType === 'selectAll') {
+      messageInputRef.current.select();
+      setShowTextFormatMenu(false);
+      return;
+    }
+    
     let formattedText = '';
     
     switch (formatType) {
@@ -1128,14 +1178,19 @@ export default function MessagesPage() {
       case 'underline':
         formattedText = `__${text}__`;
         break;
-      case 'link':
-        const url = prompt('Введите URL:');
-        if (url) {
-          formattedText = `[${text}](${url})`;
-        } else {
-          return;
-        }
+      case 'strikethrough':
+        formattedText = `~~${text}~~`;
         break;
+      case 'code':
+        formattedText = `\`${text}\``;
+        break;
+      case 'spoiler':
+        formattedText = `||${text}||`;
+        break;
+      case 'link':
+        setShowTextFormatMenu(false);
+        setShowLinkModal(true);
+        return;
     }
     
     // Работаем напрямую с textarea через ref
@@ -1149,6 +1204,34 @@ export default function MessagesPage() {
     syncComposerHeight(newText);
     
     // Возвращаем фокус на textarea
+    setTimeout(() => {
+      if (messageInputRef.current) {
+        messageInputRef.current.focus();
+        const newCursorPos = start + formattedText.length;
+        messageInputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 0);
+  };
+
+  const handleLinkSubmit = () => {
+    if (!messageInputRef.current || !linkUrl.trim()) {
+      setShowLinkModal(false);
+      setLinkUrl('');
+      return;
+    }
+
+    const { start, end, text } = textSelection;
+    const formattedText = `[${text}](${linkUrl.trim()})`;
+    
+    const currentValue = messageInputRef.current.value;
+    const newText = currentValue.substring(0, start) + formattedText + currentValue.substring(end);
+    messageInputRef.current.value = newText;
+    
+    setNewMessage(newText);
+    setShowLinkModal(false);
+    setLinkUrl('');
+    syncComposerHeight(newText);
+    
     setTimeout(() => {
       if (messageInputRef.current) {
         messageInputRef.current.focus();
@@ -1397,43 +1480,7 @@ export default function MessagesPage() {
         // Проверяем есть ли НОВЫЕ сообщения (сравниваем количество)
         const hasNewMessages = data.length > messages.length;
         
-        // Browser Notification для новых сообщений
-        if (isPolling && hasNewMessages && data.length > 0 && currentUser) {
-          const lastMessage = data[data.length - 1];
-          // Показываем уведомление только если сообщение от другого пользователя
-          if (lastMessage.authorId !== currentUser.id) {
-            const notificationsEnabled = localStorage.getItem(`chat_notifications_${chatId}`) !== 'false';
-            if (notificationsEnabled && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-              try {
-                // Находим автора сообщения
-                const author = chats.find(c => c.id === chatId)?.participants?.find(p => p.id === lastMessage.authorId);
-                const senderName = author?.name || author?.username || 'Пользователь';
-                
-                // Найдем название чата
-                const chat = chats.find(c => c.id === chatId);
-                const chatName = chat?.isGroup ? chat.name : senderName;
-                
-                // Получаем содержимое сообщения
-                let messageContent = lastMessage.content || '';
-                
-                // Обрезаем длинные сообщения
-                if (messageContent.length > 100) {
-                  messageContent = messageContent.substring(0, 100) + '...';
-                }
-                
-                // Создаем уведомление
-                new Notification(`${senderName} ${chat?.isGroup ? `(${chatName})` : ''}`, {
-                  body: messageContent,
-                  tag: `chat-message-${chatId}-${lastMessage.id}`,
-                  icon: '/favicon.png',
-                  requireInteraction: false
-                });
-              } catch (error) {
-                console.warn('Failed to show browser notification:', error);
-              }
-            }
-          }
-        }
+        // Уведомления о сообщениях централизованы в BrowserPushService.
         
         // Слияние с локальными pending-сообщениями (optimistic queue)
         const pendingForChat = pendingOutgoingRef.current.filter((msg) => msg.chatId === chatId);
@@ -1890,6 +1937,81 @@ export default function MessagesPage() {
   }, []);
 
   const handleMessageKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+
+    if (isCtrlOrMeta) {
+      const code = e.code;
+      const keyLower = (e.key || '').toLowerCase();
+
+      if (code === 'KeyB') {
+        e.preventDefault();
+        applyFormatting('bold');
+        return;
+      }
+
+      if (code === 'KeyI') {
+        e.preventDefault();
+        applyFormatting('italic');
+        return;
+      }
+
+      if (code === 'KeyU') {
+        e.preventDefault();
+        applyFormatting('underline');
+        return;
+      }
+
+      if (code === 'KeyK') {
+        e.preventDefault();
+        applyFormatting('link');
+        return;
+      }
+
+      if (e.shiftKey && code === 'KeyX') {
+        e.preventDefault();
+        applyFormatting('strikethrough');
+        return;
+      }
+
+      if (e.shiftKey && code === 'KeyM') {
+        e.preventDefault();
+        applyFormatting('code');
+        return;
+      }
+
+      if (e.shiftKey && code === 'KeyP') {
+        e.preventDefault();
+        applyFormatting('spoiler');
+        return;
+      }
+
+      const isCreateTaskShortcut =
+        code === 'Slash' ||
+        code === 'NumpadDivide' ||
+        (e.shiftKey && code === 'Digit7') ||
+        keyLower === '/' ||
+        keyLower === '?';
+      if (isCreateTaskShortcut) {
+        e.preventDefault();
+        setShowEventPicker(false);
+        setShowAttachmentMenu(false);
+        setShowTaskPicker(true);
+        return;
+      }
+
+      const isCreateEventShortcut =
+        code === 'NumpadMultiply' ||
+        (e.shiftKey && code === 'Digit8') ||
+        keyLower === '*';
+      if (isCreateEventShortcut) {
+        e.preventDefault();
+        setShowTaskPicker(false);
+        setShowAttachmentMenu(false);
+        setShowEventPicker(true);
+        return;
+      }
+    }
+
     if (e.key === 'Enter') {
       if (e.ctrlKey || e.shiftKey) {
         // Ctrl+Enter или Shift+Enter - перенос строки
@@ -1927,7 +2049,53 @@ export default function MessagesPage() {
       }
       setSavedMessageText('');
     }
-  }, [editingMessageId, savedMessageText, messageInputRef, updateMessage, sendMessage, syncComposerHeight]);
+  }, [editingMessageId, savedMessageText, messageInputRef, updateMessage, sendMessage, syncComposerHeight, applyFormatting]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const onGlobalShortcut = (event: KeyboardEvent) => {
+      const isCtrlOrMeta = event.ctrlKey || event.metaKey;
+      if (!isCtrlOrMeta) return;
+      if (!selectedChat || selectedChat.isNotificationsChat) return;
+      if (document.activeElement !== messageInputRef.current) return;
+
+      const code = event.code;
+      const keyLower = (event.key || '').toLowerCase();
+
+      const isCreateTaskShortcut =
+        code === 'Slash' ||
+        code === 'NumpadDivide' ||
+        (event.shiftKey && code === 'Digit7') ||
+        keyLower === '/' ||
+        keyLower === '?';
+
+      if (isCreateTaskShortcut) {
+        event.preventDefault();
+        setShowEventPicker(false);
+        setShowAttachmentMenu(false);
+        setShowTaskPicker(true);
+        return;
+      }
+
+      const isCreateEventShortcut =
+        code === 'NumpadMultiply' ||
+        (event.shiftKey && code === 'Digit8') ||
+        keyLower === '*';
+
+      if (isCreateEventShortcut) {
+        event.preventDefault();
+        setShowTaskPicker(false);
+        setShowAttachmentMenu(false);
+        setShowEventPicker(true);
+      }
+    };
+
+    window.addEventListener('keydown', onGlobalShortcut, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', onGlobalShortcut, { capture: true });
+    };
+  }, [selectedChat, messageInputRef]);
 
   const deleteMessage = async (messageId: string) => {
     if (!selectedChat) return;
@@ -2711,6 +2879,13 @@ export default function MessagesPage() {
   const desktopOverlayScale = Math.max(20, Math.min(200, Number(chatSettings?.chatOverlayScale ?? 100) || 100));
   const desktopOverlayOpacity = Math.max(0, Math.min(1, Number(chatSettings?.chatOverlayOpacity ?? 1) || 1));
 
+  console.log('[Messages] Overlay для чата:', {
+    theme,
+    desktopChatOverlayImage: desktopChatOverlayImage ? desktopChatOverlayImage.substring(0, 50) + '...' : 'НЕТ',
+    desktopOverlayScale,
+    desktopOverlayOpacity,
+  });
+
   return (
     <div 
       ref={messagesContainerRef}
@@ -2743,7 +2918,7 @@ export default function MessagesPage() {
             backgroundPosition: 'center center',
             backgroundAttachment: 'fixed',
             opacity: desktopOverlayOpacity,
-            zIndex: 1,
+            zIndex: 0,
           }}
         />
       )}
@@ -2970,27 +3145,79 @@ export default function MessagesPage() {
             setShowTextFormatMenu={setShowTextFormatMenu}
             applyFormatting={applyFormatting}
           />
+
+          {/* Link Modal */}
+          {showLinkModal && (
+            <>
+              <div 
+                className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm"
+                onClick={() => {
+                  setShowLinkModal(false);
+                  setLinkUrl('');
+                }}
+              />
+              <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70] bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl backdrop-blur-xl rounded-2xl p-6 min-w-[320px] max-w-[90vw]">
+                <h3 className="text-lg font-semibold mb-4 text-[var(--text-primary)]">Вставить ссылку</h3>
+                <input
+                  type="url"
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleLinkSubmit();
+                    } else if (e.key === 'Escape') {
+                      setShowLinkModal(false);
+                      setLinkUrl('');
+                    }
+                  }}
+                  placeholder="https://example.com"
+                  autoFocus
+                  className="w-full px-4 py-2.5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                />
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={handleLinkSubmit}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-medium transition-colors"
+                  >
+                    Вставить
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowLinkModal(false);
+                      setLinkUrl('');
+                    }}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-[var(--bg-tertiary)] hover:bg-[var(--bg-glass)] text-[var(--text-primary)] font-medium transition-colors"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
           </div>
 
           {/* Chat Info Panel - Профиль собеседника */}
-          <ChatInfoPanel
-            showChatInfo={showChatInfo}
-            setShowChatInfo={setShowChatInfo}
-            selectedChat={selectedChat}
-            currentUser={currentUser}
-            users={users}
-            messages={messages}
-            tasks={tasks}
-            chatInfoTab={chatInfoTab}
-            setChatInfoTab={(tab) => setChatInfoTab(tab as 'profile' | 'media' | 'files' | 'links' | 'participants' | 'tasks')}
-            setNewChatName={setNewChatName}
-            setShowRenameChatModal={setShowRenameChatModal}
-            setShowAddParticipantModal={setShowAddParticipantModal}
-            removeParticipant={removeParticipant}
-            scrollToMessage={scrollToMessage}
-            getChatAvatarData={getChatAvatarDataWrapper}
-            getChatTitle={getChatTitleWrapper}
-          />
+          {showChatInfo && (
+            <ChatInfoPanel
+              showChatInfo={showChatInfo}
+              setShowChatInfo={setShowChatInfo}
+              selectedChat={selectedChat}
+              currentUser={currentUser}
+              users={users}
+              messages={messages}
+              tasks={tasks}
+              chatInfoTab={chatInfoTab}
+              setChatInfoTab={(tab) => setChatInfoTab(tab as 'profile' | 'media' | 'files' | 'links' | 'participants' | 'tasks')}
+              setNewChatName={setNewChatName}
+              setShowRenameChatModal={setShowRenameChatModal}
+              setShowAddParticipantModal={setShowAddParticipantModal}
+              removeParticipant={removeParticipant}
+              scrollToMessage={scrollToMessage}
+              getChatAvatarData={getChatAvatarDataWrapper}
+              getChatTitle={getChatTitleWrapper}
+            />
+          )}
         </div>
       ) : (
         <div className={`${isTouchPointer ? 'hidden' : 'flex'} flex-1 items-center justify-center text-[var(--text-muted)] px-4 pb-[calc(env(safe-area-inset-bottom)+86px)] md:pb-0`}>

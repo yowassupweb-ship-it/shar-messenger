@@ -38,7 +38,8 @@ type CalendarEventSnapshot = {
 
 const POLL_INTERVAL_MS = 3500;
 const SEEN_LIMIT = 300;
-const CALENDAR_REMINDER_WINDOW_MS = 30 * 60 * 1000;
+const CALENDAR_REMINDER_WINDOW_MS = 60 * 60 * 1000; // 1 час (для пропущенных)
+const CALENDAR_EVENT_START_WINDOW_MS = 30 * 1000; // ± 30 секунд - напоминание РОВНО в момент начала события
 
 const TASK_STATUS_RU: Record<string, string> = {
   'todo': 'К выполнению',
@@ -265,7 +266,12 @@ export class BrowserPushService {
   }
 
   private async ensurePermissionAndWorker(): Promise<void> {
-    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      console.log('[BrowserPushService] Notification API недоступен');
+      return;
+    }
+
+    console.log(`[BrowserPushService] Текущий статус разрешений на уведомления: ${Notification.permission}`);
 
     if ('serviceWorker' in navigator) {
       try {
@@ -276,11 +282,19 @@ export class BrowserPushService {
     }
 
     if (Notification.permission === 'default') {
+      console.log('[BrowserPushService] Запрашиваем разрешение на уведомления...');
       try {
-        await Notification.requestPermission();
-      } catch {
-        // ignore prompt failure
+        const permission = await Notification.requestPermission();
+        console.log(`[BrowserPushService] Результат запроса разрешений: ${permission}`);
+      } catch (error) {
+        console.error('[BrowserPushService] Ошибка при запросе разрешений:', error);
       }
+    }
+    
+    if (Notification.permission === 'granted') {
+      console.log('[BrowserPushService] ✅ Разрешение на уведомления получено');
+    } else {
+      console.warn('[BrowserPushService] ⚠️ Разрешение на уведомления не получено');
     }
   }
 
@@ -455,9 +469,25 @@ export class BrowserPushService {
 
     const timeRaw = String(event?.time || '09:00').trim();
     const datePart = dateRaw.includes('T') ? dateRaw.split('T')[0] : dateRaw;
-    const normalizedTime = timeRaw.length === 5 ? `${timeRaw}:00` : timeRaw;
-    const full = `${datePart}T${normalizedTime}`;
-    const parsed = new Date(full);
+    
+    // Парсим дату в формате YYYY-MM-DD
+    const dateMatch = datePart.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!dateMatch) return null;
+    
+    const year = parseInt(dateMatch[1], 10);
+    const month = parseInt(dateMatch[2], 10) - 1; // Месяцы в JavaScript 0-based
+    const day = parseInt(dateMatch[3], 10);
+    
+    // Парсим время в формате HH:MM или HH:MM:SS
+    const timeMatch = timeRaw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (!timeMatch) return null;
+    
+    const hour = parseInt(timeMatch[1], 10);
+    const minute = parseInt(timeMatch[2], 10);
+    const second = timeMatch[3] ? parseInt(timeMatch[3], 10) : 0;
+    
+    // Создаем Date объект в локальном часовом поясе
+    const parsed = new Date(year, month, day, hour, minute, second);
 
     if (!Number.isFinite(parsed.getTime())) return null;
     return parsed;
@@ -530,6 +560,12 @@ export class BrowserPushService {
     if (!Array.isArray(events)) return;
 
     const now = Date.now();
+    
+    // Отладочная информация
+    const eventsWithReminder = events.filter(e => e?.remind);
+    if (eventsWithReminder.length > 0) {
+      console.log(`[BrowserPushService] Проверка ${eventsWithReminder.length} событий с напоминанием из ${events.length} всего`);
+    }
 
     for (const event of events) {
       if (!event?.id) continue;
@@ -567,23 +603,98 @@ export class BrowserPushService {
           tag: `calendar-event-${eventId}`,
           url: '/account?tab=calendar',
         });
+        
+        // После обновления/создания события проверяем, не нужно ли сразу показать напоминание
+        // (если событие начинается прямо сейчас или скоро)
+        if (event?.remind && isRelevant) {
+          const reminderAt = this.parseCalendarReminderDate(event);
+          if (reminderAt) {
+            const now = Date.now();
+            const reminderAtMs = reminderAt.getTime();
+            const timeUntilEvent = reminderAtMs - now;
+            const isImminentOrOngoing = Math.abs(timeUntilEvent) <= CALENDAR_EVENT_START_WINDOW_MS;
+            
+            if (isImminentOrOngoing) {
+              const reminderKey = `calendar:${eventId}:${event.date || ''}:${event.time || '09:00'}`;
+              
+              if (!this.firedCalendarReminders.has(reminderKey)) {
+                console.log(`[BrowserPushService] 🔔 Событие "${event.title}" начинается сейчас - отправка немедленного напоминания`);
+                
+                this.firedCalendarReminders.add(reminderKey);
+                if (this.firedCalendarReminders.size > SEEN_LIMIT) {
+                  const oldest = this.firedCalendarReminders.values().next().value;
+                  if (oldest) this.firedCalendarReminders.delete(oldest);
+                }
+                
+                const eventTitle = snapshot.title || 'Событие';
+                const reminderDetailLines = this.buildCalendarEventDetailLines(snapshot)
+                  .filter((line) => !line.startsWith('Описание:'));
+                const reminderBody = [`«${eventTitle}»`, ...reminderDetailLines].join('\n');
+                const browserReminderBody = reminderDetailLines.length > 0
+                  ? `${eventTitle} • ${reminderDetailLines[0]}`
+                  : eventTitle;
+
+                await this.sendCalendarReminderToNotificationsChat(event, reminderBody);
+                await this.showNotification('Напоминание о событии', browserReminderBody, {
+                  key: `calendar-reminder:${reminderKey}`,
+                  tag: `calendar-reminder-${eventId}`,
+                  url: '/account?tab=calendar',
+                  skipDedupe: true,
+                });
+                
+                console.log(`[BrowserPushService] ✅ Немедленное напоминание отправлено для события "${event.title}"`);
+              }
+            }
+          }
+        }
       }
 
       if (!event?.remind) continue;
-      if (!isRelevant) continue;
+      
+      console.log(`[BrowserPushService] Обработка напоминания для события "${event.title}" (${event.date} ${event.time}), remind=${event.remind}`);
+      
+      if (!isRelevant) {
+        console.log(`[BrowserPushService] Событие "${event.title}" не релевантно пользователю`);
+        continue;
+      }
 
       const reminderAt = this.parseCalendarReminderDate(event);
-      if (!reminderAt) continue;
+      if (!reminderAt) {
+        console.log(`[BrowserPushService] Не удалось распарсить дату для события "${event.title}": date=${event.date}, time=${event.time}`);
+        continue;
+      }
 
       const reminderAtMs = reminderAt.getTime();
       if (!Number.isFinite(reminderAtMs)) continue;
 
+      // Проверяем, находимся ли мы в окне напоминания:
+      // 1. В момент начала события (± 30 секунд)
+      // 2. В течение 1 часа после события (если пропустили)
       const delta = now - reminderAtMs;
-      if (delta < 0 || delta > CALENDAR_REMINDER_WINDOW_MS) continue;
+      const timeUntilEvent = reminderAtMs - now;
+      
+      // Допустимые окна:
+      // - В момент начала: |timeUntilEvent| <= 30 секунд (ровно в момент начала)
+      // - Пропущенное: delta > 30 секунд и delta < 1 час (для старых событий)
+      const isAtEventStart = Math.abs(timeUntilEvent) <= CALENDAR_EVENT_START_WINDOW_MS; // ± 30 секунд от начала
+      const isMissedRecent = delta > CALENDAR_EVENT_START_WINDOW_MS && delta <= CALENDAR_REMINDER_WINDOW_MS; // пропущено более 30 сек назад, но недавно (< 1 часа)
+      const isInReminderWindow = isAtEventStart || isMissedRecent;
+      
+      if (!isInReminderWindow) {
+        const deltaMin = Math.round(delta / 60000);
+        const untilMin = Math.round(timeUntilEvent / 60000);
+        console.log(`[BrowserPushService] Событие "${event.title}" вне окна напоминания: до события ${untilMin} мин, после события ${deltaMin} мин`);
+        continue;
+      }
 
       const reminderKey = `calendar:${eventId}:${event.date || ''}:${event.time || '09:00'}`;
 
-      if (this.firedCalendarReminders.has(reminderKey)) continue;
+      if (this.firedCalendarReminders.has(reminderKey)) {
+        console.log(`[BrowserPushService] Напоминание для события "${event.title}" уже было отправлено`);
+        continue;
+      }
+
+      console.log(`[BrowserPushService] 🔔 Отправка напоминания для события "${event.title}" (${event.date} ${event.time})`);
 
       this.firedCalendarReminders.add(reminderKey);
       if (this.firedCalendarReminders.size > SEEN_LIMIT) {
@@ -605,7 +716,10 @@ export class BrowserPushService {
         key: `calendar-reminder:${reminderKey}`,
         tag: `calendar-reminder-${eventId}`,
         url: '/account?tab=calendar',
+        skipDedupe: true, // У calendar reminders своя дедупликация через firedCalendarReminders
       });
+      
+      console.log(`[BrowserPushService] ✅ Напоминание успешно отправлено для события "${event.title}"`);
     }
   }
 
@@ -710,14 +824,68 @@ export class BrowserPushService {
   private async showNotification(
     title: string,
     body: string,
-    options: { key: string; tag: string; url: string }
+    options: { key: string; tag: string; url: string; skipDedupe?: boolean }
   ): Promise<void> {
-    if (typeof window === 'undefined' || !('Notification' in window)) return;
-    if (Notification.permission !== 'granted') return;
-
+    console.log(`[BrowserPushService] 🔔 showNotification вызван: "${title}"`);
+    console.log(`[BrowserPushService] Body: "${body}"`);
+    console.log(`[BrowserPushService] Key: ${options.key}, Tag: ${options.tag}, SkipDedupe: ${options.skipDedupe}`);
+    
     const dedupeKey = options.key;
-    if (this.shownKeys.has(dedupeKey)) return;
-    this.shownKeys.add(dedupeKey);
+    
+    // Пропускаем проверку дедупликации для calendar reminders (у них своя дедупликация через firedCalendarReminders)
+    if (!options.skipDedupe) {
+      if (this.shownKeys.has(dedupeKey)) {
+        console.log(`[BrowserPushService] ⚠️ Уведомление с ключом ${dedupeKey} уже было показано`);
+        return;
+      }
+      this.shownKeys.add(dedupeKey);
+      console.log(`[BrowserPushService] ✅ Ключ ${dedupeKey} добавлен в дедупликацию`);
+    } else {
+      console.log(`[BrowserPushService] ⏭️ Дедупликация пропущена (используется внешняя дедупликация)`);
+    }
+
+    // Проверяем, запущены ли мы в Electron
+    const isElectron = typeof window !== 'undefined' && Boolean(window.sharDesktop?.showNotification);
+    
+    if (isElectron) {
+      console.log('[BrowserPushService] 🖥️ Обнаружен Electron, используем кастомные уведомления');
+      try {
+        const kind = options.url.includes('tab=tasks')
+          ? 'task'
+          : options.url.includes('tab=calendar')
+            ? 'event'
+            : options.url.includes('tab=messages')
+              ? 'message'
+              : 'system';
+
+        await window.sharDesktop!.showNotification({
+          title,
+          subtitle: kind === 'message' ? 'Сообщения' : kind === 'task' ? 'Задачи' : kind === 'event' ? 'Календарь' : 'Shar OS',
+          senderName: title,
+          message: body,
+          timestamp: Date.now(),
+          chatId: options.url.includes('chat=') ? options.url.split('chat=')[1]?.split('&')[0] : undefined,
+          url: options.url,
+          kind,
+        });
+        console.log('[BrowserPushService] ✅✅✅ Electron уведомление отправлено');
+        return;
+      } catch (err) {
+        console.error('[BrowserPushService] ❌ Ошибка при отправке Electron уведомления:', err);
+      }
+    }
+
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      console.log('[BrowserPushService] ❌ Notification API недоступен');
+      return;
+    }
+
+    console.log(`[BrowserPushService] Notification.permission: ${Notification.permission}`);
+
+    if (Notification.permission !== 'granted') {
+      console.warn(`[BrowserPushService] ❌ Разрешение не дано (${Notification.permission}), уведомление не будет показано`);
+      return;
+    }
 
     const notificationOptions: NotificationOptions & {
       renotify?: boolean;
@@ -727,32 +895,43 @@ export class BrowserPushService {
     } = {
       body,
       tag: options.tag,
-      icon: '/favicon.png',
-      badge: '/favicon.png',
+      icon: '/Group 8.png',
+      badge: '/Group 8.png',
       data: { url: options.url },
       silent: false,
       renotify: true,
-      requireInteraction: true,
+      requireInteraction: false,
       timestamp: Date.now(),
-      vibrate: [250, 120, 250, 120, 500],
+      vibrate: [200, 100, 200],
     };
+
+    console.log(`[BrowserPushService] 📦 Параметры уведомления:`, notificationOptions);
 
     try {
       if ('serviceWorker' in navigator) {
+        console.log('[BrowserPushService] 🔍 Проверка service worker...');
         const registration = await navigator.serviceWorker.getRegistration();
         if (registration) {
+          console.log('[BrowserPushService] ✅ Service worker найден, показываем уведомление...');
           await registration.showNotification(title, notificationOptions);
+          console.log(`[BrowserPushService] ✅✅✅ Уведомление показано через service worker: "${title}"`);
           return;
+        } else {
+          console.log('[BrowserPushService] ⚠️ Service worker не зарегистрирован');
         }
+      } else {
+        console.log('[BrowserPushService] ⚠️ Service Worker API недоступен');
       }
 
+      console.log('[BrowserPushService] 🔔 Показываем уведомление через Notification API...');
       const notice = new Notification(title, notificationOptions);
       notice.onclick = () => {
         window.focus();
         window.location.href = options.url;
       };
-    } catch {
-      // ignore notification failures
+      console.log(`[BrowserPushService] ✅✅✅ Уведомление показано через Notification API: "${title}"`);
+    } catch (error) {
+      console.error('[BrowserPushService] ❌❌❌ Ошибка при показе уведомления:', error);
     }
   }
 

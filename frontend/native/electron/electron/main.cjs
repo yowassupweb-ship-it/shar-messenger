@@ -54,14 +54,22 @@ function resolveRemoteUrl() {
 }
 
 function getLogoDataUrl() {
-  try {
-    const logoPath = path.resolve(__dirname, '../../../../Group 6.png');
-    const fileBuffer = fs.readFileSync(logoPath);
-    return `data:image/png;base64,${fileBuffer.toString('base64')}`;
-  } catch (error) {
-    console.error('Failed to load logo:', error);
-    return 'https://vokrug-sveta.shar-os.ru/favicon.png';
+  const logoCandidates = [
+    path.join(__dirname, 'icon.png'),
+    path.resolve(__dirname, '../../../../Group 8.png'),
+  ];
+
+  for (const logoPath of logoCandidates) {
+    try {
+      if (!fs.existsSync(logoPath)) continue;
+      const fileBuffer = fs.readFileSync(logoPath);
+      return `data:image/png;base64,${fileBuffer.toString('base64')}`;
+    } catch (error) {
+      console.error(`Failed to load logo from ${logoPath}:`, error);
+    }
   }
+
+  return 'https://vokrug-sveta.shar-os.ru/favicon.png';
 }
 
 function registerWindowControls(mainWindow) {
@@ -157,8 +165,8 @@ function createNotificationWindow(data, mainWindow) {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
-  const notificationWidth = 360;
-  const notificationHeight = 100;
+  const notificationWidth = 380;
+  const notificationHeight = 110;
   const margin = 16;
   
   // Вычисляем позицию (правый нижний угол с учетом других уведомлений)
@@ -200,35 +208,45 @@ function createNotificationWindow(data, mainWindow) {
     notificationWindow.webContents.send('notification-data', data);
   });
 
-  // Обработка клика по уведомлению
-  ipcMain.once('notification-click', (event, clickData) => {
+  const notificationClickHandler = (event, clickData) => {
+    if (!notificationWindow || notificationWindow.isDestroyed()) return;
+    if (event.sender !== notificationWindow.webContents) return;
+
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.show();
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
       mainWindow.focus();
-      
-      // Отправляем событие в основное окно для открытия чата
+
+      if (clickData && typeof clickData.url === 'string' && clickData.url.trim()) {
+        mainWindow.webContents.send('open-route', clickData.url);
+      }
+
       if (clickData && clickData.chatId) {
         mainWindow.webContents.send('open-chat', clickData.chatId);
       }
     }
+
     closeNotification(notificationWindow);
-  });
+  };
 
-  // Обработка закрытия уведомления
-  ipcMain.once('notification-close', () => {
+  const notificationCloseHandler = (event) => {
+    if (!notificationWindow || notificationWindow.isDestroyed()) return;
+    if (event.sender !== notificationWindow.webContents) return;
     closeNotification(notificationWindow);
-  });
+  };
 
-  // Автоматическое закрытие через 5 секунд
-  setTimeout(() => {
-    if (!notificationWindow.isDestroyed()) {
-      closeNotification(notificationWindow);
-    }
-  }, 5500);
+  ipcMain.on('notification-click', notificationClickHandler);
+  ipcMain.on('notification-close', notificationCloseHandler);
 
+  // Уведомления теперь не закрываются автоматически
+  
   activeNotifications.push(notificationWindow);
   
   notificationWindow.on('closed', () => {
+    ipcMain.removeListener('notification-click', notificationClickHandler);
+    ipcMain.removeListener('notification-close', notificationCloseHandler);
     const index = activeNotifications.indexOf(notificationWindow);
     if (index > -1) {
       activeNotifications.splice(index, 1);
@@ -250,8 +268,8 @@ function repositionNotifications() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
-  const notificationWidth = 360;
-  const notificationHeight = 100;
+  const notificationWidth = 380;
+  const notificationHeight = 110;
   const margin = 16;
   
   const baseX = screenWidth - notificationWidth - margin;
@@ -276,11 +294,16 @@ function repositionNotifications() {
 ipcMain.handle('show-notification', (event, data) => {
   if (mainWindowRef && !mainWindowRef.isDestroyed()) {
     createNotificationWindow(data, mainWindowRef);
+    return true;
   }
+  return false;
 });
 
 function createWindow() {
   const remoteUrl = resolveRemoteUrl();
+  const appIconPath = process.platform === 'win32'
+    ? path.join(__dirname, 'icon.ico')
+    : path.join(__dirname, 'icon.png');
 
   // Создаём сплэш-окно
   const splashWindow = new BrowserWindow({
@@ -293,7 +316,7 @@ function createWindow() {
     center: true,
     resizable: false,
     movable: true,
-    icon: path.join(__dirname, 'icon.png'),
+    icon: appIconPath,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -312,10 +335,10 @@ function createWindow() {
     frame: false,
     autoHideMenuBar: true,
     backgroundColor: '#f8fafc',
-    title: 'Shar Messenger',
+    title: 'Shar OS',
     show: false, // Скрываем до загрузки
     center: true,
-    icon: path.join(__dirname, 'icon.png'),
+    icon: appIconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -914,7 +937,19 @@ function createWindow() {
   });
 
   mainWindow.loadURL(remoteUrl);
+  
+  // Автоматическая перезагрузка после запуска
+  mainWindow.webContents.once('did-finish-load', () => {
+    setTimeout(() => {
+      if (!mainWindow.isDestroyed()) {
+        mainWindow.webContents.reload();
+      }
+    }, 1000);
+  });
 }
+
+// Устанавливаем название приложения для уведомлений и других системных diалогов
+app.setName('Shar OS');
 
 app.whenReady().then(() => {
   createWindow();

@@ -1,5 +1,5 @@
 {
-  "name": "shar-electron-client",
+  "name": "shar-os-client",
   "version": "0.1.0",
   "private": true,
   "author": "Shar OS",
@@ -19,8 +19,8 @@
     "electron-builder": "^26.0.12"
   },
   "build": {
-    "appId": "ru.shar.electron",
-    "productName": "Shar Messenger Electron",
+    "appId": "ru.shar.os",
+    "productName": "Shar OS",
     "directories": {
       "output": "release"
     },
@@ -39,11 +39,20 @@
         "nsis",
         "portable"
       ],
-      "icon": "electron/icon.png",
+      "icon": "electron/icon.ico",
       "publish": {
         "provider": "generic",
         "url": "https://vokrug-sveta.shar-os.ru/updates"
       }
+    },
+    "nsis": {
+      "artifactName": "Shar setup.${ext}",
+      "installerIcon": "electron/icon.ico",
+      "uninstallerIcon": "electron/icon.ico",
+      "installerHeaderIcon": "electron/icon.ico"
+    },
+    "portable": {
+      "artifactName": "Shar OS.${ext}"
     },
     "mac": {
       "icon": "electron/icon.png"

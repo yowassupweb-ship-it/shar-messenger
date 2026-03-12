@@ -38,8 +38,8 @@ self.addEventListener('push', (event) => {
   const title = payload.title || 'Новое уведомление';
   const options = {
     body: payload.body || '',
-    icon: '/favicon.png',
-    badge: '/favicon.png',
+    icon: '/Group 8.png',
+    badge: '/Group 8.png',
     tag: payload.tag || 'generic-notification',
     renotify: true,
     requireInteraction: true,
