@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from 'react';
 import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -239,6 +239,9 @@ export default function MessagesPage() {
   const suppressPinnedOverlayTapRef = useRef(false);
   const hydratedMessagesCacheRef = useRef<Set<string>>(new Set());
   const hydratedChatsCacheKeyRef = useRef<string | null>(null);
+  const pendingRestoreChatScrollRef = useRef<string | null>(null);
+  const openFromNotificationChatIdRef = useRef<string | null>(null);
+  const suppressAutoScrollUntilRef = useRef(0);
 
   const syncComposerHeight = useCallback((nextValue?: string) => {
     const textarea = messageInputRef.current;
@@ -284,6 +287,28 @@ export default function MessagesPage() {
 
     return true;
   }, []);
+
+  const hasMessagesChanged = useCallback((prevMessages: Message[], nextMessages: Message[]) => {
+    if (prevMessages === nextMessages) return false;
+    if (prevMessages.length !== nextMessages.length) return true;
+
+    for (let index = 0; index < prevMessages.length; index += 1) {
+      const prev = prevMessages[index];
+      const next = nextMessages[index];
+      if (!prev || !next) return true;
+      if (prev.id !== next.id) return true;
+      if ((prev.updatedAt || prev.createdAt || '') !== (next.updatedAt || next.createdAt || '')) return true;
+      if ((prev.content || '') !== (next.content || '')) return true;
+
+      const prevAttachments = Array.isArray(prev.attachments) ? prev.attachments.length : 0;
+      const nextAttachments = Array.isArray(next.attachments) ? next.attachments.length : 0;
+      if (prevAttachments !== nextAttachments) return true;
+    }
+
+    return false;
+  }, []);
+
+  const getChatScrollStorageKey = useCallback((chatId: string) => `messages_chat_scroll_${chatId}`, []);
 
   // Функция скролла к конкретному сообщению
   const scrollToMessage = (messageId: string) => {
@@ -451,24 +476,56 @@ export default function MessagesPage() {
     }
   }, [selectedChat?.id, pinnedMessages, activePinnedMessageId]);
 
+  const isNoAutoScrollChat = useCallback((chat: Chat | null | undefined) => {
+    if (!chat) return false;
+    const chatId = String(chat.id || '');
+    return Boolean(
+      chat.isFavoritesChat
+      || chat.isNotificationsChat
+      || chatId.startsWith('favorites_')
+      || chatId.startsWith('notifications-')
+      || chatId.startsWith('notifications_')
+      || chat.title === 'Избранное'
+      || chat.title === 'Уведомления'
+    );
+  }, []);
+
+  const suppressAutoScrollTemporarily = useCallback((durationMs: number = 1200) => {
+    suppressAutoScrollUntilRef.current = Date.now() + durationMs;
+  }, []);
+
+  const isAutoScrollSuppressed = useCallback(() => {
+    return Date.now() < suppressAutoScrollUntilRef.current;
+  }, []);
+
   // Функция выбора чата с обновлением URL и localStorage
-  const selectChat = useCallback((chat: Chat | null) => {
+  const selectChat = useCallback((chat: Chat | null, options?: { fromNotification?: boolean }) => {
     const previousChat = selectedChat;
+    const openedFromNotification = Boolean(options?.fromNotification && chat);
     if (!chat) {
       lastManualChatCloseAtRef.current = Date.now();
     }
 
+    const container = messagesListRef.current;
+    if (previousChat && container) {
+      try {
+        localStorage.setItem(getChatScrollStorageKey(previousChat.id), String(Math.max(0, Math.round(container.scrollTop))));
+      } catch {
+      }
+    }
+
     const currentMessage = messageInputRef.current?.value || '';
+    setMessages([]);
+    setIsLoadingMessages(Boolean(chat));
+
+    pendingRestoreChatScrollRef.current = chat?.id || null;
+    openFromNotificationChatIdRef.current = openedFromNotification && chat ? chat.id : null;
+    suppressAutoScrollTemporarily(1800);
 
     setSelectedChat(chat);
     setShowChatInfo(false);
     setIsSelectionMode(false);
     setSelectedMessages(new Set());
-
-    if (chat && messagesListRef.current) {
-      const container = messagesListRef.current;
-      container.scrollTop = container.scrollHeight;
-    }
 
     // Откладываем тяжёлую работу с drafts/composer после клика
     setTimeout(() => {
@@ -508,7 +565,7 @@ export default function MessagesPage() {
         window.history.replaceState({}, '', url.toString());
       });
     }
-  }, [selectedChat, chatDrafts, messageInputRef, syncComposerHeight]);
+  }, [selectedChat, chatDrafts, messageInputRef, syncComposerHeight, isNoAutoScrollChat, suppressAutoScrollTemporarily, getChatScrollStorageKey]);
 
   // Загрузка настроек чата
   useEffect(() => {
@@ -581,7 +638,7 @@ export default function MessagesPage() {
       console.log('Opening chat from notification:', chatId);
       const chat = chats.find(c => c.id === chatId);
       if (chat) {
-        selectChat(chat);
+        selectChat(chat, { fromNotification: true });
       }
     });
 
@@ -700,6 +757,69 @@ export default function MessagesPage() {
     }
   }, [selectedChat?.id]);
 
+  useLayoutEffect(() => {
+    if (!selectedChat || !messagesListRef.current) return;
+
+    const pendingChatId = pendingRestoreChatScrollRef.current;
+    if (pendingChatId !== selectedChat.id) return;
+    if (isLoadingMessages) return;
+
+    const container = messagesListRef.current;
+    let hasRestored = false;
+    try {
+      const savedScrollRaw = localStorage.getItem(getChatScrollStorageKey(selectedChat.id));
+      if (savedScrollRaw !== null) {
+        const savedScroll = Number(savedScrollRaw);
+        if (Number.isFinite(savedScroll) && savedScroll >= 0) {
+          container.scrollTop = Math.min(savedScroll, container.scrollHeight);
+          hasRestored = true;
+        }
+      }
+    } catch {
+    }
+
+    if (!hasRestored) {
+      container.scrollTop = container.scrollHeight;
+    }
+
+    pendingRestoreChatScrollRef.current = null;
+    openFromNotificationChatIdRef.current = null;
+    suppressAutoScrollTemporarily(900);
+  }, [selectedChat?.id, messages.length, isLoadingMessages, suppressAutoScrollTemporarily, getChatScrollStorageKey]);
+
+  useEffect(() => {
+    if (!selectedChat || !messagesListRef.current) return;
+
+    const container = messagesListRef.current;
+    let rafId: number | null = null;
+
+    const persistScroll = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+      rafId = requestAnimationFrame(() => {
+        try {
+          localStorage.setItem(getChatScrollStorageKey(selectedChat.id), String(Math.max(0, Math.round(container.scrollTop))));
+        } catch {
+        }
+        rafId = null;
+      });
+    };
+
+    container.addEventListener('scroll', persistScroll, { passive: true });
+
+    return () => {
+      container.removeEventListener('scroll', persistScroll);
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+      try {
+        localStorage.setItem(getChatScrollStorageKey(selectedChat.id), String(Math.max(0, Math.round(container.scrollTop))));
+      } catch {
+      }
+    };
+  }, [selectedChat?.id, getChatScrollStorageKey]);
+
   useEffect(() => {
     if (showTaskPicker) {
       loadTasks();
@@ -772,15 +892,6 @@ export default function MessagesPage() {
       document.removeEventListener('dragend', handleDragEnd);
     };
   }, []);
-
-  const scrollToBottom = (smooth: boolean = true) => {
-    if (messagesListRef.current) {
-      messagesListRef.current.scrollTo({
-        top: messagesListRef.current.scrollHeight,
-        behavior: smooth ? 'smooth' : 'auto'
-      });
-    }
-  };
 
   const loadCurrentUser = async () => {
     try {
@@ -1051,54 +1162,46 @@ export default function MessagesPage() {
   const activeTabParam = searchParams.get('tab');
 
   // Функции форматирования текста
-  const handleTextSelection = useCallback(() => {
+  const handleTextSelection = useCallback((contextMenuPoint?: { x: number; y: number }) => {
     if (!messageInputRef.current) return;
     
     const start = messageInputRef.current.selectionStart;
     const end = messageInputRef.current.selectionEnd;
     const selectedText = messageInputRef.current.value.substring(start, end);
-    
-    // Показываем меню только если выделен текст (больше 0 символов)
-    if (selectedText && start !== end) {
-      setTextSelection({ start, end, text: selectedText });
-      
-      if (!messageInputRef.current || !composerContainerRef.current) return;
-      const composerRect = composerContainerRef.current.getBoundingClientRect();
+    const hasSelection = Boolean(selectedText && start !== end);
+    setTextSelection({ start, end, text: hasSelection ? selectedText : '' });
 
-      // Показываем меню на 5px выше инпута (нижняя граница меню)
-      const menuWidth = 220; // Примерная ширина меню
-      const menuHeight = 280; // Примерная высота меню (с открытым подменю)
-      
-      let menuLeft = composerRect.left + composerRect.width / 2;
-      let menuTop = composerRect.top - 5; // 5px от верхней границы инпута
+    if (!messageInputRef.current || !composerContainerRef.current) return;
+    const composerRect = composerContainerRef.current.getBoundingClientRect();
 
-      // Проверка правой границы
-      if (menuLeft + menuWidth / 2 > window.innerWidth - 24) {
-        menuLeft = window.innerWidth - menuWidth / 2 - 24;
-      }
-      // Проверка левой границы
-      if (menuLeft - menuWidth / 2 < 24) {
-        menuLeft = menuWidth / 2 + 24;
-      }
-      // Проверка верхней границы
-      if (menuTop - menuHeight < 8) {
-        menuTop = menuHeight + 8;
-      }
+    const menuWidth = 220;
+    const menuHeight = 280;
 
-      setFormatMenuPosition({
-        top: menuTop,
-        left: menuLeft
-      });
-      setShowTextFormatMenu(true);
-      
-      // Сохраняем выделение текста
+    let menuLeft = contextMenuPoint?.x ?? (composerRect.left + composerRect.width / 2);
+    let menuTop = contextMenuPoint?.y ?? (composerRect.top - 5);
+
+    if (menuLeft + menuWidth / 2 > window.innerWidth - 24) {
+      menuLeft = window.innerWidth - menuWidth / 2 - 24;
+    }
+    if (menuLeft - menuWidth / 2 < 24) {
+      menuLeft = menuWidth / 2 + 24;
+    }
+    if (menuTop - menuHeight < 8) {
+      menuTop = menuHeight + 8;
+    }
+
+    setFormatMenuPosition({
+      top: menuTop,
+      left: menuLeft
+    });
+    setShowTextFormatMenu(true);
+
+    if (hasSelection) {
       setTimeout(() => {
         if (messageInputRef.current) {
           messageInputRef.current.setSelectionRange(start, end);
         }
       }, 0);
-    } else {
-      setShowTextFormatMenu(false);
     }
   }, []);
 
@@ -1435,12 +1538,13 @@ export default function MessagesPage() {
         localStorage.removeItem('selectedChatId');
       }
       localStorage.removeItem(`messages_chat_cache_${normalizedTargetId}`);
+      localStorage.removeItem(getChatScrollStorageKey(normalizedTargetId));
     } catch {
       // Ignore localStorage errors
     }
 
     void loadChats();
-  }, [selectedChat?.id, selectChat, loadChats]);
+  }, [selectedChat?.id, selectChat, loadChats, getChatScrollStorageKey]);
 
   const loadMessages = useCallback(async (chatId: string, isPolling: boolean = false) => {
     if (!isPolling) setIsLoadingMessages(true); // 🚀 PERFORMANCE
@@ -1453,8 +1557,11 @@ export default function MessagesPage() {
         if (cachedRaw) {
           const cachedMessages = JSON.parse(cachedRaw);
           if (Array.isArray(cachedMessages) && cachedMessages.length > 0) {
-            setMessages(cachedMessages);
-            setIsLoadingMessages(false);
+            const isOpeningSelectedChat = pendingRestoreChatScrollRef.current === chatId;
+            if (!isOpeningSelectedChat) {
+              setMessages(cachedMessages);
+              setIsLoadingMessages(false);
+            }
           }
         }
       } catch (error) {
@@ -1470,15 +1577,6 @@ export default function MessagesPage() {
         if (currentUser) {
           void updateUserStatus({ isOnline: true });
         }
-        
-        // Проверяем был ли пользователь внизу ДО обновления сообщений
-        const container = messagesListRef.current;
-        const wasAtBottom = container 
-          ? (container.scrollHeight - container.scrollTop - container.clientHeight < 50) 
-          : true;
-        
-        // Проверяем есть ли НОВЫЕ сообщения (сравниваем количество)
-        const hasNewMessages = data.length > messages.length;
         
         // Уведомления о сообщениях централизованы в BrowserPushService.
         
@@ -1499,7 +1597,7 @@ export default function MessagesPage() {
           return aTime - bTime;
         });
 
-        setMessages(mergedMessages);
+        setMessages((prev) => (hasMessagesChanged(prev, mergedMessages) ? mergedMessages : prev));
 
         try {
           localStorage.setItem(`messages_chat_cache_${chatId}`, JSON.stringify(mergedMessages));
@@ -1507,24 +1605,7 @@ export default function MessagesPage() {
           // Ignore localStorage quota/serialization issues
         }
         
-        // Скролл к последнему сообщению:
-        // - При первой загрузке всегда
-        // - При polling только если пользователь был внизу И пришли новые сообщения
-        // НО НЕ скроллим если клавиатура открыта (фокус на инпуте) - это вызывает баги
-        const isKeyboardOpen = messageInputRef.current === document.activeElement;
-        if (!isPolling || (wasAtBottom && hasNewMessages && !isKeyboardOpen)) {
-          const scrollBehavior: ScrollBehavior = isPolling ? 'smooth' : 'auto';
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              if (messagesListRef.current) {
-                messagesListRef.current.scrollTo({
-                  top: messagesListRef.current.scrollHeight,
-                  behavior: scrollBehavior
-                });
-              }
-            });
-          });
-        }
+        // Не делаем автоскролл при polling, чтобы исключить самопроизвольные перемотки.
         
         // Отмечаем сообщения как прочитанные (при любой загрузке, если есть новые сообщения)
         if (data.length > 0 && currentUser) {
@@ -1566,7 +1647,7 @@ export default function MessagesPage() {
     } finally {
       if (!isPolling) setIsLoadingMessages(false); // 🚀 PERFORMANCE  
     }
-  }, [messagesListRef, messages, messageInputRef, currentUser, loadChats, updateUserStatus, recoverFromMissingChat]);
+  }, [messagesListRef, messages, messageInputRef, currentUser, loadChats, updateUserStatus, recoverFromMissingChat, chats, selectedChat, isNoAutoScrollChat, isAutoScrollSuppressed, hasMessagesChanged]);
 
   const createChat = async () => {
     if (!currentUser || selectedUsers.length === 0) return;
@@ -1745,7 +1826,7 @@ export default function MessagesPage() {
     }
 
     setTimeout(() => {
-      if (messagesListRef.current) {
+      if (messagesListRef.current && !isNoAutoScrollChat(selectedChat)) {
         messagesListRef.current.scrollTo({
           top: messagesListRef.current.scrollHeight,
           behavior: 'auto'
@@ -1799,7 +1880,7 @@ export default function MessagesPage() {
       setMessages(prev => prev.filter((msg) => msg.id !== optimisticMessage.id));
       console.error('Error sending message:', error);
     }
-  }, [messageInputRef, selectedChat, currentUser, attachments, replyToMessage, messagesListRef, loadChats, syncComposerHeight, updateUserStatus, recoverFromMissingChat, recreateDeletedChatAndResend]);
+  }, [messageInputRef, selectedChat, currentUser, attachments, replyToMessage, messagesListRef, loadChats, syncComposerHeight, updateUserStatus, recoverFromMissingChat, recreateDeletedChatAndResend, isNoAutoScrollChat]);
 
   useEffect(() => {
     if (!selectedChat) return;
@@ -2705,55 +2786,6 @@ export default function MessagesPage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (activeTabParam !== 'messages' || !selectedChat || messages.length === 0) return;
-
-    const now = Date.now();
-    if (now - lastTabAutoScrollAtRef.current < 800) return;
-
-    const container = messagesListRef.current;
-    if (!container) return;
-
-    const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-    const isNearBottom = distanceToBottom < 180;
-
-    if (!isNearBottom) return;
-
-    lastTabAutoScrollAtRef.current = now;
-    requestAnimationFrame(() => {
-      scrollToBottom(false);
-    });
-  }, [activeTabParam, selectedChat?.id, messages.length]);
-
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-
-    const syncScrollOnVisible = () => {
-      if (document.visibilityState !== 'visible') return;
-      if (activeTabParam !== 'messages' || !selectedChat) return;
-
-      const now = Date.now();
-      if (now - lastTabAutoScrollAtRef.current < 1200) return;
-
-      const container = messagesListRef.current;
-      if (!container) return;
-
-      const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-      if (distanceToBottom > 180) return;
-
-      lastTabAutoScrollAtRef.current = now;
-      requestAnimationFrame(() => scrollToBottom(false));
-    };
-
-    document.addEventListener('visibilitychange', syncScrollOnVisible);
-    window.addEventListener('focus', syncScrollOnVisible);
-
-    return () => {
-      document.removeEventListener('visibilitychange', syncScrollOnVisible);
-      window.removeEventListener('focus', syncScrollOnVisible);
-    };
-  }, [activeTabParam, selectedChat?.id]);
-
   // --- FIX MOBILE KEYBOARD ---
   // Используем direct DOM manipulation чтобы избежать ре-рендеров при ресайзе (клавиатура)
   // Это предотвращает закрытие клавиатуры
@@ -2764,6 +2796,15 @@ export default function MessagesPage() {
     let prevHeight = window.innerHeight;
     let rafId: number | null = null;
     const isTouchViewport = window.matchMedia('(pointer: coarse)').matches;
+
+    if (!isTouchViewport) {
+      const nextIsDesktop = !(window.innerWidth < 773 || isTouchPointer);
+      setIsDesktopView(prev => (prev === nextIsDesktop ? prev : nextIsDesktop));
+      return () => {
+        document.body.style.cursor = '';
+        document.documentElement.style.cursor = '';
+      };
+    }
     
     // Функция обновления высоты
     const updateHeight = () => {
@@ -2788,17 +2829,6 @@ export default function MessagesPage() {
       const nextIsDesktop = !(window.innerWidth < 773 || isTouchPointer);
       setIsDesktopView(prev => (prev === nextIsDesktop ? prev : nextIsDesktop));
       
-      // Если высота уменьшилась (клавиатура открылась) - скроллим к последнему сообщению
-      if (vh < prevHeight && messagesListRef.current) {
-        setTimeout(() => {
-          if (messagesListRef.current) {
-            messagesListRef.current.scrollTo({
-              top: messagesListRef.current.scrollHeight,
-              behavior: 'smooth'
-            });
-          }
-        }, 50);
-      }
       prevHeight = vh;
     };
 
@@ -2865,7 +2895,7 @@ export default function MessagesPage() {
       }
       window.removeEventListener('resize', scheduleUpdateHeight);
     };
-  }, []);
+  }, [isTouchPointer]);
 
   const desktopChatBackgroundColor = theme === 'dark'
     ? (chatSettings?.chatBackgroundDark || '#0f172a')
@@ -3071,35 +3101,38 @@ export default function MessagesPage() {
             </div>
           )}
           
-          <MessagesArea
-            messagesListRef={messagesListRef}
-            messages={messages}
-            messageSearchQuery={messageSearchQuery}
-            users={users}
-            currentUser={currentUser}
-            selectedChat={selectedChat}
-            selectedMessages={selectedMessages}
-            editingMessageId={editingMessageId}
-            isSelectionMode={isSelectionMode}
-            messageRefs={messageRefs}
-            theme={theme}
-            chatSettings={chatSettings}
-            isDesktopView={isDesktopView}
-            myBubbleTextClass={myBubbleTextClass}
-            useDarkTextOnBubble={useDarkTextOnBubble}
-            composerContainerRef={composerContainerRef as React.RefObject<HTMLDivElement>}
-            messagesEndRef={messagesEndRef}
-            router={router}
-            setSelectedMessages={setSelectedMessages}
-            setIsSelectionMode={setIsSelectionMode}
-            setContextMenuMessage={setContextMenuMessage}
-            setContextMenuPosition={setContextMenuPosition}
-            setShowMessageContextMenu={setShowMessageContextMenu}
-            scrollToMessage={scrollToMessage}
-            setCurrentImageUrl={setCurrentImageUrl}
-            setShowImageModal={setShowImageModal}
-            hasPinnedMessage={Boolean(activePinnedMessage) && !linkedTaskBanner.id && isPinnedOverlayMobileView}
-          />
+          <div className="flex-1 min-h-0 flex flex-col">
+            <MessagesArea
+              key={selectedChat?.id || 'no-chat'}
+              messagesListRef={messagesListRef}
+              messages={messages}
+              messageSearchQuery={messageSearchQuery}
+              users={users}
+              currentUser={currentUser}
+              selectedChat={selectedChat}
+              selectedMessages={selectedMessages}
+              editingMessageId={editingMessageId}
+              isSelectionMode={isSelectionMode}
+              messageRefs={messageRefs}
+              theme={theme}
+              chatSettings={chatSettings}
+              isDesktopView={isDesktopView}
+              myBubbleTextClass={myBubbleTextClass}
+              useDarkTextOnBubble={useDarkTextOnBubble}
+              composerContainerRef={composerContainerRef as React.RefObject<HTMLDivElement>}
+              messagesEndRef={messagesEndRef}
+              router={router}
+              setSelectedMessages={setSelectedMessages}
+              setIsSelectionMode={setIsSelectionMode}
+              setContextMenuMessage={setContextMenuMessage}
+              setContextMenuPosition={setContextMenuPosition}
+              setShowMessageContextMenu={setShowMessageContextMenu}
+              scrollToMessage={scrollToMessage}
+              setCurrentImageUrl={setCurrentImageUrl}
+              setShowImageModal={setShowImageModal}
+              hasPinnedMessage={Boolean(activePinnedMessage) && !linkedTaskBanner.id && isPinnedOverlayMobileView}
+            />
+          </div>
 
           {/* Message input */}
           <MessageInput

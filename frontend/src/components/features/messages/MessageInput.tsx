@@ -37,7 +37,7 @@ interface MessageInputProps {
   setShowAttachmentMenu: (value: boolean) => void;
   setShowMentionSuggestions: (value: boolean) => void;
   
-  handleTextSelection: () => void;
+  handleTextSelection: (contextMenuPoint?: { x: number; y: number }) => void;
   handleMessageChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   handleMessageKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   scrollToMessage: (messageId: string) => void;
@@ -159,6 +159,28 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const hasComposerContextBlock = Boolean(editingMessageId || replyToMessage);
   const composerContextBlockClass = 'mb-1 h-[42px] px-3 rounded-[18px] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[var(--shadow-card)] backdrop-blur-xl flex items-center justify-between gap-2';
   const composerContextCloseButtonClass = 'w-6 h-6 rounded-full hover:bg-[var(--bg-glass-hover)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0';
+  const replyImageUrl = React.useMemo(() => {
+    const imageAttachment = replyToMessage?.attachments?.find((attachment: any) => {
+      if (attachment?.type !== 'image') return false;
+      return Boolean(String(attachment?.url || '').trim());
+    });
+    return imageAttachment ? String(imageAttachment.url).trim() : '';
+  }, [replyToMessage]);
+  const replyPreviewText = React.useMemo(() => {
+    const content = String(replyToMessage?.content || '').trim();
+    if (content) {
+      return content.length > 40 ? `${content.substring(0, 40)}...` : content;
+    }
+
+    if (replyImageUrl) return 'Фото';
+
+    const attachmentCount = Array.isArray(replyToMessage?.attachments) ? replyToMessage.attachments.length : 0;
+    if (attachmentCount > 0) {
+      return `Вложений: ${attachmentCount}`;
+    }
+
+    return 'Сообщение';
+  }, [replyToMessage, replyImageUrl]);
 
   const uploadAndAttachFiles = React.useCallback(async (files: File[]) => {
     if (files.length === 0) return;
@@ -316,7 +338,14 @@ const MessageInput: React.FC<MessageInputProps> = ({
               {att.type === 'task' && <FileText className="w-3 h-3" />}
               {att.type === 'link' && <LinkIcon className="w-3 h-3" />}
               {att.type === 'event' && <Calendar className="w-3 h-3" />}
-              {att.type === 'image' && <Image className="w-3 h-3" />}
+              {att.type === 'image' && att.url ? (
+                <img
+                  src={att.url}
+                  alt={att.name || 'Фото'}
+                  className="w-8 h-8 rounded-md object-cover border border-[var(--border-light)]"
+                />
+              ) : null}
+              {att.type === 'image' && !att.url && <Image className="w-3 h-3" />}
               {att.type === 'file' && <File className="w-3 h-3" />}
               <span>{att.name}</span>
               <button
@@ -448,10 +477,17 @@ const MessageInput: React.FC<MessageInputProps> = ({
                   className="flex items-center gap-2 text-left hover:opacity-85 transition-opacity min-w-0 flex-1"
                 >
                   <Reply className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                  {replyImageUrl && (
+                    <img
+                      src={replyImageUrl}
+                      alt="Миниатюра ответа"
+                      className="w-7 h-7 rounded-md object-cover border border-[var(--border-light)] flex-shrink-0"
+                    />
+                  )}
                   <div className="overflow-hidden min-w-0">
                     <p className="text-[11px] text-blue-500 font-medium leading-[1.1] truncate">Ответ: {replyToMessage.authorName}</p>
                     <p className="text-[11px] text-[var(--text-secondary)] truncate leading-[1.1]">
-                      {replyToMessage.content.length > 40 ? replyToMessage.content.substring(0, 40) + '...' : replyToMessage.content}
+                      {replyPreviewText}
                     </p>
                   </div>
                 </button>
@@ -472,7 +508,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
               ref={messageInputRef}
               onContextMenu={(e) => {
                 e.preventDefault();
-                handleTextSelection();
+                handleTextSelection({ x: e.clientX, y: e.clientY });
               }}
               onFocus={() => {
                 isUserActiveRef.current = true;

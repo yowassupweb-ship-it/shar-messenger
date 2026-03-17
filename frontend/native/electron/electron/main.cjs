@@ -156,6 +156,41 @@ function registerWindowControls(mainWindow) {
   });
 }
 
+function registerInputContextMenu(mainWindow) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  mainWindow.webContents.on('context-menu', (_event, params) => {
+    if (!params) return;
+
+    const hasSelection = typeof params.selectionText === 'string' && params.selectionText.trim().length > 0;
+    const inputFieldType = typeof params.inputFieldType === 'string' ? params.inputFieldType : 'none';
+    const isInputField = inputFieldType !== 'none';
+    const hasEditFlags = Boolean(
+      params.editFlags?.canUndo ||
+      params.editFlags?.canRedo ||
+      params.editFlags?.canCut ||
+      params.editFlags?.canCopy ||
+      params.editFlags?.canPaste ||
+      params.editFlags?.canSelectAll
+    );
+    const isEditableContext = Boolean(params.isEditable || isInputField || hasEditFlags);
+
+    if (!isEditableContext && !hasSelection) return;
+
+    const menu = Menu.buildFromTemplate([
+      { role: 'undo', enabled: Boolean(params.editFlags?.canUndo) },
+      { role: 'redo', enabled: Boolean(params.editFlags?.canRedo) },
+      { type: 'separator' },
+      { role: 'cut', enabled: Boolean(params.editFlags?.canCut) },
+      { role: 'copy', enabled: Boolean(params.editFlags?.canCopy || hasSelection) },
+      { role: 'paste', enabled: Boolean(params.editFlags?.canPaste || isEditableContext) },
+      { role: 'selectAll', enabled: Boolean(params.editFlags?.canSelectAll || isEditableContext) },
+    ]);
+
+    menu.popup({ window: mainWindow });
+  });
+}
+
 // Notification system
 let activeNotifications = [];
 let mainWindowRef = null;
@@ -166,7 +201,7 @@ function createNotificationWindow(data, mainWindow) {
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
   const notificationWidth = 380;
-  const notificationHeight = 110;
+  const notificationHeight = 142;
   const margin = 16;
   
   // Вычисляем позицию (правый нижний угол с учетом других уведомлений)
@@ -269,7 +304,7 @@ function repositionNotifications() {
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
   const notificationWidth = 380;
-  const notificationHeight = 110;
+  const notificationHeight = 142;
   const margin = 16;
   
   const baseX = screenWidth - notificationWidth - margin;
@@ -349,6 +384,7 @@ function createWindow() {
 
   Menu.setApplicationMenu(null);
   registerWindowControls(mainWindow);
+  registerInputContextMenu(mainWindow);
 
   // Сохраняем ссылку на главное окно для уведомлений
   mainWindowRef = mainWindow;
@@ -950,6 +986,10 @@ function createWindow() {
 
 // Устанавливаем название приложения для уведомлений и других системных diалогов
 app.setName('Shar OS');
+
+if (process.platform === 'win32') {
+  app.setAppUserModelId('ru.shar.os');
+}
 
 app.whenReady().then(() => {
   createWindow();

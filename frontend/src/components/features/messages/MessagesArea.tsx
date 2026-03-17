@@ -67,11 +67,11 @@ export default function MessagesArea({
   const dockOffsetRef = useRef(96);
   const previousDockOffsetRef = useRef(96);
   const containerClass = isDesktopView
-    ? `flex-1 min-h-[260px] overflow-x-hidden overscroll-contain p-4 ${hasPinnedMessage ? 'pt-28' : 'pt-16'} pb-0 bg-transparent scrollbar-hide-mobile`
-    : `flex-1 min-h-[220px] overflow-x-hidden overscroll-contain p-[3px] ${hasPinnedMessage ? 'pt-[164px]' : 'pt-[120px]'} pb-0 bg-transparent scrollbar-hide-mobile`;
+    ? `flex-1 min-h-0 overflow-x-hidden overscroll-contain p-4 ${hasPinnedMessage ? 'pt-28' : 'pt-16'} pb-0 bg-transparent scrollbar-hide-mobile`
+    : `flex-1 min-h-0 overflow-x-hidden overscroll-contain p-[3px] ${hasPinnedMessage ? 'pt-[164px]' : 'pt-[120px]'} pb-0 bg-transparent scrollbar-hide-mobile`;
   const innerClass = isDesktopView
-    ? 'px-4 lg:px-8 h-full min-w-0'
-    : 'px-0 h-full min-w-0';
+    ? 'px-4 lg:px-8 min-w-0'
+    : 'px-0 min-w-0';
   const listSpacingClass = isDesktopView ? 'space-y-[3px]' : 'space-y-1.5';
   const chatBackgroundColor = theme === 'dark'
     ? (chatSettings?.chatBackgroundDark || '#0f172a')
@@ -203,12 +203,6 @@ export default function MessagesArea({
       const offsetDelta = nextOffset - previousOffset;
       const container = messagesListRef.current;
 
-      let shouldKeepBottomAnchor = false;
-      if (!isDesktopView && container && offsetDelta !== 0) {
-        const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-        shouldKeepBottomAnchor = distanceToBottom <= Math.max(120, previousOffset + 24);
-      }
-
       if (dockOffsetRef.current !== nextOffset) {
         dockOffsetRef.current = nextOffset;
         setDockOffsetPx(nextOffset);
@@ -217,10 +211,6 @@ export default function MessagesArea({
       previousDockOffsetRef.current = nextOffset;
 
       spacerEl.style.height = `${dockOffsetRef.current}px`;
-
-      if (!isDesktopView && container && shouldKeepBottomAnchor && offsetDelta !== 0) {
-        container.scrollTop += offsetDelta;
-      }
     };
 
     updateDockOffset();
@@ -269,8 +259,7 @@ export default function MessagesArea({
     };
   }, [messagesListRef, messagesEndRef, selectedChat.id, messages.length, messageSearchQuery]);
 
-  const shouldScroll = hasRealOverflow;
-  const scrollBehaviorClass = shouldScroll ? 'overflow-y-auto' : 'overflow-y-hidden';
+  const scrollBehaviorClass = 'overflow-y-auto';
 
   const isMessageReadByOthers = (message: Message): boolean => {
     if (!currentUser || !selectedChat?.readMessagesByUser) return false;

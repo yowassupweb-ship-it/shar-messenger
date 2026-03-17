@@ -1,0 +1,6 @@
+!define MUI_WELCOMEPAGE_TITLE "Установка Shar OS"
+!define MUI_WELCOMEPAGE_TEXT "Balanced Deep стиль загрузки и фирменная тема Shar OS."
+!define MUI_FINISHPAGE_TITLE "Shar OS установлен"
+!define MUI_FINISHPAGE_TEXT "Установка завершена. Можно запускать Shar OS."
+!define MUI_UNWELCOMEPAGE_TITLE "Удаление Shar OS"
+!define MUI_UNFINISHPAGE_TITLE "Shar OS удален"

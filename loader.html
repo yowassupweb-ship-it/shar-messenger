@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shar OS | Balanced Deep</title>
+    <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Syne:wght@700&display=swap" rel="stylesheet">
+    <style>
+        /* Твои базовые стили */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            overflow: hidden; 
+            background: #0a0e27; 
+            font-family: sans-serif;
+            cursor: default; 
+        }
+
+        #webGLApp {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+        }
+
+        /* Dela Gothic One c Kinetic Scale (растяжение) */
+        .heading {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%) scaleX(1.4);
+            z-index: 10;
+            color: white;
+            text-align: center;
+            font-family: "Dela Gothic One", cursive;
+            font-size: clamp(3rem, 7vw, 6rem);
+            pointer-events: none;
+            letter-spacing: -0.02em;
+            text-shadow: 0 15px 50px rgba(0,0,0,0.25);
+            opacity: 0.98;
+        }
+
+        /* Твой сбалансированный футер */
+        .footer {
+            position: fixed; bottom: 2rem; left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            color: rgba(255,255,255,0.4);
+            font-family: "Syne", sans-serif;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3em;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="webGLApp"></div>
+    <h1 class="heading">Шар OS</h1>
+    <div class="footer">Balanced Deep Pattern</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script id="vertexShader" type="x-shader/x-vertex">
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = vec4(position, 1.0);
+        }
+    </script>
+
+    <script id="fragmentShader" type="x-shader/x-fragment">
+        uniform float uTime;
+        uniform vec2 uResolution;
+        
+        // Те самые цвета со скриншота (F15A22 и 0a0e27)
+        uniform vec3 uColor1; // Orange
+        uniform vec3 uColor2; // Navy
+        uniform vec3 uDarkNavy;
+        
+        uniform float uSpeed;
+        uniform float uGrainIntensity;
+        varying vec2 vUv;
+
+        // Зернистость
+        float grain(vec2 uv, float time) {
+            vec2 grainUv = uv * uResolution * 0.5;
+            float grainValue = fract(sin(dot(grainUv + time, vec2(12.9898, 78.233))) * 43758.5453);
+            return grainValue * 2.0 - 1.0;
+        }
+
+        // --- ДОРАБОТАННЫЙ СБАЛАНСИРОВАННЫЙ ПАТТЕРН ---
+        vec3 getGradientColor(vec2 uv, float time) {
+            float gradientRadius = 0.5;
+            
+            // Восстановлены все 12 анимированных центров
+            vec2 c1 = vec2(0.5 + sin(time * uSpeed * 0.4) * 0.4, 0.5 + cos(time * uSpeed * 0.5) * 0.4);
+            vec2 c2 = vec2(0.5 + cos(time * uSpeed * 0.6) * 0.5, 0.5 + sin(time * uSpeed * 0.45) * 0.5);
+            vec2 c3 = vec2(0.5 + sin(time * uSpeed * 0.35) * 0.45, 0.5 + cos(time * uSpeed * 0.55) * 0.45);
+            vec2 c4 = vec2(0.5 + cos(time * uSpeed * 0.5) * 0.4, 0.5 + sin(time * uSpeed * 0.4) * 0.4);
+            vec2 c5 = vec2(0.5 + sin(time * uSpeed * 0.7) * 0.35, 0.5 + cos(time * uSpeed * 0.6) * 0.35);
+            vec2 c6 = vec2(0.5 + cos(time * uSpeed * 0.45) * 0.5, 0.5 + sin(time * uSpeed * 0.65) * 0.5);
+            
+            // Дополнительные центры для глубины (7-12)
+            vec2 c7 = vec2(0.5 + sin(time * uSpeed * 0.55) * 0.38, 0.5 + cos(time * uSpeed * 0.48) * 0.42);
+            vec2 c8 = vec2(0.5 + cos(time * uSpeed * 0.65) * 0.36, 0.5 + sin(time * uSpeed * 0.52) * 0.44);
+            vec2 c9 = vec2(0.5 + sin(time * uSpeed * 0.42) * 0.41, 0.5 + cos(time * uSpeed * 0.58) * 0.39);
+            vec2 c10 = vec2(0.5 + cos(time * uSpeed * 0.48) * 0.37, 0.5 + sin(time * uSpeed * 0.62) * 0.43);
+            vec2 c11 = vec2(0.5 + sin(time * uSpeed * 0.68) * 0.33, 0.5 + cos(time * uSpeed * 0.44) * 0.46);
+            vec2 c12 = vec2(0.5 + cos(time * uSpeed * 0.38) * 0.39, 0.5 + sin(time * uSpeed * 0.56) * 0.41);
+            
+            // --- НОВАЯ СБАЛАНСИРОВАННАЯ КОМПОЗИЦИЯ ---
+            // Усиливаем влияние в левом нижнем углу за счет центров c3, c7, c11
+            float d3 = length(uv - (c3 * vec2(0.8, 0.8) + vec2(0.1, 0.1))); // Смещаем c3 к углу
+            float d7 = length(uv - (c7 * vec2(0.9, 0.9) + vec2(0.05, 0.05))); // Смещаем c7
+            float d11 = length(uv - c11);
+            
+            // Influence areas c учетом смещения
+            float influence3 = 1.0 - smoothstep(0.0, gradientRadius * 1.2, d3); // Больше радиус
+            float influence7 = 1.0 - smoothstep(0.0, gradientRadius, d7);
+            
+            // Стандартное влияние остальных
+            float influence1 = 1.0 - smoothstep(0.0, gradientRadius, length(uv - c1));
+            float influence2 = 1.0 - smoothstep(0.0, gradientRadius, length(uv - c2));
+            float influence4 = 1.0 - smoothstep(0.0, gradientRadius, length(uv - c4));
+            float influence5 = 1.0 - smoothstep(0.0, gradientRadius, length(uv - c5));
+            float influence6 = 1.0 - smoothstep(0.0, gradientRadius, length(uv - c6));
+            float influence8 = 1.0 - smoothstep(0.0, gradientRadius, length(uv - c8));
+            float influence9 = 1.0 - smoothstep(0.0, gradientRadius, length(uv - c9));
+            float influence10 = 1.0 - smoothstep(0.0, gradientRadius, length(uv - c10));
+            float influence11 = 1.0 - smoothstep(0.0, gradientRadius, d11);
+            float influence12 = 1.0 - smoothstep(0.0, gradientRadius, length(uv - c12));
+            
+            // Blend Colors
+            vec3 color = vec3(0.0);
+            
+            // Усиленные центры для баланса
+            color += uColor1 * influence1 * (0.55 + 0.45 * sin(time * uSpeed));
+            color += uColor1 * influence3 * (0.65 + 0.45 * sin(time * uSpeed * 0.8)); // Усилено
+            color += uColor1 * influence5 * (0.55 + 0.45 * sin(time * uSpeed * 1.1));
+            color += uColor1 * influence7 * (0.60 + 0.45 * sin(time * uSpeed * 1.4)); // Усилено
+            color += uColor1 * influence9 * (0.55 + 0.45 * sin(time * uSpeed * 1.6));
+            color += uColor1 * influence11 * (0.55 + 0.45 * sin(time * uSpeed * 1.8));
+            
+            // Пятна Navy
+            color += uColor2 * influence2 * (0.55 + 0.45 * cos(time * uSpeed * 1.2));
+            color += uColor2 * influence4 * (0.55 + 0.45 * cos(time * uSpeed * 1.3));
+            color += uColor2 * influence6 * (0.55 + 0.45 * cos(time * uSpeed * 0.9));
+            color += uColor2 * influence8 * (0.55 + 0.45 * cos(time * uSpeed * 1.5));
+            color += uColor2 * influence10 * (0.55 + 0.45 * cos(time * uSpeed * 1.7));
+            color += uColor2 * influence12 * (0.55 + 0.45 * cos(time * uSpeed * 1.9));
+            
+            color = clamp(color, vec3(0.0), vec3(1.0));
+            
+            // Ensure deep navy base
+            color = mix(uDarkNavy, color, 0.6);
+            
+            return color;
+        }
+
+        void main() {
+            vec2 uv = vUv;
+            vec3 color = getGradientColor(uv, uTime);
+            
+            // Зернистость
+            float grainValue = grain(uv, uTime);
+            // Уменьшаем интенсивность зерна в правом верхнем углу (где текст)
+            float grainMask = smoothstep(1.0, 0.3, length(uv - vec2(0.85, 0.85)));
+            color += grainValue * uGrainIntensity * grainMask;
+            
+            color = clamp(color, vec3(0.0), vec3(1.0));
+            
+            gl_FragColor = vec4(color, 1.0);
+        }
+    </script>
+
+    <script>
+        // WebGL Core (GPU)
+        const container = document.getElementById('webGLApp');
+        const scene = new THREE.Scene();
+        const camera = new THREE.Camera();
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        const uniforms = {
+            uTime: { value: 1.0 },
+            uResolution: { value: new THREE.Vector2(renderer.domElement.width, renderer.domElement.height) },
+            uColor1: { value: new THREE.Vector3(0.945, 0.353, 0.133) }, // Orange
+            uColor2: { value: new THREE.Vector3(0.039, 0.055, 0.153) }, // Navy
+            uDarkNavy: { value: new THREE.Vector3(0.039, 0.055, 0.153) }, // Deep Navy base
+            uSpeed: { value: 0.20 }, // Медленное течение
+            uGrainIntensity: { value: 0.07 }
+        };
+
+        const geometry = new THREE.PlaneBufferGeometry(2, 2);
+        const material = new THREE.ShaderMaterial({
+            uniforms: uniforms,
+            vertexShader: document.getElementById('vertexShader').textContent,
+            fragmentShader: document.getElementById('fragmentShader').textContent
+        });
+
+        const mesh = new THREE.Mesh(geometry, material);
+        scene.add(mesh);
+
+        const clock = new THREE.Clock();
+
+        function animate() {
+            uniforms.uTime.value += clock.getDelta();
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+
+        function onWindowResize() {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            uniforms.uResolution.value.x = renderer.domElement.width;
+            uniforms.uResolution.value.y = renderer.domElement.height;
+        }
+
+        window.addEventListener('resize', onWindowResize);
+        animate();
+    </script>
+</body>
+</html>

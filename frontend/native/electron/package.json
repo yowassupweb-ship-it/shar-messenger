@@ -39,6 +39,8 @@
         "nsis",
         "portable"
       ],
+      "executableName": "Shar OS",
+      "signAndEditExecutable": true,
       "icon": "electron/icon.ico",
       "publish": {
         "provider": "generic",
@@ -49,7 +51,13 @@
       "artifactName": "Shar setup.${ext}",
       "installerIcon": "electron/icon.ico",
       "uninstallerIcon": "electron/icon.ico",
-      "installerHeaderIcon": "electron/icon.ico"
+      "installerHeaderIcon": "electron/icon.ico",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Shar OS",
+      "include": "electron/installer.nsh"
     },
     "portable": {
       "artifactName": "Shar OS.${ext}"

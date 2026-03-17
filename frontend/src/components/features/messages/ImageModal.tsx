@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 interface ImageModalProps {
   isOpen: boolean;
@@ -16,7 +17,39 @@ export default function ImageModal({
   zoom,
   setZoom,
 }: ImageModalProps) {
+  useEffect(() => {
+    if (!isOpen || typeof document === 'undefined') return;
+
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = originalBodyOverflow;
+      document.documentElement.style.overflow = originalHtmlOverflow;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || typeof window === 'undefined') return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+        setZoom(1);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose, setZoom]);
+
   if (!isOpen || !imageUrl) return null;
+  if (typeof document === 'undefined') return null;
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
@@ -62,9 +95,9 @@ export default function ImageModal({
     }
   };
 
-  return (
+  const modalContent = (
     <div 
-      className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center"
+      className="fixed inset-0 z-[99999] bg-black/95 flex items-center justify-center"
       onClick={handleBackdropClick}
     >
       {/* Header с кнопками - десктоп версия */}
@@ -182,7 +215,7 @@ export default function ImageModal({
         </button>
       </div>
       
-      <div className="w-screen h-screen flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+      <div className="w-screen h-[100dvh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
         <img 
           src={imageUrl}
           alt="Full size"
@@ -205,4 +238,6 @@ export default function ImageModal({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }

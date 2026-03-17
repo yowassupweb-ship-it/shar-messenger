@@ -49,7 +49,6 @@ export default function EmojiPicker({ onEmojiSelect, onClose }: EmojiPickerProps
               key={idx}
               onClick={() => {
                 onEmojiSelect(emoji);
-                onClose();
               }}
               className="w-9 h-9 rounded-lg hover:bg-white/10 flex items-center justify-center text-2xl transition-all hover:scale-110 active:scale-95"
               title={emoji}

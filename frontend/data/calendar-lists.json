@@ -33,6 +33,19 @@
         "admin"
       ],
       "allowedDepartments": []
+    },
+    {
+      "id": "personal-admin@local.dev",
+      "name": "Личный календарь (admin@local.dev)",
+      "description": "Личный календарь пользователя. События доступны владельцу.",
+      "color": "#10B981",
+      "createdBy": "admin@local.dev",
+      "createdAt": "2026-03-12T13:05:18.481Z",
+      "updatedAt": "2026-03-12T13:05:18.481Z",
+      "allowedUsers": [
+        "admin@local.dev"
+      ],
+      "allowedDepartments": []
     }
   ],
   "activeListId": "shared-main"

@@ -340,6 +340,36 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const replyTo = message.replyToId 
     ? messages.find(m => m.id === message.replyToId)
     : null;
+  const replyImageUrl = React.useMemo(() => {
+    if (!replyTo) return '';
+
+    const imageAttachment = (replyTo.attachments || []).find((attachment: any) => {
+      if (attachment?.type !== 'image') return false;
+      return Boolean(String(attachment?.url || '').trim());
+    });
+
+    if (imageAttachment?.url) return String(imageAttachment.url).trim();
+
+    const replyUrls = String(replyTo.content || '').match(/(https?:\/\/[^\s<>"']+)/gi) || [];
+    const replyImagePattern = /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|tiff?)(\?|$|#)/i;
+    const replyImageUrlMatch = replyUrls.find((url) => replyImagePattern.test(url));
+    return replyImageUrlMatch ? String(replyImageUrlMatch).trim() : '';
+  }, [replyTo]);
+  const replyPreviewText = React.useMemo(() => {
+    if (!replyTo) return '';
+
+    const content = String(replyTo.content || '').trim();
+    if (content) {
+      return content.length > 50 ? `${content.substring(0, 50)}...` : content;
+    }
+
+    if (replyImageUrl) return 'Фото';
+
+    const attachmentsCount = Array.isArray(replyTo.attachments) ? replyTo.attachments.length : 0;
+    if (attachmentsCount > 0) return `Вложений: ${attachmentsCount}`;
+
+    return 'Сообщение';
+  }, [replyTo, replyImageUrl]);
   
   // Получаем автора сообщения для аватара
   const messageAuthor = users.find(u => u.id === authorId);
@@ -562,22 +592,22 @@ const MessageItem: React.FC<MessageItemProps> = ({
 
     const tileClass = (index: number) => {
       if (images.length === 1) {
-        return 'aspect-[4/3] md:aspect-[16/10] min-h-[180px] md:min-h-[240px] max-h-[620px] col-span-1';
+        return 'aspect-[4/3] md:aspect-[16/10] min-h-[110px] md:min-h-[140px] max-h-[280px] col-span-1';
       }
       if (images.length === 2) {
-        return 'aspect-[4/3] min-h-[120px] md:min-h-[170px] col-span-1';
+        return 'aspect-[4/3] min-h-[84px] md:min-h-[110px] col-span-1';
       }
       if (images.length === 3 && index === 0) {
-        return 'col-span-2 aspect-[16/9] min-h-[160px] md:min-h-[200px]';
+        return 'col-span-2 aspect-[16/9] min-h-[100px] md:min-h-[128px]';
       }
       if (images.length === 3) {
-        return 'aspect-[4/3] min-h-[110px] md:min-h-[140px] col-span-1';
+        return 'aspect-[4/3] min-h-[74px] md:min-h-[96px] col-span-1';
       }
-      return 'aspect-[4/3] min-h-[110px] md:min-h-[150px] col-span-1';
+      return 'aspect-[4/3] min-h-[74px] md:min-h-[96px] col-span-1';
     };
 
     return (
-      <div className="mt-2 mb-1 pb-4 pr-2 w-full max-w-[min(92vw,760px)] md:max-w-[760px]">
+      <div className="mt-2 mb-1 pb-2 pr-2 w-full max-w-[min(72vw,420px)] md:max-w-[420px]">
         <div className={gridClass}>
           {visibleImages.map((image, idx) => {
             const isLastVisibleWithOverflow = hiddenCount > 0 && idx === visibleImages.length - 1;
@@ -862,11 +892,25 @@ const MessageItem: React.FC<MessageItemProps> = ({
                   e.stopPropagation();
                   scrollToMessage(replyTo.id);
                 }}
-                className="text-[10px] text-[var(--text-muted)] px-3 hover:text-blue-400 transition-colors inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap"
-                style={{ maxWidth: isMyMessage ? '200px' : '280px' }}
+                className="text-[10px] text-[var(--text-muted)] px-3 py-1 hover:text-blue-400 transition-colors inline-flex items-center gap-2 max-w-full"
+                style={{ maxWidth: isMyMessage ? '220px' : '300px' }}
               >
                 <Reply className="w-3 h-3 inline mr-1" />
-                Ответ на: {replyTo.content.substring(0, 50)}...
+                {replyImageUrl && (
+                  <img
+                    src={replyImageUrl}
+                    alt="Миниатюра вложения"
+                    className="w-8 h-8 rounded-md object-cover border border-[var(--border-light)] flex-shrink-0"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setCurrentImageUrl(replyImageUrl);
+                      setShowImageModal(true);
+                    }}
+                  />
+                )}
+                <span className="truncate">
+                  Ответ на: {replyPreviewText}
+                </span>
               </button>
             </div>
           )}

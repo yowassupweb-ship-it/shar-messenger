@@ -53,15 +53,26 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
   getChatTitle,
 }) => {
   const router = useRouter();
+  const [viewportWidth, setViewportWidth] = React.useState(() => {
+    if (typeof window === 'undefined') return 1440;
+    return window.innerWidth;
+  });
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const onResize = () => {
+      setViewportWidth(window.innerWidth);
+    };
+
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   if (!showChatInfo || !selectedChat) return null;
 
-  const detectMobileView = () => {
-    if (typeof window === 'undefined') return false;
-    return window.innerWidth < 768;
-  };
-
-  const isMobileView = detectMobileView();
+  const isModalView = viewportWidth < 1300;
+  const isMobileView = viewportWidth < 768;
 
   // Desktop layout constants (matching ChatSidebar)
   const desktopBottomMenuHeight = 46;
@@ -228,29 +239,29 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
   return (
     <>
       {/* Mobile overlay */}
-      {isMobileView && (
+      {isModalView && (
         <div
-          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          className="fixed inset-0 z-40 bg-black/40"
           onClick={() => setShowChatInfo(false)}
         />
       )}
       
       <div 
-        className="fixed inset-y-0 right-0 left-auto z-50 md:relative md:inset-auto md:z-auto w-full max-w-[85%] md:max-w-none md:w-80 md:min-w-80 flex flex-col bg-transparent flex-shrink-0 overflow-hidden shadow-[var(--shadow-card)] transition-transform duration-300 md:transition-none"
+        className={`${isModalView ? 'fixed top-[46%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[min(96vw,760px)] max-h-[82vh]' : 'fixed inset-y-0 right-0 left-auto z-50 md:relative md:inset-auto md:z-auto w-full max-w-[85%] md:max-w-none md:w-80 md:min-w-80'} flex flex-col bg-transparent flex-shrink-0 overflow-hidden shadow-[var(--shadow-card)] transition-transform duration-300 md:transition-none`}
         style={{
-          borderRadius: isMobileView ? '0' : '20px',
-          margin: isMobileView ? '0' : `5px 5px ${desktopBottomOffset}px 0`,
-        height: isMobileView ? '100%' : `calc(100% - ${desktopBottomOffset}px)`,
+          borderRadius: isModalView ? '20px' : (isMobileView ? '0' : '20px'),
+          margin: isModalView ? '0' : (isMobileView ? '0' : `5px 5px ${desktopBottomOffset}px 0`),
+        height: isModalView ? 'min(82vh, calc(100vh - 132px))' : (isMobileView ? '100%' : `calc(100% - ${desktopBottomOffset}px)`),
         borderColor: 'var(--border-light)',
         borderStyle: 'solid',
-        borderWidth: isMobileView ? '0 0 0 1px' : '1px',
+        borderWidth: isModalView ? '1px' : (isMobileView ? '0 0 0 1px' : '1px'),
       }}
     >
       {/* Background layer for 100% reliable blur without destroying child blurs */}
       <div 
         className="absolute inset-0 z-0 pointer-events-none rounded-[20px] overflow-hidden"
         style={{
-          borderRadius: isMobileView ? '0' : '20px',
+          borderRadius: isModalView ? '20px' : (isMobileView ? '0' : '20px'),
           backgroundColor: 'var(--bg-glass)',
           backdropFilter: 'blur(24px)',
           WebkitBackdropFilter: 'blur(24px)',
