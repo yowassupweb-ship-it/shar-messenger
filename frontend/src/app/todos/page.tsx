@@ -3395,8 +3395,64 @@ export default function TodosPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[var(--bg-secondary)] flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-2 border-white/30 border-t-transparent rounded-full"></div>
+      <div className="todos-page h-screen flex flex-col overflow-hidden bg-[var(--bg-secondary)]">
+        {/* Skeleton header */}
+        <div className="absolute top-0 left-0 right-0 z-40 w-full px-3 py-2">
+          <div className="flex items-center gap-2 w-full min-[550px]:hidden">
+            <div className="flex-shrink-0 w-9 h-9 rounded-full bg-[var(--bg-glass-active)] animate-pulse" />
+            <div className="flex-1 h-9 rounded-[20px] bg-[var(--bg-glass-active)] animate-pulse" />
+            <div className="flex-shrink-0 w-9 h-9 rounded-[20px] bg-[var(--bg-glass-active)] animate-pulse" />
+            <div className="flex-shrink-0 w-9 h-9 rounded-full bg-[var(--bg-glass-active)] animate-pulse" />
+          </div>
+          <div className="hidden min-[550px]:flex items-center justify-center gap-2">
+            <div className="w-[200px] h-10 rounded-[20px] bg-[var(--bg-glass-active)] animate-pulse" />
+            <div className="w-28 h-10 rounded-[20px] bg-[var(--bg-glass-active)] animate-pulse" />
+            <div className="w-28 h-10 rounded-[20px] bg-[var(--bg-glass-active)] animate-pulse" />
+            <div className="w-24 h-10 rounded-[20px] bg-[var(--bg-glass-active)] animate-pulse" />
+          </div>
+        </div>
+        {/* Skeleton columns */}
+        <div className="flex-1 flex gap-3 px-3 pt-14 pb-3 overflow-hidden">
+          {[1, 2, 3].map((col) => (
+            <div key={col} className="min-[550px]:w-[320px] min-[550px]:flex-none flex-col gap-2 hidden min-[550px]:flex">
+              {/* Column header */}
+              <div className="flex items-center gap-2 px-1 mb-1">
+                <div className="w-2.5 h-2.5 rounded-full bg-[var(--bg-glass-active)] animate-pulse" />
+                <div className="w-24 h-4 rounded bg-[var(--bg-glass-active)] animate-pulse" />
+                <div className="ml-auto w-6 h-4 rounded bg-[var(--bg-glass)] animate-pulse" />
+              </div>
+              {/* Skeleton cards */}
+              {Array.from({ length: col === 2 ? 4 : col === 1 ? 3 : 2 }).map((_, i) => (
+                <div key={i} className="rounded-2xl bg-[var(--bg-glass)] border border-[var(--border-light)] p-3 animate-pulse" style={{ opacity: 1 - i * 0.12 }}>
+                  <div className="h-3.5 bg-[var(--bg-glass-active)] rounded mb-2" style={{ width: `${70 + (i % 3) * 10}%` }} />
+                  <div className="h-3 bg-[var(--bg-glass)] rounded mb-3" style={{ width: `${40 + (i % 2) * 20}%` }} />
+                  <div className="flex gap-1.5 mt-2">
+                    <div className="w-5 h-5 rounded-full bg-[var(--bg-glass-active)]" />
+                    <div className="w-5 h-5 rounded-full bg-[var(--bg-glass-active)]" />
+                    <div className="ml-auto w-12 h-3.5 rounded bg-[var(--bg-glass)]" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+          {/* Mobile: single column skeleton */}
+          <div className="flex-1 flex flex-col gap-2 min-[550px]:hidden">
+            <div className="flex items-center gap-2 px-1 mb-1">
+              <div className="w-2.5 h-2.5 rounded-full bg-[var(--bg-glass-active)] animate-pulse" />
+              <div className="w-24 h-4 rounded bg-[var(--bg-glass-active)] animate-pulse" />
+            </div>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="rounded-2xl bg-[var(--bg-glass)] border border-[var(--border-light)] p-3 animate-pulse" style={{ opacity: 1 - i * 0.15 }}>
+                <div className="h-3.5 bg-[var(--bg-glass-active)] rounded mb-2" style={{ width: `${70 + (i % 3) * 10}%` }} />
+                <div className="h-3 bg-[var(--bg-glass)] rounded mb-3" style={{ width: `${40 + (i % 2) * 20}%` }} />
+                <div className="flex gap-1.5 mt-2">
+                  <div className="w-5 h-5 rounded-full bg-[var(--bg-glass-active)]" />
+                  <div className="ml-auto w-12 h-3.5 rounded bg-[var(--bg-glass)]" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

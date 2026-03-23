@@ -155,122 +155,6 @@ export default function CalendarBoard() {
   const [newListAllowedUsers, setNewListAllowedUsers] = useState<string[]>([]);
   const [newListAllowedDepartments, setNewListAllowedDepartments] = useState<string[]>([]);
   const [editListAccess, setEditListAccess] = useState<{listId: string, users: string[], departments: string[]} | null>(null);
-
-  const sendCalendarEventUpdateNotification = useCallback(async (event: CalendarEvent, previousEvent?: CalendarEvent | null) => {
-    const eventId = String(event?.id || '').trim();
-    if (!eventId) return;
-
-    let userId = '';
-    try {
-      const myAccountRaw = localStorage.getItem('myAccount');
-      const myAccount = myAccountRaw ? JSON.parse(myAccountRaw) : null;
-      userId = String(myAccount?.id || localStorage.getItem('username') || '').trim();
-    } catch {
-      userId = String(localStorage.getItem('username') || '').trim();
-    }
-
-    if (!userId) return;
-
-    const title = String(event?.title || 'Событие').trim() || 'Событие';
-    const calendarName = calendarLists.find((list) => list.id === event.listId)?.name || 'Личный календарь';
-    const formatType = (value?: string) => {
-      switch (value) {
-        case 'work':
-          return 'Работа';
-        case 'meeting':
-          return 'Встреча';
-        case 'event':
-          return 'Событие';
-        case 'holiday':
-          return 'Праздник';
-        case 'task':
-          return 'Задача';
-        case 'tz':
-          return 'ТЗ';
-        default:
-          return value || 'Не указан';
-      }
-    };
-
-    const buildChanges = (): string[] => {
-      const changes: string[] = [];
-      if (!previousEvent) {
-        changes.push(`Календарь: ${calendarName}`);
-        if (event.date) changes.push(`Дата: ${event.date}`);
-        if (event.time) changes.push(`Время: ${event.time}`);
-        if (event.type) changes.push(`Тип: ${formatType(event.type)}`);
-        changes.push(`Напоминание: ${event.remind ? 'включено' : 'выключено'}`);
-        if (event.description) changes.push(`Описание: ${event.description}`);
-        return changes;
-      }
-
-      const pushChange = (label: string, before?: string | boolean, after?: string | boolean) => {
-        const beforeText = typeof before === 'boolean' ? (before ? 'включено' : 'выключено') : String(before || '').trim();
-        const afterText = typeof after === 'boolean' ? (after ? 'включено' : 'выключено') : String(after || '').trim();
-        if (beforeText === afterText) return;
-        changes.push(`${label}: ${beforeText || '—'} → ${afterText || '—'}`);
-      };
-
-      pushChange('Название', previousEvent.title, event.title);
-      pushChange('Дата', previousEvent.date, event.date);
-      pushChange('Время', previousEvent.time, event.time);
-      pushChange('Тип', formatType(previousEvent.type), formatType(event.type));
-      pushChange('Напоминание', Boolean(previousEvent.remind), Boolean(event.remind));
-      pushChange('Описание', previousEvent.description, event.description);
-
-      if (changes.length === 0) {
-        changes.push('Обновлены параметры события');
-      }
-
-      return changes;
-    };
-
-    const changeLines = buildChanges();
-    const body = [`«${title}»`, ...changeLines].join('\n');
-    const browserBody = changeLines.length > 0 ? `${title} • ${changeLines[0]}` : title;
-    const notificationTitle = previousEvent ? 'Событие обновлено' : 'Новое событие';
-
-    try {
-      await fetch(`/api/chats/notifications/${encodeURIComponent(userId)}/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: `${notificationTitle}\n${body}`,
-          notificationType: 'event_update',
-          linkedEventId: eventId,
-          linkedEventTitle: title,
-        }),
-      });
-
-      if (typeof window !== 'undefined' && window.sharDesktop?.showNotification) {
-        try {
-          void window.sharDesktop.showNotification({
-            title: notificationTitle,
-            subtitle: calendarName,
-            senderName: notificationTitle,
-            message: browserBody,
-            timestamp: Date.now(),
-            url: '/account?tab=calendar',
-            kind: 'event',
-          });
-        } catch {
-          // ignore electron notification errors
-        }
-      } else if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-        try {
-          new Notification(notificationTitle, {
-            body: browserBody,
-            tag: `calendar-event-${eventId}`,
-            icon: '/favicon.png',
-          });
-        } catch {
-          // ignore browser notification errors
-        }
-      }
-    } catch (error) {
-      console.warn('[CalendarBoard] Failed to send direct event update notification:', error);
-    }
-  }, [calendarLists]);
   
   // Advanced access management states
   const [accessPermission, setAccessPermission] = useState<'viewer' | 'editor'>('viewer');
@@ -864,10 +748,8 @@ export default function CalendarBoard() {
       });
 
       if (res.ok) {
-        const previousEventSnapshot = { ...editingEvent };
         const updated = await res.json();
         setEvents(prev => prev.map(e => e.id === updated.id ? updated : e));
-        await sendCalendarEventUpdateNotification(updated, previousEventSnapshot);
         setEditingEvent(null);
         setShowAddEvent(false);
         setNewEvent({ title: '', time: '', remind: false, description: '', type: 'work', recurrence: 'once' });

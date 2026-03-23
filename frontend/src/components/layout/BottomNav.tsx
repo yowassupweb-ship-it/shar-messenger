@@ -210,16 +210,16 @@ export default function BottomNav() {
   return (
     <>
       {/* Mobile Bottom Navigation */}
-      <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-3 pb-[max(env(safe-area-inset-bottom),22px)] px-3 z-40 pointer-events-none select-none overflow-visible ${shouldHideMobile || !shouldUseMobileNav || hasActiveModal ? 'hidden' : 'flex'}`} style={{ background: 'transparent' }}>
-        <div className="flex items-center gap-2 pointer-events-auto backdrop-blur-xl bg-gradient-to-b from-white/10 to-white/5 border border-[var(--border-light)] rounded-full px-3 py-1.5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_4px_20px_rgba(0,0,0,0.3)]">
+      <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-2 pb-[max(env(safe-area-inset-bottom),14px)] px-3 z-40 pointer-events-none select-none overflow-visible ${shouldHideMobile || !shouldUseMobileNav || hasActiveModal ? 'hidden' : 'flex'}`} style={{ background: 'transparent' }}>
+        <div className="flex items-center gap-2 p-1.5 rounded-[100px] pointer-events-auto backdrop-blur-xl bg-gradient-to-b from-white/10 to-white/5 border border-[var(--border-light)] px-2 py-1.5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_4px_20px_rgba(0,0,0,0.3)]">
           {visibleTabs.messages && (
             <button
               onClick={() => handleNavClick('/messages')}
-              className="relative w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+              className="relative w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
             >
-              <MessageCircle className="w-4 h-4" strokeWidth={2} />
+              <MessageCircle className="w-5 h-5" strokeWidth={2} />
               {unreadChatsCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
                   {unreadChatsCount > 99 ? '99+' : unreadChatsCount}
                 </span>
               )}
@@ -229,44 +229,44 @@ export default function BottomNav() {
           {visibleTabs.tasks && (
             <button
               onClick={() => handleNavClick('/todos')}
-              className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+              className="w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
             >
-              <CheckSquare className="w-4 h-4" strokeWidth={2} />
+              <CheckSquare className="w-5 h-5" strokeWidth={2} />
             </button>
           )}
 
           {visibleTabs.calendar && (
             <button
               onClick={() => handleNavClick('/calendar')}
-              className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+              className="w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
             >
-              <Calendar className="w-4 h-4" strokeWidth={2} />
+              <Calendar className="w-5 h-5" strokeWidth={2} />
             </button>
           )}
 
           {visibleTabs.contacts && (
             <button
               onClick={() => handleNavClick('/contacts')}
-              className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+              className="w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
             >
-              <Users className="w-4 h-4" strokeWidth={2} />
+              <Users className="w-5 h-5" strokeWidth={2} />
             </button>
           )}
 
           {visibleTabs.links && (
             <button
               onClick={() => handleNavClick('/links')}
-              className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+              className="w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
             >
-              <Globe className="w-4 h-4" strokeWidth={2} />
+              <Globe className="w-5 h-5" strokeWidth={2} />
             </button>
           )}
 
           <button
             onClick={() => handleNavClick('/account?tab=tools')}
-            className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+            className="w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
           >
-            <MoreVertical className="w-4 h-4" strokeWidth={2} />
+            <MoreVertical className="w-5 h-5" strokeWidth={2} />
           </button>
         </div>
       </div>

@@ -21,6 +21,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   userScalable: true,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({
@@ -38,6 +39,20 @@ export default function RootLayout({
         } else {
           document.documentElement.classList.remove('dark');
           document.documentElement.setAttribute('data-theme', 'light');
+        }
+      } catch (e) {}
+      try {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('_platform') === 'tauri') {
+          localStorage.setItem('_platform', 'tauri');
+          params.delete('_platform');
+          var newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
+          window.history.replaceState(null, '', newUrl);
+        }
+        if (localStorage.getItem('_platform') === 'tauri') {
+          document.documentElement.setAttribute('data-platform', 'tauri');
+          var z = localStorage.getItem('tauriZoom');
+          if (z) document.documentElement.style.zoom = z;
         }
       } catch (e) {}
     })();

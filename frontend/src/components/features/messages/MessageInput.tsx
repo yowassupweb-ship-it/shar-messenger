@@ -120,19 +120,34 @@ const MessageInput: React.FC<MessageInputProps> = ({
     updateBottomOffset();
     const rafId = requestAnimationFrame(updateBottomOffset);
     window.addEventListener('resize', updateBottomOffset);
-    window.addEventListener('chat-selection-changed', updateBottomOffset as EventListener);
+
+    // Double rAF: wait for React to commit DOM changes (nav display:none) before reading
+    const onChatSelectionChanged = () => {
+      requestAnimationFrame(() => requestAnimationFrame(updateBottomOffset));
+    };
+    window.addEventListener('chat-selection-changed', onChatSelectionChanged);
+
+    // MutationObserver: watches for nav class changes (flex ↔ hidden) in real time
+    // Watches both mobile (.bottom-nav-fixed) and desktop (.desktop-navigation) navs
+    const navObserver = new MutationObserver(() => requestAnimationFrame(updateBottomOffset));
+    const observeNav = (selector: string) => {
+      const el = document.querySelector(selector);
+      if (el) navObserver.observe(el, { attributes: true, attributeFilter: ['class', 'style'] });
+    };
+    observeNav('.bottom-nav-fixed');
+    observeNav('.desktop-navigation');
 
     return () => {
       cancelAnimationFrame(rafId);
       window.removeEventListener('resize', updateBottomOffset);
-      window.removeEventListener('chat-selection-changed', updateBottomOffset as EventListener);
+      window.removeEventListener('chat-selection-changed', onChatSelectionChanged);
+      navObserver?.disconnect();
     };
   }, [getCurrentNavOffset]);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
     const raf = requestAnimationFrame(() => {
-      window.dispatchEvent(new Event('resize'));
       window.dispatchEvent(new CustomEvent('composer-resize', { detail: { offset: composerBottomOffset } }));
     });
     return () => cancelAnimationFrame(raf);
@@ -293,7 +308,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   return (
     <div
       ref={composerContainerRef}
-      className={`absolute left-0 right-0 z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(env(safe-area-inset-bottom,8px),8px)] ${
+      className={`absolute left-0 right-0 z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(env(safe-area-inset-bottom,8px),8px)] bg-transparent ${
         isDragging ? 'scale-[1.02]' : ''
       }`}
       style={{ bottom: `${composerBottomOffset}px` }}
@@ -373,7 +388,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           </button>
         </div>
       ) : (
-        <div className="flex gap-1 md:gap-2 items-end relative bg-transparent">
+        <div className="flex gap-1 md:gap-2 items-end relative bg-[var(--bg-glass)]/70 backdrop-blur-xl md:bg-transparent md:backdrop-filter-none rounded-[26px] md:rounded-none p-1 md:p-0">
           {/* Emoji button */}
           {!selectedChat?.isNotificationsChat && (
             <div className="relative">

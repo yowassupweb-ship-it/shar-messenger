@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, X, MoreVertical, Search, Pin, PinOff, Bell, Trash2, ChevronLeft, ChevronRight, Archive, Inbox } from 'lucide-react';
+import { ArrowLeft, X, MoreVertical, Search, Pin, PinOff, Bell, Trash2, ChevronLeft, ChevronRight, Archive, Inbox, Copy, Check } from 'lucide-react';
 import Avatar from '@/components/common/data-display/Avatar';
 import type { Chat, User, Message } from '@/components/messages/types';
 
@@ -98,6 +98,7 @@ export default function ChatHeader({
   toggleArchiveChat,
   deleteChat,
 }: ChatHeaderProps) {
+  const [isChatLinkCopied, setIsChatLinkCopied] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(() => {
     if (typeof window === 'undefined') return 1200;
     return window.innerWidth;
@@ -183,6 +184,22 @@ export default function ChatHeader({
       document.removeEventListener('keydown', handleEscape);
     };
   }, [showChatMenu, setShowChatMenu]);
+
+  const handleCopyChatLink = async () => {
+    const chatUrl = `/account?tab=messages&chat=${encodeURIComponent(selectedChat.id)}`;
+    const absoluteChatUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}${chatUrl}`
+      : chatUrl;
+
+    try {
+      await navigator.clipboard.writeText(absoluteChatUrl);
+      setIsChatLinkCopied(true);
+      setShowChatMenu(false);
+      window.setTimeout(() => setIsChatLinkCopied(false), 1800);
+    } catch {
+      setShowChatMenu(false);
+    }
+  };
 
   return (
     <>
@@ -506,6 +523,15 @@ export default function ChatHeader({
               </button>
               {showChatMenu && (
                 <div className="absolute right-0 top-full mt-1 w-48 rounded-lg shadow-2xl z-50 py-1 overflow-hidden bg-[var(--bg-secondary)] border border-[var(--border-color)] backdrop-blur-xl">
+                  <button
+                    onClick={() => {
+                      void handleCopyChatLink();
+                    }}
+                    className="w-full px-3 py-2.5 text-sm text-left flex items-center gap-2.5 text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors"
+                  >
+                    {isChatLinkCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                    {isChatLinkCopied ? 'Ссылка скопирована' : 'Копировать ссылку'}
+                  </button>
                   <button
                     onClick={() => {
                       setShowMessageSearch(true);

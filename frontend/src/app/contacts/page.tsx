@@ -57,8 +57,18 @@ interface CurrentUserInfo {
 export default function ContactsPage() {
   const router = useRouter();
   const { theme } = useTheme();
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [contacts, setContacts] = useState<Contact[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const cached = localStorage.getItem('contacts_cache');
+      if (cached) return JSON.parse(cached) as Contact[];
+    } catch { /* ignore */ }
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    try { return !localStorage.getItem('contacts_cache'); } catch { return true; }
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [showListModal, setShowListModal] = useState(false);
@@ -234,17 +244,13 @@ export default function ContactsPage() {
 
   const loadContacts = async () => {
     try {
-      console.log('[Contacts] Loading contacts...');
       const res = await fetch('/api/users', { cache: 'no-store' });
-      console.log('[Contacts] Response status:', res.status);
       if (res.ok) {
         const data = await res.json();
-        console.log('[Contacts] Loaded users:', data);
         const users = Array.isArray(data) ? data : [];
         setContacts(users);
+        try { localStorage.setItem('contacts_cache', JSON.stringify(users)); } catch { /* ignore */ }
         await fetchAndApplyUserStatuses(users);
-      } else {
-        console.error('[Contacts] Failed to load:', await res.text());
       }
     } catch (error) {
       console.error('Error loading contacts:', error);

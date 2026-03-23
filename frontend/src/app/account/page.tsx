@@ -508,11 +508,13 @@ export default function AccountPage() {
   }, []);
 
   const shouldUseMobileNav = isBelow768;
-  // На мобильной версии полностью скрываем нижнее меню на вкладке чатов,
-  // когда открыт конкретный чат (видна кнопка "Назад")
+  // Скрываем мобильное нижнее меню только на мобиле когда открыт чат
   const hideBottomNavInOpenedChat = activeTab === 'messages' && isBelow768 && isChatOpen;
 
+  const [tabSwitchKey, setTabSwitchKey] = useState(0);
+
   const handleTabChange = (tab: TabType) => {
+    if (tab !== activeTab) setTabSwitchKey(k => k + 1);
     setActiveTab(tab);
     router.push(`/account?tab=${tab}`, { scroll: false });
   };
@@ -711,6 +713,7 @@ export default function AccountPage() {
   };
 
   const isChatStyledTab = activeTab === 'tasks' || activeTab === 'contacts' || activeTab === 'tools' || activeTab === 'links' || activeTab === 'calendar';
+  const isTauri = typeof window !== 'undefined' && localStorage.getItem('_platform') === 'tauri';
   const accountChatBackgroundColor = theme === 'dark'
     ? (chatSettings?.chatBackgroundDark || '#0f172a')
     : (chatSettings?.chatBackgroundLight || '#f8fafc');
@@ -722,13 +725,13 @@ export default function AccountPage() {
     : String(chatSettings?.chatOverlayImageLight || '').trim();
   const accountOverlayScale = Math.max(20, Math.min(200, Number(chatSettings?.chatOverlayScale ?? 100) || 100));
   const accountOverlayOpacity = Math.max(0, Math.min(1, Number(chatSettings?.chatOverlayOpacity ?? 1) || 1));
-  const mobileNavButtonBaseClass = 'w-10 h-10 flex-shrink-0 rounded-[20px] flex items-center justify-center transition-all duration-200 focus:outline-none border backdrop-blur-xl';
+  const mobileNavButtonBaseClass = 'w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-200 focus:outline-none border backdrop-blur-xl';
   const mobileNavButtonActiveClass = 'bg-blue-500/20 text-gray-900 dark:text-white border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)]';
   const mobileNavButtonIdleClass = 'text-[var(--text-primary)] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border-[var(--border-light)] shadow-[var(--shadow-card)]';
 
   return (
     <div
-      className={`h-screen w-full max-w-full min-w-0 theme-text flex flex-col transition-colors duration-300 overflow-hidden overflow-x-hidden relative ${(activeTab === 'tasks' || activeTab === 'contacts' || activeTab === 'tools' || activeTab === 'links' || activeTab === 'calendar') ? '' : 'theme-bg'}`}
+      className={`h-screen w-full max-w-full min-w-0 theme-text flex flex-col transition-colors duration-300 overflow-hidden overflow-x-hidden relative ${isTauri ? 'pt-8' : 'pt-[env(safe-area-inset-top,0px)]'} ${(activeTab === 'tasks' || activeTab === 'contacts' || activeTab === 'tools' || activeTab === 'links' || activeTab === 'calendar') ? '' : 'theme-bg'}`}
       style={isChatStyledTab
         ? {
             backgroundColor: accountChatBackgroundColor,
@@ -760,14 +763,14 @@ export default function AccountPage() {
 
       {/* Main Content */}
       <div className="flex-1 min-w-0 overflow-hidden overflow-x-hidden relative z-10">
-        <div className={`h-full min-w-0 ${activeTab === 'tasks' || activeTab === 'messages' ? '' : 'overflow-y-auto'} overflow-x-hidden`}>
+        <div key={tabSwitchKey} className={`tab-content-enter h-full min-w-0 ${activeTab === 'tasks' || activeTab === 'messages' ? '' : 'overflow-y-auto'} overflow-x-hidden`}>
           {renderContent()}
         </div>
       </div>
 
       {/* Mobile Bottom Navigation Bar - стеклянные кнопки */}
-      <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-3 pb-[max(env(safe-area-inset-bottom),12px)] px-3 z-40 pointer-events-none select-none overflow-visible ${shouldUseMobileNav && !hideBottomNavInOpenedChat ? 'flex' : 'hidden'}`} onCopy={(e) => e.preventDefault()}>
-        <div className="flex items-center gap-1 p-[2px] rounded-full pointer-events-auto select-none backdrop-blur-xl bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[var(--shadow-card)]" onCopy={(e) => e.preventDefault()}>
+      <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-2 pb-[max(env(safe-area-inset-bottom),14px)] px-3 z-40 pointer-events-none select-none overflow-visible ${shouldUseMobileNav && !hideBottomNavInOpenedChat ? 'flex' : 'hidden'}`} onCopy={(e) => e.preventDefault()}>
+        <div className="flex items-center gap-2 p-1.5 rounded-[100px] pointer-events-auto select-none backdrop-blur-xl bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[var(--shadow-card)]" onCopy={(e) => e.preventDefault()}>
           {visibleTabs.messages && (
           <button
             onClick={() => handleTabChange('messages')}
@@ -777,9 +780,9 @@ export default function AccountPage() {
                 : mobileNavButtonIdleClass
             }`}
           >
-            <MessageCircle className="w-4 h-4" strokeWidth={2} />
+            <MessageCircle className="w-5 h-5" strokeWidth={2} />
             {unreadChatsCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
                 {unreadChatsCount > 99 ? '99+' : unreadChatsCount}
               </span>
             )}
@@ -795,7 +798,7 @@ export default function AccountPage() {
                 : mobileNavButtonIdleClass
             }`}
           >
-            <CheckSquare className="w-4 h-4" strokeWidth={2} />
+            <CheckSquare className="w-5 h-5" strokeWidth={2} />
           </button>
           )}
 
@@ -808,7 +811,7 @@ export default function AccountPage() {
                 : mobileNavButtonIdleClass
             }`}
           >
-            <Calendar className="w-4 h-4" strokeWidth={2} />
+            <Calendar className="w-5 h-5" strokeWidth={2} />
           </button>
           )}
 
@@ -821,7 +824,7 @@ export default function AccountPage() {
                 : mobileNavButtonIdleClass
             }`}
           >
-            <Users className="w-4 h-4" strokeWidth={2} />
+            <Users className="w-5 h-5" strokeWidth={2} />
           </button>
           )}
 
@@ -834,7 +837,7 @@ export default function AccountPage() {
                 : mobileNavButtonIdleClass
             }`}
           >
-            <Globe className="w-4 h-4" strokeWidth={2} />
+            <Globe className="w-5 h-5" strokeWidth={2} />
           </button>
           )}
 
@@ -846,14 +849,14 @@ export default function AccountPage() {
                 : mobileNavButtonIdleClass
             }`}
           >
-            <MoreVertical className="w-4 h-4" strokeWidth={2} />
+            <MoreVertical className="w-5 h-5" strokeWidth={2} />
           </button>
         </div>
       </div>
 
       {/* Desktop Bottom Status Bar - glassmorphism style with drop zone */}
       <div 
-        className={`desktop-navigation fixed bottom-0 left-0 right-0 h-[46px] backdrop-blur-xl border-t z-[101] items-center justify-between px-4 transition-all duration-200 overflow-visible ${shouldUseMobileNav || hideBottomNavInOpenedChat ? 'hidden' : 'flex'} ${
+        className={`desktop-navigation fixed bottom-0 left-0 right-0 h-[46px] backdrop-blur-xl border-t z-[101] items-center justify-between px-4 transition-all duration-200 overflow-visible ${shouldUseMobileNav ? 'hidden' : 'flex'} ${
           isDragOverBar 
             ? 'bg-[#007aff]/20 border-[#007aff]/50' 
             : 'bg-[var(--bg-glass)] border-[var(--border-glass)]'

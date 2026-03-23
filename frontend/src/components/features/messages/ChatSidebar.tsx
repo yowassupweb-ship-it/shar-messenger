@@ -175,9 +175,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
     setDraggedPinnedChatId(null);
   };
 
-  const desktopBottomMenuHeight = 46;
-  const desktopBottomGap = 10;
-  const desktopBottomOffset = desktopBottomMenuHeight + desktopBottomGap;
+  // Когда чат открыт — нижний нав скрыт, sidebar может занять всю высоту
+  const desktopBottomOffset = 56;
   const desktopSidebarRadius = 20;
 
   return (
@@ -262,7 +261,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
       {/* Chats list */}
       <div
-        className="relative z-10 flex-1 min-h-0 overflow-y-auto overflow-x-hidden pt-[56px] md:pt-[58px] pb-[calc(env(safe-area-inset-bottom)+80px)] md:pb-4 bg-transparent"
+        className="relative z-10 flex-1 min-h-0 overflow-y-auto overflow-x-hidden pt-[56px] md:pt-[58px] pb-[calc(env(safe-area-inset-bottom)+96px)] md:pb-4 bg-transparent"
         style={{
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',

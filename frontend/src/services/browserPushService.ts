@@ -391,6 +391,7 @@ export class BrowserPushService {
       const lastAuthorId = String(chat?.lastMessage?.authorId || '');
       const title = String(chat?.title || (chat?.isGroup ? 'Групповой чат' : 'Личные сообщения'));
       const snippet = String(chat?.lastMessage?.content || 'Новое сообщение');
+      const authorName = String(chat?.lastMessage?.authorName || 'Неизвестный отправитель');
 
       const prev = this.chatSnapshots.get(chatId);
       this.chatSnapshots.set(chatId, { unreadCount, lastMessageId });
@@ -407,10 +408,12 @@ export class BrowserPushService {
         continue;
       }
 
-      await this.showNotification('Новое сообщение', `${title}: ${snippet}`, {
+      await this.showNotification(authorName, snippet, {
         key: `msg:${chatId}:${lastMessageId}`,
         tag: `chat-${chatId}`,
         url: `/account?tab=messages&chat=${encodeURIComponent(chatId)}`,
+        senderName: authorName,
+        chatName: title,
       });
     }
   }
@@ -824,7 +827,17 @@ export class BrowserPushService {
   private async showNotification(
     title: string,
     body: string,
-    options: { key: string; tag: string; url: string; skipDedupe?: boolean }
+    options: {
+      key: string;
+      tag: string;
+      url: string;
+      skipDedupe?: boolean;
+      senderName?: string;
+      subtitle?: string;
+      chatName?: string;
+      avatar?: string;
+      badge?: number;
+    }
   ): Promise<void> {
     console.log(`[BrowserPushService] 🔔 showNotification вызван: "${title}"`);
     console.log(`[BrowserPushService] Body: "${body}"`);
@@ -848,7 +861,7 @@ export class BrowserPushService {
     const isElectron = typeof window !== 'undefined' && Boolean(window.sharDesktop?.showNotification);
     
     if (isElectron) {
-      console.log('[BrowserPushService] 🖥️ Обнаружен Electron, используем кастомные уведомления');
+      console.log('[BrowserPushService] 🖥️ Обнаружен Electron, используем desktop-уведомления');
       try {
         const kind = options.url.includes('tab=tasks')
           ? 'task'
@@ -860,10 +873,13 @@ export class BrowserPushService {
 
         await window.sharDesktop!.showNotification({
           title,
-          subtitle: kind === 'message' ? 'Сообщения' : kind === 'task' ? 'Задачи' : kind === 'event' ? 'Календарь' : 'Shar OS',
-          senderName: title,
+          subtitle: options.subtitle || (kind === 'task' ? 'Задачи' : kind === 'event' ? 'Календарь' : kind === 'system' ? 'Shar OS' : 'Сообщения'),
+          senderName: options.senderName || title,
+          chatName: options.chatName,
           message: body,
+          avatar: options.avatar,
           timestamp: Date.now(),
+          badge: options.badge,
           chatId: options.url.includes('chat=') ? options.url.split('chat=')[1]?.split('&')[0] : undefined,
           url: options.url,
           kind,

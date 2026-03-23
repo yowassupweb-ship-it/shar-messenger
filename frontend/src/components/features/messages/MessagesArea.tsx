@@ -22,6 +22,8 @@ interface MessagesAreaProps {
   composerContainerRef: React.RefObject<HTMLDivElement | null>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   router: any;
+  isNearBottom: boolean;
+  isViewportReady: boolean;
   setSelectedMessages: (value: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   setIsSelectionMode: (value: boolean) => void;
   setContextMenuMessage: (message: Message) => void;
@@ -52,6 +54,8 @@ export default function MessagesArea({
   composerContainerRef,
   messagesEndRef,
   router,
+  isNearBottom,
+  isViewportReady,
   setSelectedMessages,
   setIsSelectionMode,
   setContextMenuMessage,
@@ -128,6 +132,17 @@ export default function MessagesArea({
     return message.content.toLowerCase().includes(messageSearchQuery.toLowerCase());
   });
   const visibleMessages = filteredMessages;
+  const messagesColumnStyle = useMemo<CSSProperties>(() => {
+    return {
+      overflowAnchor: 'none',
+    };
+  }, []);
+
+  const bottomAnchorStyle = useMemo<CSSProperties>(() => {
+    return messages.length === 0
+      ? { height: 0, overflowAnchor: 'none' }
+      : { height: `${dockOffsetRef.current}px`, overflowAnchor: isNearBottom ? 'auto' : 'none' };
+  }, [messages.length, dockOffsetPx, isNearBottom]);
 
   const chronologicallySortedMessages = useMemo(() => {
     return [...messages].sort((a, b) => {
@@ -286,27 +301,33 @@ export default function MessagesArea({
     <div
       ref={messagesListRef}
       className={`${containerClass} ${scrollBehaviorClass} relative`}
-      style={chatBackgroundStyle}
+      style={{
+        ...chatBackgroundStyle,
+        overflowAnchor: isNearBottom ? 'auto' : 'none',
+        visibility: isViewportReady ? 'visible' : 'hidden',
+      }}
     >
       {overlayStyle && <div style={overlayStyle} aria-hidden="true" />}
-      <div className={`${innerClass} relative z-10`}>
-        {messages.length === 0 ? (
-          <div
-            className="absolute left-0 right-0 z-20 px-4 select-none"
-            style={{ top: emptyStateTopOffset, bottom: dockOffsetPx }}
-          >
-            <div className="h-full flex items-center justify-center">
-              <div className="rounded-3xl border border-[var(--border-light)] bg-[var(--bg-glass)]/55 backdrop-blur-2xl shadow-[var(--shadow-card)] px-7 py-6 text-center">
-                <div className="w-14 h-14 mx-auto mb-3 rounded-full border border-[var(--border-light)] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] flex items-center justify-center">
-                  <MessageCircle className="w-7 h-7 opacity-70" />
-                </div>
-                <p className="text-[15px] font-semibold leading-tight text-[var(--text-primary)]">Нет сообщений</p>
-                <p className="text-[12px] mt-1 text-[var(--text-secondary)]">Начните общение</p>
+      {messages.length === 0 ? (
+        <div
+          className="absolute inset-x-0 z-20 px-4 select-none pointer-events-none"
+          style={{ top: emptyStateTopOffset, bottom: dockOffsetPx }}
+        >
+          <div className="h-full flex items-center justify-center">
+            <div className="rounded-3xl border border-[var(--border-light)] bg-[var(--bg-glass)]/55 backdrop-blur-2xl shadow-[var(--shadow-card)] px-7 py-6 text-center">
+              <div className="w-14 h-14 mx-auto mb-3 rounded-full border border-[var(--border-light)] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] flex items-center justify-center">
+                <MessageCircle className="w-7 h-7 opacity-70" />
               </div>
+              <p className="text-[15px] font-semibold leading-tight text-[var(--text-primary)]">Нет сообщений</p>
+              <p className="text-[12px] mt-1 text-[var(--text-secondary)]">Начните общение</p>
             </div>
           </div>
-        ) : (
-          <div className={listSpacingClass}>
+        </div>
+      ) : null}
+
+      <div className={`${innerClass} relative z-10`}>
+        {messages.length === 0 ? null : (
+          <div className={listSpacingClass} style={messagesColumnStyle}>
             {visibleMessages.map((message, index) => (
               <MessageItem
                 key={message.id}
@@ -359,7 +380,7 @@ export default function MessagesArea({
         <div 
           ref={messagesEndRef} 
           className="h-0" 
-          style={messages.length === 0 ? undefined : { height: `${dockOffsetRef.current}px` }} 
+          style={bottomAnchorStyle} 
         />
       </div>
     </div>

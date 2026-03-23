@@ -29,7 +29,8 @@ async function redirectToRemoteApp() {
     }
 
     window.setTimeout(() => {
-      window.location.replace(remoteUrl);
+      const sep = remoteUrl.includes('?') ? '&' : '?';
+      window.location.replace(remoteUrl + sep + '_platform=tauri');
     }, 700);
   } catch (error) {
     if (statusEl) {

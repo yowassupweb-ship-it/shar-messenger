@@ -83,6 +83,13 @@ export default function UserSettingsPage() {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
+  const isTauri = typeof window !== 'undefined' && localStorage.getItem('_platform') === 'tauri';
+  const [tauriZoom, setTauriZoom] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return Number(localStorage.getItem('tauriZoom') || '1');
+    }
+    return 1;
+  });
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [saveNotice, setSaveNotice] = useState<string>('');
   const [editForm, setEditForm] = useState({ personalPhone: '', workPhone: '', workSchedule: '', position: '', department: '' });
@@ -636,6 +643,32 @@ export default function UserSettingsPage() {
                     <input type="range" min="11" max="18" value={chatSettings.fontSizeMobile} onChange={(e) => saveSettings({ ...chatSettings, fontSizeMobile: parseInt(e.target.value) })} className="w-full accent-[var(--accent-primary)]" />
                   </div>
                 </div>
+
+                {isTauri && (
+                  <div className="rounded-xl border border-[var(--border-light)] bg-[var(--bg-secondary)]/70 p-3">
+                    <div className="flex items-center justify-between text-sm mb-2">
+                      <span className="text-[var(--text-primary)]">Масштаб (Tauri)</span>
+                      <span className="text-[var(--text-muted)]">{Math.round(tauriZoom * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="70"
+                      max="130"
+                      step="5"
+                      value={Math.round(tauriZoom * 100)}
+                      onChange={(e) => {
+                        const zoom = parseInt(e.target.value) / 100;
+                        setTauriZoom(zoom);
+                        localStorage.setItem('tauriZoom', String(zoom));
+                        document.documentElement.style.zoom = String(zoom);
+                      }}
+                      className="w-full accent-[var(--accent-primary)]"
+                    />
+                    <div className="flex justify-between text-[10px] text-[var(--text-muted)] mt-1">
+                      <span>70%</span><span>100%</span><span>130%</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </Card>
 

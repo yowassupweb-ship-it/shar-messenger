@@ -72,6 +72,29 @@
 			text-transform: none;
 			letter-spacing: 0.06em;
 			white-space: nowrap;
+			transition: opacity 0.3s ease;
+		}
+
+		.update-progress {
+			display: none;
+			position: fixed;
+			bottom: 4.2rem;
+			left: 50%;
+			transform: translateX(-50%);
+			z-index: 10;
+			width: 180px;
+			height: 3px;
+			border-radius: 2px;
+			background: rgba(255, 255, 255, 0.15);
+			overflow: hidden;
+		}
+
+		.update-progress-fill {
+			height: 100%;
+			width: 0%;
+			border-radius: 2px;
+			background: rgba(255, 255, 255, 0.7);
+			transition: width 0.4s ease;
 		}
 
 		@keyframes logoPulse {
@@ -87,6 +110,7 @@
 		<img class="logo" src="./icon.png" alt="Shar OS" />
 		<h1 class="heading">Шар OS</h1>
 	</div>
+	<div class="update-progress"><div class="update-progress-fill"></div></div>
 	<div class="status">Запуск рабочего пространства...</div>
 
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

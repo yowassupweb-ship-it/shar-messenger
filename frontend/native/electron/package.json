@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "electron electron/main.cjs",
     "start": "cross-env NODE_ENV=production electron electron/main.cjs",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "build:win": "electron-builder --win nsis-web"
   },
   "dependencies": {
     "cross-env": "^7.0.3",
@@ -36,8 +37,7 @@
     },
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        "nsis-web"
       ],
       "executableName": "Shar OS",
       "signAndEditExecutable": true,
@@ -59,8 +59,8 @@
       "shortcutName": "Shar OS",
       "include": "electron/installer.nsh"
     },
-    "portable": {
-      "artifactName": "Shar OS.${ext}"
+    "nsisWeb": {
+      "artifactName": "Shar setup.${ext}"
     },
     "mac": {
       "icon": "electron/icon.png"
