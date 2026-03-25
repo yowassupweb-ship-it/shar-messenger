@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# server-side data files (managed locally, not tracked)
+/data/calendar-lists.json
