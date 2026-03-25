@@ -582,7 +582,6 @@ export default function AdminPage() {
               )}
             </div>
           </div>
-        </div>
       </div>
 
       {/* Create User Modal */}
@@ -974,7 +973,6 @@ export default function AdminPage() {
           </div>
         </div>
       )}
-    </div>
     </>
   );
 }
