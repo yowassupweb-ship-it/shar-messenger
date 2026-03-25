@@ -1,4 +1,5 @@
-﻿import { useState, useEffect, useRef, useCallback } from 'react';
+﻿'use client';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ChatTimelineV2 } from '@/components/features/messages/ChatTimelineV2';

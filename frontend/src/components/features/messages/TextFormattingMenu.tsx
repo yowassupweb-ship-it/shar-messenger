@@ -1,3 +1,4 @@
+'use client';
 import { Link as LinkIcon, ChevronRight, Copy, Scissors, Clipboard, Type } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 

@@ -346,6 +346,7 @@ export default function AdminPage() {
   };
 
   return (
+    <>
       {/* Toast */}
       {toast && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl border backdrop-blur-xl flex items-center gap-2 shadow-2xl ${
@@ -974,5 +975,6 @@ export default function AdminPage() {
         </div>
       )}
     </div>
+    </>
   );
 }
