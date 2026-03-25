@@ -294,20 +294,21 @@ export default function ChatHeader({
           </>
         ) : (
           <>
-            <button
-              onClick={() => selectChat(null)}
-              className={`${glassRoundButtonClass} text-[var(--text-primary)] ${showBackButton ? 'flex ml-[2px]' : 'hidden'}`}
-            >
-              <ArrowLeft className="w-4 h-4" strokeWidth={2} />
-            </button>
+            {showBackButton && (
+              <button
+                onClick={() => selectChat(null)}
+                className={`${glassRoundButtonClass} text-[var(--text-primary)] flex-shrink-0 ml-[2px]`}
+              >
+                <ArrowLeft className="w-4 h-4" strokeWidth={2} />
+              </button>
+            )}
             {/* Кликабельный аватар и имя собеседника */}
-            {(!showMessageSearch || !isMobileView) && (
             <button
               onClick={() => {
                 setShowChatInfo(true);
                 setChatInfoTab('profile');
               }}
-              className={`no-mobile-scale flex items-center gap-3 min-w-0 pl-[5px] pr-[14px] py-[6px] rounded-full transition-all h-[46px] ${glassPillClass} ${isMobileView ? 'flex-1 w-0 max-w-none' : 'w-fit shrink-0 max-w-[calc(100%-104px)]'}`}
+              className={`no-mobile-scale flex items-center gap-3 min-w-0 pl-[5px] pr-[14px] py-[6px] rounded-full transition-all h-[46px] ${glassPillClass} ${isMobileView ? 'flex-1 min-w-0 max-w-none' : 'w-fit flex-shrink-0 max-w-[400px]'} ${showBackButton ? 'ml-1' : ''}`}
             >
               {(() => {
                 const avatarData = getChatAvatarData(selectedChat);
@@ -409,7 +410,6 @@ export default function ChatHeader({
                 )}
               </div>
             </button>
-            )}
 
             {showMessageSearch && (
               <div className={`${isMobileView ? 'flex flex-1 min-w-0 ml-1' : 'hidden md:flex items-center w-[180px] ml-1'}`}>
@@ -439,25 +439,25 @@ export default function ChatHeader({
               </div>
             )}
 
-            {!showMessageSearch && linkedTaskId && !isMiniTaskHeaderView && (
+            {!showMessageSearch && linkedTaskId && (
               <>
-              {useCompactLinkedTaskButton ? (
+              {isMobileView ? (
                 <button
                   onClick={() => openLinkedTask(linkedTaskId)}
-                  className={`${glassRoundButtonClass} ml-1 text-[var(--text-primary)]`}
+                  className={`${glassRoundButtonClass} ml-1 flex-shrink-0 text-[var(--text-primary)]`}
                   title="Привязано к задаче"
                 >
                   <Pin className="w-4 h-4" />
                 </button>
               ) : (
-              <div className="flex items-center ml-1">
+              <div className="flex items-center ml-1 flex-shrink-0">
                 <button
                   onClick={() => openLinkedTask(linkedTaskId)}
-                  className={`w-[164px] min-w-[164px] max-w-[164px] h-[46px] px-3 rounded-full flex items-center gap-2 ${glassPillClass}`}
+                  className={`h-[46px] px-3 rounded-full flex items-center gap-2 min-w-[140px] max-w-[200px] ${glassPillClass}`}
                   title="Привязано к задаче"
                 >
                   <Pin className="w-3.5 h-3.5 text-[var(--text-primary)] flex-shrink-0" />
-                  <div className="min-w-0 text-left">
+                  <div className="min-w-0 flex-1 text-left">
                     <p className="text-[9px] uppercase tracking-wide text-[var(--text-muted)] leading-none">Привязано к задаче</p>
                     <p className="text-xs text-[var(--text-primary)] truncate mt-0.5">{linkedTaskTitle || 'Привязано к задаче'}</p>
                     {linkedTaskStatusLabel && (
@@ -470,12 +470,21 @@ export default function ChatHeader({
               </>
             )}
 
-            {!showMessageSearch && !linkedTaskId && pinnedMessageId && !isMiniTaskHeaderView && (
-              <div className="flex items-center ml-1">
-                <div className={`w-[244px] max-w-[244px] shrink h-[38px] px-2 rounded-full flex items-center gap-1.5 ${glassPillClass}`}>
+            {!showMessageSearch && !linkedTaskId && pinnedMessageId && (
+              <div className="flex items-center ml-1 flex-shrink-0">
+                {isMobileView ? (
+                  <button
+                    onClick={() => openPinnedMessage(pinnedMessageId)}
+                    className={`${glassRoundButtonClass} text-[var(--text-primary)]`}
+                    title="Закрепленное сообщение"
+                  >
+                    <Pin className="w-4 h-4" />
+                  </button>
+                ) : (
+                <div className={`h-[38px] px-2 rounded-full flex items-center gap-1.5 min-w-[180px] max-w-[280px] ${glassPillClass}`}>
                   <button
                     onClick={showPreviousPinned}
-                    className="w-6 h-6 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center disabled:opacity-45 disabled:cursor-not-allowed shrink-0"
+                    className="w-6 h-6 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center disabled:opacity-45 disabled:cursor-not-allowed flex-shrink-0"
                     disabled={pinnedMessageCount <= 1}
                     title="Предыдущее закрепленное"
                   >
@@ -483,7 +492,7 @@ export default function ChatHeader({
                   </button>
                   <button
                     onClick={() => openPinnedMessage(pinnedMessageId)}
-                    className="min-w-0 flex-1 text-left shrink"
+                    className="min-w-0 flex-1 text-left"
                     title="Закрепленное сообщение"
                   >
                     <p className="text-[8px] uppercase tracking-wide text-[var(--text-muted)] leading-none truncate">
@@ -493,7 +502,7 @@ export default function ChatHeader({
                   </button>
                   <button
                     onClick={showNextPinned}
-                    className="w-6 h-6 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center disabled:opacity-45 disabled:cursor-not-allowed shrink-0"
+                    className="w-6 h-6 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center disabled:opacity-45 disabled:cursor-not-allowed flex-shrink-0"
                     disabled={pinnedMessageCount <= 1}
                     title="Следующее закрепленное"
                   >
@@ -501,12 +510,13 @@ export default function ChatHeader({
                   </button>
                   <button
                     onClick={unpinMessage}
-                    className="w-6 h-6 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center shrink-0"
+                    className="w-6 h-6 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center flex-shrink-0"
                     title="Открепить"
                   >
                     <PinOff className="w-3 h-3 text-[var(--text-muted)] hover:text-amber-400 transition-colors" />
                   </button>
                 </div>
+                )}
               </div>
             )}
             

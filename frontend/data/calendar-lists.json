@@ -46,6 +46,19 @@
         "admin@local.dev"
       ],
       "allowedDepartments": []
+    },
+    {
+      "id": "personal-smm",
+      "name": "Личный календарь (smm)",
+      "description": "Личный календарь пользователя. События доступны владельцу.",
+      "color": "#10B981",
+      "createdBy": "smm",
+      "createdAt": "2026-03-24T13:58:07.588Z",
+      "updatedAt": "2026-03-24T13:58:07.588Z",
+      "allowedUsers": [
+        "smm"
+      ],
+      "allowedDepartments": []
     }
   ],
   "activeListId": "shared-main"

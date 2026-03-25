@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     const backendForm = new FormData();
-    backendForm.append('file', file);
+    backendForm.append('file', file, file.name || 'upload.bin');
 
     const backendRes = await fetch(`${BACKEND_BASE_URL}/api/upload`, {
       method: 'POST',

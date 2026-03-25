@@ -10,6 +10,14 @@ export interface User {
   avatar?: string;
 }
 
+export interface CallInfo {
+  type: 'voice' | 'video';
+  direction: 'incoming' | 'outgoing';
+  status: 'completed' | 'missed' | 'declined';
+  duration?: number; // в секундах (только для completed)
+  timestamp: Date;
+}
+
 export interface Message {
   id: string;
   chatId: string;
@@ -30,6 +38,7 @@ export interface Message {
   linkedPostId?: string;
   linkedEventId?: string;
   notificationType?: string;
+  callInfo?: CallInfo; // информация о звонке
   metadata?: {
     taskTitle?: string;
     postTitle?: string;

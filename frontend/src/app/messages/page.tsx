@@ -17,7 +17,7 @@ import MessageInput from '@/components/features/messages/MessageInput';
 import ChatSidebar from '@/components/features/messages/ChatSidebar';
 import ChatHeader from '@/components/features/messages/ChatHeader';
 import MessagesArea from '@/components/features/messages/MessagesArea';
-import { ChatTimeline } from '@/components/features/messages/ChatTimeline';
+import { ChatTimelineV2 as ChatTimeline } from '@/components/features/messages/ChatTimelineV2';
 import MessageSearchBar from '@/components/features/messages/MessageSearchBar';
 import TextFormattingMenu from '@/components/features/messages/TextFormattingMenu';
 import type { User, Message, Chat, Task } from '@/components/features/messages/types';
@@ -61,10 +61,15 @@ export default function MessagesPage() {
 
   // Проверка авторизации
   useEffect(() => {
-    const isAuthenticated = localStorage.getItem('isAuthenticated');
-    if (!isAuthenticated || isAuthenticated !== 'true') {
-      router.push('/login');
-      return;
+    if (typeof window === 'undefined') return;
+
+    // Вкладка внутри /account использует свою авторизацию/контекст и не должна
+    // принудительно редиректить по локальному флагу.
+    if (window.location.pathname === '/messages') {
+      const isAuthenticated = localStorage.getItem('isAuthenticated');
+      if (!isAuthenticated || isAuthenticated !== 'true') {
+        router.push('/login');
+      }
     }
   }, [router]);
 
@@ -81,16 +86,48 @@ export default function MessagesPage() {
     }
   }, [router, searchParams]);
 
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const myAccount = JSON.parse(localStorage.getItem('myAccount') || 'null');
+      if (myAccount?.id && myAccount?.name) return myAccount as User;
+    } catch { /* ignore */ }
+    return null;
+  });
   const [users, setUsers] = useState<User[]>([]);
-  const [chats, setChats] = useState<Chat[]>([]);
+  const [chats, setChats] = useState<Chat[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const myAccount = JSON.parse(localStorage.getItem('myAccount') || 'null');
+      if (myAccount?.id) {
+        const raw = localStorage.getItem(`messages_chats_cache_${myAccount.id}`);
+        if (raw) {
+          const cached = JSON.parse(raw);
+          if (Array.isArray(cached) && cached.length > 0) return cached;
+        }
+      }
+    } catch { /* ignore */ }
+    return [];
+  });
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   
   // 🚀 PERFORMANCE: Loading states для LCP optimization
-  const [isLoadingChats, setIsLoadingChats] = useState(true);
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  
+  const [isLoadingChats, setIsLoadingChats] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    try {
+      const myAccount = JSON.parse(localStorage.getItem('myAccount') || 'null');
+      if (myAccount?.id) {
+        const raw = localStorage.getItem(`messages_chats_cache_${myAccount.id}`);
+        if (raw) {
+          const cached = JSON.parse(raw);
+          if (Array.isArray(cached) && cached.length > 0) return false;
+        }
+      }
+    } catch { /* ignore */ }
+    return true;
+  });
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);  
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showArchivedChats, setShowArchivedChats] = useState(false);
@@ -139,6 +176,13 @@ export default function MessagesPage() {
   const [chatDrafts, setChatDrafts] = useState<Record<string, string>>({});
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+
+  // Автоматически отключаем режим выделения когда нет выделенных сообщений
+  useEffect(() => {
+    if (isSelectionMode && selectedMessages.size === 0) {
+      setIsSelectionMode(false);
+    }
+  }, [selectedMessages.size, isSelectionMode]);
   const [showRenameChatModal, setShowRenameChatModal] = useState(false);
   const [newChatName, setNewChatName] = useState('');
   const [showImageModal, setShowImageModal] = useState(false);
@@ -167,7 +211,6 @@ export default function MessagesPage() {
   const [creatingEventFromMessage, setCreatingEventFromMessage] = useState<Message | null>(null);
   const [activePinnedMessageId, setActivePinnedMessageId] = useState<string | null>(null);
   const [selectedChatNearBottom, setSelectedChatNearBottom] = useState(true);
-  const [isChatViewportReady, setIsChatViewportReady] = useState(true);
   const [notificationSound] = useState(() => {
     if (typeof window !== 'undefined') {
       const audio = new Audio();
@@ -247,22 +290,18 @@ export default function MessagesPage() {
   const suppressPinnedOverlayTapRef = useRef(false);
   const hydratedMessagesCacheRef = useRef<Set<string>>(new Set());
   const hydratedChatsCacheKeyRef = useRef<string | null>(null);
+  const activeMessagesChatIdRef = useRef<string | null>(null);
+  const latestMessagesRequestSeqRef = useRef(0);
+  const latestMessagesRequestByChatRef = useRef<Record<string, number>>({});
   const pendingRestoreChatScrollRef = useRef<string | null>(null);
   const openFromNotificationChatIdRef = useRef<string | null>(null);
   const suppressAutoScrollUntilRef = useRef(0);
   const hasResolvedInitialChatRef = useRef(false);
+  const lastReportedChatOpenStateRef = useRef<boolean | null>(null);
   const chatNearBottomRef = useRef<Record<string, boolean>>({});
   const lastMessageTailRef = useRef<{ chatId: string | null; tailKey: string | null }>({ chatId: null, tailKey: null });
   const skipNextAutoScrollRef = useRef<Record<string, boolean>>({});
   // Tracks the 2-second window after chat open when ResizeObserver re-applies the stored snapshot
-  const chatOpenRestabilizeEndRef = useRef<{ chatId: string; expiresAt: number } | null>(null);
-  const lastReportedChatOpenStateRef = useRef<boolean | null>(null);
-  const isApplyingViewportRef = useRef(false);
-
-  type ChatViewportSnapshot =
-    | { mode: 'bottom' }
-    | { mode: 'message'; messageId: string };
-
   /**
    * Получить DOM-контейнер скролла.
    * ChatTimeline управляет своим containerRef — берём его если доступен,
@@ -279,94 +318,17 @@ export default function MessagesPage() {
     return distanceToBottom <= thresholdPx;
   }, [getScrollContainer]);
 
-  const getChatViewportStorageKey = useCallback((chatId: string) => `messages_chat_viewport_v2_${chatId}`, []);
-
-  // Signal-like: find the message whose centre is closest to the viewport centre
-  const getCenterVisibleMessageId = useCallback(() => {
-    const container = getScrollContainer();
-    if (!container) return null;
-    const containerRect = container.getBoundingClientRect();
-    const viewportMid = containerRect.top + containerRect.height / 2;
-    let bestId: string | null = null;
-    let bestDist = Infinity;
-    for (const [msgId, el] of Object.entries(messageRefs.current)) {
-      if (!el) continue;
-      const rect = el.getBoundingClientRect();
-      // Skip elements outside the scroll container's visible area
-      if (rect.bottom < containerRect.top || rect.top > containerRect.bottom) continue;
-      const mid = rect.top + rect.height / 2;
-      const dist = Math.abs(mid - viewportMid);
-      if (dist < bestDist) { bestDist = dist; bestId = msgId; }
-    }
-    return bestId;
-  }, [getScrollContainer]);
-
-  const buildChatViewportSnapshot = useCallback((_chatId: string): ChatViewportSnapshot | null => {
-    if (isTimelineNearBottom()) return { mode: 'bottom' };
-    const messageId = getCenterVisibleMessageId();
-    if (!messageId) return { mode: 'bottom' };
-    return { mode: 'message', messageId };
-  }, [isTimelineNearBottom, getCenterVisibleMessageId]);
-
-  const persistChatViewportSnapshot = useCallback((chatId: string) => {
-    const normalizedChatId = String(chatId || '').trim();
-    if (!normalizedChatId) return;
-    const snapshot = buildChatViewportSnapshot(normalizedChatId);
-    if (!snapshot) return;
-
-    try {
-      localStorage.setItem(getChatViewportStorageKey(normalizedChatId), JSON.stringify(snapshot));
-    } catch {
-    }
-  }, [buildChatViewportSnapshot, getChatViewportStorageKey]);
-
-  const getStoredChatViewportSnapshot = useCallback((chatId: string): ChatViewportSnapshot | null => {
-    const normalizedChatId = String(chatId || '').trim();
-    if (!normalizedChatId) return null;
-    try {
-      const raw = localStorage.getItem(getChatViewportStorageKey(normalizedChatId));
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
-      if (parsed?.mode === 'bottom') return { mode: 'bottom' };
-      if (parsed?.mode === 'message' && typeof parsed.messageId === 'string' && parsed.messageId) {
-        return { mode: 'message', messageId: parsed.messageId };
-      }
-      return null;
-    } catch { return null; }
-  }, [getChatViewportStorageKey]);
-
-  // Apply a stored snapshot. Returns true if applied successfully.
-  // Signal-equivalent: scrollIntoView for message anchor, scrollHeight for bottom.
-  const applyChatViewportSnapshot = useCallback((chatId: string, snapshot: ChatViewportSnapshot | null): boolean => {
-    const container = getScrollContainer();
-    if (!container || !snapshot) return false;
-    void chatId; // not used — snapshot already carries all needed info
-
-    if (snapshot.mode === 'bottom') {
-      isApplyingViewportRef.current = true;
-      container.scrollTop = container.scrollHeight;
-      requestAnimationFrame(() => { isApplyingViewportRef.current = false; });
-      return true;
-    }
-
-    if (snapshot.mode === 'message') {
-      const el = messageRefs.current[snapshot.messageId];
-      if (!el) return false;
-      isApplyingViewportRef.current = true;
-      el.scrollIntoView({ block: 'center' });
-      requestAnimationFrame(() => { isApplyingViewportRef.current = false; });
-      return true;
-    }
-
-    return false;
-  }, [getScrollContainer]);
-
   // Simple wrapper: prevents unnecessary re-renders when messages haven't changed
   const setMessagesWithTimelineSnapshot = useCallback((
-    _chatId: string | null | undefined,
+    chatId: string | null | undefined,
     nextMessages: Message[] | ((prev: Message[]) => Message[]),
     _mode: 'reset' | 'preserve' = 'preserve'
   ) => {
+    const normalizedChatId = String(chatId || '').trim() || null;
+    if (normalizedChatId && activeMessagesChatIdRef.current && activeMessagesChatIdRef.current !== normalizedChatId) {
+      return;
+    }
+
     setMessages((prev) => {
       const resolved = typeof nextMessages === 'function' ? nextMessages(prev) : nextMessages;
       return resolved === prev ? prev : resolved;
@@ -530,6 +492,8 @@ export default function MessagesPage() {
     return preview.length > 110 ? `${preview.slice(0, 110)}...` : preview;
   }, [activePinnedMessage]);
 
+
+
   const getPinnedNavigationMessageId = useCallback((message?: Message | null) => {
     if (!message) return null;
     const targetId = message.notificationType === 'message_pin'
@@ -678,9 +642,23 @@ export default function MessagesPage() {
       } catch { /* ignore */ }
     }
 
-    setMessagesWithTimelineSnapshot(chat?.id || previousChat?.id || null, cachedInitMessages, 'reset');
-    // Если есть кэш — НЕ показываем spinner: отображаем кэш мгновенно, фон обновит сервер
-    setIsLoadingMessages(cachedInitMessages.length === 0 && Boolean(chat));
+    activeMessagesChatIdRef.current = chat?.id || null;
+    // Signal/Telegram-стиль: если есть кэш - показываем его мгновенно, без skeleton
+    // Если кэша нет - показываем предыдущий чат замороженным (не чистим messages сразу)
+    if (cachedInitMessages.length > 0) {
+      // Есть кэш - мгновенное переключение
+      setMessagesWithTimelineSnapshot(chat?.id || null, cachedInitMessages, 'reset');
+      setIsLoadingMessages(false);
+    } else if (chat) {
+      // Нет кэша - показываем предыдущие messages пока грузятся новые
+      // (не чистим messages, будет freeze-эффект как в Telegram)
+      setIsLoadingMessages(true);
+      // messages останутся от предыдущего чата и будут выглядеть как "loading" overlay
+    } else {
+      // Закрытие чата - чистим
+      setMessagesWithTimelineSnapshot(null, [], 'reset');
+      setIsLoadingMessages(false);
+    }
 
     pendingRestoreChatScrollRef.current = chat?.id || null;
     openFromNotificationChatIdRef.current = openedFromNotification && chat ? chat.id : null;
@@ -690,7 +668,6 @@ export default function MessagesPage() {
       skipNextAutoScrollRef.current[chat.id] = true;
     }
     setSelectedChatNearBottom(false);
-    setIsChatViewportReady(!chat);
 
     setSelectedChatId(chat?.id || null);
     setShowChatInfo(false);
@@ -733,7 +710,11 @@ export default function MessagesPage() {
         router.replace(`/account?tab=messages&chat=${encodeURIComponent(chat.id)}`, { scroll: false });
       }
     }
-  }, [selectedChat, chatDrafts, messageInputRef, syncComposerHeight, suppressAutoScrollTemporarily, persistChatViewportSnapshot, router, setMessagesWithTimelineSnapshot]);
+  }, [selectedChat, chatDrafts, messageInputRef, syncComposerHeight, suppressAutoScrollTemporarily, router, setMessagesWithTimelineSnapshot]);
+
+  useEffect(() => {
+    activeMessagesChatIdRef.current = selectedChatId;
+  }, [selectedChatId]);
 
   // Загрузка настроек чата
   useEffect(() => {
@@ -1346,6 +1327,11 @@ export default function MessagesPage() {
     const hasSelection = Boolean(selectedText && start !== end);
     setTextSelection({ start, end, text: hasSelection ? selectedText : '' });
 
+    if (!hasSelection) {
+      setShowTextFormatMenu(false);
+      return;
+    }
+
     if (!messageInputRef.current || !composerContainerRef.current) return;
     const composerRect = composerContainerRef.current.getBoundingClientRect();
 
@@ -1705,30 +1691,42 @@ export default function MessagesPage() {
         localStorage.removeItem('selectedChatId');
       }
       localStorage.removeItem(`messages_chat_cache_${normalizedTargetId}`);
-      localStorage.removeItem(getChatViewportStorageKey(normalizedTargetId));
+      localStorage.removeItem(`chat_scroll_v8_${normalizedTargetId}`);
     } catch {
       // Ignore localStorage errors
     }
 
     void loadChats();
-  }, [selectedChat?.id, selectChat, loadChats, getChatViewportStorageKey, setMessagesWithTimelineSnapshot]);
+  }, [selectedChat?.id, selectChat, loadChats, setMessagesWithTimelineSnapshot]);
 
   const loadMessages = useCallback(async (chatId: string, isPolling: boolean = false) => {
-    // Показываем спиннер только если кэш не был загружен в selectChat
-    if (!isPolling && !hydratedMessagesCacheRef.current.has(chatId)) setIsLoadingMessages(true); // 🚀 PERFORMANCE
+    const normalizedChatId = String(chatId || '').trim();
+    if (!normalizedChatId) return;
 
-    if (!isPolling && !hydratedMessagesCacheRef.current.has(chatId)) {
-      hydratedMessagesCacheRef.current.add(chatId);
+    const requestSeq = ++latestMessagesRequestSeqRef.current;
+    latestMessagesRequestByChatRef.current[normalizedChatId] = requestSeq;
+    const isLatestActiveRequest = () => (
+      activeMessagesChatIdRef.current === normalizedChatId
+      && latestMessagesRequestByChatRef.current[normalizedChatId] === requestSeq
+    );
+
+    // Показываем спиннер только если кэш не был загружен в selectChat
+    if (!isPolling && !hydratedMessagesCacheRef.current.has(normalizedChatId) && activeMessagesChatIdRef.current === normalizedChatId) {
+      setIsLoadingMessages(true);
+    }
+
+    if (!isPolling && !hydratedMessagesCacheRef.current.has(normalizedChatId)) {
+      hydratedMessagesCacheRef.current.add(normalizedChatId);
       try {
-        const cacheKey = `messages_chat_cache_${chatId}`;
+        const cacheKey = `messages_chat_cache_${normalizedChatId}`;
         const cachedRaw = localStorage.getItem(cacheKey);
         if (cachedRaw) {
           const cachedMessages = JSON.parse(cachedRaw);
-          if (Array.isArray(cachedMessages) && cachedMessages.length > 0) {
+          if (Array.isArray(cachedMessages) && cachedMessages.length > 0 && isLatestActiveRequest()) {
             // Применяем кэш только если он ещё не был предзагружен в selectChat.
             // Если selectChat уже добавил chatId в hydratedMessagesCacheRef,
             // этот блок вообще не выполнится (see: has(chatId) выше).
-            setMessagesWithTimelineSnapshot(chatId, cachedMessages);
+            setMessagesWithTimelineSnapshot(normalizedChatId, cachedMessages);
             setIsLoadingMessages(false);
           }
         }
@@ -1738,7 +1736,7 @@ export default function MessagesPage() {
     }
 
     try {
-      const res = await fetch(`/api/chats/${chatId}/messages`);
+      const res = await fetch(`/api/chats/${normalizedChatId}/messages`);
       if (res.ok) {
         const data = await res.json();
 
@@ -1749,13 +1747,13 @@ export default function MessagesPage() {
         // Уведомления о сообщениях централизованы в BrowserPushService.
         
         // Слияние с локальными pending-сообщениями (optimistic queue)
-        const pendingForChat = pendingOutgoingRef.current.filter((msg) => msg.chatId === chatId);
+        const pendingForChat = pendingOutgoingRef.current.filter((msg) => msg.chatId === normalizedChatId);
         const unresolvedPending = pendingForChat.filter((pendingMsg) => {
           return !data.some((serverMsg: Message) => isSameOutgoingCandidate(serverMsg, pendingMsg));
         });
 
         pendingOutgoingRef.current = pendingOutgoingRef.current.filter((msg) => {
-          if (msg.chatId !== chatId) return true;
+          if (msg.chatId !== normalizedChatId) return true;
           return unresolvedPending.some((pendingMsg) => pendingMsg.id === msg.id);
         });
 
@@ -1765,10 +1763,12 @@ export default function MessagesPage() {
           return aTime - bTime;
         });
 
-        setMessagesWithTimelineSnapshot(chatId, (prev) => (hasMessagesChanged(prev, mergedMessages) ? mergedMessages : prev));
+        if (isLatestActiveRequest()) {
+          setMessagesWithTimelineSnapshot(normalizedChatId, (prev) => (hasMessagesChanged(prev, mergedMessages) ? mergedMessages : prev));
+        }
 
         try {
-          localStorage.setItem(`messages_chat_cache_${chatId}`, JSON.stringify(mergedMessages));
+          localStorage.setItem(`messages_chat_cache_${normalizedChatId}`, JSON.stringify(mergedMessages));
         } catch {
           // Ignore localStorage quota/serialization issues
         }
@@ -1776,9 +1776,9 @@ export default function MessagesPage() {
         // Не делаем автоскролл при polling, чтобы исключить самопроизвольные перемотки.
         
         // Отмечаем сообщения как прочитанные (при любой загрузке, если есть новые сообщения)
-        if (data.length > 0 && currentUser) {
+        if (data.length > 0 && currentUser && isLatestActiveRequest()) {
           const lastMessage = data[data.length - 1];
-          await fetch(`/api/chats/${chatId}/mark-read`, {
+          await fetch(`/api/chats/${normalizedChatId}/mark-read`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1803,13 +1803,13 @@ export default function MessagesPage() {
         const errorData = await res.json().catch(() => null);
         const detail = String(errorData?.detail || errorData?.error || '').toLowerCase();
         if (res.status === 404 && detail.includes('chat not found')) {
-          recoverFromMissingChat(chatId);
+          recoverFromMissingChat(normalizedChatId);
         }
       }
     } catch (error) {
       console.error('Error loading messages:', error);
     } finally {
-      if (!isPolling) setIsLoadingMessages(false); // 🚀 PERFORMANCE  
+      if (!isPolling && isLatestActiveRequest()) setIsLoadingMessages(false);
     }
   }, [messagesListRef, messages, messageInputRef, currentUser, loadChats, updateUserStatus, recoverFromMissingChat, chats, selectedChat, isNoAutoScrollChat, isAutoScrollSuppressed, hasMessagesChanged, setMessagesWithTimelineSnapshot]);
 
@@ -3242,47 +3242,52 @@ export default function MessagesPage() {
           )}
           
           <div className="flex-1 min-h-0 flex flex-col relative">
-            <ChatTimeline
-              key={selectedChat.id}
-              ref={chatTimelineRef}
-              chatId={selectedChat.id}
-              messages={messages}
-              messageSearchQuery={messageSearchQuery}
-              users={users}
-              currentUser={currentUser}
-              selectedChat={selectedChat}
-              selectedMessages={selectedMessages}
-              editingMessageId={editingMessageId}
-              isSelectionMode={isSelectionMode}
-              messageRefs={messageRefs}
-              theme={theme}
-              chatSettings={chatSettings}
-              isDesktopView={isDesktopView}
-              myBubbleTextClass={myBubbleTextClass}
-              useDarkTextOnBubble={useDarkTextOnBubble}
-              composerContainerRef={composerContainerRef as React.RefObject<HTMLDivElement>}
-              messagesEndRef={messagesEndRef}
-              router={router}
-              setSelectedMessages={setSelectedMessages}
-              setIsSelectionMode={setIsSelectionMode}
-              setContextMenuMessage={setContextMenuMessage}
-              setContextMenuPosition={setContextMenuPosition}
-              setShowMessageContextMenu={setShowMessageContextMenu}
-              scrollToMessage={scrollToMessage}
-              setCurrentImageUrl={setCurrentImageUrl}
-              setShowImageModal={setShowImageModal}
-              hasPinnedMessage={Boolean(activePinnedMessage) && !linkedTaskBanner.id && isPinnedOverlayMobileView}
-              onNearBottomChange={(near) => {
-                chatNearBottomRef.current[selectedChat.id] = near;
-                setSelectedChatNearBottom(near);
-              }}
-              onViewportReadyChange={(ready) => {
-                setIsChatViewportReady(ready);
-                // Сбрасываем флаг ожидания после того как ChatTimeline восстановил позицию.
-                // Это позволяет авто-скроллу работать для входящих сообщений.
-                if (ready) pendingRestoreChatScrollRef.current = null;
-              }}
-            />
+            <div
+              className={[
+                'absolute inset-0',
+                'visible',
+              ].join(' ')}
+            >
+              <ChatTimeline
+                key={selectedChat.id}
+                chatId={selectedChat.id}
+                messages={messages}
+                messageSearchQuery={messageSearchQuery}
+                users={users}
+                currentUser={currentUser}
+                selectedChat={selectedChat}
+                selectedMessages={selectedMessages}
+                editingMessageId={editingMessageId}
+                isSelectionMode={isSelectionMode}
+                messageRefs={messageRefs}
+                theme={theme}
+                chatSettings={chatSettings}
+                isDesktopView={isDesktopView}
+                myBubbleTextClass={myBubbleTextClass}
+                useDarkTextOnBubble={useDarkTextOnBubble}
+                composerContainerRef={composerContainerRef as React.RefObject<HTMLDivElement>}
+                messagesEndRef={messagesEndRef}
+                router={router}
+                setSelectedMessages={setSelectedMessages}
+                setIsSelectionMode={setIsSelectionMode}
+                setContextMenuMessage={setContextMenuMessage}
+                setContextMenuPosition={setContextMenuPosition}
+                setShowMessageContextMenu={setShowMessageContextMenu}
+                scrollToMessage={scrollToMessage}
+                setCurrentImageUrl={setCurrentImageUrl}
+                setShowImageModal={setShowImageModal}
+                hasPinnedMessage={Boolean(activePinnedMessage) && !linkedTaskBanner.id && isPinnedOverlayMobileView}
+                onNearBottomChange={(near) => {
+                  chatNearBottomRef.current[selectedChat.id] = near;
+                  setSelectedChatNearBottom(near);
+                }}
+                onViewportReadyChange={(ready) => {
+                  if (ready) {
+                    pendingRestoreChatScrollRef.current = null;
+                  }
+                }}
+              />
+            </div>
 
             {/* Кнопка прокрутки вниз */}
             {!selectedChatNearBottom && (

@@ -107,15 +107,15 @@ const ChatItem = React.memo<ChatItemProps>(({
     return (
       <div
         key={chat.id}
-        className={`relative group mx-1 my-0.5 rounded-2xl overflow-hidden ${isSelected ? 'bg-[var(--bg-tertiary)]' : ''}`}
+        className={`relative group mx-2 my-1 rounded-[18px] overflow-hidden ${isSelected ? 'bg-[var(--bg-tertiary)]' : ''}`}
         style={{ contentVisibility: 'auto', containIntrinsicSize: '72px 72px' }}
         onContextMenu={(e) => onContextMenu(e, chat)}
       >
         <button
           onClick={() => onSelect(chat)}
-          className="w-full px-3 py-2.5 hover:bg-[var(--bg-tertiary)] transition-all text-left touch-manipulation rounded-2xl overflow-hidden"
+          className="w-full px-3 py-3 hover:bg-[var(--bg-tertiary)] transition-all text-left touch-manipulation rounded-[18px] overflow-hidden"
         >
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-3 items-center">
             <Avatar
               src={avatarData.avatar || ''}
               name={avatarData.name}
@@ -153,7 +153,7 @@ const ChatItem = React.memo<ChatItemProps>(({
               ) : null}
             </div>
             {chat.lastMessage && (
-              <span className="text-[12px] text-[var(--text-muted)] whitespace-nowrap self-center">
+              <span className="text-[12px] text-[var(--text-muted)] whitespace-nowrap self-start mt-0.5">
                 {new Date(chat.lastMessage.createdAt).toLocaleTimeString('ru-RU', { 
                   hour: '2-digit', 
                   minute: '2-digit' 

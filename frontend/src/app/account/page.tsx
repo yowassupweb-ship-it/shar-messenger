@@ -465,8 +465,14 @@ export default function AccountPage() {
   }, [searchParams]);
 
   // Интервал для проверки URL параметра chat (replaceState не триггерит searchParams)
+  // ref для хранения состояния события (чтобы интервал не перебивал результат события)
+  const chatOpenFromEvent = useRef(false);
+
   useEffect(() => {
     const checkChatOpen = () => {
+      // Если от события уже известно состояние — не трогаем
+      if (chatOpenFromEvent.current) return;
+
       if (typeof window !== 'undefined') {
         // Проверяем только URL и текущую вкладку
         const url = new URL(window.location.href);
@@ -481,6 +487,7 @@ export default function AccountPage() {
     const handleChatSelectionChanged = (event: Event) => {
       const customEvent = event as CustomEvent<{ isOpen?: boolean }>;
       const isOpen = !!customEvent.detail?.isOpen;
+      chatOpenFromEvent.current = isOpen;
       setIsChatOpen(activeTab === 'messages' && isOpen);
     };
 
@@ -509,12 +516,52 @@ export default function AccountPage() {
 
   const shouldUseMobileNav = isBelow768;
   // Скрываем мобильное нижнее меню только на мобиле когда открыт чат
-  const hideBottomNavInOpenedChat = activeTab === 'messages' && isBelow768 && isChatOpen;
+  const [hasChatInUrl, setHasChatInUrl] = useState(
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).has('chat') : false
+  );
+
+  useEffect(() => {
+    // Реактивное отслеживание параметра chat в URL для скрытия нижнего меню
+    const checkUrlForChat = () => {
+      if (typeof window !== 'undefined') {
+        const hasChat = new URLSearchParams(window.location.search).has('chat');
+        if (hasChatInUrl !== hasChat) {
+          setHasChatInUrl(hasChat);
+        }
+      }
+    };
+
+    // Проверяем сразу после монтирования
+    checkUrlForChat();
+
+    // Слушаем события истории (popstate)
+    window.addEventListener('popstate', checkUrlForChat);
+
+    // Интервал для случаев, когда Next.js делает shallow routing без вызова popstate
+    const intervalId = setInterval(checkUrlForChat, 50);
+
+    return () => {
+      window.removeEventListener('popstate', checkUrlForChat);
+      clearInterval(intervalId);
+    };
+  }, [hasChatInUrl]);
+
+  // Проверяем как флаг isChatOpen, так и наличие параметра chat в URL для надежности
+  const hideBottomNavInOpenedChat = activeTab === 'messages' && isBelow768 && (isChatOpen || hasChatInUrl);
 
   const [tabSwitchKey, setTabSwitchKey] = useState(0);
 
   const handleTabChange = (tab: TabType) => {
-    if (tab !== activeTab) setTabSwitchKey(k => k + 1);
+    if (tab !== activeTab) {
+      setTabSwitchKey(k => k + 1);
+      // Сохраняем текущий чат перед переключением вкладки (чтобы можно было вернуться)
+      if (activeTab === 'messages') {
+        try {
+          const chatId = new URLSearchParams(window.location.search).get('chat');
+          if (chatId) localStorage.setItem('lastOpenedChatId', chatId);
+        } catch { /* ignore */ }
+      }
+    }
     setActiveTab(tab);
     router.push(`/account?tab=${tab}`, { scroll: false });
   };
@@ -754,7 +801,6 @@ export default function AccountPage() {
             backgroundSize: `${accountOverlayScale * 3}px`,
             backgroundRepeat: 'repeat',
             backgroundPosition: 'center center',
-            backgroundAttachment: 'fixed',
             opacity: accountOverlayOpacity,
             zIndex: 1,
           }}

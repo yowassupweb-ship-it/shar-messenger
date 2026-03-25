@@ -20,6 +20,20 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## WebRTC
+
+One-to-one and group calls use the internal `/api/calls` signaling route.
+
+For reliable calls outside the local network, configure a TURN server in your environment:
+
+```bash
+NEXT_PUBLIC_WEBRTC_TURN_URLS=turn:your-turn-host:3478,turns:your-turn-host:5349
+NEXT_PUBLIC_WEBRTC_TURN_USERNAME=your-username
+NEXT_PUBLIC_WEBRTC_TURN_CREDENTIAL=your-password
+```
+
+Without TURN, calls may work on the same machine or within friendly NATs, but will not be reliable across arbitrary networks.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

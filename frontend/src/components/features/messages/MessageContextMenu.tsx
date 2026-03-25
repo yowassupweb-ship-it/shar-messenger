@@ -3,7 +3,7 @@
 import React, { useRef, useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Message, User } from './types';
-import { Reply, Edit3, Forward, CheckSquare, CalendarPlus, Trash2, Pin, PinOff } from 'lucide-react';
+import { Reply, Edit3, Forward, CheckSquare, CalendarPlus, Trash2, Pin, PinOff, CheckCheck } from 'lucide-react';
 
 interface MessageContextMenuProps {
   message: Message | null;
@@ -20,6 +20,7 @@ interface MessageContextMenuProps {
   onShowEventSelector: (message: Message) => void;
   onLoadCalendars: () => Promise<void>;
   onTogglePin: (message: Message) => void;
+  onSelect?: (message: Message) => void;
   canPinMessage?: boolean;
 }
 
@@ -38,6 +39,7 @@ export default function MessageContextMenu({
   onShowEventSelector,
   onLoadCalendars,
   onTogglePin,
+  onSelect,
   canPinMessage = true,
 }: MessageContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -133,6 +135,20 @@ export default function MessageContextMenu({
           <Reply className="w-4 h-4 text-blue-400" />
           Ответить
         </button>
+
+        {onSelect && (
+          <button
+            type="button"
+            onClick={() => {
+              onSelect(message);
+              onClose();
+            }}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
+          >
+            <CheckCheck className="w-4 h-4 text-indigo-400" />
+            Выбрать
+          </button>
+        )}
 
         <button
           type="button"

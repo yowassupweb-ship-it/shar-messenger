@@ -1,11 +1,12 @@
 'use client';
 
 import React from 'react';
-import { Check, X, Reply, Edit3, FileText, Calendar, Link as LinkIcon, File, Download, CheckSquare } from 'lucide-react';
+import { Check, X, Reply, Edit3, FileText, Calendar, Link as LinkIcon, File, Download, CheckSquare, Bell, MessageCircle, Users, Star, ArrowRight } from 'lucide-react';
 import Avatar from '@/components/common/data-display/Avatar';
 import LinkPreview from './LinkPreview';
 import { Message, User, Chat } from './types';
 import { formatMessageDate, shouldShowDateSeparator, formatMessageText } from './utils';
+import CallCard from '@/app/test-chat/CallCard';
 
 const TASK_STATUS_LABELS: Record<string, string> = {
   'todo': 'К выполнению',
@@ -406,16 +407,24 @@ const MessageItem: React.FC<MessageItemProps> = ({
       ? (isDesktopView ? 'justify-start' : 'justify-end')
       : 'justify-start';
   const rowPaddingClass = isNotificationBubble ? 'mx-0' : (isDesktopView ? 'md:px-2 md:-mx-2' : 'mx-0');
-  const avatarVisibilityClass = isNotificationBubble ? 'hidden' : (isDesktopView ? 'flex' : 'hidden');
+  const isGroupChatForAvatar = !!(selectedChat?.isGroup || (selectedChat?.participantIds?.length ?? 0) > 2);
+  // Show avatar on mobile only in group chats; always show on desktop (md+)
+  const avatarVisibilityClass = isNotificationBubble ? 'hidden' : (isGroupChatForAvatar ? 'flex' : 'hidden md:flex');
   const bubbleBoxClass = isNotificationBubble
     ? 'w-full max-w-[94%] md:max-w-[82%]'
     : hasOnlyImages
-      ? (isDesktopView ? 'max-w-[88%] lg:max-w-[82%]' : 'max-w-[96%]')
-      : (isDesktopView ? 'max-w-[75%] lg:max-w-[65%]' : 'max-w-[80%]');
+      ? (isDesktopView ? 'max-w-[70%] lg:max-w-[60%]' : 'max-w-[85%]')
+      : (isDesktopView ? 'max-w-[65%] lg:max-w-[55%]' : 'max-w-[75%]');
   const bubbleOverflowClass = isNotificationBubble ? 'overflow-visible' : 'overflow-hidden';
-  const notificationSurfaceClass = theme === 'dark'
-    ? 'bg-[var(--bg-tertiary)] border-[var(--border-color)] backdrop-blur-md'
-    : 'bg-gradient-to-br from-white/60 to-white/40 border-gray-300/70 backdrop-blur-md shadow-[0_2px_8px_rgba(0,0,0,0.08)]';
+  // Всегда используем полноценные эффекты (как в Signal/Telegram)
+  const shouldUseFlatBubbleSurface = false;
+  const notificationSurfaceClass = shouldUseFlatBubbleSurface
+    ? (theme === 'dark'
+      ? 'bg-[var(--bg-tertiary)] border-[var(--border-color)]'
+      : 'bg-white border-gray-300')
+    : (theme === 'dark'
+      ? 'bg-[var(--bg-tertiary)] border-[var(--border-color)] backdrop-blur-md'
+      : 'bg-gradient-to-br from-white/60 to-white/40 border-gray-300/70 backdrop-blur-md shadow-[0_2px_8px_rgba(0,0,0,0.08)]');
   const notificationTextClass = theme === 'dark' ? 'text-[var(--text-primary)]' : 'text-gray-800';
   const notificationActionClass = theme === 'dark'
     ? 'bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-primary)]'
@@ -444,8 +453,8 @@ const MessageItem: React.FC<MessageItemProps> = ({
     );
   };
   
-  // Настройки стилей
-  const bubbleRadius = chatSettings.bubbleStyle === 'minimal' ? 'rounded-lg' : chatSettings.bubbleStyle === 'classic' ? 'rounded-2xl' : 'rounded-[12px]';
+  // Настройки стилей (Signal style: 18px radius, 4px in corner of last message in group)
+  const bubbleRadius = 'rounded-[18px]';
   const mobileFontSize = chatSettings.fontSizeMobile || 15;
   const desktopFontSize = chatSettings.fontSize || 13;
   const bubbleOpacityRaw = Number(chatSettings?.bubbleOpacity ?? 0.92);
@@ -518,10 +527,16 @@ const MessageItem: React.FC<MessageItemProps> = ({
     ? (chatSettings?.bubbleTextColor || '')
     : (chatSettings?.bubbleTextColorLight || '');
   const ownBubbleStyle = isMyMessage && hasBackground && !isNotificationBubble
-    ? { backgroundColor: hexToRgba(ownBubbleColor, bubbleOpacity), backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }
+    ? {
+      backgroundColor: shouldUseFlatBubbleSurface ? resolveColorToRgba(ownBubbleColor, 1, '#545190') : hexToRgba(ownBubbleColor, bubbleOpacity),
+      ...(shouldUseFlatBubbleSurface ? {} : { backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' })
+    }
     : undefined;
   const opponentBubbleStyle = !isMyMessage && hasBackground && !isNotificationBubble && !message.isSystemMessage
-    ? { backgroundColor: hexToRgba(opponentBubbleColor, bubbleOpacity), backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }
+    ? {
+      backgroundColor: shouldUseFlatBubbleSurface ? resolveColorToRgba(opponentBubbleColor, 1, '#38414d') : hexToRgba(opponentBubbleColor, bubbleOpacity),
+      ...(shouldUseFlatBubbleSurface ? {} : { backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' })
+    }
     : undefined;
   const messageBubbleStyle = ownBubbleStyle || opponentBubbleStyle;
   
@@ -574,74 +589,110 @@ const MessageItem: React.FC<MessageItemProps> = ({
       );
   }, [displayContent, needsRichTextFormatting, isMyMessage, useDarkTextOnBubble]);
 
-  const renderTelegramStyleImageGrid = React.useCallback((
+  const renderSignalStyleImageGrid = React.useCallback((
     images: Array<{ url: string; name?: string }>,
     sourceKey: 'attachment' | 'url'
   ) => {
     if (!images.length) return null;
 
-    const visibleImages = images.slice(0, 4);
-    const hiddenCount = Math.max(images.length - 4, 0);
+    const MAX_SHOWN = 4;
+    const visibleImages = images.slice(0, MAX_SHOWN);
+    const hiddenCount = Math.max(images.length - MAX_SHOWN, 0);
+    const n = images.length;
 
-    const gridClass = (() => {
-      if (images.length === 1) return 'grid grid-cols-1 gap-2';
-      if (images.length === 2) return 'grid grid-cols-2 gap-2';
-      if (images.length === 3) return 'grid grid-cols-2 gap-2';
-      return 'grid grid-cols-2 gap-2';
-    })();
+    const imgCls = 'absolute inset-0 w-full h-full object-cover';
+    const hoverCls = 'absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none';
+    const wrapCls = 'mt-1 mb-1 overflow-hidden w-full max-w-[min(70vw,300px)] md:max-w-[300px]';
 
-    const tileClass = (index: number) => {
-      if (images.length === 1) {
-        return 'aspect-[4/3] md:aspect-[16/10] min-h-[110px] md:min-h-[140px] max-h-[280px] col-span-1';
-      }
-      if (images.length === 2) {
-        return 'aspect-[4/3] min-h-[84px] md:min-h-[110px] col-span-1';
-      }
-      if (images.length === 3 && index === 0) {
-        return 'col-span-2 aspect-[16/9] min-h-[100px] md:min-h-[128px]';
-      }
-      if (images.length === 3) {
-        return 'aspect-[4/3] min-h-[74px] md:min-h-[96px] col-span-1';
-      }
-      return 'aspect-[4/3] min-h-[74px] md:min-h-[96px] col-span-1';
-    };
+    const Tile = ({
+      image, idx, isLast, className, style,
+    }: {
+      image: { url: string; name?: string };
+      idx: number;
+      isLast: boolean;
+      className: string;
+      style?: React.CSSProperties;
+    }) => (
+      <div
+        key={`${sourceKey}-${idx}-${image.url}`}
+        className={`relative group overflow-hidden bg-black/5 dark:bg-black/20 cursor-pointer ${className}`}
+        style={style}
+        onClick={() => { setCurrentImageUrl(image.url); setShowImageModal(true); }}
+      >
+        <img
+          src={image.url}
+          alt={image.name || 'Изображение'}
+          loading="lazy"
+          decoding="async"
+          className={imgCls}
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+        />
+        <div className={hoverCls} />
+        {isLast && hiddenCount > 0 && (
+          <div className="absolute inset-0 bg-black/55 flex items-center justify-center">
+            <span className="text-white text-xl font-semibold">+{hiddenCount}</span>
+          </div>
+        )}
+      </div>
+    );
 
+    // 1 image — full width
+    if (n === 1) {
+      return (
+        <div className={wrapCls}>
+          <div
+            className="relative group rounded-2xl overflow-hidden bg-black/5 dark:bg-black/20 cursor-pointer"
+            style={{ aspectRatio: '4/3', minHeight: 120, maxHeight: 300 }}
+            onClick={() => { setCurrentImageUrl(images[0].url); setShowImageModal(true); }}
+          >
+            <img src={images[0].url} alt={images[0].name || 'Изображение'} loading="lazy" decoding="async" className={imgCls}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            <div className={hoverCls} />
+          </div>
+        </div>
+      );
+    }
+
+    // 2 images — side by side equal columns
+    if (n === 2) {
+      return (
+        <div className={wrapCls}>
+          <div className="flex gap-[2px] rounded-2xl overflow-hidden" style={{ height: 150 }}>
+            <Tile image={visibleImages[0]} idx={0} isLast={false} className="flex-1" />
+            <Tile image={visibleImages[1]} idx={1} isLast={true} className="flex-1" />
+          </div>
+        </div>
+      );
+    }
+
+    // 3 images — Signal layout: big left + 2 small stacked right
+    if (n === 3) {
+      return (
+        <div className={wrapCls}>
+          <div className="flex gap-[2px] rounded-2xl overflow-hidden" style={{ height: 200 }}>
+            <Tile image={visibleImages[0]} idx={0} isLast={false} className="flex-[3]" />
+            <div className="flex-[2] flex flex-col gap-[2px]">
+              <Tile image={visibleImages[1]} idx={1} isLast={false} className="flex-1 w-full" />
+              <Tile image={visibleImages[2]} idx={2} isLast={true} className="flex-1 w-full" />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 4+ images — 2×2 grid
     return (
-      <div className="mt-2 mb-1 pb-2 pr-2 w-full max-w-[min(72vw,420px)] md:max-w-[420px]">
-        <div className={gridClass}>
-          {visibleImages.map((image, idx) => {
-            const isLastVisibleWithOverflow = hiddenCount > 0 && idx === visibleImages.length - 1;
-
-            return (
-              <div
-                key={`${sourceKey}-${idx}-${image.url}`}
-                className={`relative group rounded-xl overflow-hidden bg-black/20 cursor-pointer ${tileClass(idx)}`}
-                onClick={() => {
-                  setCurrentImageUrl(image.url);
-                  setShowImageModal(true);
-                }}
-              >
-                <img
-                  src={image.url}
-                  alt={image.name || 'Изображение'}
-                  loading="lazy"
-                  decoding="async"
-                  fetchPriority="low"
-                  className="absolute inset-0 w-full h-full object-cover hover:opacity-90 transition-opacity"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = 'none';
-                  }}
-                />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                {isLastVisibleWithOverflow && (
-                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                    <span className="text-white text-lg font-semibold">+{hiddenCount}</span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+      <div className={wrapCls}>
+        <div className="grid grid-cols-2 gap-[2px] rounded-2xl overflow-hidden" style={{ height: 220 }}>
+          {visibleImages.map((image, idx) => (
+            <Tile
+              key={`g-${idx}`}
+              image={image}
+              idx={idx}
+              isLast={idx === visibleImages.length - 1}
+              className="w-full h-full"
+            />
+          ))}
         </div>
       </div>
     );
@@ -844,17 +895,19 @@ const MessageItem: React.FC<MessageItemProps> = ({
                   </button>
                 )}
                 {(att.type === 'file' || att.type === 'document') && (
-                  <div className="group inline-flex flex-col items-start gap-2 px-2.5 py-2 bg-gradient-to-br from-orange-500/20 via-red-500/15 to-orange-500/20 dark:from-orange-500/20 dark:via-red-500/15 dark:to-orange-500/20 rounded-xl border-2 border-orange-500/50 dark:border-orange-400/30 hover:border-orange-500/70 dark:hover:border-orange-300/50 max-w-[220px] md:max-w-[300px] hover:shadow-lg hover:shadow-orange-500/25 dark:hover:shadow-orange-400/20 transition-all duration-300 backdrop-blur-sm">
-                    <span className="text-[10px] md:text-xs text-orange-700 dark:text-orange-400 font-bold uppercase tracking-wide">{att.type === 'document' ? 'Документ' : 'Файл'}</span>
+                  <div className="group inline-flex items-center gap-2 px-3 py-2 bg-white/50 dark:bg-slate-700/50 rounded-xl border border-gray-200 dark:border-slate-600 hover:bg-white/70 dark:hover:bg-slate-700/70 max-w-[280px] md:max-w-[320px] transition-all backdrop-blur-sm">
                     <div className="flex items-center gap-2.5 w-full min-w-0">
-                      <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-gradient-to-br from-orange-400 to-red-500 dark:from-orange-500 dark:to-red-600 flex items-center justify-center flex-shrink-0 shadow-md transition-all duration-300">
+                      <div className="w-10 h-10 rounded-lg bg-gray-200 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
                         {att.type === 'document' ? (
-                          <FileText className="w-4 h-4 md:w-5 md:h-5 text-white drop-shadow-md" />
+                          <FileText className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                         ) : (
-                          <File className="w-4 h-4 md:w-5 md:h-5 text-white drop-shadow-md" />
+                          <File className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                         )}
                       </div>
-                      <span className="text-xs md:text-sm font-semibold text-gray-900 dark:text-[var(--text-primary)] truncate flex-1 min-w-0 leading-tight">{att.name}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{att.name}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Документ</div>
+                      </div>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -862,10 +915,9 @@ const MessageItem: React.FC<MessageItemProps> = ({
                           e.stopPropagation();
                           downloadAttachment(att);
                         }}
-                        className="px-2.5 py-1.5 rounded-lg bg-gradient-to-br from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white text-[10px] md:text-xs font-bold shadow-md hover:shadow-lg active:scale-95 transition-all duration-200 flex items-center gap-1 flex-shrink-0"
+                        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors flex-shrink-0"
                       >
-                        <Download className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                        <span className="hidden md:inline">Скачать</span>
+                        <Download className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                       </button>
                     </div>
                   </div>
@@ -921,15 +973,15 @@ const MessageItem: React.FC<MessageItemProps> = ({
                 ? `${
                     isNotificationBubble
                       ? `rounded-2xl px-3 py-2 md:px-4 relative w-full max-w-full border ${notificationSurfaceClass}`
-                      : `${bubbleRadius} px-2.5 py-1.5 md:px-3 md:py-2 relative w-fit max-w-full`
+                      : `${bubbleRadius} px-3 py-2 relative w-fit max-w-full`
                   } ${
                     isNotificationBubble
                       ? ''
                       : isMyMessage
-                      ? `text-white ${isLastInGroup ? 'rounded-br-sm md:rounded-br-[12px] md:rounded-bl-sm' : ''}`
+                      ? `text-white ${isLastInGroup ? '!rounded-br-[6px]' : ''}`
                       : !isNotificationBubble && message.isSystemMessage
-                        ? `bg-gradient-to-r from-orange-100 to-amber-100 dark:from-blue-500/10 dark:to-purple-500/10 border border-orange-200 dark:border-blue-500/20 hover:border-orange-300 dark:hover:border-blue-500/40 transition-colors ${isLastInGroup ? 'rounded-bl-sm' : ''}`
-                        : `bg-[var(--bg-tertiary)] ${isLastInGroup ? 'rounded-bl-sm' : ''}`
+                        ? `bg-gradient-to-r from-orange-100 to-amber-100 dark:from-blue-500/10 dark:to-purple-500/10 border border-orange-200 dark:border-blue-500/20 hover:border-orange-300 dark:hover:border-blue-500/40 transition-colors ${isLastInGroup ? '!rounded-bl-[6px]' : ''}`
+                        : `bg-[var(--bg-tertiary)] ${isLastInGroup ? '!rounded-bl-[6px]' : ''}`
                   } ${message.isDeleted ? 'opacity-60' : ''}`
                 : ''
             }`}
@@ -947,6 +999,13 @@ const MessageItem: React.FC<MessageItemProps> = ({
                   </span>
                 )}
               </p>
+            )}
+
+            {/* Call card for voice/video calls */}
+            {message.callInfo && !isNotificationBubble && (
+              <div className="mb-2">
+                <CallCard call={message.callInfo} isMyMessage={isMyMessage} />
+              </div>
             )}
 
             {message.isDeleted ? (
@@ -979,20 +1038,41 @@ const MessageItem: React.FC<MessageItemProps> = ({
                   <>
                     <span className="inline">
                       {isNotificationBubble ? (
-                        <span className="flex w-full min-w-0 items-start gap-2 flex-wrap">
-                          <div className="flex-shrink-0 mt-0.5">
-                            {notificationActorUser ? (
+                        <span className="flex w-full min-w-0 items-start gap-2.5 flex-wrap">
+                          {/* Notification type icon badge */}
+                          <div className="flex-shrink-0 mt-0.5 flex items-center gap-1.5">
+                            {(() => {
+                              const nt = message.notificationType || '';
+                              const hasTask = !!message.linkedTaskId || nt.includes('task');
+                              const hasEvent = !!effectiveLinkedEventId || nt.includes('event') || nt.includes('calendar');
+                              const hasChat = !!message.linkedChatId || nt.includes('chat');
+                              if (hasTask) return (
+                                <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center shadow-sm">
+                                  <CheckSquare className="w-3.5 h-3.5 text-white" />
+                                </div>
+                              );
+                              if (hasEvent) return (
+                                <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-green-500 to-green-700 flex items-center justify-center shadow-sm">
+                                  <Calendar className="w-3.5 h-3.5 text-white" />
+                                </div>
+                              );
+                              if (hasChat) return (
+                                <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-sm">
+                                  <MessageCircle className="w-3.5 h-3.5 text-white" />
+                                </div>
+                              );
+                              return (
+                                <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-sm">
+                                  <Bell className="w-3.5 h-3.5 text-white" />
+                                </div>
+                              );
+                            })()}
+                            {notificationActorUser && (
                               <Avatar
                                 src={notificationActorUser.avatar}
                                 name={notificationActorUser.name || notificationActorName || 'Пользователь'}
                                 size="xs"
                                 type="user"
-                              />
-                            ) : (
-                              <Avatar
-                                name="Уведомление"
-                                size="xs"
-                                type="notifications"
                               />
                             )}
                           </div>
@@ -1059,20 +1139,39 @@ const MessageItem: React.FC<MessageItemProps> = ({
                           )}
                         </span>
                       ) : needsRichTextFormatting ? (
-                        <span
-                          className={`message-content ${isMyMessage ? myBubbleTextClass : 'text-[var(--text-primary)]'} whitespace-pre-wrap [overflow-wrap:anywhere] ${isEditing ? 'bg-blue-500/10 -mx-2 -my-1 px-2 py-1 rounded border border-blue-400/30' : ''}`}
-                          style={isMyMessage && ownBubbleTextColor ? { ...fontSizeStyle, color: ownBubbleTextColor } : fontSizeStyle}
-                          dangerouslySetInnerHTML={{ __html: formattedMessageHtml }}
-                        />
+                        <>
+                          <span
+                            className={`message-content ${isMyMessage ? myBubbleTextClass : 'text-[var(--text-primary)]'} whitespace-pre-wrap [overflow-wrap:anywhere] ${isEditing ? 'bg-blue-500/10 -mx-2 -my-1 px-2 py-1 rounded border border-blue-400/30' : ''}`}
+                            style={isMyMessage && ownBubbleTextColor ? { ...fontSizeStyle, color: ownBubbleTextColor } : fontSizeStyle}
+                            dangerouslySetInnerHTML={{ __html: formattedMessageHtml }}
+                          />
+                          {!hasOnlyImages && !isOnlyEmojis && !hasOnlyAttachments && (
+                            <span className="inline-flex items-baseline gap-0.5 ml-1.5 whitespace-nowrap select-none pointer-events-auto align-bottom">
+                              <span className={`${isDesktopView ? 'text-[11px]' : 'text-[9px]'} select-none ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80') : 'text-[var(--text-muted)]'}`}>
+                                {new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                                {message.isEdited && <span className="ml-1">(изм.)</span>}
+                              </span>
+                              {isMyMessage && !message.isDeleted && renderTelegramChecks(isReadByOthers)}
+                            </span>
+                          )}
+                        </>
                       ) : (
                         <span
                           className={`message-content ${isMyMessage ? myBubbleTextClass : 'text-[var(--text-primary)]'} ${isNotificationBubble ? 'block max-w-full whitespace-pre-wrap [overflow-wrap:anywhere] text-left text-[13px] md:text-sm leading-relaxed' : 'whitespace-pre-wrap [overflow-wrap:anywhere]'} ${isEditing ? 'bg-blue-500/10 -mx-2 -my-1 px-2 py-1 rounded border border-blue-400/30' : ''}`}
                           style={isMyMessage && ownBubbleTextColor ? { ...fontSizeStyle, color: ownBubbleTextColor } : fontSizeStyle}
                         >
                           {displayContent}
+                          {!isNotificationBubble && !hasOnlyImages && !isOnlyEmojis && !hasOnlyAttachments && (
+                            <span className="inline-flex items-baseline gap-0.5 ml-1.5 whitespace-nowrap select-none pointer-events-auto align-bottom">
+                              <span className={`${isDesktopView ? 'text-[11px]' : 'text-[9px]'} select-none ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80') : 'text-[var(--text-muted)]'}`}>
+                                {new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                                {message.isEdited && <span className="ml-1">(изм.)</span>}
+                              </span>
+                              {isMyMessage && !message.isDeleted && renderTelegramChecks(isReadByOthers)}
+                            </span>
+                          )}
                         </span>
                       )}
-                      {!isNotificationBubble && <span className={`inline-block ${isDesktopView ? 'w-[90px]' : 'w-[80px]'}`}>&nbsp;</span>}
                     </span>
 
                     {/* Кнопка перехода к задаче/публикации */}
@@ -1107,8 +1206,8 @@ const MessageItem: React.FC<MessageItemProps> = ({
                       </div>
                     )}
 
-                    {/* Предпросмотр изображений */}
-                    {mergedImages.length > 0 && renderTelegramStyleImageGrid(
+                    {/* Предпросмотр изображений (Signal-style grid) */}
+                    {mergedImages.length > 0 && renderSignalStyleImageGrid(
                       mergedImages,
                       'attachment'
                     )}
@@ -1116,11 +1215,26 @@ const MessageItem: React.FC<MessageItemProps> = ({
                     {/* Предпросмотр ссылок */}
                     {otherUrls.length > 0 && <LinkPreview url={otherUrls[0]} isMyMessage={isMyMessage} />}
 
-                    {/* Attachments внутри bubble */}
-                    {message.attachments && message.attachments.length > 0 && nonImageAttachments.length > 0 && message.content.trim() && (
+                    {/* Attachments внутри bubble (file/video/task/event/link) */}
+                    {message.attachments && message.attachments.length > 0 && nonImageAttachments.length > 0 && (
                       <div className="flex flex-col gap-2 mt-2 mb-5 w-full">
                         {nonImageAttachments.map((att, idx) => (
                           <div key={idx} className="w-full">
+                            {att.type === 'video' && att.url && (
+                              <div className="w-full max-w-[260px] md:max-w-[300px]">
+                                <video
+                                  src={att.url}
+                                  controls
+                                  preload="metadata"
+                                  playsInline
+                                  className="w-full rounded-2xl bg-black"
+                                  style={{ maxHeight: 220 }}
+                                />
+                                {att.name && (
+                                  <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 truncate px-1">{att.name}</div>
+                                )}
+                              </div>
+                            )}
                             {att.type === 'task' && (
                               <button 
                                 onClick={() => {
@@ -1234,20 +1348,6 @@ const MessageItem: React.FC<MessageItemProps> = ({
                     )}
 
                     {/* Изображения из attachments рендерятся в mergedImages */}
-                    
-                    {/* Время и галочки */}
-                    {!isNotificationBubble && !hasOnlyImages && !isOnlyEmojis && !hasOnlyAttachments && (
-                      <span className="absolute bottom-0.5 right-2 flex items-center gap-1 select-none pointer-events-auto">
-                        <span className={`${isDesktopView ? 'text-[11px]' : 'text-[9px]'} select-none ${isMyMessage ? (useDarkTextOnBubble ? 'text-gray-700' : 'text-white/80') : 'text-[var(--text-muted)]'}`}>
-                          {new Date(message.createdAt).toLocaleTimeString('ru-RU', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                          {message.isEdited && <span className="ml-1">(изм.)</span>}
-                        </span>
-                        {isMyMessage && !message.isDeleted && renderTelegramChecks(isReadByOthers)}
-                      </span>
-                    )}
                   </>
                 )}
               </>

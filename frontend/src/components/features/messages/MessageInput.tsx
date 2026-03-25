@@ -81,6 +81,33 @@ const MessageInput: React.FC<MessageInputProps> = ({
   updateMessage,
   sendMessage
 }) => {
+  const DEFAULT_CHROMIUM_IMAGE_FILENAME = 'image.png';
+  const dragDepthRef = React.useRef(0);
+
+  const hasFilePayload = React.useCallback((transfer: DataTransfer | null | undefined) => {
+    if (!transfer?.types) return false;
+    return Array.from(transfer.types).includes('Files');
+  }, []);
+
+  const getDroppedFiles = React.useCallback((transfer: DataTransfer | null | undefined): File[] => {
+    if (!transfer || transfer.types[0] !== 'Files') return [];
+    return Array.from(transfer.files || []);
+  }, []);
+
+  const normalizePastedFile = React.useCallback((item: DataTransferItem): File | null => {
+    const file = item.getAsFile();
+    if (!file) return null;
+
+    if (file.type === 'image/png' && file.name === DEFAULT_CHROMIUM_IMAGE_FILENAME) {
+      return new File([file], `screenshot-${Date.now()}.png`, {
+        type: file.type,
+        lastModified: file.lastModified,
+      });
+    }
+
+    return file;
+  }, []);
+
   const getCurrentNavOffset = React.useCallback(() => {
     if (typeof window === 'undefined') return 0;
 
@@ -225,52 +252,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
     setIsUploadingAttachments(false);
   }, [setAttachments, setIsUploadingAttachments]);
 
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const hasFiles = (event: DragEvent) => {
-      const types = event.dataTransfer?.types;
-      return Boolean(types && Array.from(types).includes('Files'));
-    };
-
-    const onWindowDragOver = (event: DragEvent) => {
-      if (!hasFiles(event)) return;
-      event.preventDefault();
-      setIsDragging(true);
-    };
-
-    const onWindowDrop = (event: DragEvent) => {
-      if (!hasFiles(event)) return;
-      event.preventDefault();
-      setIsDragging(false);
-      const droppedFiles = Array.from(event.dataTransfer?.files || []);
-      if (droppedFiles.length > 0) {
-        void uploadAndAttachFiles(droppedFiles);
-      }
-    };
-
-    const onWindowDragLeave = (event: DragEvent) => {
-      if (event.clientX === 0 && event.clientY === 0) {
-        setIsDragging(false);
-      }
-    };
-
-    window.addEventListener('dragover', onWindowDragOver);
-    window.addEventListener('drop', onWindowDrop);
-    window.addEventListener('dragleave', onWindowDragLeave);
-
-    return () => {
-      window.removeEventListener('dragover', onWindowDragOver);
-      window.removeEventListener('drop', onWindowDrop);
-      window.removeEventListener('dragleave', onWindowDragLeave);
-    };
-  }, [setIsDragging, uploadAndAttachFiles]);
-
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    dragDepthRef.current = 0;
     setIsDragging(false);
 
-    const files = Array.from(e.dataTransfer.files || []);
+    const files = getDroppedFiles(e.dataTransfer);
     if (files.length > 0) {
       await uploadAndAttachFiles(files);
     }
@@ -287,21 +275,20 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const items = e.clipboardData?.items;
     if (!items) return;
 
-    const files: File[] = [];
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.kind === 'file') {
-        const file = item.getAsFile();
-        if (file) files.push(file);
-      } else if (item.type && item.type.indexOf('image') !== -1) {
-        const file = item.getAsFile();
-        if (file) files.push(file);
-      }
-    }
+    const fileItems = Array.from(items).filter((item) => item.kind === 'file');
+    if (fileItems.length === 0) return;
+
+    const allVisual = fileItems.every((item) => {
+      const typeRoot = item.type.split('/')[0];
+      return typeRoot === 'image' || typeRoot === 'video';
+    });
+
+    const files = allVisual
+      ? fileItems.map(normalizePastedFile).filter((file): file is File => Boolean(file))
+      : [normalizePastedFile(fileItems[0])].filter((file): file is File => Boolean(file));
 
     if (files.length === 0) return;
     e.preventDefault();
-
     await uploadAndAttachFiles(files);
   };
 
@@ -312,14 +299,27 @@ const MessageInput: React.FC<MessageInputProps> = ({
         isDragging ? 'scale-[1.02]' : ''
       }`}
       style={{ bottom: `${composerBottomOffset}px` }}
-      onCopy={(e) => e.preventDefault()}
-      onDragOver={(e) => {
+      onDragEnter={(e) => {
+        if (!hasFilePayload(e.dataTransfer)) return;
         e.preventDefault();
+        e.stopPropagation();
+        dragDepthRef.current += 1;
+        setIsDragging(true);
+      }}
+      onDragOver={(e) => {
+        if (!hasFilePayload(e.dataTransfer)) return;
+        e.preventDefault();
+        e.stopPropagation();
         setIsDragging(true);
       }}
       onDragLeave={(e) => {
+        if (!hasFilePayload(e.dataTransfer)) return;
         e.preventDefault();
-        setIsDragging(false);
+        e.stopPropagation();
+        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+        if (dragDepthRef.current === 0) {
+          setIsDragging(false);
+        }
       }}
       onDrop={handleDrop}
     >
@@ -447,7 +447,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             ref={fileInputRef}
             type="file"
             multiple
-            accept="image/*"
+            accept="*/*"
             className="hidden"
             onChange={handleFileInputChange}
           />
@@ -521,9 +521,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
             
             <textarea
               ref={messageInputRef}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                handleTextSelection({ x: e.clientX, y: e.clientY });
+              onMouseUp={(e) => {
+                if (e.button === 0) {
+                  handleTextSelection();
+                }
               }}
               onFocus={() => {
                 isUserActiveRef.current = true;
@@ -536,31 +537,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
               }}
               onChange={handleMessageChange}
               onKeyDown={handleMessageKeyDown}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                e.currentTarget.style.borderColor = 'rgb(59, 130, 246)';
-                e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
-              }}
               onPaste={handlePaste}
-              onDragLeave={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                e.currentTarget.style.borderColor = '';
-                e.currentTarget.style.backgroundColor = '';
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                e.currentTarget.style.borderColor = '';
-                e.currentTarget.style.backgroundColor = '';
-                
-                const files = e.dataTransfer.files;
-                if (files && files.length > 0) {
-                  const droppedFiles = Array.from(files);
-                  void uploadAndAttachFiles(droppedFiles);
-                }
-              }}
               onWheel={(e) => {
                 const textarea = e.currentTarget;
                 if (textarea.scrollHeight <= textarea.clientHeight) return;

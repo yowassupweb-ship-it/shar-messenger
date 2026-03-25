@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, Users, Settings, FileText, Plus, Trash2, 
   Shield, Key, RefreshCw, Database, CheckCircle, XCircle,
-  AlertTriangle, Info, Loader2, Save, X, Pencil, Phone, Calendar
+  AlertTriangle, Info, Loader2, Save, X, Pencil, Phone, Calendar,
+  Bell, CheckSquare, MessageSquare
 } from 'lucide-react';
 
 interface User {
@@ -78,6 +79,8 @@ export default function AdminPage() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [showPasswords, setShowPasswords] = useState(false);
   const [dbSize, setDbSize] = useState<string>('Загрузка...');
+  const [sendingTestNotif, setSendingTestNotif] = useState(false);
+  const [testNotifResult, setTestNotifResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const showToast = (message: string, type: 'success' | 'error' | 'warning') => {
     setToast({ message, type });
@@ -297,8 +300,52 @@ export default function AdminPage() {
     }
   };
 
+  const sendTestNotification = async (
+    type: 'new_task' | 'mention' | 'event_invite',
+    label: string
+  ) => {
+    const username = localStorage.getItem('username');
+    if (!username) { showToast('Не определён текущий пользователь', 'error'); return; }
+
+    const me = users.find(u => u.username === username || u.email === username);
+    if (!me) { showToast('Пользователь не найден в списке', 'error'); return; }
+
+    setSendingTestNotif(true);
+    setTestNotifResult(null);
+    try {
+      const notification = {
+        id: `test_${Date.now()}`,
+        type,
+        todoId: type === 'new_task' ? 'test-task-1' : undefined,
+        todoTitle: type === 'new_task' ? 'Тестовая задача' : undefined,
+        eventId: type === 'event_invite' ? 'test-event-1' : undefined,
+        eventTitle: type === 'event_invite' ? 'Тестовое событие' : undefined,
+        fromUserId: me.id,
+        fromUserName: me.name || me.username || 'Администратор',
+        toUserId: me.id,
+        message: `Тестовое уведомление: ${label}`,
+        read: false,
+        createdAt: new Date().toISOString(),
+      };
+      const res = await fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(notification),
+      });
+      if (res.ok) {
+        setTestNotifResult({ ok: true, message: `Уведомление «${label}» отправлено` });
+      } else {
+        setTestNotifResult({ ok: false, message: 'Ошибка отправки уведомления' });
+      }
+    } catch {
+      setTestNotifResult({ ok: false, message: 'Ошибка сети' });
+    } finally {
+      setSendingTestNotif(false);
+      setTimeout(() => setTestNotifResult(null), 4000);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 bg-gray-50 dark:bg-[#0d0d0d] overflow-y-auto">
       {/* Toast */}
       {toast && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl border backdrop-blur-xl flex items-center gap-2 shadow-2xl ${
@@ -479,6 +526,60 @@ export default function AdminPage() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+
+          {/* Notification Test Section */}
+          <div className="bg-white dark:bg-white/[0.03] rounded-2xl border border-gray-200 dark:border-white/[0.06] overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-white/[0.06] flex items-center gap-3">
+              <Bell className="w-4 h-4 text-gray-500 dark:text-white/40" />
+              <h3 className="text-gray-900 dark:text-white font-medium">Тест уведомлений</h3>
+              <span className="text-xs text-gray-400 dark:text-white/30 ml-1">Отправляются текущему пользователю</span>
+            </div>
+            <div className="px-6 py-5">
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => sendTestNotification('new_task', 'Задача')}
+                  disabled={sendingTestNotif}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/20 text-purple-700 dark:text-purple-300 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-500/20 transition-all text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <CheckSquare className="w-4 h-4" />
+                  Уведомление задачи
+                </button>
+                <button
+                  onClick={() => sendTestNotification('mention', 'Сообщение')}
+                  disabled={sendingTestNotif}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-blue-700 dark:text-blue-300 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Уведомление сообщения
+                </button>
+                <button
+                  onClick={() => sendTestNotification('event_invite', 'Событие')}
+                  disabled={sendingTestNotif}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-all text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Calendar className="w-4 h-4" />
+                  Уведомление события
+                </button>
+                {sendingTestNotif && (
+                  <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-white/40">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Отправка...
+                  </div>
+                )}
+              </div>
+              {testNotifResult && (
+                <div className={`mt-3 flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
+                  testNotifResult.ok
+                    ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                    : 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400'
+                }`}>
+                  {testNotifResult.ok ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                  {testNotifResult.message}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

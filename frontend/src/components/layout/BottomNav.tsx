@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from 'next/navigation';
 import { MessageCircle, CheckSquare, Calendar, Users, Globe, MoreVertical, Sun, Moon, Settings, Type, Zap, Hash, Package2, PenTool, Shield, Code2, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import Avatar from '@/components/Avatar';
 
@@ -117,9 +117,62 @@ export default function BottomNav() {
     router.push(path);
   };
 
-  // Скрываем на мобильных устройствах когда открыт чат (есть параметр ?chat=...)
-  const isInChat = typeof window !== 'undefined' && pathname === '/messages' && new URLSearchParams(window.location.search).has('chat');
-  const shouldHideMobile = isInChat;
+  // Скрываем на мобильных устройствах когда открыт чат 
+  // Проверяем: /messages?chat=..., /account?tab=messages&chat=..., /test-chat
+  const [shouldHideMobile, setShouldHideMobile] = useState(false);
+  // ref для хранения состояния от события (чтобы интервал не перебивал его)
+  const chatOpenFromEvent = useRef(false);
+  
+  useEffect(() => {
+    const checkChat = () => {
+      // Если от события уже известно что чат открыт — не трогаем (интервал не перебивает)
+      if (chatOpenFromEvent.current) return;
+      
+      // Используем window.location для надежной проверки URL (searchParams не триггерит ререндер)
+      if (typeof window === 'undefined') return;
+      
+      const fullUrl = window.location.href;
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasChat = urlParams.has('chat');
+      const tabMessages = urlParams.get('tab') === 'messages';
+      
+      // АГРЕССИВНАЯ проверка - любое упоминание чата в URL
+      const isInChat = (
+        pathname.includes('test-chat') ||
+        fullUrl.includes('test-chat') ||
+        fullUrl.includes('chat=') ||
+        (pathname === '/messages' && hasChat) ||
+        (pathname === '/account' && tabMessages && hasChat)
+      );
+      
+      setShouldHideMobile(isInChat);
+    };
+    
+    // Первая проверка
+    checkChat();
+    
+    // Подписываемся на событие выбора чата (исходит из ChatList/account page)
+    const handleChatSelection = (e: any) => {
+      const isOpen = !!e.detail?.isOpen;
+      chatOpenFromEvent.current = isOpen;
+      setShouldHideMobile(isOpen);
+    };
+    window.addEventListener('chat-selection-changed', handleChatSelection);
+    
+    // Слушаем изменения истории браузера
+    window.addEventListener('popstate', checkChat);
+    window.addEventListener('hashchange', checkChat);
+    
+    // Проверяем каждые 100мс для надежности (Next.js router events не всегда срабатывают)
+    const interval = setInterval(checkChat, 100);
+    
+    return () => {
+      window.removeEventListener('chat-selection-changed', handleChatSelection);
+      window.removeEventListener('popstate', checkChat);
+      window.removeEventListener('hashchange', checkChat);
+      clearInterval(interval);
+    };
+  }, [pathname]);
 
   // Скрываем когда открыты модальные окна (по наличию элементов с высоким z-index)
   const [hasActiveModal, setHasActiveModal] = useState(false);
@@ -168,8 +221,8 @@ export default function BottomNav() {
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1024;
   const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 768;
 
-  // Показываем только на /content-plan и /utm-generator (+ вложенные страницы)
-  const shouldShow = pathname.startsWith('/content-plan') || pathname.startsWith('/utm-generator');
+  // Показываем везде КРОМЕ /test-chat
+  const shouldShow = !pathname.startsWith('/test-chat');
 
   const removePinnedTool = async (toolId: string) => {
     const updated = pinnedTools.filter((id) => id !== toolId);
@@ -207,10 +260,15 @@ export default function BottomNav() {
     return null;
   }
 
+  // ПОЛНОСТЬЮ убираем меню если открыт чат
+  if (shouldHideMobile) {
+    return null;
+  }
+
   return (
     <>
       {/* Mobile Bottom Navigation */}
-      <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-2 pb-[max(env(safe-area-inset-bottom),14px)] px-3 z-40 pointer-events-none select-none overflow-visible ${shouldHideMobile || !shouldUseMobileNav || hasActiveModal ? 'hidden' : 'flex'}`} style={{ background: 'transparent' }}>
+      <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-2 pb-[max(env(safe-area-inset-bottom),14px)] px-3 z-40 pointer-events-none select-none overflow-visible ${!shouldUseMobileNav || hasActiveModal ? 'hidden' : 'flex'}`} style={{ background: 'transparent' }}>
         <div className="flex items-center gap-2 p-1.5 rounded-[100px] pointer-events-auto backdrop-blur-xl bg-gradient-to-b from-white/10 to-white/5 border border-[var(--border-light)] px-2 py-1.5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_4px_20px_rgba(0,0,0,0.3)]">
           {visibleTabs.messages && (
             <button

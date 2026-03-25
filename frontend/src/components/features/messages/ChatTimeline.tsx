@@ -56,9 +56,11 @@ function storageKey(chatId: string): string {
   return `chat_scroll_v7_${chatId}`;
 }
 
-// offsetFromViewportTop — расстояние от верхней кромки сообщения до верха scroll-контейнера
-// в момент сохранения. Не зависит от scrollHeight — стабильно при подгрузке новых сообщений.
-type ScrollSnapshot = { mode: 'bottom' } | { mode: 'msg'; id: string; offsetFromViewportTop: number };
+// offsetFromViewportTop — расстояние от верхней кромки якорного сообщения до верха
+// scroll-контейнера в момент сохранения. В качестве якоря берём верхнее видимое сообщение,
+// а не центральное: это даёт более стабильное восстановление при возврате в чат.
+// scrollTop — запасной вариант восстановления, если якорное сообщение ещё не найдено.
+type ScrollSnapshot = { mode: 'bottom' } | { mode: 'msg'; id: string; offsetFromViewportTop: number; scrollTop?: number };
 
 function loadSnapshot(chatId: string): ScrollSnapshot | null {
   try {
@@ -69,7 +71,8 @@ function loadSnapshot(chatId: string): ScrollSnapshot | null {
     if (parsed?.mode === 'msg' && typeof parsed.id === 'string' && parsed.id) {
       // Поддержка старого формата с scrollTop (v6) — не применяем, просто пропускаем
       const offset = typeof parsed.offsetFromViewportTop === 'number' ? parsed.offsetFromViewportTop : null;
-      if (offset !== null) return { mode: 'msg', id: parsed.id, offsetFromViewportTop: offset };
+      const scrollTop = typeof parsed.scrollTop === 'number' ? parsed.scrollTop : undefined;
+      if (offset !== null) return { mode: 'msg', id: parsed.id, offsetFromViewportTop: offset, scrollTop };
     }
     return null;
   } catch { return null; }
@@ -113,6 +116,7 @@ export interface ChatTimelineProps {
   setShowImageModal: (show: boolean) => void;
   onNearBottomChange?: (value: boolean) => void;
   onViewportReadyChange?: (value: boolean) => void;
+  onRestabilizingChange?: (value: boolean) => void;
 }
 
 interface ChatTimelineState {
@@ -134,6 +138,12 @@ export class ChatTimeline extends Component<ChatTimelineProps, ChatTimelineState
 
   private _composerResizeObserver: ResizeObserver | null = null;
   private _composerResizeListener: EventListener | null = null;
+  private _restabilizeSnapshot: ScrollSnapshot | null = null;
+  private _restabilizeUntil = 0;
+  private _restabilizeRaf: number | null = null;
+  private _restabilizeTimeoutIds: number[] = [];
+  private _ignoreScrollEventsUntil = 0;
+  private _isRestabilizing = false;
 
   // ── lifecycle ─────────────────────────────────────────────────────────────
 
@@ -147,6 +157,7 @@ export class ChatTimeline extends Component<ChatTimelineProps, ChatTimelineState
 
   componentWillUnmount(): void {
     this._save();
+    this._stopRestabilize();
     this._composerResizeObserver?.disconnect();
     if (this._composerResizeListener) {
       window.removeEventListener('composer-resize', this._composerResizeListener);
@@ -184,6 +195,10 @@ export class ChatTimeline extends Component<ChatTimelineProps, ChatTimelineState
     if (snapshot !== null) {
       setScrollBottom(container, snapshot);
     }
+
+    if (prevProps.messages !== this.props.messages && this._hasActiveRestabilize()) {
+      this._requestRestabilize();
+    }
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
@@ -204,21 +219,27 @@ export class ChatTimeline extends Component<ChatTimelineProps, ChatTimelineState
     if (snapshot?.mode === 'msg') {
       const el = this.props.messageRefs.current[snapshot.id];
       if (el) {
-        // Восстанавливаем позицию через offsetTop элемента минус сохранённое смещение.
-        // offsetTop стабилен после layout — не зависит от scrollTop и не требует
-        // загруженных картинок, в отличие от getBoundingClientRect в момент mount.
-        container.scrollTop = el.offsetTop - snapshot.offsetFromViewportTop;
+        this._applyMessageSnapshot(snapshot);
         // Если snapshot содержит msg-позицию, пользователь точно не был у дна.
         // НЕ вызываем isAtBottom() сейчас — картинки ещё не загружены,
         // scrollHeight может быть неправильным → isAtBottom дал бы false positive и
         // запускал автоскролл вниз.
         near = false;
+        this._startRestabilize(snapshot);
       } else {
-        // Сообщение не найдено → fallback вниз (кэш не содержит это сообщение)
-        scrollToBottom(container);
-        near = true;
+        this._stopRestabilize();
+        if (typeof snapshot.scrollTop === 'number') {
+          this._ignoreScrollEventsUntil = performance.now() + 150;
+          container.scrollTop = Math.max(0, snapshot.scrollTop);
+          near = false;
+        } else {
+          // Сообщение не найдено → fallback вниз (кэш не содержит это сообщение)
+          scrollToBottom(container);
+          near = true;
+        }
       }
     } else {
+      this._stopRestabilize();
       scrollToBottom(container);
       near = isAtBottom(container);
     }
@@ -240,44 +261,180 @@ export class ChatTimeline extends Component<ChatTimelineProps, ChatTimelineState
       return;
     }
 
-    const msgId = this._getCenterVisibleMessageId();
-    if (msgId) {
-      // Сохраняем смещение сообщения от верха scroll-контейнера.
-      // container.scrollTop + el.getBoundingClientRect().top - container.getBoundingClientRect().top
-      // = el.offsetTop - (то что мы хотим восстановить).
-      // Упрощаем: offsetFromViewportTop = el.offsetTop - container.scrollTop
-      // (то есть позиция элемента относительно видимой области сверху).
-      const msgEl = this.props.messageRefs.current[msgId];
-      const offsetFromViewportTop = msgEl ? msgEl.offsetTop - container.scrollTop : 0;
-      saveSnapshot(chatId, { mode: 'msg', id: msgId, offsetFromViewportTop });
+    const topVisibleAnchor = this._getTopVisibleAnchor();
+    if (topVisibleAnchor) {
+      saveSnapshot(chatId, {
+        mode: 'msg',
+        id: topVisibleAnchor.id,
+        offsetFromViewportTop: topVisibleAnchor.offsetFromViewportTop,
+        scrollTop: container.scrollTop,
+      });
     } else {
       saveSnapshot(chatId, { mode: 'bottom' });
     }
   }
 
-  private _getCenterVisibleMessageId(): string | null {
+  private _applyMessageSnapshot(snapshot: Extract<ScrollSnapshot, { mode: 'msg' }>): boolean {
+    const container = this.containerRef.current;
+    const el = this.props.messageRefs.current[snapshot.id];
+    if (!container || !el) return false;
+
+    const nextScrollTop = Math.max(0, el.offsetTop - snapshot.offsetFromViewportTop);
+    this._ignoreScrollEventsUntil = performance.now() + 150;
+    container.scrollTop = nextScrollTop;
+    return true;
+  }
+
+  private _hasActiveRestabilize(): boolean {
+    return Boolean(
+      this._restabilizeSnapshot
+      && this._restabilizeSnapshot.mode === 'msg'
+      && Date.now() < this._restabilizeUntil
+    );
+  }
+
+  private _clearRestabilizeTimeouts(): void {
+    this._restabilizeTimeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    this._restabilizeTimeoutIds = [];
+    if (this._restabilizeRaf !== null) {
+      cancelAnimationFrame(this._restabilizeRaf);
+      this._restabilizeRaf = null;
+    }
+  }
+
+  private _setRestabilizing(value: boolean): void {
+    if (this._isRestabilizing === value) return;
+    this._isRestabilizing = value;
+    this.props.onRestabilizingChange?.(value);
+  }
+
+  private _stopRestabilize(): void {
+    const container = this.containerRef.current;
+    this._clearRestabilizeTimeouts();
+    this._restabilizeSnapshot = null;
+    this._restabilizeUntil = 0;
+    this._setRestabilizing(false);
+    container?.removeEventListener('load', this._onContentLoad, true);
+  }
+
+  private _startRestabilize(snapshot: Extract<ScrollSnapshot, { mode: 'msg' }>): void {
+    const container = this.containerRef.current;
+    if (!container) return;
+
+    this._stopRestabilize();
+    this._restabilizeSnapshot = snapshot;
+    this._restabilizeUntil = Date.now() + 2200;
+    this._setRestabilizing(true);
+    container.addEventListener('load', this._onContentLoad, true);
+
+    [80, 180, 320, 550, 900, 1400, 2000].forEach((delay) => {
+      const timeoutId = window.setTimeout(() => {
+        this._requestRestabilize();
+      }, delay);
+      this._restabilizeTimeoutIds.push(timeoutId);
+    });
+  }
+
+  private _onContentLoad = (): void => {
+    this._requestRestabilize();
+  };
+
+  private _requestRestabilize(): void {
+    if (!this._hasActiveRestabilize()) {
+      this._stopRestabilize();
+      return;
+    }
+
+    if (this._restabilizeRaf !== null) return;
+
+    this._restabilizeRaf = requestAnimationFrame(() => {
+      this._restabilizeRaf = null;
+
+      if (!this._hasActiveRestabilize()) {
+        this._stopRestabilize();
+        return;
+      }
+
+      const snapshot = this._restabilizeSnapshot;
+      if (!snapshot || snapshot.mode !== 'msg') {
+        this._stopRestabilize();
+        return;
+      }
+
+      this._applyMessageSnapshot(snapshot);
+    });
+  }
+
+  private _getTopVisibleAnchor(): { id: string; offsetFromViewportTop: number } | null {
     const container = this.containerRef.current;
     if (!container) return null;
 
-    const containerRect = container.getBoundingClientRect();
-    const viewportMid = containerRect.top + containerRect.height / 2;
-    let bestId: string | null = null;
-    let bestDist = Infinity;
+    const viewportTop = container.scrollTop;
+    const viewportBottom = viewportTop + container.clientHeight;
+    let bestVisible: { id: string; offsetFromViewportTop: number; distanceToTop: number } | null = null;
+    let nearestAbove: { id: string; offsetFromViewportTop: number; distanceToTop: number } | null = null;
 
     for (const [msgId, el] of Object.entries(this.props.messageRefs.current)) {
       if (!el) continue;
-      const rect = el.getBoundingClientRect();
-      if (rect.bottom < containerRect.top || rect.top > containerRect.bottom) continue;
-      const dist = Math.abs(rect.top + rect.height / 2 - viewportMid);
-      if (dist < bestDist) { bestDist = dist; bestId = msgId; }
+      const top = el.offsetTop;
+      const bottom = top + el.offsetHeight;
+      const offsetFromViewportTop = top - viewportTop;
+
+      if (bottom > viewportTop && top < viewportBottom) {
+        const candidate = {
+          id: msgId,
+          offsetFromViewportTop,
+          distanceToTop: Math.abs(offsetFromViewportTop),
+        };
+
+        if (!bestVisible || candidate.distanceToTop < bestVisible.distanceToTop) {
+          bestVisible = candidate;
+        }
+        continue;
+      }
+
+      if (bottom <= viewportTop) {
+        const candidate = {
+          id: msgId,
+          offsetFromViewportTop,
+          distanceToTop: Math.abs(offsetFromViewportTop),
+        };
+
+        if (!nearestAbove || top > (this.props.messageRefs.current[nearestAbove.id]?.offsetTop ?? -Infinity)) {
+          nearestAbove = candidate;
+        }
+      }
     }
 
-    return bestId;
+    if (bestVisible) {
+      return {
+        id: bestVisible.id,
+        offsetFromViewportTop: bestVisible.offsetFromViewportTop,
+      };
+    }
+
+    if (nearestAbove) {
+      return {
+        id: nearestAbove.id,
+        offsetFromViewportTop: nearestAbove.offsetFromViewportTop,
+      };
+    }
+
+    return null;
   }
 
   private _onScroll = (): void => {
     const container = this.containerRef.current;
     if (!container) return;
+
+    if (performance.now() < this._ignoreScrollEventsUntil) {
+      return;
+    }
+
+    if (this._hasActiveRestabilize()) {
+      this._stopRestabilize();
+    }
+
     const near = isAtBottom(container);
     if (near !== this.state.nearBottom) {
       this.setState({ nearBottom: near });
@@ -392,7 +549,8 @@ export class ChatTimeline extends Component<ChatTimelineProps, ChatTimelineState
       scrollToMessage, setCurrentImageUrl, setShowImageModal,
     } = this.props;
 
-    const { dockOffsetPx } = this.state;
+    const { dockOffsetPx, nearBottom } = this.state;
+    const shouldUseBrowserScrollAnchor = nearBottom && !this._hasActiveRestabilize();
 
     // CSS классы (идентичны оригинальному MessagesArea)
     const containerClass = isDesktopView
@@ -454,12 +612,14 @@ export class ChatTimeline extends Component<ChatTimelineProps, ChatTimelineState
       <div
         ref={this.containerRef}
         className={`${containerClass} overflow-y-auto relative`}
+        data-chat-id={this.props.chatId}
         style={{
           ...bgStyle,
-          overflowAnchor: 'auto',
+          overflowAnchor: shouldUseBrowserScrollAnchor ? 'auto' : 'none',
           scrollBehavior: 'auto',
         }}
       >
+
         {overlayStyle && <div style={overlayStyle} aria-hidden="true" />}
 
         {messages.length === 0 && (
@@ -479,7 +639,9 @@ export class ChatTimeline extends Component<ChatTimelineProps, ChatTimelineState
           </div>
         )}
 
-        <div className={`${innerClass} relative z-10`}>
+        <div
+          className={`${innerClass} relative z-10 visible`}
+        >
           {messages.length > 0 && (
             <div className={listSpacingClass}>
               {filtered.map((message, index) => (

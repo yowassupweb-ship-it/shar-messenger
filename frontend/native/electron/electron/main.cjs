@@ -397,7 +397,191 @@ function repositionNotifications() {
   });
 }
 
-// IPC handler для показа уведомлений
+// ── Call Window ─────────────────────────────────────────────────────────────
+let callWindowRef = null;
+
+function createCallWindow(data) {
+  if (callWindowRef && !callWindowRef.isDestroyed()) {
+    callWindowRef.webContents.send('call-data', data);
+    if (callWindowRef.isMinimized()) callWindowRef.restore();
+    callWindowRef.focus();
+    return callWindowRef;
+  }
+
+  callWindowRef = new BrowserWindow({
+    width: 340,
+    height: 560,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: false,
+    minimizable: true,
+    maximizable: false,
+    center: true,
+    title: 'Звонок',
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  });
+
+  callWindowRef.loadFile(path.join(__dirname, 'call.html'));
+
+  callWindowRef.once('ready-to-show', () => {
+    callWindowRef.show();
+    callWindowRef.webContents.send('call-data', data);
+  });
+
+  // When minimized → show island in main window
+  callWindowRef.on('minimize', () => {
+    if (mainWindowRef && !mainWindowRef.isDestroyed()) {
+      mainWindowRef.webContents.send('call:island-update', {
+        state: (data && data._currentCallState) || 'ringing-in',
+        callerName: data ? data.callerName : '',
+        callerInitials: data ? data.callerInitials : '?',
+        callType: data ? data.callType : 'audio',
+        timer: null,
+      });
+    }
+  });
+
+  // When restored → hide island
+  callWindowRef.on('restore', () => {
+    if (mainWindowRef && !mainWindowRef.isDestroyed()) {
+      mainWindowRef.webContents.send('call:island-update', { state: null });
+    }
+  });
+
+  callWindowRef.on('closed', () => {
+    callWindowRef = null;
+    if (mainWindowRef && !mainWindowRef.isDestroyed()) {
+      mainWindowRef.webContents.send('call:island-update', { state: null });
+    }
+  });
+
+  return callWindowRef;
+}
+
+ipcMain.handle('call:open', (_event, data) => {
+  createCallWindow(data);
+  return true;
+});
+
+// call.html asks to minimize itself
+ipcMain.on('call:window-minimize', () => {
+  if (callWindowRef && !callWindowRef.isDestroyed()) {
+    callWindowRef.minimize();
+  }
+});
+
+// call.html reports island state (for live timer updates while minimized)
+ipcMain.on('call:island-update', (_event, data) => {
+  if (callWindowRef && !callWindowRef.isDestroyed() && callWindowRef.isMinimized()) {
+    if (mainWindowRef && !mainWindowRef.isDestroyed()) {
+      mainWindowRef.webContents.send('call:island-update', data);
+    }
+  } else if (!data.state) {
+    // Explicit hide (hangup/cancel)
+    if (mainWindowRef && !mainWindowRef.isDestroyed()) {
+      mainWindowRef.webContents.send('call:island-update', { state: null });
+    }
+  }
+});
+
+// call.html reports user actions → forward to React app
+ipcMain.on('call:action', (_event, data) => {
+  if (mainWindowRef && !mainWindowRef.isDestroyed()) {
+    mainWindowRef.webContents.send('call:action-from-main', data);
+  }
+});
+
+// React app notifies call window of state changes (connected → show active; idle → close)
+ipcMain.on('call:update-state', (_event, state) => {
+  if (!callWindowRef || callWindowRef.isDestroyed()) return;
+  if (state === 'connected') {
+    callWindowRef.webContents.send('call:answered-by-peer');
+  } else if (state === 'idle' || state === 'ending') {
+    callWindowRef.webContents.send('call:force-hangup');
+    setTimeout(() => {
+      if (callWindowRef && !callWindowRef.isDestroyed()) callWindowRef.close();
+    }, 350);
+  }
+});
+
+// Island button clicked → restore or hangup
+ipcMain.on('call:island-action', (_event, action) => {
+  if (action === 'restore') {
+    if (callWindowRef && !callWindowRef.isDestroyed()) {
+      if (callWindowRef.isMinimized()) callWindowRef.restore();
+      callWindowRef.focus();
+      if (mainWindowRef && !mainWindowRef.isDestroyed()) {
+        mainWindowRef.webContents.send('call:island-update', { state: null });
+      }
+    }
+  } else if (action === 'answer') {
+    if (callWindowRef && !callWindowRef.isDestroyed()) {
+      if (callWindowRef.isMinimized()) callWindowRef.restore();
+      callWindowRef.focus();
+      callWindowRef.webContents.send('call:answer-from-island');
+    }
+  } else if (action === 'hangup') {
+    if (callWindowRef && !callWindowRef.isDestroyed()) {
+      callWindowRef.webContents.send('call:force-hangup');
+      callWindowRef.close();
+    }
+    if (mainWindowRef && !mainWindowRef.isDestroyed()) {
+      mainWindowRef.webContents.send('call:island-update', { state: null });
+      mainWindowRef.webContents.send('call:action-from-main', { type: 'hangup' });
+    }
+  }
+});
+
+// ── Photo Preview ────────────────────────────────────────────────────────────
+let photoWindowRef = null;
+
+function createPhotoWindow(data) {
+  if (photoWindowRef && !photoWindowRef.isDestroyed()) {
+    photoWindowRef.webContents.send('photo-data', data);
+    if (photoWindowRef.isMinimized()) photoWindowRef.restore();
+    photoWindowRef.focus();
+    return;
+  }
+
+  const { screen } = require('electron');
+  const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
+
+  photoWindowRef = new BrowserWindow({
+    width:  Math.min(1200, sw - 80),
+    height: Math.min(820,  sh - 60),
+    frame: false,
+    transparent: false,
+    backgroundColor: '#000000',
+    center: true,
+    title: 'Просмотр фото',
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  });
+
+  photoWindowRef.loadFile(path.join(__dirname, 'photo.html'));
+
+  photoWindowRef.once('ready-to-show', () => {
+    photoWindowRef.show();
+    photoWindowRef.webContents.send('photo-data', data);
+  });
+
+  photoWindowRef.on('closed', () => {
+    photoWindowRef = null;
+  });
+}
+
+ipcMain.handle('photo:open', (_event, data) => {
+  createPhotoWindow(data);
+  return true;
+});
+
+// ── IPC handler для показа уведомлений ──────────────────────────────────────
 ipcMain.handle('show-notification', (event, data) => {
   if (mainWindowRef && !mainWindowRef.isDestroyed()) {
     if (process.platform === 'win32' && showNativeNotification(data, mainWindowRef)) {
@@ -602,6 +786,11 @@ function createWindow() {
     const logoDataUrl = getLogoDataUrl();
     mainWindow.webContents.executeJavaScript(`
       (function() {
+        // If preload header already exists, skip this injection entirely
+        if (document.getElementById('shar-electron-telegram-header')) {
+          console.log('[MAIN INJECT] Preload header already present – skipping injection');
+          return;
+        }
         const LOGO_DATA_URL = ${JSON.stringify(logoDataUrl)};
         console.log('[MAIN INJECT] Starting critical UI injection');
         
@@ -1095,6 +1284,235 @@ function createWindow() {
         document.head.appendChild(style);
 
         console.log('[MAIN INJECT] Emergency header created successfully');
+
+        // ── Dynamic Island for calls ─────────────────────────────────────────
+        (function bootIsland() {
+          if (!window.sharDesktop || !window.sharDesktop.call || !window.sharDesktop.call.onIslandUpdate) {
+            setTimeout(bootIsland, 400);
+            return;
+          }
+
+          const ISLAND_ID = 'call-dynamic-island';
+          const existingIsland = document.getElementById(ISLAND_ID);
+          if (existingIsland) existingIsland.remove();
+
+          // Inject keyframe animations
+          if (!document.getElementById('island-keyframes')) {
+            const kf = document.createElement('style');
+            kf.id = 'island-keyframes';
+            kf.textContent = \`
+              @keyframes island-dot  { 0%,100%{opacity:.4;transform:scale(.78)} 50%{opacity:1;transform:scale(1)} }
+              @keyframes island-in   { from{opacity:0;transform:translateX(-50%) scaleX(.7)} to{opacity:1;transform:translateX(-50%) scaleX(1)} }
+            \`;
+            document.head.appendChild(kf);
+          }
+
+          // Island wrapper — centered in header using absolute positioning
+          const islandWrap = document.createElement('div');
+          islandWrap.id = ISLAND_ID;
+          Object.assign(islandWrap.style, {
+            position: 'absolute',
+            left: '50%',
+            top: '0',
+            bottom: '0',
+            transform: 'translateX(-50%)',
+            display: 'none',
+            alignItems: 'center',
+            zIndex: '9999999999',
+            pointerEvents: 'auto',
+            WebkitAppRegion: 'no-drag',
+          });
+
+          // Pill
+          const pill = document.createElement('div');
+          Object.assign(pill.style, {
+            background: 'rgba(12,12,12,0.96)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            borderRadius: '999px',
+            border: '1px solid rgba(255,255,255,0.1)',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            padding: '3px 7px 3px 5px',
+            maxWidth: '250px',
+            minWidth: '0',
+            overflow: 'hidden',
+            color: 'white',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            whiteSpace: 'nowrap',
+            height: '24px',
+            cursor: 'pointer',
+            animation: 'island-in .25s ease',
+            transition: 'max-width .3s ease',
+          });
+          islandWrap.appendChild(pill);
+
+          // Island appended to header — island is sibling of titleWrapper and controls
+          header.appendChild(islandWrap);
+
+          let timerInterval = null;
+          let callStartMs = null;
+
+          function fmtMs(ms) {
+            const s = Math.floor(ms / 1000) % 60;
+            const m = Math.floor(ms / 60000) % 60;
+            const h = Math.floor(ms / 3600000);
+            if (h > 0) return h + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+            return m + ':' + String(s).padStart(2,'0');
+          }
+
+          function stopTimer() {
+            if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+          }
+
+          // SVG snippets
+          const SVG_PHONE_OFF = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(135deg)"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.49a2 2 0 0 1 1.99-2.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6.13 6.13l1.22-1.22a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
+          const SVG_PHONE_ON  = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.49a2 2 0 0 1 1.99-2.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6.13 6.13l1.22-1.22a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
+          const SVG_MAXIMIZE  = '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
+
+          function makeAvatar(initials) {
+            const av = document.createElement('div');
+            Object.assign(av.style, {
+              width: '18px', height: '18px', borderRadius: '50%',
+              background: 'linear-gradient(135deg,#3b82f6,#7c3aed)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '7px', fontWeight: '700', color: 'white', flexShrink: '0',
+            });
+            av.textContent = (initials || '?').slice(0, 2).toUpperCase();
+            return av;
+          }
+
+          function makeDot(color) {
+            const d = document.createElement('div');
+            Object.assign(d.style, {
+              width: '7px', height: '7px', borderRadius: '50%',
+              background: color, flexShrink: '0',
+              animation: 'island-dot 1.4s ease-in-out infinite',
+            });
+            return d;
+          }
+
+          function makeLabel(text, css = {}) {
+            const el = document.createElement('span');
+            el.textContent = text;
+            Object.assign(el.style, {
+              fontSize: '11px', fontWeight: '500',
+              color: 'rgba(255,255,255,0.85)',
+              overflow: 'hidden', textOverflow: 'ellipsis',
+              maxWidth: '100px',
+              ...css,
+            });
+            return el;
+          }
+
+          function makeBtn(bg, svgHtml, action, title) {
+            const btn = document.createElement('button');
+            btn.title = title;
+            btn.innerHTML = svgHtml;
+            Object.assign(btn.style, {
+              width: '20px', height: '20px', borderRadius: '50%',
+              background: bg, border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: '0', color: 'white', padding: '0',
+              transition: 'opacity .15s',
+            });
+            btn.onmouseenter = () => { btn.style.opacity = '.8'; };
+            btn.onmouseleave = () => { btn.style.opacity = '1'; };
+            btn.onclick = (e) => {
+              e.stopPropagation();
+              if (window.sharDesktop && window.sharDesktop.call) {
+                window.sharDesktop.call.islandAction(action);
+              }
+            };
+            return btn;
+          }
+
+          function truncate(str, max) {
+            if (!str) return '';
+            return str.length > max ? str.slice(0, max) + '…' : str;
+          }
+
+          function renderIsland(data) {
+            pill.innerHTML = '';
+            stopTimer();
+
+            if (!data || !data.state) {
+              islandWrap.style.display = 'none';
+              if (!data || !data.state) callStartMs = null;
+              return;
+            }
+
+            islandWrap.style.display = 'flex';
+
+            const { state, callerName, callerInitials, callType } = data;
+            const name = truncate(callerName || 'Звонок', 12);
+
+            if (state === 'ringing-in') {
+              // [avatar] [name\ncall-type] [✓] [✕]
+              pill.appendChild(makeAvatar(callerInitials));
+              const col = document.createElement('div');
+              Object.assign(col.style, { display: 'flex', flexDirection: 'column', minWidth: 0, maxWidth: '90px' });
+              const nm = document.createElement('span');
+              nm.textContent = name;
+              Object.assign(nm.style, { fontSize: '10px', fontWeight: '600', color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: '13px' });
+              const sub = document.createElement('span');
+              sub.textContent = callType === 'video' ? '📹 Видео' : '📞 Звонок';
+              Object.assign(sub.style, { fontSize: '9px', color: 'rgba(255,255,255,.5)', lineHeight: '11px' });
+              col.appendChild(nm); col.appendChild(sub);
+              pill.appendChild(col);
+              pill.appendChild(makeBtn('rgba(34,197,94,.9)',  SVG_PHONE_ON,  'answer', 'Принять'));
+              pill.appendChild(makeBtn('rgba(239,68,68,.9)',  SVG_PHONE_OFF, 'hangup', 'Отклонить'));
+              // Pill click = restore window
+              pill.onclick = (e) => {
+                if (e.target === pill || !e.target.closest('button')) {
+                  window.sharDesktop.call.islandAction('restore');
+                }
+              };
+
+            } else if (state === 'ringing-out') {
+              // [●] [name] [...] [✕]
+              pill.appendChild(makeDot('#60a5fa'));
+              pill.appendChild(makeLabel(name, { maxWidth: '110px' }));
+              const dots = document.createElement('span');
+              dots.style.cssText = 'font-size:11px;color:rgba(255,255,255,.36);flex-shrink:0';
+              dots.textContent = '…';
+              pill.appendChild(dots);
+              pill.appendChild(makeBtn('rgba(239,68,68,.9)', SVG_PHONE_OFF, 'hangup', 'Завершить'));
+              pill.onclick = (e) => {
+                if (!e.target.closest('button')) window.sharDesktop.call.islandAction('restore');
+              };
+
+            } else if (state === 'active') {
+              // [●] [name] [timer] [↗] [✕]
+              if (!callStartMs) callStartMs = Date.now();
+              pill.appendChild(makeDot('#34d399'));
+              pill.appendChild(makeLabel(name, { maxWidth: '72px' }));
+
+              const timerEl = document.createElement('span');
+              Object.assign(timerEl.style, { fontSize: '11px', color: 'rgba(255,255,255,.6)', fontVariantNumeric: 'tabular-nums', letterSpacing: '.4px', flexShrink: '0' });
+              timerEl.textContent = fmtMs(Date.now() - callStartMs);
+              timerInterval = setInterval(() => {
+                timerEl.textContent = fmtMs(Date.now() - callStartMs);
+              }, 1000);
+              pill.appendChild(timerEl);
+              pill.appendChild(makeBtn('rgba(255,255,255,.14)', SVG_MAXIMIZE,  'restore', 'Развернуть'));
+              pill.appendChild(makeBtn('rgba(239,68,68,.9)',    SVG_PHONE_OFF, 'hangup',  'Завершить'));
+              pill.onclick = (e) => {
+                if (!e.target.closest('button')) window.sharDesktop.call.islandAction('restore');
+              };
+            }
+          }
+
+          window.sharDesktop.call.onIslandUpdate((data) => {
+            if (data && data.state === 'active' && !callStartMs) callStartMs = Date.now();
+            if (!data || !data.state) callStartMs = null;
+            renderIsland(data);
+          });
+
+          console.log('[MAIN INJECT] Dynamic Island ready');
+        })();
       })();
     `).catch(err => {
       console.error('Failed to inject emergency UI:', err);

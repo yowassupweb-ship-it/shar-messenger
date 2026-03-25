@@ -19,15 +19,20 @@
         "minWidth": 1180,
         "minHeight": 720,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "decorations": true
       }
     ],
     "security": {
       "csp": null
-    }
+    },
+    "withGlobalTauri": true
   },
   "bundle": {
     "active": true,
-    "createUpdaterArtifacts": false
+    "createUpdaterArtifacts": false,
+    "android": {
+      "minSdkVersion": 24
+    }
   }
 }

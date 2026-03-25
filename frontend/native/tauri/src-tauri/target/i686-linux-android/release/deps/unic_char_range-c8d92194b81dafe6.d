@@ -1,0 +1,17 @@
+E:\Projects\shar-messenger\frontend\native\tauri\src-tauri\target\i686-linux-android\release\deps\unic_char_range-c8d92194b81dafe6.d: C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\lib.rs C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\pkg_info.rs C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\iter.rs C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\range.rs C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\macros.rs C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\step.rs C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\iter_fused.rs
+
+E:\Projects\shar-messenger\frontend\native\tauri\src-tauri\target\i686-linux-android\release\deps\libunic_char_range-c8d92194b81dafe6.rlib: C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\lib.rs C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\pkg_info.rs C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\iter.rs C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\range.rs C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\macros.rs C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\step.rs C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\iter_fused.rs
+
+E:\Projects\shar-messenger\frontend\native\tauri\src-tauri\target\i686-linux-android\release\deps\libunic_char_range-c8d92194b81dafe6.rmeta: C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\lib.rs C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\pkg_info.rs C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\iter.rs C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\range.rs C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\macros.rs C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\step.rs C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\iter_fused.rs
+
+C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\lib.rs:
+C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\pkg_info.rs:
+C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\iter.rs:
+C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\range.rs:
+C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\macros.rs:
+C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\step.rs:
+C:\Users\anton\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\unic-char-range-0.9.0\src\iter_fused.rs:
+
+# env-dep:CARGO_PKG_DESCRIPTION=UNIC — Unicode Character Tools — Character Range and Iteration
+# env-dep:CARGO_PKG_NAME=unic-char-range
+# env-dep:CARGO_PKG_VERSION=0.9.0

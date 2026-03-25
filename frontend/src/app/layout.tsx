@@ -4,6 +4,7 @@ import './globals.css';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import BottomNav from '@/components/layout/BottomNav';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { Suspense } from 'react';
 
 export const metadata: Metadata = {
   title: 'Shar OS',
@@ -22,6 +23,10 @@ export const viewport: Viewport = {
   maximumScale: 5,
   userScalable: true,
   viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#000000' },
+  ],
 };
 
 export default function RootLayout({
@@ -60,14 +65,16 @@ export default function RootLayout({
 
   return (
     <html lang="ru" suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      <head suppressHydrationWarning>
+        <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body suppressHydrationWarning>
         <ErrorBoundary>
           <ThemeProvider>
             {children}
-            <BottomNav />
+            <Suspense fallback={null}>
+              <BottomNav />
+            </Suspense>
           </ThemeProvider>
         </ErrorBoundary>
       </body>

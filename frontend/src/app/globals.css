@@ -3,6 +3,25 @@
 /* Override dark mode to use class instead of prefers-color-scheme */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Safe area insets for mobile devices (notches, status bars) */
+html {
+  /* Add padding for safe areas */
+  padding-top: constant(safe-area-inset-top); /* iOS 11.0 */
+  padding-top: env(safe-area-inset-top); /* iOS 11.2+ */
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: constant(safe-area-inset-left);
+  padding-left: env(safe-area-inset-left);
+  padding-right: constant(safe-area-inset-right);
+  padding-right: env(safe-area-inset-right);
+}
+
+body {
+  /* Ensure body respects safe areas */
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+
 /* Tailwind v4 theme colors */
 @theme {
   --color-gray-50: #f9fafb;

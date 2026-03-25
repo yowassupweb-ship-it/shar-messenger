@@ -1,6 +1,4 @@
-import React from 'react';
-import { X, Search } from 'lucide-react';
-import Avatar from '@/components/common/data-display/Avatar';
+import { X, Search, Users, MessageSquare } from 'lucide-react';
 import type { User } from './types';
 
 interface NewChatModalProps {
@@ -34,72 +32,93 @@ export default function NewChatModal({
 }: NewChatModalProps) {
   if (!isOpen) return null;
 
+  const initialsFromUser = (user: User): string => {
+    const title = user.name || user.username || user.email || '?';
+    const words = title.trim().split(/\s+/);
+    if (words.length === 1) return (words[0][0] || '?').toUpperCase();
+    return `${words[0][0] || ''}${words[1][0] || ''}`.toUpperCase();
+  };
+
   const handleClose = () => {
     onClose();
     setSelectedUsers([]);
     setIsGroupChat(false);
     setGroupTitle('');
+    setSearchQuery('');
   };
 
   return (
-    <div className="fixed !inset-0 !p-0 !m-0 bg-black/50 backdrop-blur-sm z-[100] !overflow-hidden md:flex md:items-center md:justify-center md:p-4">
-      <div className="!w-full !h-full md:relative md:inset-auto bg-gradient-to-br from-white/96 to-white/88 dark:from-white/15 dark:to-white/5 backdrop-blur-xl md:border md:border-gray-200/80 dark:md:border-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.7),0_10px_32px_rgba(0,0,0,0.22)] rounded-none md:rounded-[24px] md:w-full md:max-w-md md:h-auto md:max-h-[80vh] md:min-h-0 flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-gray-200/80 dark:border-white/10 shrink-0">
-          <h3 className="font-semibold text-gray-900 dark:text-white">Новый чат</h3>
+    <div className="fixed inset-0 z-[120] bg-black/45 backdrop-blur-[2px] flex items-end md:items-center justify-center">
+      <div className="w-full md:max-w-[560px] h-[86vh] md:h-[78vh] bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-t-3xl md:rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="h-14 px-4 flex items-center justify-between border-b border-gray-200 dark:border-slate-700 bg-gray-50/90 dark:bg-slate-800/80">
+          <div className="flex items-center gap-2">
+            {isGroupChat ? <Users className="w-4 h-4 text-gray-500 dark:text-gray-400" /> : <MessageSquare className="w-4 h-4 text-gray-500 dark:text-gray-400" />}
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Новый чат</h3>
+          </div>
           <button
             onClick={handleClose}
-            className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full transition-all"
+            className="w-8 h-8 rounded-full hover:bg-gray-200/70 dark:hover:bg-slate-700 flex items-center justify-center"
+            title="Закрыть"
           >
-            <X className="w-5 h-5 text-gray-700 dark:text-white" />
+            <X className="w-4 h-4 text-gray-600 dark:text-gray-300" />
           </button>
         </div>
 
-        <div className="p-4 overflow-y-auto flex-1">
-          {/* Group chat toggle */}
-          <label className="flex items-center gap-2 mb-4 cursor-pointer">
+        <div className="p-4 space-y-3 border-b border-gray-200 dark:border-slate-700">
+          <label className="inline-flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
             <input
               type="checkbox"
               checked={isGroupChat}
-              onChange={(e) => setIsGroupChat(e.target.checked)}
-              className="w-4 h-4 rounded border-[var(--border-color)] bg-[var(--bg-tertiary)]"
+              onChange={(e) => {
+                setIsGroupChat(e.target.checked);
+                if (!e.target.checked) {
+                  setGroupTitle('');
+                }
+              }}
+              className="w-4 h-4 rounded border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800"
             />
-            <span className="text-sm text-gray-800 dark:text-white">Групповой чат</span>
+            Групповой чат
           </label>
 
-          {/* Group title */}
           {isGroupChat && (
             <input
               type="text"
               value={groupTitle}
               onChange={(e) => setGroupTitle(e.target.value)}
               placeholder="Название группы"
-              className="w-full px-4 py-2.5 mb-4 bg-white/75 dark:bg-white/5 border border-gray-200/80 dark:border-white/20 rounded-[20px] text-sm text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-white/50 focus:outline-none focus:border-gray-300 dark:focus:border-white/40 backdrop-blur-sm shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)]"
+              className="w-full h-10 px-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:border-blue-400"
             />
           )}
 
-          {/* Search users */}
-          <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-white/60" />
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Поиск пользователей..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2.5 bg-white/75 dark:bg-white/5 border border-gray-200/80 dark:border-white/20 rounded-[25px] text-sm text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-white/50 focus:outline-none focus:border-gray-300 dark:focus:border-white/40 backdrop-blur-sm shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)]"
+              placeholder="Поиск участников"
+              className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:border-blue-400"
             />
           </div>
+        </div>
 
-          {/* Users list */}
-          <div className="space-y-2">
-            {filteredUsers.map(user => (
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {filteredUsers.map(user => {
+            const selected = selectedUsers.includes(user.id);
+            const label = user.name || user.username || user.email || 'Без имени';
+            return (
               <label
                 key={user.id}
-                className="flex items-center gap-3 p-3 bg-white/70 dark:bg-white/5 rounded-[20px] border border-gray-200/80 dark:border-white/10 hover:bg-white/90 dark:hover:bg-white/10 cursor-pointer transition-all backdrop-blur-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]"
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl border cursor-pointer transition-colors ${
+                  selected
+                    ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-500/60'
+                    : 'border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800'
+                }`}
               >
                 <input
                   type={isGroupChat ? 'checkbox' : 'radio'}
-                  name="selectedUser"
-                  checked={selectedUsers.includes(user.id)}
+                  name="chatUser"
+                  checked={selected}
                   onChange={(e) => {
                     if (isGroupChat) {
                       setSelectedUsers(
@@ -113,34 +132,32 @@ export default function NewChatModal({
                   }}
                   className="w-4 h-4"
                 />
-                <Avatar
-                  src={user.avatar}
-                  name={user.name || user.username || 'Пользователь'}
-                  size="sm"
-                  type="user"
-                />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{user.name || user.username || 'Без имени'}</p>
-                  {user.email && (
-                    <p className="text-xs text-gray-600 dark:text-white/60">{user.email}</p>
-                  )}
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white text-[11px] font-semibold flex items-center justify-center">
+                  {initialsFromUser(user)}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm text-gray-900 dark:text-gray-100 truncate">{label}</div>
+                  {user.email && <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</div>}
                 </div>
               </label>
-            ))}
-          </div>
+            );
+          })}
+          {!filteredUsers.length && (
+            <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">Никого не найдено</div>
+          )}
         </div>
 
-        <div className="flex gap-2 p-4 border-t border-gray-200/80 dark:border-white/10">
+        <div className="p-3 border-t border-gray-200 dark:border-slate-700 bg-gray-50/90 dark:bg-slate-800/80 flex items-center gap-2">
           <button
             onClick={handleClose}
-            className="flex-1 py-2.5 bg-white/75 dark:bg-white/5 rounded-[20px] text-sm text-gray-800 dark:text-white hover:bg-white dark:hover:bg-white/10 transition-all border border-gray-200/80 dark:border-white/10"
+            className="flex-1 h-10 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700"
           >
             Отмена
           </button>
           <button
             onClick={onCreateChat}
             disabled={selectedUsers.length === 0 || (isGroupChat && !groupTitle.trim())}
-            className="flex-1 py-2.5 bg-[#007aff]/20 text-gray-900 dark:text-white rounded-[20px] text-sm font-medium border border-[#007aff]/30 hover:bg-[#007aff]/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="flex-1 h-10 rounded-xl border border-blue-400/40 bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Создать чат
           </button>
