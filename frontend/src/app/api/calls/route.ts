@@ -220,6 +220,7 @@ export async function POST(req: NextRequest) {
   let result: { ok: boolean; accepted: boolean; conflicts: Array<{ toUserId: string; activeCallId: string }> };
   try {
     result = await withLockedState(state => {
+    const conflicts: Array<{ toUserId: string; activeCallId: string }> = [];
 
     for (const targetUserId of targets) {
       const signal: CallSignal = {
