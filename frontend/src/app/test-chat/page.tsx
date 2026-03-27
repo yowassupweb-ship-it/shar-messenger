@@ -589,7 +589,7 @@ export default function TestChat() {
   const loadMessagesFromServer = useCallback((chatId: string, silent: boolean) => {
     fetch(`/api/chats/${chatId}/messages`)
       .then(res => res.json())
-      .then((data: Message[]) => {
+      .then(async (data: Message[]) => {
         console.log(`Loaded ${data.length} messages for ${chatId}:`, data.slice(0, 3));
         setMessages(prev => {
           // Keep optimistic local messages until server confirms them.
@@ -613,12 +613,39 @@ export default function TestChat() {
           return { ...prev, [chatId]: merged };
         });
         if (!silent) setIsLoading(false);
+
+        // Mark messages as read
+        if (data.length > 0 && currentUser) {
+          const lastMessage = data[data.length - 1];
+          const markReadResponse = await fetch(`/api/chats/${chatId}/mark-read`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: currentUser.id,
+              lastMessageId: lastMessage.id
+            })
+          }).catch(() => null);
+
+          // Update readMessagesByUser in chats state
+          if (markReadResponse?.ok) {
+            setChats(prev => prev.map(c => {
+              if (c.id !== chatId) return c;
+              const updated = { ...c } as any;
+              if (!updated.readMessagesByUser) {
+                updated.readMessagesByUser = {};
+              }
+              updated.readMessagesByUser[currentUser.id] = lastMessage.id;
+              updated.incomingUnreadCount = 0;
+              return updated;
+            }));
+          }
+        }
       })
       .catch(err => {
         console.error('Failed to load messages:', err);
         if (!silent) setIsLoading(false);
       });
-  }, []);
+  }, [currentUser, loadChats]);
 
   useEffect(() => {
     if (!currentChatId) return;
