@@ -661,7 +661,7 @@ export class ChatTimelineV2 extends Component<
                 
                 const chat = this.props.selectedChat;
                 if (!chat?.readMessagesByUser) {
-                  console.log(`[ChatTimelineV2] No readMessagesByUser for chat ${chatId}`);
+                  console.log(`[ChatTimelineV2] No readMessagesByUser for chat ${chat?.id}`);
                   return false;
                 }
                 
@@ -674,8 +674,9 @@ export class ChatTimelineV2 extends Component<
                   return false; // No other participants
                 }
                 
+                const readMessagesByUser = chat.readMessagesByUser;
                 const isRead = otherParticipants.some(pid => {
-                  const lastRead = chat.readMessagesByUser[String(pid)];
+                  const lastRead = readMessagesByUser[String(pid)];
                   if (!lastRead) return false;
                   
                   // Try parsing as timestamp first
@@ -839,7 +840,7 @@ export class ChatTimelineV2 extends Component<
                         {msgImages.length === 2 && (
                           <div style={{ display: 'flex', gap: 2, height: 200 }}>
                             {msgImages.map((img: any, i: number) => (
-                              <div key={img.url + i} style={{ flex: 1, overflow: 'hidden' }}>
+                              <div key={`${message.id}-img-${i}`} style={{ flex: 1, overflow: 'hidden' }}>
                                 <LazyImage
                                   onImageLoaded={this._onImageLoaded} src={img.url} alt={img.name || 'image'}
                                   className="w-full h-full object-cover block cursor-zoom-in"
@@ -861,7 +862,7 @@ export class ChatTimelineV2 extends Component<
                             </div>
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
                               {msgImages.slice(1).map((img: any, i: number) => (
-                                <div key={img.url + i} style={{ flex: 1, overflow: 'hidden' }}>
+                                <div key={`${message.id}-img-${i + 1}`} style={{ flex: 1, overflow: 'hidden' }}>
                                   <LazyImage
                                     onImageLoaded={this._onImageLoaded} src={img.url} alt={img.name || 'image'}
                                     className="w-full h-full object-cover block cursor-zoom-in"
@@ -876,7 +877,7 @@ export class ChatTimelineV2 extends Component<
                         {msgImages.length === 4 && (
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
                             {msgImages.map((img: any, i: number) => (
-                              <div key={img.url + i} style={{ height: 150, overflow: 'hidden' }}>
+                              <div key={`${message.id}-img-${i}`} style={{ height: 150, overflow: 'hidden' }}>
                                 <LazyImage
                                   onImageLoaded={this._onImageLoaded} src={img.url} alt={img.name || 'image'}
                                   className="w-full h-full object-cover block cursor-zoom-in"
@@ -890,7 +891,7 @@ export class ChatTimelineV2 extends Component<
                         {msgImages.length >= 5 && (
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
                             {msgImages.slice(0, 4).map((img: any, i: number) => (
-                              <div key={img.url + i} style={{ height: 150, overflow: 'hidden', position: 'relative' }}>
+                              <div key={`${message.id}-img-${i}`} style={{ height: 150, overflow: 'hidden', position: 'relative' }}>
                                 <LazyImage
                                   onImageLoaded={this._onImageLoaded} src={img.url} alt={img.name || 'image'}
                                   className="w-full h-full object-cover block cursor-zoom-in"
@@ -911,7 +912,7 @@ export class ChatTimelineV2 extends Component<
 
                         {/* Video (media-only) */}
                         {msgVideos.map((vid: any, i: number) => (
-                          <div key={vid.url + i} onClick={(e) => e.stopPropagation()}>
+                          <div key={`${message.id}-vid-${i}`} onClick={(e) => e.stopPropagation()}>
                             <video src={vid.url} controls className="w-full block bg-black" style={{ maxHeight: 300 }} />
                           </div>
                         ))}
@@ -972,7 +973,7 @@ export class ChatTimelineV2 extends Component<
                             {msgImages.length === 2 && (
                               <div style={{ display: 'flex', gap: 2, height: 180 }}>
                                 {msgImages.map((img: any, i: number) => (
-                                  <div key={img.url + i} style={{ flex: 1, overflow: 'hidden' }}>
+                                  <div key={`${message.id}-img-${i}`} style={{ flex: 1, overflow: 'hidden' }}>
                                     <LazyImage onImageLoaded={this._onImageLoaded} src={img.url} alt={img.name || 'image'} className="w-full h-full object-cover block cursor-zoom-in"
                                       onClick={(e) => { e.stopPropagation(); openImg(img.url, allImgUrls); }}
                                     />
@@ -989,7 +990,7 @@ export class ChatTimelineV2 extends Component<
                                 </div>
                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
                                   {msgImages.slice(1).map((img: any, i: number) => (
-                                    <div key={img.url + i} style={{ flex: 1, overflow: 'hidden' }}>
+                                    <div key={`${message.id}-img-${i + 1}`} style={{ flex: 1, overflow: 'hidden' }}>
                                       <LazyImage onImageLoaded={this._onImageLoaded} src={img.url} alt="" className="w-full h-full object-cover block cursor-zoom-in"
                                         onClick={(e) => { e.stopPropagation(); openImg(img.url, allImgUrls); }}
                                       />
@@ -1001,7 +1002,7 @@ export class ChatTimelineV2 extends Component<
                             {msgImages.length >= 4 && (
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
                                 {msgImages.slice(0, 4).map((img: any, i: number) => (
-                                  <div key={img.url + i} style={{ height: 130, overflow: 'hidden', position: 'relative' }}>
+                                  <div key={`${message.id}-img-${i}`} style={{ height: 130, overflow: 'hidden', position: 'relative' }}>
                                     <LazyImage onImageLoaded={this._onImageLoaded} src={img.url} alt="" className="w-full h-full object-cover block cursor-zoom-in"
                                       onClick={(e) => { e.stopPropagation(); openImg(img.url, allImgUrls); }}
                                     />
@@ -1019,7 +1020,7 @@ export class ChatTimelineV2 extends Component<
 
                         {/* Video (non-media-only) */}
                         {msgVideos.map((vid: any, i: number) => (
-                          <div key={vid.url + i} className="-mx-2.5 overflow-hidden mb-1" style={{ marginTop: '-6px', borderRadius: '14px' }} onClick={(e) => e.stopPropagation()}>
+                          <div key={`${message.id}-vid-${i}`} className="-mx-2.5 overflow-hidden mb-1" style={{ marginTop: '-6px', borderRadius: '14px' }} onClick={(e) => e.stopPropagation()}>
                             <video src={vid.url} controls className="w-full max-h-[280px] bg-black block" />
                           </div>
                         ))}
@@ -1039,9 +1040,9 @@ export class ChatTimelineV2 extends Component<
                         {/* Files */}
                         {msgFiles.length > 0 && (
                           <div className="mt-1.5 space-y-1">
-                            {msgFiles.map((att: any) => (
+                            {msgFiles.map((att: any, idx: number) => (
                               <a
-                                key={att.url}
+                                key={`${message.id}-file-${idx}`}
                                 href={att.url}
                                 download={att.name}
                                 target="_blank"
