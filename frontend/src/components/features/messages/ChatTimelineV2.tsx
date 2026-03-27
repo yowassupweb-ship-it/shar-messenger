@@ -1039,7 +1039,7 @@ export class ChatTimelineV2 extends Component<
 
                         {/* Files */}
                         {msgFiles.length > 0 && (
-                          <div className="mt-1.5 space-y-1">
+                          <div className="mt-1.5 space-y-1 pb-[6px]">
                             {msgFiles.map((att: any, idx: number) => (
                               <a
                                 key={`${message.id}-file-${idx}`}
@@ -1047,12 +1047,12 @@ export class ChatTimelineV2 extends Component<
                                 download={att.name}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-2 py-1.5 rounded-xl bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/15 transition-colors"
+                                className="flex items-center gap-2 px-2 py-1.5 rounded-xl bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/15 transition-colors max-w-full"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <FileText className="w-4 h-4 flex-shrink-0 opacity-70" />
-                                <span className="text-[12px] truncate flex-1">{att.name || 'Файл'}</span>
-                                {att.size ? <span className="text-[11px] opacity-50 flex-shrink-0">{fmtSize(att.size)}</span> : null}
+                                <span className="text-[12px] truncate flex-1 min-w-0">{att.name || 'Файл'}</span>
+                                {att.size ? <span className="text-[11px] opacity-50 flex-shrink-0 whitespace-nowrap">{fmtSize(att.size)}</span> : null}
                                 <Download className="w-3.5 h-3.5 flex-shrink-0 opacity-60" />
                               </a>
                             ))}
