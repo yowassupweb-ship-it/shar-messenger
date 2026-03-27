@@ -73,12 +73,14 @@ function LazyImage({
   className,
   style,
   onClick,
+  onImageLoaded,
 }: {
   src: string;
   alt?: string;
   className?: string;
   style?: React.CSSProperties;
   onClick?: (e: React.MouseEvent<HTMLImageElement>) => void;
+  onImageLoaded?: () => void;
 }) {
   const [loaded, setLoaded] = React.useState(() => imgLoadedCache.has(src));
   return (
@@ -93,7 +95,15 @@ function LazyImage({
       }}
       loading="lazy"
       decoding="async"
-      onLoad={() => { imgLoadedCache.add(src); setLoaded(true); }}
+      onLoad={() => { 
+        imgLoadedCache.add(src); 
+        setLoaded(true); 
+        // Notify parent that image loaded and layout may have changed
+        if (onImageLoaded) {
+          // Defer until layout is updated
+          requestAnimationFrame(() => onImageLoaded());
+        }
+      }}
       onClick={onClick}
     />
   );
@@ -198,6 +208,7 @@ export class ChatTimelineV2 extends Component<
   private _saveScrollTimeout: NodeJS.Timeout | null = null;
   private _justRestoredPosition = false;
   private _isMounted = false;
+  private _savedScrollBottomBeforeImageLoad: number | null = null;
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -222,6 +233,7 @@ export class ChatTimelineV2 extends Component<
       
       if (saved && saved.type === 'scrollBottom' && saved.value > 0) {
         setScrollBottom(container, saved.value);
+        this._savedScrollBottomBeforeImageLoad = saved.value;
         console.log(`[ChatTimelineV2] ✓ Restored scrollBottom=${saved.value} on mount`);
       } else {
         scrollToBottom(container);
@@ -439,6 +451,23 @@ export class ChatTimelineV2 extends Component<
     }
   };
 
+  private _onImageLoaded = (): void => {
+    // When an image loads, it changes container height
+    // If we have a saved scroll position, restore it to prevent jump
+    const container = this.containerRef.current;
+    if (!container || !this._savedScrollBottomBeforeImageLoad) return;
+
+    // Only restore if we're not at bottom and haven't scrolled manually
+    if (!isAtBottom(container) && this._justRestoredPosition) {
+      const currentScrollBottom = getScrollBottom(container);
+      // If scroll jumped significantly (>20px), restore saved position
+      if (Math.abs(currentScrollBottom - this._savedScrollBottomBeforeImageLoad) > 20) {
+        setScrollBottom(container, this._savedScrollBottomBeforeImageLoad);
+        console.log(`[ChatTimelineV2] Image loaded - restored scrollBottom to ${this._savedScrollBottomBeforeImageLoad}`);
+      }
+    }
+  };
+
   // ── Public API ────────────────────────────────────────────────────────────
 
   saveScrollPosition = (): void => {
@@ -626,21 +655,41 @@ export class ChatTimelineV2 extends Component<
               })();
               const isPending = String(message.id).startsWith('temp_');
               const isReadByOther = (() => {
-                if (!isMyMessage || !currentUser || !this.props.selectedChat?.readMessagesByUser) {
+                if (!isMyMessage || !currentUser) {
                   return false;
                 }
+                
+                const chat = this.props.selectedChat;
+                if (!chat?.readMessagesByUser) {
+                  console.log(`[ChatTimelineV2] No readMessagesByUser for chat ${chatId}`);
+                  return false;
+                }
+                
                 const createdAtMs = new Date(message.createdAt).getTime();
-                return (this.props.selectedChat.participantIds || [])
-                  .filter(pid => String(pid) !== String(currentUser.id))
-                  .some(pid => {
-                    const lastRead = this.props.selectedChat.readMessagesByUser?.[String(pid)];
-                    if (!lastRead) return false;
-                    const lastReadMs = new Date(lastRead).getTime();
-                    if (!isNaN(lastReadMs)) return lastReadMs >= createdAtMs;
-                    // lastRead is a message UUID — find the message and compare its createdAt
-                    const readMsg = this.props.messages.find((m: Message) => String(m.id) === lastRead);
-                    return !!readMsg && new Date(readMsg.createdAt).getTime() >= createdAtMs;
-                  });
+                const otherParticipants = (chat.participantIds || []).filter(
+                  pid => String(pid) !== String(currentUser.id)
+                );
+                
+                if (otherParticipants.length === 0) {
+                  return false; // No other participants
+                }
+                
+                const isRead = otherParticipants.some(pid => {
+                  const lastRead = chat.readMessagesByUser[String(pid)];
+                  if (!lastRead) return false;
+                  
+                  // Try parsing as timestamp first
+                  const lastReadMs = new Date(lastRead).getTime();
+                  if (!isNaN(lastReadMs)) {
+                    return lastReadMs >= createdAtMs;
+                  }
+                  
+                  // Fallback: lastRead is a message UUID — find the message and compare its createdAt
+                  const readMsg = this.props.messages.find((m: Message) => String(m.id) === lastRead);
+                  return !!readMsg && new Date(readMsg.createdAt).getTime() >= createdAtMs;
+                });
+                
+                return isRead;
               })();
               
               const { chatSettings } = this.props;
@@ -779,7 +828,7 @@ export class ChatTimelineV2 extends Component<
                         {/* ── Image grid (Signal-style layouts) ── */}
                         {msgImages.length === 1 && (
                           <LazyImage
-                            src={msgImages[0].url}
+                            onImageLoaded={this._onImageLoaded} src={msgImages[0].url}
                             alt={msgImages[0].name || 'image'}
                             className="w-full block object-cover cursor-zoom-in"
                             style={{ maxHeight: 320, minHeight: 80, display: 'block' }}
@@ -792,7 +841,7 @@ export class ChatTimelineV2 extends Component<
                             {msgImages.map((img: any, i: number) => (
                               <div key={img.url + i} style={{ flex: 1, overflow: 'hidden' }}>
                                 <LazyImage
-                                  src={img.url} alt={img.name || 'image'}
+                                  onImageLoaded={this._onImageLoaded} src={img.url} alt={img.name || 'image'}
                                   className="w-full h-full object-cover block cursor-zoom-in"
                                   onClick={(e) => { e.stopPropagation(); openImg(img.url, allImgUrls); }}
                                 />
@@ -805,7 +854,7 @@ export class ChatTimelineV2 extends Component<
                           <div style={{ display: 'flex', gap: 2, height: 210 }}>
                             <div style={{ flex: 2, overflow: 'hidden' }}>
                               <LazyImage
-                                src={msgImages[0].url} alt={msgImages[0].name || 'image'}
+                                onImageLoaded={this._onImageLoaded} src={msgImages[0].url} alt={msgImages[0].name || 'image'}
                                 className="w-full h-full object-cover block cursor-zoom-in"
                                 onClick={(e) => { e.stopPropagation(); openImg(msgImages[0].url, allImgUrls); }}
                               />
@@ -814,7 +863,7 @@ export class ChatTimelineV2 extends Component<
                               {msgImages.slice(1).map((img: any, i: number) => (
                                 <div key={img.url + i} style={{ flex: 1, overflow: 'hidden' }}>
                                   <LazyImage
-                                    src={img.url} alt={img.name || 'image'}
+                                    onImageLoaded={this._onImageLoaded} src={img.url} alt={img.name || 'image'}
                                     className="w-full h-full object-cover block cursor-zoom-in"
                                     onClick={(e) => { e.stopPropagation(); openImg(img.url, allImgUrls); }}
                                   />
@@ -829,7 +878,7 @@ export class ChatTimelineV2 extends Component<
                             {msgImages.map((img: any, i: number) => (
                               <div key={img.url + i} style={{ height: 150, overflow: 'hidden' }}>
                                 <LazyImage
-                                  src={img.url} alt={img.name || 'image'}
+                                  onImageLoaded={this._onImageLoaded} src={img.url} alt={img.name || 'image'}
                                   className="w-full h-full object-cover block cursor-zoom-in"
                                   onClick={(e) => { e.stopPropagation(); openImg(img.url, allImgUrls); }}
                                 />
@@ -843,7 +892,7 @@ export class ChatTimelineV2 extends Component<
                             {msgImages.slice(0, 4).map((img: any, i: number) => (
                               <div key={img.url + i} style={{ height: 150, overflow: 'hidden', position: 'relative' }}>
                                 <LazyImage
-                                  src={img.url} alt={img.name || 'image'}
+                                  onImageLoaded={this._onImageLoaded} src={img.url} alt={img.name || 'image'}
                                   className="w-full h-full object-cover block cursor-zoom-in"
                                   onClick={(e) => { e.stopPropagation(); openImg(img.url, allImgUrls); }}
                                 />
@@ -915,7 +964,7 @@ export class ChatTimelineV2 extends Component<
                           >
                             {msgImages.length === 1 && (
                               <LazyImage
-                                src={msgImages[0].url} alt={msgImages[0].name || 'image'}
+                                onImageLoaded={this._onImageLoaded} src={msgImages[0].url} alt={msgImages[0].name || 'image'}
                                 className="w-full max-h-[280px] object-cover block cursor-zoom-in"
                                 onClick={(e) => { e.stopPropagation(); openImg(msgImages[0].url, allImgUrls); }}
                               />
@@ -924,7 +973,7 @@ export class ChatTimelineV2 extends Component<
                               <div style={{ display: 'flex', gap: 2, height: 180 }}>
                                 {msgImages.map((img: any, i: number) => (
                                   <div key={img.url + i} style={{ flex: 1, overflow: 'hidden' }}>
-                                    <LazyImage src={img.url} alt={img.name || 'image'} className="w-full h-full object-cover block cursor-zoom-in"
+                                    <LazyImage onImageLoaded={this._onImageLoaded} src={img.url} alt={img.name || 'image'} className="w-full h-full object-cover block cursor-zoom-in"
                                       onClick={(e) => { e.stopPropagation(); openImg(img.url, allImgUrls); }}
                                     />
                                   </div>
@@ -934,14 +983,14 @@ export class ChatTimelineV2 extends Component<
                             {msgImages.length === 3 && (
                               <div style={{ display: 'flex', gap: 2, height: 190 }}>
                                 <div style={{ flex: 2, overflow: 'hidden' }}>
-                                  <LazyImage src={msgImages[0].url} alt="" className="w-full h-full object-cover block cursor-zoom-in"
+                                  <LazyImage onImageLoaded={this._onImageLoaded} src={msgImages[0].url} alt="" className="w-full h-full object-cover block cursor-zoom-in"
                                     onClick={(e) => { e.stopPropagation(); openImg(msgImages[0].url, allImgUrls); }}
                                   />
                                 </div>
                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
                                   {msgImages.slice(1).map((img: any, i: number) => (
                                     <div key={img.url + i} style={{ flex: 1, overflow: 'hidden' }}>
-                                      <LazyImage src={img.url} alt="" className="w-full h-full object-cover block cursor-zoom-in"
+                                      <LazyImage onImageLoaded={this._onImageLoaded} src={img.url} alt="" className="w-full h-full object-cover block cursor-zoom-in"
                                         onClick={(e) => { e.stopPropagation(); openImg(img.url, allImgUrls); }}
                                       />
                                     </div>
@@ -953,7 +1002,7 @@ export class ChatTimelineV2 extends Component<
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
                                 {msgImages.slice(0, 4).map((img: any, i: number) => (
                                   <div key={img.url + i} style={{ height: 130, overflow: 'hidden', position: 'relative' }}>
-                                    <LazyImage src={img.url} alt="" className="w-full h-full object-cover block cursor-zoom-in"
+                                    <LazyImage onImageLoaded={this._onImageLoaded} src={img.url} alt="" className="w-full h-full object-cover block cursor-zoom-in"
                                       onClick={(e) => { e.stopPropagation(); openImg(img.url, allImgUrls); }}
                                     />
                                     {i === 3 && msgImages.length > 4 && (
