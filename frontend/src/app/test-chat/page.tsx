@@ -1221,7 +1221,17 @@ export default function TestChat() {
   const hasPinnedMessages = pinnedMessages.length > 0;
 
   return (
-    <div className={`h-[100dvh] min-h-0 flex p-1 gap-1 md:pb-[52px] ${backgroundGradient} max-md:p-0 max-md:gap-0`} style={{ height: '100dvh', minHeight: '100dvh' }}>
+    <div 
+      className={`h-screen md:h-[100dvh] min-h-0 flex p-1 gap-1 md:pb-[52px] ${backgroundGradient} max-md:p-0 max-md:gap-0`} 
+      style={{ 
+        height: '100vh',
+        // @ts-ignore - dvh not in CSSProperties yet
+        height: '100dvh',
+        minHeight: '100vh',
+        // @ts-ignore
+        minHeight: '100dvh'
+      }}
+    >
       {/* Скрываем сайдбар на мобильных когда открыт чат */}
       <div className={`${isBelow768 && currentChatId ? 'hidden' : 'flex'} flex-col md:mb-[56px] md:h-full md:min-h-0 max-md:w-full max-md:h-full`}>
         <ChatSidebar 
