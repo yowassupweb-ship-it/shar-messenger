@@ -1221,9 +1221,9 @@ export default function TestChat() {
   const hasPinnedMessages = pinnedMessages.length > 0;
 
   return (
-    <div className={`h-screen min-h-0 flex p-1 gap-1 md:pb-[52px] ${backgroundGradient} max-md:p-0 max-md:gap-0`}>
+    <div className={`h-[100dvh] min-h-0 flex p-1 gap-1 md:pb-[52px] ${backgroundGradient} max-md:p-0 max-md:gap-0`} style={{ height: '100dvh', minHeight: '100dvh' }}>
       {/* Скрываем сайдбар на мобильных когда открыт чат */}
-      <div className={`${isBelow768 && currentChatId ? 'hidden' : 'flex'} flex-col md:mb-[56px] md:h-full md:min-h-0 max-md:w-full max-md:h-screen`}>
+      <div className={`${isBelow768 && currentChatId ? 'hidden' : 'flex'} flex-col md:mb-[56px] md:h-full md:min-h-0 max-md:w-full max-md:h-full`}>
         <ChatSidebar 
           chats={visibleChats}
           currentChatId={currentChatId}
@@ -1356,7 +1356,7 @@ export default function TestChat() {
                   composerContainerRef={composerContainerRef}
                   messagesEndRef={messagesEndRef}
                   router={{}}
-                  scrollTopPadding={hasPinnedMessages ? (isBelow768 ? 81 : 88) : (isBelow768 ? 56 : 72)}
+                  scrollTopPadding={hasPinnedMessages ? (isBelow768 ? 125 : 88) : (isBelow768 ? 100 : 72)}
                   // Keep room for floating composer; bottom nav is hidden on mobile when chat is open
                   scrollBottomPadding={67}
                   setSelectedMessages={setSelectedMessages}
@@ -1389,7 +1389,7 @@ export default function TestChat() {
 
               {/* Хедер — абсолютно позиционирован поверх фона чата.
                   Сообщения скроллятся за ним, позиции баблов определяет scrollTopPadding. */}
-              <div className="absolute top-0 md:-top-[7px] left-0 right-0 z-10">
+              <div className="absolute top-0 md:-top-[7px] left-0 right-0 z-10" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
                 {isSelectionMode ? (
                   <SelectionActionsBar
                     selectedCount={selectedMessages.size}
@@ -1653,6 +1653,7 @@ export default function TestChat() {
         <TaskListSelector
           show={showTaskListSelector}
           message={selectedMessageForAction}
+          todoLists={[]}
           onClose={() => {
             setShowTaskListSelector(false);
             setSelectedMessageForAction(null);
@@ -1664,6 +1665,7 @@ export default function TestChat() {
         <EventCalendarSelector
           show={showEventCalendarSelector}
           message={selectedMessageForAction}
+          calendarLists={[]}
           onClose={() => {
             setShowEventCalendarSelector(false);
             setSelectedMessageForAction(null);
