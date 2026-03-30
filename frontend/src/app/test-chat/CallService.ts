@@ -571,6 +571,8 @@ export class CallService {
     this.isAcceptingIncoming = true;
     this.setState('calling');
 
+    // Pin call context explicitly to avoid signaling with stale/null callId.
+    this.currentCallId = effectiveIncoming.callId;
     this.currentRemoteUserId = effectiveIncoming.fromUserId;
     this.currentChatId = effectiveIncoming.chatId;
 
@@ -607,6 +609,11 @@ export class CallService {
         toUserId: effectiveIncoming.fromUserId,
         chatId: effectiveIncoming.chatId,
         payload: answer,
+      });
+
+      console.log('[CallService] Answer sent:', {
+        callId: this.currentCallId,
+        toUserId: effectiveIncoming.fromUserId,
       });
 
       this.pendingIncomingCall = null;
@@ -814,6 +821,21 @@ export class CallService {
 
         if (!sig.payload || sig.payload.type !== 'offer') {
           console.warn('[CallService] Ignoring invalid offer payload');
+          break;
+        }
+
+        if (
+          this.currentCallId &&
+          sig.callId === this.currentCallId &&
+          String(sig.fromUserId || '') === String(this.currentRemoteUserId || '') &&
+          (this.isAcceptingIncoming || this.state === 'calling' || this.state === 'connected')
+        ) {
+          // Duplicate/retry offer for the same active call must not reopen incoming flow.
+          console.warn('[CallService] Ignoring duplicate offer for active call', {
+            callId: sig.callId,
+            state: this.state,
+            isAcceptingIncoming: this.isAcceptingIncoming,
+          });
           break;
         }
 
