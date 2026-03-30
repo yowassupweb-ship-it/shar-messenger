@@ -123,10 +123,53 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
     const mobileNavHeight = getVisibleHeight('.bottom-nav-fixed');
     const desktopNavHeight = getVisibleHeight('.desktop-navigation');
-    return Math.max(
-      mobileNavHeight > 0 ? mobileNavHeight + 2 : 0,
-      desktopNavHeight > 0 ? desktopNavHeight + 2 : 0
-    );
+    const visibleNavHeight = Math.max(mobileNavHeight, desktopNavHeight);
+
+    if (visibleNavHeight > 0) {
+      console.log('[MessageInput] Visible nav detected:', visibleNavHeight);
+      return visibleNavHeight + 2;
+    }
+
+    // В Electron мы вычитаем высоту bottomnav прямо в контейнере (calc 100vh - title - bottomnav)
+    // Поэтому внутри контейнера инпуту отступ НЕ нужен - он просто прижимается к низу контейнера.
+    const isElectronEnv = document.documentElement.classList.contains('electron-app') || document.documentElement.hasAttribute('data-electron-react-shell');
+    if (isElectronEnv) {
+      console.log('[MessageInput] Electron env detected, offset = 0');
+      return 0; // Строго 0 для Electron
+    }
+    
+    console.log('[MessageInput] No nav detected, offset = 0');
+    return 0;
+  }, []);
+
+  const [isElectronDesktopComposer, setIsElectronDesktopComposer] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateComposerMode = () => {
+      const isElectronEnv = document.documentElement.classList.contains('electron-app') || document.documentElement.hasAttribute('data-electron-react-shell');
+      setIsElectronDesktopComposer(isElectronEnv && window.innerWidth >= 768);
+    };
+
+    updateComposerMode();
+    const rafId = requestAnimationFrame(updateComposerMode);
+    const timeoutId = window.setTimeout(updateComposerMode, 50);
+
+    const observer = new MutationObserver(updateComposerMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'style', 'data-electron-react-shell']
+    });
+
+    window.addEventListener('resize', updateComposerMode);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.clearTimeout(timeoutId);
+      observer.disconnect();
+      window.removeEventListener('resize', updateComposerMode);
+    };
   }, []);
 
   const [composerBottomOffset, setComposerBottomOffset] = React.useState(() => getCurrentNavOffset());
@@ -148,6 +191,15 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const rafId = requestAnimationFrame(updateBottomOffset);
     window.addEventListener('resize', updateBottomOffset);
 
+    // Отслеживание изменения CSS переменной Electron
+    const electronOffsetObserver = new MutationObserver(() => {
+      requestAnimationFrame(updateBottomOffset);
+    });
+    electronOffsetObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['style']
+    });
+
     // Double rAF: wait for React to commit DOM changes (nav display:none) before reading
     const onChatSelectionChanged = () => {
       requestAnimationFrame(() => requestAnimationFrame(updateBottomOffset));
@@ -168,6 +220,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       cancelAnimationFrame(rafId);
       window.removeEventListener('resize', updateBottomOffset);
       window.removeEventListener('chat-selection-changed', onChatSelectionChanged);
+      electronOffsetObserver.disconnect();
       navObserver?.disconnect();
     };
   }, [getCurrentNavOffset]);
@@ -196,8 +249,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
     textarea.style.overflowY = nextHeight >= maxHeight ? 'auto' : 'hidden';
   }, [messageInputRef]);
 
-  const actionButtonClass = 'w-11 h-11 rounded-full bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] flex items-center justify-center transition-all duration-200 shadow-[var(--shadow-card)] border border-[var(--border-light)] backdrop-blur-xl flex-shrink-0 text-[var(--text-secondary)]';
-  const attachmentButtonClass = 'w-11 h-11 rounded-full bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] flex items-center justify-center transition-all duration-200 shadow-[var(--shadow-card)] border border-[var(--border-light)] backdrop-blur-xl flex-shrink-0 text-[var(--text-primary)]';
   const hasComposerContextBlock = Boolean(editingMessageId || replyToMessage);
   const composerContextBlockClass = 'mb-1 h-[42px] px-3 rounded-[18px] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[var(--shadow-card)] backdrop-blur-xl flex items-center justify-between gap-2';
   const composerContextCloseButtonClass = 'w-6 h-6 rounded-full hover:bg-[var(--bg-glass-hover)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0';
@@ -295,10 +346,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
   return (
     <div
       ref={composerContainerRef}
-      className={`absolute left-0 right-0 z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(env(safe-area-inset-bottom,8px),8px)] bg-transparent ${
+      className={`${isElectronDesktopComposer ? 'relative mt-auto' : 'absolute left-0 right-0'} z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(env(safe-area-inset-bottom,8px),8px)] bg-transparent ${
         isDragging ? 'scale-[1.02]' : ''
       }`}
-      style={{ bottom: `${composerBottomOffset}px` }}
+      style={isElectronDesktopComposer ? undefined : { bottom: `${composerBottomOffset}px` }}
       onDragEnter={(e) => {
         if (!hasFilePayload(e.dataTransfer)) return;
         e.preventDefault();
@@ -389,60 +440,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
         </div>
       ) : (
         <div className="flex gap-1 md:gap-2 items-end relative bg-[var(--bg-glass)]/70 backdrop-blur-xl md:bg-transparent md:backdrop-filter-none rounded-[26px] md:rounded-none p-1 md:p-0">
-          {/* Emoji button */}
-          {!selectedChat?.isNotificationsChat && (
-            <div className="relative">
-              <button
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className={`${actionButtonClass} hidden md:flex`}
-              >
-                <Smile className="w-4 h-4" />
-              </button>
-              
-              {showEmojiPicker && (
-                <EmojiPicker
-                  onEmojiSelect={(emoji) => {
-                    if (messageInputRef.current) {
-                      const start = messageInputRef.current.selectionStart || 0;
-                      const end = messageInputRef.current.selectionEnd || 0;
-                      const text = messageInputRef.current.value;
-                      const newText = text.substring(0, start) + emoji + text.substring(end);
-                      messageInputRef.current.value = newText;
-                      const newCursorPos = start + emoji.length;
-                      messageInputRef.current.setSelectionRange(newCursorPos, newCursorPos);
-                      messageInputRef.current.focus();
-                      setNewMessage(newText);
-                      recalculateTextareaHeight(newText);
-                    }
-                  }}
-                  onClose={() => setShowEmojiPicker(false)}
-                />
-              )}
-            </div>
-          )}
-          
-          {/* Attachment button */}
-          {!selectedChat?.isNotificationsChat && (
-            <button
-              disabled={isUploadingAttachments}
-              onClick={(e) => {
-                if (typeof window !== 'undefined') {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  window.dispatchEvent(new CustomEvent('attachment-menu-anchor', {
-                    detail: {
-                      x: rect.left,
-                      y: rect.top,
-                    }
-                  }));
-                }
-                setShowAttachmentMenu(!showAttachmentMenu);
-              }}
-              className={`${attachmentButtonClass} disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              <Paperclip className="w-4 h-4" />
-            </button>
-          )}
-          
           <input
             ref={fileInputRef}
             type="file"
@@ -519,49 +516,107 @@ const MessageInput: React.FC<MessageInputProps> = ({
               </div>
             )}
             
-            <textarea
-              ref={messageInputRef}
-              onMouseUp={(e) => {
-                if (e.button === 0) {
-                  handleTextSelection();
-                }
-              }}
-              onFocus={() => {
-                isUserActiveRef.current = true;
-                lastActivityTimeRef.current = Date.now();
-              }}
-              onBlur={() => {
-                setTimeout(() => {
-                  isUserActiveRef.current = false;
-                }, 500);
-              }}
-              onChange={handleMessageChange}
-              onKeyDown={handleMessageKeyDown}
-              onPaste={handlePaste}
-              onWheel={(e) => {
-                const textarea = e.currentTarget;
-                if (textarea.scrollHeight <= textarea.clientHeight) return;
+            <div className="relative">
+              {!selectedChat?.isNotificationsChat && (
+                <div className="absolute left-2 bottom-1.5 z-10">
+                  <button
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className="w-8 h-8 rounded-full hover:bg-[var(--bg-glass-hover)] flex items-center justify-center transition-colors text-[var(--text-secondary)]"
+                  >
+                    <Smile className="w-4 h-4" />
+                  </button>
 
-                const scrollingDown = e.deltaY > 0;
-                const atTop = textarea.scrollTop <= 0;
-                const atBottom = Math.ceil(textarea.scrollTop + textarea.clientHeight) >= textarea.scrollHeight;
+                  {showEmojiPicker && (
+                    <div className="absolute bottom-full left-0 mb-2">
+                      <EmojiPicker
+                        onEmojiSelect={(emoji) => {
+                          if (messageInputRef.current) {
+                            const start = messageInputRef.current.selectionStart || 0;
+                            const end = messageInputRef.current.selectionEnd || 0;
+                            const text = messageInputRef.current.value;
+                            const newText = text.substring(0, start) + emoji + text.substring(end);
+                            messageInputRef.current.value = newText;
+                            const newCursorPos = start + emoji.length;
+                            messageInputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+                            messageInputRef.current.focus();
+                            setNewMessage(newText);
+                            recalculateTextareaHeight(newText);
+                          }
+                        }}
+                        onClose={() => setShowEmojiPicker(false)}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
 
-                if ((scrollingDown && !atBottom) || (!scrollingDown && !atTop)) {
-                  e.stopPropagation();
-                }
-              }}
-              onTouchMove={(e) => {
-                const textarea = e.currentTarget;
-                if (textarea.scrollHeight > textarea.clientHeight) {
-                  e.stopPropagation();
-                }
-              }}
-              placeholder={selectedChat?.isNotificationsChat ? "Чат только для чтения" : editingMessageId ? "Редактируйте сообщение..." : "Сообщение..."}
-              disabled={selectedChat?.isNotificationsChat}
-              className="w-full px-4 py-2.5 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-primary)] resize-none overflow-y-auto shadow-[var(--shadow-card)] backdrop-blur-xl disabled:opacity-50 disabled:cursor-not-allowed rounded-[22px]"
-              style={{ minHeight: '44px', maxHeight: '120px', lineHeight: '20px', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
-              rows={1}
-            />
+              {!selectedChat?.isNotificationsChat && (
+                <div className="absolute right-2 bottom-1.5 z-10">
+                  <button
+                    disabled={isUploadingAttachments}
+                    onClick={(e) => {
+                      if (typeof window !== 'undefined') {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        window.dispatchEvent(new CustomEvent('attachment-menu-anchor', {
+                          detail: {
+                            x: rect.left,
+                            y: rect.top,
+                          }
+                        }));
+                      }
+                      setShowAttachmentMenu(!showAttachmentMenu);
+                    }}
+                    className="w-8 h-8 rounded-full hover:bg-[var(--bg-glass-hover)] flex items-center justify-center transition-colors text-[var(--text-secondary)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              <textarea
+                ref={messageInputRef}
+                onMouseUp={(e) => {
+                  if (e.button === 0) {
+                    handleTextSelection();
+                  }
+                }}
+                onFocus={() => {
+                  isUserActiveRef.current = true;
+                  lastActivityTimeRef.current = Date.now();
+                }}
+                onBlur={() => {
+                  setTimeout(() => {
+                    isUserActiveRef.current = false;
+                  }, 500);
+                }}
+                onChange={handleMessageChange}
+                onKeyDown={handleMessageKeyDown}
+                onPaste={handlePaste}
+                onWheel={(e) => {
+                  const textarea = e.currentTarget;
+                  if (textarea.scrollHeight <= textarea.clientHeight) return;
+
+                  const scrollingDown = e.deltaY > 0;
+                  const atTop = textarea.scrollTop <= 0;
+                  const atBottom = Math.ceil(textarea.scrollTop + textarea.clientHeight) >= textarea.scrollHeight;
+
+                  if ((scrollingDown && !atBottom) || (!scrollingDown && !atTop)) {
+                    e.stopPropagation();
+                  }
+                }}
+                onTouchMove={(e) => {
+                  const textarea = e.currentTarget;
+                  if (textarea.scrollHeight > textarea.clientHeight) {
+                    e.stopPropagation();
+                  }
+                }}
+                placeholder={selectedChat?.isNotificationsChat ? "Чат только для чтения" : editingMessageId ? "Редактируйте сообщение..." : "Сообщение..."}
+                disabled={selectedChat?.isNotificationsChat}
+                className="w-full pl-12 pr-12 py-2.5 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-primary)] resize-none overflow-y-auto shadow-[var(--shadow-card)] backdrop-blur-xl disabled:opacity-50 disabled:cursor-not-allowed rounded-[22px]"
+                style={{ minHeight: '44px', maxHeight: '120px', lineHeight: '20px', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
+                rows={1}
+              />
+            </div>
 
             {/* Mention suggestions */}
             {showMentionSuggestions && selectedChat?.isGroup && (

@@ -32,6 +32,8 @@ export default function TaskListSelector({
   const [description, setDescription] = useState('');
   const [creating, setCreating] = useState(false);
 
+  console.log('[TaskListSelector] Рендер:', { show, todoListsCount: todoLists?.length || 0, todoLists });
+
   const normalizedMessage = useMemo(() => {
     const text = (message?.content || '').replace(/\s+/g, ' ').trim();
     return text;
@@ -104,8 +106,11 @@ export default function TaskListSelector({
 
         <div className="p-4 border-b border-gray-200 dark:border-white/10">
           <p className="text-xs text-gray-500 dark:text-white/50 mb-2">Шаг 1: Выберите список</p>
-          {todoLists.length === 0 ? (
-            <div className="text-sm text-gray-500 dark:text-white/50">Списки задач не найдены</div>
+          {!todoLists || todoLists.length === 0 ? (
+            <div className="text-sm text-gray-500 dark:text-white/50 p-4 bg-yellow-50 dark:bg-yellow-500/10 rounded-lg border border-yellow-200 dark:border-yellow-500/30">
+              <p className="font-medium mb-1">Списки задач не найдены</p>
+              <p className="text-xs">Создайте список задач в разделе &quot;Задачи&quot; перед созданием задачи из сообщения.</p>
+            </div>
           ) : (
             <div className="max-h-44 overflow-y-auto space-y-2">
               {todoLists.map((list) => {

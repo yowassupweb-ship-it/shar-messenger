@@ -807,8 +807,29 @@ export class CallService {
           break;
         }
 
+        if (String(sig.fromUserId || '') === String(this.localUserId)) {
+          console.warn('[CallService] Ignoring self-originated offer to prevent signaling loop');
+          break;
+        }
+
         if (!sig.payload || sig.payload.type !== 'offer') {
           console.warn('[CallService] Ignoring invalid offer payload');
+          break;
+        }
+
+        if (
+          this.state === 'ringing' &&
+          this.pendingIncomingCall &&
+          this.pendingIncomingCall.fromUserId === sig.fromUserId &&
+          this.pendingIncomingCall.chatId === sig.chatId &&
+          this.pendingIncomingCall.callId !== sig.callId
+        ) {
+          // Keep first incoming offer to avoid mirrored incoming-call replacement races.
+          console.warn('[CallService] Ignoring mirrored incoming offer while already ringing', {
+            activeCallId: this.pendingIncomingCall.callId,
+            incomingCallId: sig.callId,
+            fromUserId: sig.fromUserId,
+          });
           break;
         }
 

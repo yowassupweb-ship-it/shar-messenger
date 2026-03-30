@@ -51,6 +51,7 @@ interface SignalingState {
 
 const TTL_MS = 30_000;
 const SESSION_TTL_MS = 45_000;
+const LOCK_STALE_MS = 10_000;
 const DATA_DIR = path.join(process.cwd(), 'data');
 const STATE_FILE = path.join(DATA_DIR, 'call-signaling.json');
 const LOCK_FILE = path.join(DATA_DIR, 'call-signaling.lock');
@@ -85,6 +86,17 @@ async function acquireLock(retries = 80, delayMs = 25) {
       if (!(error instanceof Error) || !('code' in error) || error.code !== 'EEXIST') {
         throw error;
       }
+
+      // Recover from stale lock left by crashed process.
+      try {
+        const stat = await fs.stat(LOCK_FILE);
+        if (Date.now() - stat.mtimeMs > LOCK_STALE_MS) {
+          await fs.unlink(LOCK_FILE).catch(() => {});
+        }
+      } catch {
+        // lock may disappear between checks
+      }
+
       await delay(delayMs);
     }
   }
@@ -177,21 +189,28 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'userId required' }, { status: 400 });
   }
 
-  const signals = await withLockedState(state => {
-    const queued = (state.queues[userId] ?? [])
-      .sort((left, right) => left.ts - right.ts)
-      .map(entry => entry.signal);
+  try {
+    const signals = await withLockedState(state => {
+      const queued = (state.queues[userId] ?? [])
+        .sort((left, right) => left.ts - right.ts)
+        .map(entry => entry.signal);
 
-    delete state.queues[userId];
+      delete state.queues[userId];
 
-    if (queued.length > 0) {
-      console.log(`[CallsAPI] GET: Draining ${queued.length} signals for user ${userId}:`, queued.map(sig => sig.type));
-    }
+      if (queued.length > 0) {
+        console.log(`[CallsAPI] GET: Draining ${queued.length} signals for user ${userId}:`, queued.map(sig => sig.type));
+      }
 
-    return queued;
-  });
+      return queued;
+    });
 
-  return NextResponse.json(signals);
+    return NextResponse.json(signals);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Internal error';
+    console.error('[CallsAPI] GET error:', message);
+    // Keep polling clients stable even when signaling store is temporarily unavailable.
+    return NextResponse.json([], { status: 200 });
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -239,6 +258,29 @@ export async function POST(req: NextRequest) {
       if (type === 'offer') {
         if (existingSession && existingSession.callId !== signal.callId) {
           conflicts.push({ toUserId: targetUserId, activeCallId: existingSession.callId });
+          enqueueSignal(
+            state,
+            {
+              type: 'reject',
+              callId: signal.callId,
+              fromUserId: targetUserId,
+              toUserId: signal.fromUserId,
+              chatId: signal.chatId,
+              callType: signal.callType,
+              payload: null,
+            },
+            now,
+          );
+          continue;
+        }
+
+        if (
+          existingSession &&
+          existingSession.callId === signal.callId &&
+          existingSession.initiatorUserId !== signal.fromUserId
+        ) {
+          // Protect against mirrored/reversed offers for the same callId.
+          // Only the original initiator may send offer updates for a session.
           enqueueSignal(
             state,
             {

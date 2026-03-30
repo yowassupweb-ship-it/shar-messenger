@@ -310,6 +310,8 @@ export default function AdminPage() {
     const me = users.find(u => u.username === username || u.email === username);
     if (!me) { showToast('Пользователь не найден в списке', 'error'); return; }
 
+    const electronRuntime = typeof window !== 'undefined' && Boolean(window.sharDesktop?.showNotification || window.sharDesktop?.windowControls);
+
     setSendingTestNotif(true);
     setTestNotifResult(null);
     try {
@@ -327,16 +329,34 @@ export default function AdminPage() {
         read: false,
         createdAt: new Date().toISOString(),
       };
-      const res = await fetch('/api/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(notification),
-      });
-      if (res.ok) {
-        setTestNotifResult({ ok: true, message: `Уведомление «${label}» отправлено` });
-      } else {
-        setTestNotifResult({ ok: false, message: 'Ошибка отправки уведомления' });
+
+      // In Electron admin test should validate only custom desktop card,
+      // without writing a test item that can trigger other notification channels.
+      if (!electronRuntime || !window.sharDesktop?.showNotification) {
+        setTestNotifResult({ ok: false, message: 'Тест доступен только в Electron (кастомные уведомления)' });
+        return;
       }
+
+      console.log('[ADMIN] Sending direct custom Electron notification test');
+      const kind = type === 'new_task' ? 'task' : type === 'event_invite' ? 'event' : 'message';
+      const title = kind === 'task'
+        ? (notification.todoTitle || 'Задача')
+        : kind === 'event'
+          ? (notification.eventTitle || 'Событие')
+          : (me.name || me.username || 'Отправитель');
+
+      await window.sharDesktop.showNotification({
+        title,
+        subtitle: '',
+        senderName: me.name || me.username || 'Администратор',
+        chatName: '',
+        message: notification.message,
+        timestamp: Date.now(),
+        kind,
+        url: '/account?tab=messages',
+      });
+
+      setTestNotifResult({ ok: true, message: `Кастомное уведомление «${label}» показано` });
     } catch {
       setTestNotifResult({ ok: false, message: 'Ошибка сети' });
     } finally {
@@ -346,7 +366,7 @@ export default function AdminPage() {
   };
 
   return (
-    <>
+    <div className="flex flex-col h-screen overflow-hidden">
       {/* Toast */}
       {toast && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl border backdrop-blur-xl flex items-center gap-2 shadow-2xl ${
@@ -362,7 +382,7 @@ export default function AdminPage() {
       )}
 
       {/* Header */}
-      <header className="h-14 bg-white dark:bg-[#1a1a1a] border-b border-gray-200 dark:border-white/5 flex items-center px-6 sticky top-0 z-40">
+      <header className="h-14 bg-white dark:bg-[#1a1a1a] border-b border-gray-200 dark:border-white/5 flex items-center px-6 flex-shrink-0 z-40">
         <Link
           href="/"
           className="flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-gray-700 dark:text-white/40 dark:hover:text-white/70 hover:bg-gray-100 dark:hover:bg-white/5 transition-all mr-4"
@@ -380,7 +400,8 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-7xl mx-auto p-6">
         {/* Users Section */}
         <div className="space-y-4">
           {/* Actions */}
@@ -973,6 +994,7 @@ export default function AdminPage() {
           </div>
         </div>
       )}
-    </>
+        </div>
+      </div>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
   );
 }

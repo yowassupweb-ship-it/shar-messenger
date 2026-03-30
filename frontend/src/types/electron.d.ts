@@ -17,6 +17,11 @@ export interface WindowControls {
   toggleMaximize: () => Promise<boolean>;
   close: () => Promise<void>;
   isMaximized: () => Promise<boolean>;
+  reload: () => Promise<void>;
+  zoomIn: () => Promise<void>;
+  zoomOut: () => Promise<void>;
+  setZoom: (factor: number) => Promise<void>;
+  getZoom: () => Promise<number>;
   onMaximizedChanged: (callback: (isMaximized: boolean) => void) => () => void;
 }
 

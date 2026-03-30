@@ -5,6 +5,7 @@ import PinnedMessageBar from './PinnedMessageBar';
 interface ChatHeaderProps {
   title: string;
   isLoading: boolean;
+  isTyping?: boolean;
   messageCount: number;
   chatId: string;
   isGroupChat?: boolean;
@@ -61,6 +62,7 @@ function getAvatarColor(chatId: string): string {
 export default function ChatHeader({
   title,
   isLoading,
+  isTyping = false,
   messageCount,
   chatId,
   isGroupChat,
@@ -84,29 +86,29 @@ export default function ChatHeader({
   if (isMobile) {
     return (
       <div className="px-0 pt-0 pb-1 bg-transparent border-0 shadow-none">
-        <div className="mx-0 w-full h-11 px-2.5 rounded-none border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 flex items-center gap-2 min-w-0">
+        <div className="mx-0 w-full h-14 px-3 rounded-none border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 flex items-center gap-2.5 min-w-0">
           {onBack && (
             <button
               onClick={onBack}
-              className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex-shrink-0 text-gray-600 dark:text-gray-300"
+              className="w-9 h-9 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex-shrink-0 text-gray-600 dark:text-gray-300"
               title="Назад к чатам"
             >
-              <ArrowLeft className="w-[14px] h-[14px]" />
+              <ArrowLeft className="w-4 h-4" />
             </button>
           )}
 
           {/* Аватарка */}
           {chatId.startsWith('favorites_') ? (
-            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-400 to-orange-500 text-white shadow-sm flex-shrink-0">
-              <Star className="w-4 h-4" fill="currentColor" strokeWidth={0} />
+            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-400 to-orange-500 text-white shadow-sm flex-shrink-0">
+              <Star className="w-5 h-5" fill="currentColor" strokeWidth={0} />
             </div>
           ) : (chatId.startsWith('notifications-') || chatId.startsWith('notifications_')) ? (
-            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-sm flex-shrink-0">
-              <Bell className="w-4 h-4" />
+            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-sm flex-shrink-0">
+              <Bell className="w-5 h-5" />
             </div>
           ) : (
             <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br ${getAvatarColor(chatId)} text-white font-semibold text-xs shadow-sm flex-shrink-0`}
+              className={`w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br ${getAvatarColor(chatId)} text-white font-semibold text-sm shadow-sm flex-shrink-0`}
             >
               {getInitials(title)}
             </div>
@@ -117,11 +119,11 @@ export default function ChatHeader({
             className="flex-1 min-w-0 flex flex-col items-start cursor-pointer hover:opacity-80 transition-opacity"
             title="Открыть профиль"
           >
-            <div className="font-semibold text-[13px] text-gray-900 dark:text-gray-100 leading-tight truncate w-full text-left">{title}</div>
-            <div className="text-[11px] text-gray-500 dark:text-gray-400 leading-tight truncate w-full text-left">
+            <div className="font-semibold text-[16px] text-gray-900 dark:text-gray-100 leading-tight truncate w-full text-left">{title}</div>
+            <div className="text-[13px] text-gray-500 dark:text-gray-400 leading-tight truncate w-full text-left">
               {hasActiveGroupCall
                 ? `🔊 Голосовой чат · ${groupCallParticipants ?? 0} уч.`
-                : isLoading
+                : isTyping
                 ? 'печатает...'
                 : isGroupChat
                 ? 'нажмите, чтобы узнать больше'
@@ -133,13 +135,13 @@ export default function ChatHeader({
             <button
               onClick={onStartGroupCall}
               title={hasActiveGroupCall ? 'Войти в голосовой чат' : 'Начать голосовой чат'}
-              className={`relative w-8 h-8 rounded-full border flex items-center justify-center transition-colors flex-shrink-0 ${
+              className={`relative w-9 h-9 rounded-full border flex items-center justify-center transition-colors flex-shrink-0 ${
                 hasActiveGroupCall
                   ? 'border-green-400/60 bg-green-500/20 text-green-700 dark:text-green-300'
                   : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700'
               }`}
             >
-              <Users className="w-[14px] h-[14px]" />
+              <Users className="w-4 h-4" />
               {hasActiveGroupCall && (
                 <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-green-500 text-white text-[9px] font-bold flex items-center justify-center">
                   {groupCallParticipants}
@@ -151,19 +153,19 @@ export default function ChatHeader({
               {onStartVideoCall && (
                 <button
                   onClick={onStartVideoCall}
-                  className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex-shrink-0 text-gray-600 dark:text-gray-300"
+                  className="w-9 h-9 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex-shrink-0 text-gray-600 dark:text-gray-300"
                   title="Видеозвонок"
                 >
-                  <Video className="w-[14px] h-[14px]" />
+                  <Video className="w-4 h-4" />
                 </button>
               )}
               {onStartVoiceCall && (
                 <button
                   onClick={onStartVoiceCall}
-                  className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex-shrink-0 text-gray-600 dark:text-gray-300"
+                  className="w-9 h-9 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex-shrink-0 text-gray-600 dark:text-gray-300"
                   title="Позвонить"
                 >
-                  <Phone className="w-[14px] h-[14px]" />
+                  <Phone className="w-4 h-4" />
                 </button>
               )}
             </>
@@ -218,7 +220,7 @@ export default function ChatHeader({
             <div className="text-[11px] text-gray-500 dark:text-gray-400 leading-tight truncate">
               {hasActiveGroupCall
                 ? `🔊 Голосовой чат · ${groupCallParticipants ?? 0} уч.`
-                : isLoading
+                : isTyping
                 ? 'печатает...'
                 : isGroupChat
                 ? 'нажмите, чтобы узнать больше'

@@ -1771,12 +1771,18 @@ const Editingtodo = memo(function Editingtodo({
 
   const permissionLabel = permission === 'editor' ? 'Редактор' : 'Читатель';
   const shareTargetLabel = accessTargetOptions.find(option => option.id === shareTarget)?.label || 'Ссылка';
+  const electronTitlebarOffset = typeof window !== 'undefined'
+    ? (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--electron-titlebar-offset') || '0', 10) || 0)
+    : 0;
+  const modalTopOffset = Math.max(0, electronTitlebarOffset);
+  const modalHeaderHeight = 40;
+  const panelTopOffset = modalTopOffset + modalHeaderHeight;
   
     return (
-        <div className="fixed inset-0 bg-transparent flex items-start justify-center z-[100]">
-          <div className="bg-white dark:bg-[var(--bg-secondary)] w-full h-screen flex flex-col overflow-hidden select-none relative">
+        <div className="fixed left-0 right-0 bottom-0 bg-transparent flex items-start justify-center z-[100]" style={{ top: `${modalTopOffset}px` }}>
+          <div className="bg-white dark:bg-[var(--bg-secondary)] w-full h-full flex flex-col overflow-hidden select-none relative">
             {/* Шапка */}
-            <div className="flex items-center justify-between px-3 sm:px-4 border-b border-gray-200 dark:border-white/20 bg-white/85 dark:bg-[var(--bg-glass)]/85 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_6px_18px_rgba(0,0,0,0.12)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_8px_24px_rgba(0,0,0,0.22)] flex-shrink-0" style={{ marginTop: '30px', minHeight: '40px', maxHeight: '40px' }}>
+            <div className="flex items-center justify-between px-3 sm:px-4 border-b border-gray-200 dark:border-white/20 bg-white/85 dark:bg-[var(--bg-glass)]/85 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_6px_18px_rgba(0,0,0,0.12)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_8px_24px_rgba(0,0,0,0.22)] flex-shrink-0" style={{ marginTop: '0px', minHeight: '40px', maxHeight: '40px' }}>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   onClick={() => {
@@ -1893,21 +1899,23 @@ const Editingtodo = memo(function Editingtodo({
             
             {leftPanelOpen && (
               <div
-                className="md:hidden fixed inset-0 top-[40px] bottom-[40px] z-[110] bg-black/40"
+                className="md:hidden fixed left-0 right-0 bottom-0 z-[110] bg-black/40"
+                style={{ top: `${panelTopOffset}px` }}
                 onClick={() => setLeftPanelOpen(false)}
               />
             )}
 
             {rightPanelOpen && (
               <div
-                className="md:hidden fixed inset-0 top-[40px] bottom-[40px] z-[110] bg-black/40"
+                className="md:hidden fixed left-0 right-0 bottom-0 z-[110] bg-black/40"
+                style={{ top: `${panelTopOffset}px` }}
                 onClick={() => setRightPanelOpen(false)}
               />
             )}
 
             {/* Трехзонный layout */}
             <div className="flex flex-1 min-h-0 overflow-hidden">
-              <div className={`${leftPanelOpen ? 'fixed top-[40px] bottom-[40px] left-0 z-[120] w-[78%] max-w-[300px] block shadow-2xl' : 'hidden'} border-r border-[var(--border-color)] bg-[var(--bg-secondary)]`}>
+              <div className={`${leftPanelOpen ? 'fixed bottom-0 left-0 z-[120] w-[78%] max-w-[300px] block shadow-2xl' : 'hidden'} border-r border-[var(--border-color)] bg-[var(--bg-secondary)]`} style={leftPanelOpen ? { top: `${panelTopOffset}px` } : undefined}>
                 <div className="h-full overflow-y-auto px-2 sm:px-3 py-2">
                   {leftPanelOpen && (
                   <div>
@@ -3189,7 +3197,7 @@ const Editingtodo = memo(function Editingtodo({
                 </div>
               </div>
               {/* Правый блок - Обсуждение */}
-              <div className={`${rightPanelOpen ? 'fixed top-[40px] bottom-[40px] right-0 z-[120] w-[86%] max-w-[360px] flex shadow-2xl' : 'hidden'} flex-col bg-[var(--bg-secondary)] border-l border-[var(--border-color)] min-h-0`}>
+              <div className={`${rightPanelOpen ? 'fixed bottom-0 right-0 z-[120] w-[86%] max-w-[360px] flex shadow-2xl' : 'hidden'} flex-col bg-[var(--bg-secondary)] border-l border-[var(--border-color)] min-h-0`} style={rightPanelOpen ? { top: `${panelTopOffset}px` } : undefined}>
                 {rightPanelOpen ? (
                 <>
                 {/* Заголовок */}

@@ -5,6 +5,7 @@ import { Chat, User } from './types';
 
 interface ChatSidebarProps {
   selectedChat: Chat | null;
+  isElectronDesktop?: boolean;
   isChatListCollapsed: boolean;
   setIsChatListCollapsed: (value: boolean) => void;
   showArchivedChats: boolean;
@@ -34,6 +35,7 @@ interface ChatSidebarProps {
 
 const ChatSidebar: React.FC<ChatSidebarProps> = ({
   selectedChat,
+  isElectronDesktop = false,
   isChatListCollapsed,
   setIsChatListCollapsed,
   showArchivedChats,
@@ -175,8 +177,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
     setDraggedPinnedChatId(null);
   };
 
-  // Когда чат открыт — нижний нав скрыт, sidebar может занять всю высоту
-  const desktopBottomOffset = 56;
+  // Скролл-контент сам резервирует место под нижнюю панель, поэтому outer container не должен дополнительно ужиматься.
+  const desktopBottomOffset = 0;
   const desktopSidebarRadius = 20;
 
   return (
@@ -188,8 +190,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       `}
       style={{
         borderRadius: isMobileView ? '0' : '20px',
-        margin: isMobileView ? '0' : `5px 0 ${desktopBottomOffset}px 5px`,
-        height: isMobileView ? '100%' : `calc(100% - ${desktopBottomOffset}px)`,
+        margin: isMobileView ? '0' : '5px 0 5px 5px',
+        height: isMobileView ? '100%' : 'calc(100% - 10px)',
         borderColor: 'var(--border-light)',
         borderStyle: 'solid',
         borderWidth: isMobileView ? '0 1px 0 0' : '1px',
@@ -263,6 +265,9 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       <div
         className="relative z-10 flex-1 min-h-0 overflow-y-auto overflow-x-hidden pt-[56px] md:pt-[58px] pb-[calc(env(safe-area-inset-bottom)+96px)] md:pb-4 bg-transparent"
         style={{
+          paddingBottom: isMobileView
+            ? undefined
+            : 'calc(var(--electron-bottomnav-offset, 0px) + 16px)',
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
           WebkitOverflowScrolling: 'touch'

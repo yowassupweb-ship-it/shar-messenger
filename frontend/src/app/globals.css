@@ -3,15 +3,17 @@
 /* Override dark mode to use class instead of prefers-color-scheme */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Safe area insets for mobile devices (notches, status bars) */
-html {
-  /* Add padding for safe areas - only for mobile browsers, not Tauri */
-  padding-bottom: constant(safe-area-inset-bottom);
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: constant(safe-area-inset-left);
-  padding-left: env(safe-area-inset-left);
-  padding-right: constant(safe-area-inset-right);
-  padding-right: env(safe-area-inset-right);
+/* Safe area insets for mobile devices (notches, status bars) - только на мобильных */
+@media (max-width: 768px) {
+  html {
+    /* Add padding for safe areas - only for mobile browsers, not Electron/desktop */
+    padding-bottom: constant(safe-area-inset-bottom);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: constant(safe-area-inset-left);
+    padding-left: env(safe-area-inset-left);
+    padding-right: constant(safe-area-inset-right);
+    padding-right: env(safe-area-inset-right);
+  }
 }
 
 body {
@@ -130,9 +132,11 @@ body {
   }
 
   html {
-    height: 100%;
+    height: 100vh;
+    max-height: 100vh;
     background: #000000;
     min-width: 0;
+    overflow: hidden;
     overflow-x: hidden;
   }
 
@@ -141,10 +145,13 @@ body {
     color: var(--text-primary);
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
     font-size: 13px;
-    height: 100%;
+    height: 100vh;
+    max-height: 100vh;
     overflow: hidden;
     min-width: 0;
     overflow-x: hidden;
+    margin: 0;
+    padding: 0;
   }
 
   /* Убираем минимальные ширины у всех основных контейнеров */
@@ -385,8 +392,7 @@ html:not(.dark) [class*="border-white/5"] {
 
 /* Hide bottom navigation when modal is open */
 body.modal-open .bottom-nav-fixed,
-body.modal-open .desktop-navigation,
-body.modal-open [class*="fixed bottom"] {
+body.modal-open .desktop-navigation {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
@@ -398,62 +404,126 @@ body.modal-open [class*="fixed bottom"] {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   border: none;
   cursor: pointer;
-  transition: all 0.2s ease;
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary);
-  backdrop-filter: blur(8px);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }
 
 .electron-window-control:hover {
-  transform: scale(1.1);
+  background: #eef2ff;
+  border-color: #94a3b8;
 }
 
-.electron-window-control:active {
-  transform: scale(0.95);
-}
+/* Убрана анимация active:scale */
 
-/* Yellow for minimize */
+/* Minimize - монохромная */
 .electron-window-control:nth-child(1) {
-  background: linear-gradient(135deg, #fbbf24, #f59e0b);
-  border: 1px solid rgba(251, 191, 36, 0.4);
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
 }
 
 .electron-window-control:nth-child(1):hover {
-  background: linear-gradient(135deg, #fcd34d, #fbbf24);
-  box-shadow: 0 4px 12px rgba(251, 191, 36, 0.4);
+  background: #fef3c7;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.18);
 }
 
-/* Green for maximize/restore */
+/* Maximize/restore - монохромная */
 .electron-window-control:nth-child(2) {
-  background: linear-gradient(135deg, #34d399, #10b981);
-  border: 1px solid rgba(52, 211, 153, 0.4);
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
 }
 
 .electron-window-control:nth-child(2):hover {
-  background: linear-gradient(135deg, #6ee7b7, #34d399);
-  box-shadow: 0 4px 12px rgba(52, 211, 153, 0.4);
+  background: #dcfce7;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.16);
 }
 
-/* Red for close */
+/* Close - монохромная */
 .electron-window-control-close {
-  background: linear-gradient(135deg, #f87171, #ef4444) !important;
-  border: 1px solid rgba(248, 113, 113, 0.4) !important;
+  background: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
 }
 
 .electron-window-control-close:hover {
-  background: linear-gradient(135deg, #fca5a5, #f87171) !important;
-  box-shadow: 0 4px 12px rgba(248, 113, 113, 0.4) !important;
+  background: #fee2e2 !important;
+  border-color: #fca5a5 !important;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.18) !important;
 }
 
 /* Icon color for buttons */
 .electron-window-control svg {
+  color: #334155;
+  filter: none;
+}
+
+.dark .electron-window-control {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+  backdrop-filter: blur(8px);
+}
+
+.dark .electron-window-control:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.dark .electron-window-control:nth-child(1) {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.dark .electron-window-control:nth-child(1):hover {
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.08);
+}
+
+.dark .electron-window-control:nth-child(2) {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.dark .electron-window-control:nth-child(2):hover {
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.08);
+}
+
+.dark .electron-window-control-close {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.dark .electron-window-control-close:hover {
+  background: rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.08) !important;
+}
+
+.dark .electron-window-control svg {
   color: #ffffff;
-  drop-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
+}
+
+/* Dynamic Island - без пульсации */
+
+@keyframes marquee {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 8s linear infinite;
 }
 
 /* Smooth scrolling optimization */

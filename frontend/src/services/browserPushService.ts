@@ -41,6 +41,14 @@ const SEEN_LIMIT = 300;
 const CALENDAR_REMINDER_WINDOW_MS = 60 * 60 * 1000; // 1 час (для пропущенных)
 const CALENDAR_EVENT_START_WINDOW_MS = 30 * 1000; // ± 30 секунд - напоминание РОВНО в момент начала события
 
+const isElectronRuntime = (): boolean => {
+  if (typeof window !== 'undefined' && Boolean(window.sharDesktop?.showNotification || window.sharDesktop?.windowControls)) {
+    return true;
+  }
+  if (typeof navigator === 'undefined') return false;
+  return /electron/i.test(navigator.userAgent || '');
+};
+
 const TASK_STATUS_RU: Record<string, string> = {
   'todo': 'К выполнению',
   'pending': 'В ожидании',
@@ -266,6 +274,11 @@ export class BrowserPushService {
   }
 
   private async ensurePermissionAndWorker(): Promise<void> {
+    if (isElectronRuntime()) {
+      console.log('[BrowserPushService] Electron runtime detected: browser notification permission is skipped');
+      return;
+    }
+
     if (typeof window === 'undefined' || !('Notification' in window)) {
       console.log('[BrowserPushService] Notification API недоступен');
       return;
@@ -392,6 +405,13 @@ export class BrowserPushService {
       const title = String(chat?.title || (chat?.isGroup ? 'Групповой чат' : 'Личные сообщения'));
       const snippet = String(chat?.lastMessage?.content || 'Новое сообщение');
       const authorName = String(chat?.lastMessage?.authorName || 'Неизвестный отправитель');
+      const avatarCandidate = String(
+        chat?.lastMessage?.authorAvatar
+        || chat?.lastMessage?.avatar
+        || chat?.avatar
+        || chat?.photo
+        || ''
+      ).trim();
 
       const prev = this.chatSnapshots.get(chatId);
       this.chatSnapshots.set(chatId, { unreadCount, lastMessageId });
@@ -414,6 +434,7 @@ export class BrowserPushService {
         url: `/account?tab=messages&chat=${encodeURIComponent(chatId)}`,
         senderName: authorName,
         chatName: title,
+        avatar: avatarCandidate || undefined,
       });
     }
   }
@@ -858,9 +879,10 @@ export class BrowserPushService {
     }
 
     // Проверяем, запущены ли мы в Electron
-    const isElectron = typeof window !== 'undefined' && Boolean(window.sharDesktop?.showNotification);
+    const electronRuntime = isElectronRuntime();
+    const hasElectronBridge = typeof window !== 'undefined' && Boolean(window.sharDesktop?.showNotification);
     
-    if (isElectron) {
+    if (electronRuntime && hasElectronBridge) {
       console.log('[BrowserPushService] 🖥️ Обнаружен Electron, используем desktop-уведомления');
       try {
         const kind = options.url.includes('tab=tasks')
@@ -888,7 +910,15 @@ export class BrowserPushService {
         return;
       } catch (err) {
         console.error('[BrowserPushService] ❌ Ошибка при отправке Electron уведомления:', err);
+        // In Electron we should not fall back to web Notification API,
+        // otherwise user sees Chrome-style notifications instead of custom app notifications.
+        return;
       }
+    }
+
+    if (electronRuntime && !hasElectronBridge) {
+      console.warn('[BrowserPushService] Electron runtime without desktop bridge: browser notification fallback is disabled');
+      return;
     }
 
     if (typeof window === 'undefined' || !('Notification' in window)) {

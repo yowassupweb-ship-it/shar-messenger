@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { MessageCircle, CheckSquare, Calendar, Users, Globe, MoreVertical, Sun, Moon, Settings, Type, Zap, Hash, Package2, PenTool, Shield, Code2, X } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -35,7 +35,15 @@ const renderPinnedToolIcon = (toolId: string) => {
 export default function BottomNav() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { theme, toggleTheme } = useTheme();
+  const detectElectronRuntime = () => {
+    if (typeof window === 'undefined') return false;
+    return Boolean(window.sharDesktop?.windowControls)
+      || /electron/i.test(navigator.userAgent || '')
+      || document.documentElement.classList.contains('electron-app')
+      || document.documentElement.hasAttribute('data-electron-react-shell');
+  };
   const [unreadChatsCount, setUnreadChatsCount] = useState(0);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
@@ -43,6 +51,7 @@ export default function BottomNav() {
   const [toolContextMenu, setToolContextMenu] = useState<{ x: number; y: number; toolId: string } | null>(null);
   const [isTouchDevice, setIsTouchDevice] = useState(() => (typeof window !== 'undefined' ? window.matchMedia('(pointer: coarse)').matches : false));
   const [isBelow773, setIsBelow773] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 773 : false));
+  const [isElectronRuntime, setIsElectronRuntime] = useState(() => detectElectronRuntime());
   const [visibleTabs, setVisibleTabs] = useState({
     messages: true,
     tasks: true,
@@ -102,6 +111,7 @@ export default function BottomNav() {
     const updateViewportFlags = () => {
       setIsBelow773(window.innerWidth < 773);
       setIsTouchDevice(window.matchMedia('(pointer: coarse)').matches);
+      setIsElectronRuntime(detectElectronRuntime());
     };
 
     updateViewportFlags();
@@ -110,6 +120,28 @@ export default function BottomNav() {
     return () => {
       clearInterval(interval);
       window.removeEventListener('resize', updateViewportFlags);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const syncElectronRuntime = () => setIsElectronRuntime(detectElectronRuntime());
+    syncElectronRuntime();
+
+    const observer = new MutationObserver(syncElectronRuntime);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'data-electron-react-shell']
+    });
+
+    const timeoutId = window.setTimeout(syncElectronRuntime, 50);
+    const intervalId = window.setInterval(syncElectronRuntime, 1000);
+
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
     };
   }, []);
 
@@ -135,6 +167,8 @@ export default function BottomNav() {
       const urlParams = new URLSearchParams(window.location.search);
       const hasChat = urlParams.has('chat');
       const tabMessages = urlParams.get('tab') === 'messages';
+      const storedSelectedChatId = localStorage.getItem('selectedChatId');
+      const hasStoredChat = Boolean(String(storedSelectedChatId || '').trim());
       
       // АГРЕССИВНАЯ проверка - любое упоминание чата в URL
       const isInChat = (
@@ -142,7 +176,9 @@ export default function BottomNav() {
         fullUrl.includes('test-chat') ||
         fullUrl.includes('chat=') ||
         (pathname === '/messages' && hasChat) ||
-        (pathname === '/account' && tabMessages && hasChat)
+        (pathname === '/account' && tabMessages && hasChat) ||
+        (pathname === '/messages' && hasStoredChat) ||
+        (pathname === '/account' && tabMessages && hasStoredChat)
       );
       
       setShouldHideMobile(isInChat);
@@ -178,51 +214,43 @@ export default function BottomNav() {
   const [hasActiveModal, setHasActiveModal] = useState(false);
   
   useEffect(() => {
-    const checkForModals = () => {
-      // Проверяем наличие модальных окон по специфичным селекторам
-      const modalSelectors = [
-        '.fixed.inset-0.z-\\[60\\]', // модальные окна с z-[60]
-        '.fixed.inset-0[class*="z-[6"]', // модальные окна с z-[6x]
-        '.fixed.inset-0[class*="z-5"]', // модальные окна с z-5x
-        '[class*="content-plan-modal"]', // специфичные модальные окна
-      ];
-      
-      const hasModal = modalSelectors.some(selector => {
-        try {
-          return document.querySelector(selector) !== null;
-        } catch {
-          return false;
-        }
-      });
-      
-      setHasActiveModal(hasModal);
+    if (typeof document === 'undefined') return;
+
+    const syncModalState = () => {
+      setHasActiveModal(document.body.classList.contains('modal-open'));
     };
 
-    // Проверяем при изменении DOM
-    const observer = new MutationObserver(checkForModals);
-    observer.observe(document.body, { 
-      childList: true, 
-      subtree: true, 
+    const observer = new MutationObserver(syncModalState);
+    observer.observe(document.body, {
       attributes: true, 
       attributeFilter: ['class'] 
     });
     
-    // Проверяем сразу и периодически
-    checkForModals();
-    const interval = setInterval(checkForModals, 100);
+    syncModalState();
     
     return () => {
       observer.disconnect();
-      clearInterval(interval);
     };
   }, []);
 
   const shouldUseMobileNav = isBelow773 || isTouchDevice;
+  const isDarkTheme = theme === 'dark';
+  const isElectronDesktop = isElectronRuntime && !shouldUseMobileNav;
+  const isMessagesContext = pathname === '/messages' || pathname.startsWith('/messages/') || (pathname === '/account' && searchParams.get('tab') === 'messages');
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1024;
   const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 768;
+  const mobileNavShellClass = isDarkTheme
+    ? 'bg-[#1d293d] border border-[#2a3a52] backdrop-blur-0 shadow-[0_4px_14px_rgba(0,0,0,0.35)]'
+    : 'bg-white border border-gray-200 backdrop-blur-0 shadow-[0_4px_14px_rgba(0,0,0,0.12)]';
+  const mobileNavButtonClass = 'text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm';
+  const desktopNavShellClass = isDarkTheme
+    ? 'bg-[#1d293d] border-[#2a3a52] backdrop-blur-0'
+    : 'bg-white border-gray-200 backdrop-blur-0';
+  const desktopTabIdleClass = 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-gray-900 dark:text-white hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]';
+  const desktopTabActiveClass = 'bg-[#007aff]/20 !text-gray-900 dark:!text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]';
 
-  // Показываем везде КРОМЕ /test-chat
-  const shouldShow = !pathname.startsWith('/test-chat');
+  // Показываем везде КРОМЕ /test-chat и /login
+  const shouldShow = !pathname.startsWith('/test-chat') && pathname !== '/login';
 
   const removePinnedTool = async (toolId: string) => {
     const updated = pinnedTools.filter((id) => id !== toolId);
@@ -260,8 +288,11 @@ export default function BottomNav() {
     return null;
   }
 
+  // В Electron desktop на странице /messages нижнее меню не должно перекрывать чат.
+  const shouldHideBottomNav = shouldHideMobile || (isElectronDesktop && isMessagesContext);
+
   // ПОЛНОСТЬЮ убираем меню если открыт чат
-  if (shouldHideMobile) {
+  if (shouldHideBottomNav) {
     return null;
   }
 
@@ -269,11 +300,11 @@ export default function BottomNav() {
     <>
       {/* Mobile Bottom Navigation */}
       <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-2 pb-[max(env(safe-area-inset-bottom),14px)] px-3 z-40 pointer-events-none select-none overflow-visible ${!shouldUseMobileNav || hasActiveModal ? 'hidden' : 'flex'}`} style={{ background: 'transparent' }}>
-        <div className="flex items-center gap-2 p-1.5 rounded-[100px] pointer-events-auto backdrop-blur-xl bg-gradient-to-b from-white/10 to-white/5 border border-[var(--border-light)] px-2 py-1.5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_4px_20px_rgba(0,0,0,0.3)]">
+        <div className={`flex items-center gap-2 p-1.5 rounded-[100px] pointer-events-auto px-2 py-1.5 ${mobileNavShellClass}`}>
           {visibleTabs.messages && (
             <button
               onClick={() => handleNavClick('/messages')}
-              className="relative w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+              className={`relative w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none ${mobileNavButtonClass}`}
             >
               <MessageCircle className="w-5 h-5" strokeWidth={2} />
               {unreadChatsCount > 0 && (
@@ -287,7 +318,7 @@ export default function BottomNav() {
           {visibleTabs.tasks && (
             <button
               onClick={() => handleNavClick('/todos')}
-              className="w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+              className={`w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none ${mobileNavButtonClass}`}
             >
               <CheckSquare className="w-5 h-5" strokeWidth={2} />
             </button>
@@ -296,7 +327,7 @@ export default function BottomNav() {
           {visibleTabs.calendar && (
             <button
               onClick={() => handleNavClick('/calendar')}
-              className="w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+              className={`w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none ${mobileNavButtonClass}`}
             >
               <Calendar className="w-5 h-5" strokeWidth={2} />
             </button>
@@ -305,7 +336,7 @@ export default function BottomNav() {
           {visibleTabs.contacts && (
             <button
               onClick={() => handleNavClick('/contacts')}
-              className="w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+              className={`w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none ${mobileNavButtonClass}`}
             >
               <Users className="w-5 h-5" strokeWidth={2} />
             </button>
@@ -314,7 +345,7 @@ export default function BottomNav() {
           {visibleTabs.links && (
             <button
               onClick={() => handleNavClick('/links')}
-              className="w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+              className={`w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none ${mobileNavButtonClass}`}
             >
               <Globe className="w-5 h-5" strokeWidth={2} />
             </button>
@@ -322,7 +353,7 @@ export default function BottomNav() {
 
           <button
             onClick={() => handleNavClick('/account?tab=tools')}
-            className="w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none text-[var(--text-primary)] bg-gradient-to-br from-white/10 to-white/5 border border-[var(--border-light)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm"
+            className={`w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none ${mobileNavButtonClass}`}
           >
             <MoreVertical className="w-5 h-5" strokeWidth={2} />
           </button>
@@ -330,16 +361,14 @@ export default function BottomNav() {
       </div>
 
       {/* Desktop Bottom Status Bar */}
-      <div className={`fixed bottom-0 left-0 right-0 h-[46px] backdrop-blur-xl border-t z-40 items-center justify-between px-4 bg-[var(--bg-glass)] border-[var(--border-glass)] overflow-visible ${shouldUseMobileNav || hasActiveModal ? 'hidden' : 'flex'}`} style={{ fontSize: '12px' }}>
+      <div className={`desktop-navigation fixed bottom-0 left-0 right-0 h-[46px] border-t z-40 items-center justify-between px-4 overflow-visible ${desktopNavShellClass} ${shouldUseMobileNav || hasActiveModal ? 'hidden' : 'flex'}`} style={{ fontSize: '12px' }}>
         {/* Left side - Navigation */}
         <div className="flex items-center gap-1.5 px-1">
           {visibleTabs.messages && (
             <button
               onClick={() => handleNavClick('/messages')}
               className={`relative px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-normal transition-all whitespace-nowrap ${
-                pathname === '/messages'
-                  ? 'bg-[#007aff]/20 !text-gray-900 dark:!text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
-                  : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-gray-900 dark:text-white hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
+                pathname === '/messages' ? desktopTabActiveClass : desktopTabIdleClass
               }`}
             >
               <MessageCircle className="w-3.5 h-3.5" />
@@ -356,9 +385,7 @@ export default function BottomNav() {
             <button
               onClick={() => handleNavClick('/todos')}
               className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-normal transition-all whitespace-nowrap ${
-                pathname === '/todos'
-                  ? 'bg-[#007aff]/20 !text-gray-900 dark:!text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
-                  : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-gray-900 dark:text-white hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
+                pathname === '/todos' ? desktopTabActiveClass : desktopTabIdleClass
               }`}
             >
               <CheckSquare className="w-3.5 h-3.5" />
@@ -370,9 +397,7 @@ export default function BottomNav() {
             <button
               onClick={() => handleNavClick('/calendar')}
               className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-normal transition-all whitespace-nowrap ${
-                pathname === '/calendar'
-                  ? 'bg-[#007aff]/20 !text-gray-900 dark:!text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
-                  : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-gray-900 dark:text-white hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
+                pathname === '/calendar' ? desktopTabActiveClass : desktopTabIdleClass
               }`}
             >
               <Calendar className="w-3.5 h-3.5" />
@@ -384,9 +409,7 @@ export default function BottomNav() {
             <button
               onClick={() => handleNavClick('/contacts')}
               className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-normal transition-all whitespace-nowrap ${
-                pathname === '/contacts'
-                  ? 'bg-[#007aff]/20 !text-gray-900 dark:!text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
-                  : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-gray-900 dark:text-white hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
+                pathname === '/contacts' ? desktopTabActiveClass : desktopTabIdleClass
               }`}
             >
               <Users className="w-3.5 h-3.5" />
@@ -398,9 +421,7 @@ export default function BottomNav() {
             <button
               onClick={() => handleNavClick('/links')}
               className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-normal transition-all whitespace-nowrap ${
-                pathname === '/links'
-                  ? 'bg-[#007aff]/20 !text-gray-900 dark:!text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]'
-                  : 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-gray-900 dark:text-white hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]'
+                pathname === '/links' ? desktopTabActiveClass : desktopTabIdleClass
               }`}
             >
               <Globe className="w-3.5 h-3.5" />

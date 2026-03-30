@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MessageCircle, CheckSquare, Calendar, Users, MoreVertical, Shield, FileText, Languages, Sparkles, Link2, Box, Globe, Megaphone, Sun, Moon, GripVertical, X, Settings, User, ChevronUp, Type, MessageSquare, CheckCircle, Info, Zap, Code2, PenTool, Hash, Package2 } from 'lucide-react';
+import { FaAndroid, FaWindows } from 'react-icons/fa6';
 import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
 import Avatar from '@/components/Avatar';
@@ -546,14 +547,15 @@ export default function AccountPage() {
     };
   }, [hasChatInUrl]);
 
-  // Проверяем как флаг isChatOpen, так и наличие параметра chat в URL для надежности
+  // Проверяем как флаг isChatOpen, так и наличие параметра chat в URL для надежности.
+  // Скрываем нижнюю мобильную навигацию, когда открыт конкретный чат.
   const hideBottomNavInOpenedChat = activeTab === 'messages' && isBelow768 && (isChatOpen || hasChatInUrl);
 
-  const [tabSwitchKey, setTabSwitchKey] = useState(0);
+  const [hasMountedMessages, setHasMountedMessages] = useState(true);
+  const [hasMountedTasks, setHasMountedTasks] = useState(true);
 
   const handleTabChange = (tab: TabType) => {
     if (tab !== activeTab) {
-      setTabSwitchKey(k => k + 1);
       // Сохраняем текущий чат перед переключением вкладки (чтобы можно было вернуться)
       if (activeTab === 'messages') {
         try {
@@ -565,6 +567,15 @@ export default function AccountPage() {
     setActiveTab(tab);
     router.push(`/account?tab=${tab}`, { scroll: false });
   };
+
+  useEffect(() => {
+    if (activeTab === 'messages') {
+      setHasMountedMessages(true);
+    }
+    if (activeTab === 'tasks') {
+      setHasMountedTasks(true);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     activeTabRef.current = activeTab;
@@ -622,30 +633,8 @@ export default function AccountPage() {
     router.push('/login');
   };
 
-  const renderContent = () => {
+  const renderNonMessagesContent = () => {
     switch (activeTab) {
-      case 'messages':
-        return (
-          <Suspense fallback={
-            <div className="flex items-center justify-center h-full">
-              <div className="text-white/50">Загрузка сообщений...</div>
-            </div>
-          }>
-            <MessagesBoard />
-          </Suspense>
-        );
-      
-      case 'tasks':
-        return (
-          <Suspense fallback={
-            <div className="flex items-center justify-center h-full">
-              <div className="text-white/50">Загрузка задач...</div>
-            </div>
-          }>
-            <TodosBoard />
-          </Suspense>
-        );
-      
       case 'calendar':
         return (
           <Suspense fallback={
@@ -751,6 +740,27 @@ export default function AccountPage() {
                 </div>
               ))}
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-5xl mx-auto mt-8 mb-2">
+              <a
+                href="/downloads/Shar-Setup.exe"
+                className="group flex items-center gap-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors px-4 py-4"
+              >
+                <div className="w-11 h-11 rounded-xl bg-[#0078d4]/15 border border-[#0078d4]/25 flex items-center justify-center flex-shrink-0">
+                  <FaWindows className="w-5 h-5 text-[#0078d4]" />
+                </div>
+                <div className="text-sm font-semibold text-[var(--text-primary)]">Скачать для Windows</div>
+              </a>
+
+              <a
+                href="/downloads/Shar-Android.apk"
+                className="group flex items-center gap-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors px-4 py-4"
+              >
+                <div className="w-11 h-11 rounded-xl bg-[#3ddc84]/15 border border-[#3ddc84]/30 flex items-center justify-center flex-shrink-0">
+                  <FaAndroid className="w-5 h-5 text-[#2bbf6a]" />
+                </div>
+                <div className="text-sm font-semibold text-[var(--text-primary)]">Скачать для Android</div>
+              </a>
+            </div>
           </div>
         );
       
@@ -772,13 +782,16 @@ export default function AccountPage() {
     : String(chatSettings?.chatOverlayImageLight || '').trim();
   const accountOverlayScale = Math.max(20, Math.min(200, Number(chatSettings?.chatOverlayScale ?? 100) || 100));
   const accountOverlayOpacity = Math.max(0, Math.min(1, Number(chatSettings?.chatOverlayOpacity ?? 1) || 1));
+  const accountBottomNavShellClass = theme === 'dark'
+    ? 'bg-[#1d293d] border-[#2a3a52] backdrop-blur-0'
+    : 'bg-white border-gray-200 backdrop-blur-0';
   const mobileNavButtonBaseClass = 'w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-200 focus:outline-none border backdrop-blur-xl';
   const mobileNavButtonActiveClass = 'bg-blue-500/20 text-gray-900 dark:text-white border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)]';
   const mobileNavButtonIdleClass = 'text-[var(--text-primary)] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border-[var(--border-light)] shadow-[var(--shadow-card)]';
 
   return (
     <div
-      className={`h-screen w-full max-w-full min-w-0 theme-text flex flex-col transition-colors duration-300 overflow-hidden overflow-x-hidden relative ${isTauri ? 'pt-8' : 'pt-[env(safe-area-inset-top,0px)]'} ${(activeTab === 'tasks' || activeTab === 'contacts' || activeTab === 'tools' || activeTab === 'links' || activeTab === 'calendar') ? '' : 'theme-bg'}`}
+      className={`h-full min-h-0 w-full max-w-full min-w-0 theme-text flex flex-col transition-colors duration-300 overflow-hidden overflow-x-hidden relative ${isTauri ? 'pt-8' : 'pt-[env(safe-area-inset-top,0px)]'} ${(activeTab === 'tasks' || activeTab === 'contacts' || activeTab === 'tools' || activeTab === 'links' || activeTab === 'calendar') ? '' : 'theme-bg'}`}
       style={isChatStyledTab
         ? {
             backgroundColor: accountChatBackgroundColor,
@@ -808,15 +821,37 @@ export default function AccountPage() {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 min-w-0 overflow-hidden overflow-x-hidden relative z-10">
-        <div key={tabSwitchKey} className={`tab-content-enter h-full min-w-0 ${activeTab === 'tasks' || activeTab === 'messages' ? '' : 'overflow-y-auto'} overflow-x-hidden`}>
-          {renderContent()}
+      <div className="flex-1 min-h-0 min-w-0 overflow-hidden overflow-x-hidden relative z-10">
+        {hasMountedMessages && (
+          <div className={`h-full min-w-0 overflow-x-hidden ${activeTab === 'messages' ? 'block' : 'hidden'}`}>
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-full">
+                <div className="text-white/50">Загрузка сообщений...</div>
+              </div>
+            }>
+              <MessagesBoard />
+            </Suspense>
+          </div>
+        )}
+        {hasMountedTasks && (
+          <div className={`h-full min-w-0 overflow-x-hidden ${activeTab === 'tasks' ? 'block' : 'hidden'}`}>
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-full">
+                <div className="text-white/50">Загрузка задач...</div>
+              </div>
+            }>
+              <TodosBoard />
+            </Suspense>
+          </div>
+        )}
+        <div className={`tab-content-enter h-full min-w-0 overflow-y-auto overflow-x-hidden ${activeTab === 'messages' || activeTab === 'tasks' ? 'hidden' : 'block'}`}>
+          {renderNonMessagesContent()}
         </div>
       </div>
 
       {/* Mobile Bottom Navigation Bar - стеклянные кнопки */}
       <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-2 pb-[max(env(safe-area-inset-bottom),14px)] px-3 z-40 pointer-events-none select-none overflow-visible ${shouldUseMobileNav && !hideBottomNavInOpenedChat ? 'flex' : 'hidden'}`} onCopy={(e) => e.preventDefault()}>
-        <div className="flex items-center gap-2 p-1.5 rounded-[100px] pointer-events-auto select-none backdrop-blur-xl bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[var(--shadow-card)]" onCopy={(e) => e.preventDefault()}>
+        <div className={`flex items-center gap-2 p-1.5 rounded-[100px] pointer-events-auto select-none border shadow-[var(--shadow-card)] ${accountBottomNavShellClass}`} onCopy={(e) => e.preventDefault()}>
           {visibleTabs.messages && (
           <button
             onClick={() => handleTabChange('messages')}
@@ -902,10 +937,10 @@ export default function AccountPage() {
 
       {/* Desktop Bottom Status Bar - glassmorphism style with drop zone */}
       <div 
-        className={`desktop-navigation fixed bottom-0 left-0 right-0 h-[46px] backdrop-blur-xl border-t z-[101] items-center justify-between px-4 transition-all duration-200 overflow-visible ${shouldUseMobileNav ? 'hidden' : 'flex'} ${
+        className={`desktop-navigation fixed bottom-0 left-0 right-0 h-[46px] border-t z-[101] items-center justify-between px-4 transition-all duration-200 overflow-visible ${shouldUseMobileNav ? 'hidden' : 'flex'} ${
           isDragOverBar 
-            ? 'bg-[#007aff]/20 border-[#007aff]/50' 
-            : 'bg-[var(--bg-glass)] border-[var(--border-glass)]'
+            ? 'bg-[#007aff]/20 border-[#007aff]/50 backdrop-blur-xl' 
+            : accountBottomNavShellClass
         }`}
         style={{ fontSize: '12px' }}
         onCopy={(e) => e.preventDefault()}
@@ -1156,11 +1191,11 @@ export default function AccountPage() {
           onClick={() => setShowProfileModal(false)}
         >
           <div 
-            className="bg-[var(--bg-secondary)] rounded-2xl w-full max-w-md shadow-2xl border border-[var(--border-primary)] backdrop-blur-xl"
+            className={`rounded-2xl w-full max-w-md shadow-2xl border ${theme === 'dark' ? 'bg-[#0b0b0d] border-[#232323]' : 'bg-[var(--bg-secondary)] border-[var(--border-primary)]'} backdrop-blur-xl`}
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]">
+            <div className={`flex items-center justify-between p-4 border-b ${theme === 'dark' ? 'border-[#232323]' : 'border-[var(--border-primary)]'}`}>
               <h2 className="text-lg font-semibold text-[var(--text-primary)]">Профиль</h2>
               <button
                 onClick={() => setShowProfileModal(false)}
@@ -1224,7 +1259,7 @@ export default function AccountPage() {
                         value={editForm.phone}
                         onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
                         placeholder="+7 (999) 123-45-67"
-                        className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg text-sm focus:outline-none focus:border-[var(--accent-primary)]"
+                        className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:border-[var(--accent-primary)] ${theme === 'dark' ? 'bg-[#121215] border-[#2a2a2f] text-gray-100' : 'bg-[var(--bg-tertiary)] border-[var(--border-color)]'}`}
                       />
                     </div>
                     <div>
@@ -1234,7 +1269,7 @@ export default function AccountPage() {
                         value={editForm.workSchedule}
                         onChange={(e) => setEditForm(prev => ({ ...prev, workSchedule: e.target.value }))}
                         placeholder="Пн-Пт 9:00-18:00"
-                        className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg text-sm focus:outline-none focus:border-[var(--accent-primary)]"
+                        className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:border-[var(--accent-primary)] ${theme === 'dark' ? 'bg-[#121215] border-[#2a2a2f] text-gray-100' : 'bg-[var(--bg-tertiary)] border-[var(--border-color)]'}`}
                       />
                     </div>
                     <div>
@@ -1244,7 +1279,7 @@ export default function AccountPage() {
                         value={editForm.position}
                         onChange={(e) => setEditForm(prev => ({ ...prev, position: e.target.value }))}
                         placeholder="Менеджер"
-                        className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg text-sm focus:outline-none focus:border-[var(--accent-primary)]"
+                        className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:border-[var(--accent-primary)] ${theme === 'dark' ? 'bg-[#121215] border-[#2a2a2f] text-gray-100' : 'bg-[var(--bg-tertiary)] border-[var(--border-color)]'}`}
                       />
                     </div>
                     <div>
@@ -1254,7 +1289,7 @@ export default function AccountPage() {
                         value={editForm.department}
                         onChange={(e) => setEditForm(prev => ({ ...prev, department: e.target.value }))}
                         placeholder="Отдел продаж"
-                        className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg text-sm focus:outline-none focus:border-[var(--accent-primary)]"
+                        className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:border-[var(--accent-primary)] ${theme === 'dark' ? 'bg-[#121215] border-[#2a2a2f] text-gray-100' : 'bg-[var(--bg-tertiary)] border-[var(--border-color)]'}`}
                       />
                     </div>
                   </>
@@ -1294,7 +1329,7 @@ export default function AccountPage() {
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-[var(--border-primary)] flex gap-2">
+            <div className={`p-4 border-t flex gap-2 ${theme === 'dark' ? 'border-[#232323]' : 'border-[var(--border-primary)]'}`}>
               {isEditingProfile ? (
                 <>
                   <button
@@ -1307,7 +1342,7 @@ export default function AccountPage() {
                         department: currentUser.department || ''
                       });
                     }}
-                    className="flex-1 py-2.5 rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-primary)] font-medium hover:opacity-90 transition-opacity"
+                    className={`flex-1 py-2.5 rounded-xl font-medium hover:opacity-90 transition-opacity ${theme === 'dark' ? 'bg-[#16161a] text-gray-100' : 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]'}`}
                   >
                     Отмена
                   </button>
@@ -1350,7 +1385,7 @@ export default function AccountPage() {
                       });
                       setIsEditingProfile(true);
                     }}
-                    className="flex-1 py-2.5 rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-primary)] font-medium hover:opacity-90 transition-opacity"
+                    className={`flex-1 py-2.5 rounded-xl font-medium hover:opacity-90 transition-opacity ${theme === 'dark' ? 'bg-[#16161a] text-gray-100' : 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]'}`}
                   >
                     Редактировать
                   </button>

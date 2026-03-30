@@ -1,5 +1,5 @@
 import { Search, Clock3, Smile, Heart, Cat, Coffee, Car, Lightbulb, Flag, Activity, Music, Trophy } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 type EmojiCategory = {
   id: string;
@@ -241,6 +241,7 @@ interface EmojiPickerProps {
 export default function EmojiPicker({ recents, onSelect }: EmojiPickerProps) {
   const [activeCategory, setActiveCategory] = useState<string>('smileys');
   const [query, setQuery] = useState('');
+  const categoriesRowRef = useRef<HTMLDivElement>(null);
 
   const categories = useMemo(() => {
     return CATEGORIES.map(cat =>
@@ -255,20 +256,32 @@ export default function EmojiPicker({ recents, onSelect }: EmojiPickerProps) {
   }, [categories, activeCategory, query]);
 
   return (
-    <div className="w-[320px] max-w-[90vw] h-[360px] rounded-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden flex flex-col">
-      <div className="p-2 border-b border-gray-200 dark:border-slate-700">
+    <div className="w-[320px] max-w-[90vw] h-[360px] rounded-2xl border border-[var(--border-light)] bg-[var(--bg-primary)] shadow-2xl overflow-hidden flex flex-col">
+      <div className="p-2 border-b border-[var(--border-light)]">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Поиск emoji"
-            className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-sm text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:outline-none"
+            className="w-full h-9 pl-9 pr-3 rounded-lg border border-[var(--border-light)] bg-[var(--bg-glass)] text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
           />
         </div>
       </div>
 
-      <div className="px-2 py-1 border-b border-gray-200 dark:border-slate-700 flex items-center gap-1 overflow-x-auto scrollbar-hide">
+      <div
+        ref={categoriesRowRef}
+        onWheel={(e) => {
+          const row = categoriesRowRef.current;
+          if (!row) return;
+          if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+            row.scrollLeft += e.deltaY;
+            e.preventDefault();
+          }
+        }}
+        className="px-2 py-1 border-b border-[var(--border-light)] flex items-center gap-1 overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
+      >
         {categories.map(cat => {
           const Icon = cat.icon;
           const active = cat.id === activeCategory;
@@ -277,7 +290,7 @@ export default function EmojiPicker({ recents, onSelect }: EmojiPickerProps) {
               key={cat.id}
               onClick={() => setActiveCategory(cat.id)}
               title={cat.label}
-              className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center ${active ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800'}`}
+              className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center border ${active ? 'bg-[var(--bg-glass-active)] text-[var(--accent-primary)] border-[var(--border-primary)]' : 'text-[var(--text-muted)] border-transparent hover:bg-[var(--bg-glass)] hover:text-[var(--text-primary)]'}`}
             >
               <Icon className="w-4 h-4" />
             </button>
@@ -291,14 +304,14 @@ export default function EmojiPicker({ recents, onSelect }: EmojiPickerProps) {
             <button
               key={`${emoji}-${idx}`}
               onClick={() => onSelect(emoji)}
-              className="h-9 rounded-md text-[22px] leading-none hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+              className="h-9 rounded-md text-[22px] leading-none hover:bg-[var(--bg-glass)] transition-colors"
             >
               {emoji}
             </button>
           ))}
         </div>
         {!activeItems.length && (
-          <div className="h-full min-h-[140px] flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+          <div className="h-full min-h-[140px] flex items-center justify-center text-sm text-[var(--text-muted)]">
             Ничего не найдено
           </div>
         )}

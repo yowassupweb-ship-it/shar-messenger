@@ -4,6 +4,7 @@ import './globals.css';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import BottomNav from '@/components/layout/BottomNav';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import ElectronShell from '@/components/layout/ElectronShell';
 import { Suspense } from 'react';
 
 export const metadata: Metadata = {
@@ -71,10 +72,12 @@ export default function RootLayout({
       <body suppressHydrationWarning>
         <ErrorBoundary>
           <ThemeProvider>
-            {children}
-            <Suspense fallback={null}>
-              <BottomNav />
-            </Suspense>
+            <ElectronShell>
+              {children}
+              <Suspense fallback={null}>
+                <BottomNav />
+              </Suspense>
+            </ElectronShell>
           </ThemeProvider>
         </ErrorBoundary>
       </body>

@@ -130,6 +130,15 @@ export default function ChatHeader({
     return Boolean(raw || (selectedChat as any).isArchivedForUser);
   })();
   const isProtectedSystemChat = Boolean(selectedChat.isFavoritesChat || selectedChat.isNotificationsChat || selectedChat.isSystemChat);
+  const onlineUserIds = new Set(
+    users
+      .filter((user) => Boolean((user as any).isOnline || (user as any).is_online))
+      .map((user) => String(user.id))
+  );
+  const activeTypingCount = (typingUsers[selectedChat.id] || [])
+    .filter((id) => String(id) !== String(currentUser?.id))
+    .filter((id) => onlineUserIds.has(String(id)))
+    .length;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -326,7 +335,7 @@ export default function ChatHeader({
               })()}
               <div className="flex-1 min-w-0 text-left">
                 <h2 className="font-medium text-sm truncate">{getChatTitle(selectedChat)}</h2>
-                {typingUsers[selectedChat.id]?.filter(id => id !== currentUser?.id).length > 0 ? (
+                {activeTypingCount > 0 ? (
                   <p className="text-[10px] text-cyan-400 flex items-center gap-1">
                     <span className="inline-flex gap-0.5">
                       <span className="w-1 h-1 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />

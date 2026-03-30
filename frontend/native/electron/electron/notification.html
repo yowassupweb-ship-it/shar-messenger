@@ -10,40 +10,56 @@
       box-sizing: border-box;
     }
 
+    html,
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      width: 100%;
+      height: 100%;
+    }
+
+    body {
+      font-family: 'Segoe UI Variable', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif;
       overflow: hidden;
       background: transparent;
       -webkit-app-region: no-drag;
+      color-scheme: dark;
+      display: flex;
+      align-items: stretch;
+      justify-content: stretch;
     }
 
     .notification-container {
       width: 380px;
-      background: linear-gradient(135deg, rgba(17, 24, 39, 0.94) 0%, rgba(10, 14, 39, 0.94) 100%);
-      backdrop-filter: blur(18px);
-      border-radius: 14px;
-      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45),
-                  0 0 0 1px rgba(255, 255, 255, 0.08),
-                  inset 0 1px 0 rgba(255, 255, 255, 0.06);
-      padding: 10px 12px;
+      height: 100%;
+      background: linear-gradient(170deg, rgba(33, 39, 51, 0.97) 0%, rgba(24, 28, 37, 0.97) 100%);
+      backdrop-filter: blur(26px) saturate(140%);
+      border-radius: 13px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.44),
+                  0 0 0 1px rgba(255, 255, 255, 0.09),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.07);
+      padding: 6px 10px;
       cursor: pointer;
-      animation: slideIn 0.3s ease-out;
+      animation: slideIn 0.22s cubic-bezier(0.22, 0.9, 0.32, 1);
       position: relative;
       overflow: hidden;
+      transition: transform 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .notification-container:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.52),
+                  0 0 0 1px rgba(255, 255, 255, 0.11),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
 
     @media (prefers-color-scheme: dark) {
       .notification-container {
-        background: linear-gradient(135deg, rgba(28, 28, 30, 0.98) 0%, rgba(20, 20, 22, 0.98) 100%);
-        box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5),
-                    0 0 0 1px rgba(255, 255, 255, 0.12),
-                    inset 0 1px 2px rgba(255, 255, 255, 0.08);
+        background: linear-gradient(170deg, rgba(31, 35, 44, 0.98) 0%, rgba(21, 24, 31, 0.98) 100%);
       }
     }
 
     @keyframes slideIn {
       from {
-        transform: translateX(420px) scale(0.9);
+        transform: translateX(32px) scale(0.985);
         opacity: 0;
       }
       to {
@@ -58,33 +74,43 @@
         opacity: 1;
       }
       to {
-        transform: translateX(420px) scale(0.9);
+        transform: translateX(30px) scale(0.985);
         opacity: 0;
       }
     }
 
     .notification-content {
       display: flex;
-      gap: 9px;
-      align-items: flex-start;
+      gap: 8px;
+      align-items: stretch;
+      height: 100%;
     }
 
     .avatar {
-      width: 40px;
-      height: 40px;
+      width: 36px;
+      height: 36px;
       border-radius: 50%;
       flex-shrink: 0;
-      background: linear-gradient(135deg, rgba(59, 130, 246, 0.26) 0%, rgba(30, 64, 175, 0.36) 100%);
+      align-self: center;
+      background: linear-gradient(145deg, rgba(74, 141, 255, 0.5) 0%, rgba(37, 99, 235, 0.52) 100%);
       display: flex;
       align-items: center;
       justify-content: center;
       color: white;
-      font-weight: 700;
-      font-size: 15px;
-      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35),
+      font-weight: 600;
+      font-size: 13px;
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.32),
                   0 0 0 1px rgba(255, 255, 255, 0.15);
       position: relative;
       overflow: hidden;
+    }
+
+    .avatar.kind-task {
+      background: linear-gradient(145deg, rgba(59, 130, 246, 0.45) 0%, rgba(37, 99, 235, 0.58) 100%);
+    }
+
+    .avatar.kind-event {
+      background: linear-gradient(145deg, rgba(16, 185, 129, 0.45) 0%, rgba(5, 150, 105, 0.58) 100%);
     }
 
     .avatar img {
@@ -99,49 +125,60 @@
     .text-content {
       flex: 1;
       min-width: 0;
+      padding-right: 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-evenly;
+      min-height: 100%;
+      padding-top: 1px;
+      padding-bottom: 1px;
     }
 
     .notification-header {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 3px;
+      gap: 6px;
+      margin-bottom: 0;
+      min-height: 14px;
     }
 
     .sender-name {
-      font-weight: 700;
-      font-size: 14px;
-      color: #f8fafc;
+      font-weight: 600;
+      font-size: 13px;
+      color: #f1f5f9;
       flex: 1;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      letter-spacing: -0.01em;
+      letter-spacing: -0.005em;
     }
 
     @media (prefers-color-scheme: dark) {
       .sender-name {
-        color: #f5f5f7;
+        color: #eef2f7;
       }
     }
 
     .timestamp {
       font-size: 10px;
-      color: rgba(226, 232, 240, 0.68);
+      color: rgba(203, 213, 225, 0.82);
       white-space: nowrap;
+      font-variant-numeric: tabular-nums;
     }
 
     @media (prefers-color-scheme: dark) {
       .timestamp {
-        color: #999999;
+        color: rgba(226, 232, 240, 0.64);
       }
     }
 
     .chat-name {
-      font-size: 12px;
-      color: #fbbf24;
-      margin-bottom: 3px;
-      font-weight: 600;
+      font-size: 11px;
+      color: rgba(148, 163, 184, 0.96);
+      margin-bottom: 0;
+      min-height: 14px;
+      line-height: 14px;
+      font-weight: 500;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -151,11 +188,11 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      margin-bottom: 3px;
-      padding: 2px 7px;
+      margin-bottom: 0;
+      padding: 1px 6px;
       border-radius: 999px;
-      font-size: 9px;
-      font-weight: 700;
+      font-size: 8px;
+      font-weight: 600;
       letter-spacing: 0.02em;
       text-transform: uppercase;
       background: rgba(241, 90, 34, 0.2);
@@ -194,11 +231,11 @@
 
     .message-text {
       font-size: 12px;
-      line-height: 1.25;
-      color: rgba(226, 232, 240, 0.92);
+      line-height: 1.26;
+      color: rgba(226, 232, 240, 0.96);
       display: -webkit-box;
-      line-clamp: 4;
-      -webkit-line-clamp: 4;
+      line-clamp: 2;
+      -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
       word-wrap: break-word;
@@ -214,13 +251,13 @@
 
     .badge {
       position: absolute;
-      top: -2px;
-      right: -2px;
+      top: -3px;
+      right: -3px;
       background: #ff3b30;
       color: white;
       font-size: 9px;
       font-weight: 600;
-      padding: 2px 5px;
+      padding: 1px 5px;
       border-radius: 10px;
       box-shadow: 0 2px 8px rgba(255, 59, 48, 0.4);
       min-width: 18px;
@@ -229,12 +266,12 @@
 
     .close-btn {
       position: absolute;
-      top: 6px;
-      right: 6px;
-      width: 20px;
-      height: 20px;
+      top: 5px;
+      right: 5px;
+      width: 18px;
+      height: 18px;
       border-radius: 50%;
-      background: rgba(0, 0, 0, 0.06);
+      background: rgba(255, 255, 255, 0.06);
       border: none;
       cursor: pointer;
       display: flex;
@@ -242,18 +279,18 @@
       justify-content: center;
       opacity: 1;
       transition: all 0.2s ease;
-      color: #cbd5e1;
-      font-size: 13px;
+      color: #d5dde8;
+      font-size: 12px;
       font-weight: 600;
       line-height: 1;
     }
 
     .avatar-icon {
-      width: 18px;
-      height: 18px;
+      width: 16px;
+      height: 16px;
       display: block;
-      color: #60a5fa;
-      opacity: 0.95;
+      color: #e2e8f0;
+      opacity: 0.9;
     }
 
     .close-btn:hover {
@@ -267,8 +304,8 @@
 
     @media (prefers-color-scheme: dark) {
       .close-btn {
-        background: rgba(255, 255, 255, 0.1);
-        color: #ccc;
+        background: rgba(255, 255, 255, 0.09);
+        color: #d1d5db;
       }
       
       .close-btn:hover {
@@ -298,6 +335,7 @@
 
   <script>
     const { ipcRenderer } = require('electron');
+    let isClosing = false;
 
     // Получаем данные уведомления
     ipcRenderer.on('notification-data', (event, data) => {
@@ -308,6 +346,7 @@
         chatName,
         message,
         avatar,
+        appOrigin,
         timestamp,
         badge,
         chatId,
@@ -332,16 +371,51 @@
       const isGenericSender = normalizedSender && genericLabels.has(normalizedSender.toLowerCase());
       const senderCandidate = !isGenericSender ? normalizedSender : '';
 
-      const resolvedTitle = senderCandidate
-        || normalizedChatName
-        || normalizedSubtitle
-        || normalizedSender
-        || normalizedTitle
-        || 'Новое уведомление';
+      const resolvedMessage = String(message || 'Откройте приложение, чтобы посмотреть детали').trim();
+      const kindType = String(kind || '').trim().toLowerCase();
+      const systemNoiseLabels = new Set([
+        'системные уведомления',
+        'сообщения',
+        'задачи',
+        'календарь',
+        'shar os',
+        'админка'
+      ]);
 
-      const resolvedSubtitle = [normalizedChatName, normalizedSubtitle, normalizedTitle, normalizedSender]
-        .find((value) => value && value !== resolvedTitle) || '';
-      const resolvedMessage = message || 'Откройте приложение, чтобы посмотреть детали';
+      const isNoiseLabel = (value) => {
+        const normalized = String(value || '').trim().toLowerCase();
+        return !normalized || systemNoiseLabels.has(normalized);
+      };
+
+      const extractEntityFromMessage = () => {
+        const msg = String(resolvedMessage || '').trim();
+        const parts = msg.split(':');
+        if (parts.length < 2) return '';
+        return String(parts.slice(1).join(':') || '').trim();
+      };
+
+      let resolvedTitle = 'Новое уведомление';
+      let resolvedSubtitle = '';
+
+      if (kindType === 'task') {
+        const taskTitle = normalizedTitle && !genericLabels.has(normalizedTitle.toLowerCase())
+          ? normalizedTitle
+          : extractEntityFromMessage();
+        resolvedTitle = taskTitle || 'Задача';
+        resolvedSubtitle = senderCandidate && !isNoiseLabel(senderCandidate) ? senderCandidate : '';
+      } else if (kindType === 'event') {
+        const eventTitle = normalizedTitle && !genericLabels.has(normalizedTitle.toLowerCase())
+          ? normalizedTitle
+          : extractEntityFromMessage();
+        resolvedTitle = eventTitle || 'Событие';
+        resolvedSubtitle = senderCandidate && !isNoiseLabel(senderCandidate) ? senderCandidate : '';
+      } else if (kindType === 'message') {
+        resolvedTitle = senderCandidate || normalizedTitle || 'Новое сообщение';
+        resolvedSubtitle = '';
+      } else {
+        resolvedTitle = senderCandidate || normalizedTitle || normalizedSubtitle || 'Новое уведомление';
+        resolvedSubtitle = '';
+      }
 
       // Устанавливаем имя отправителя
       document.getElementById('senderName').textContent = resolvedTitle;
@@ -355,12 +429,13 @@
 
       // Устанавливаем название чата (если групповой)
       const chatNameEl = document.getElementById('chatName');
-      chatNameEl.style.display = 'none';
-      chatNameEl.textContent = '';
+      chatNameEl.style.display = 'block';
+      chatNameEl.style.visibility = 'hidden';
+      chatNameEl.textContent = '\u00A0';
 
-      if (resolvedSubtitle && resolvedSubtitle !== resolvedTitle) {
+      if (resolvedSubtitle && resolvedSubtitle !== resolvedTitle && !isNoiseLabel(resolvedSubtitle)) {
         chatNameEl.textContent = resolvedSubtitle;
-        chatNameEl.style.display = 'block';
+        chatNameEl.style.visibility = 'visible';
       }
 
       // Устанавливаем текст сообщения
@@ -375,14 +450,38 @@
       const avatarTextEl = document.getElementById('avatarText');
       avatarEl.querySelectorAll('img, .badge').forEach((node) => node.remove());
       avatarTextEl.textContent = '';
-      
-      if (avatar && avatar.startsWith('http')) {
+      avatarEl.classList.remove('kind-task', 'kind-event');
+
+      const resolveAvatarUrl = (rawAvatar, origin) => {
+        const value = String(rawAvatar || '').trim();
+        if (!value) return '';
+        if (/^(https?:|data:|blob:|file:)/i.test(value)) return value;
+        if (value.startsWith('/')) {
+          const safeOrigin = String(origin || '').trim();
+          return safeOrigin ? `${safeOrigin}${value}` : '';
+        }
+        return '';
+      };
+
+      const avatarUrl = resolveAvatarUrl(avatar, appOrigin);
+
+      const initials = getAvatarInitials(resolvedTitle);
+
+      if (kindType === 'task') {
+        avatarEl.classList.add('kind-task');
+        avatarTextEl.innerHTML = getTaskSvg();
+      } else if (kindType === 'event') {
+        avatarEl.classList.add('kind-event');
+        avatarTextEl.innerHTML = getEventSvg();
+      } else if (avatarUrl) {
         const img = document.createElement('img');
-        img.src = avatar;
+        img.src = avatarUrl;
         img.onerror = () => {
-          avatarTextEl.innerHTML = getBellSvg();
+          avatarTextEl.textContent = initials || 'S';
         };
         avatarEl.appendChild(img);
+      } else if (initials) {
+        avatarTextEl.textContent = initials;
       } else {
         avatarTextEl.innerHTML = getBellSvg();
       }
@@ -403,9 +502,19 @@
         }
       });
 
+      const container = document.getElementById('notification');
+      container.addEventListener('mouseenter', () => {
+        ipcRenderer.send('notification-hover', true);
+      });
+      container.addEventListener('mouseleave', () => {
+        ipcRenderer.send('notification-hover', false);
+      });
+
       // Кнопка закрытия
       document.getElementById('closeBtn').addEventListener('click', (e) => {
         e.stopPropagation();
+        if (isClosing) return;
+        isClosing = true;
         ipcRenderer.send('notification-close');
       });
 
@@ -414,6 +523,32 @@
 
     function getBellSvg() {
       return '<svg class="avatar-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M10 17a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+    }
+
+    function getTaskSvg() {
+      return '<svg class="avatar-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 11.5l2 2 4-4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"></rect></svg>';
+    }
+
+    function getEventSvg() {
+      return '<svg class="avatar-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"></rect><path d="M8 3.5v3M16 3.5v3M4 9.5h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>';
+    }
+
+    function getAvatarInitials(value) {
+      const text = String(value || '').trim();
+      if (!text) return '';
+
+      const parts = text
+        .replace(/[()\[\]{}.,:;!@#$%^&*+=~`"'<>/?\\|-]+/g, ' ')
+        .split(' ')
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+      if (parts.length === 0) return '';
+      if (parts.length === 1) {
+        return parts[0].slice(0, 2).toUpperCase();
+      }
+
+      return `${parts[0].charAt(0)}${parts[1].charAt(0)}`.toUpperCase();
     }
 
     function formatTime(timestamp) {

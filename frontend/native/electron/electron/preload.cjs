@@ -107,6 +107,31 @@ contextBridge.exposeInMainWorld('sharDesktop', {
   },
 });
 
+if (process.versions && process.versions.electron) {
+  try {
+    class ElectronBlockedNotification {
+      static permission = 'denied';
+      static requestPermission() {
+        return Promise.resolve('denied');
+      }
+      constructor() {
+        throw new Error('Browser Notification API disabled in Electron. Use window.sharDesktop.showNotification');
+      }
+      close() {
+        // no-op
+      }
+    }
+
+    Object.defineProperty(window, 'Notification', {
+      configurable: true,
+      writable: true,
+      value: ElectronBlockedNotification,
+    });
+  } catch (error) {
+    console.warn('[ELECTRON] Failed to disable browser Notification API:', error);
+  }
+}
+
 function getRouteTitle(pathname) {
   const routeTitles = [
     [/^\/messages/, 'Чаты'],
@@ -172,8 +197,8 @@ function setStyles(element, styles) {
 function styleSvgIcons(scope) {
   scope.querySelectorAll('svg').forEach((icon) => {
     if (!(icon instanceof SVGElement)) return;
-    icon.style.width = '13px';
-    icon.style.height = '13px';
+    icon.style.width = '16px';
+    icon.style.height = '16px';
     icon.style.stroke = 'currentColor';
     icon.style.strokeWidth = '2';
     icon.style.fill = 'none';
@@ -355,7 +380,7 @@ function createHeader() {
 
   const appName = document.createElement('div');
   appName.className = 'shar-electron-tg-appname';
-  appName.textContent = 'Shar OS';
+  appName.textContent = 'Шар OS';
 
   const title = document.createElement('div');
   title.className = 'shar-electron-tg-title';
@@ -777,6 +802,9 @@ function bootIsland() {
   console.log('[ELECTRON HEADER] Dynamic Island ready (preload)');
 }
 
+// HEADER RENDERING DISABLED - Now handled by React component ElectronShell
+// Old DOM-based header creation commented out to prevent hydration conflicts
+/*
 if (document.readyState === 'loading') {
   window.addEventListener('DOMContentLoaded', () => {
     console.log('[ELECTRON HEADER] DOMContentLoaded fired');
@@ -798,3 +826,4 @@ setTimeout(() => {
     bootIsland();
   }
 }, 3000);
+*/

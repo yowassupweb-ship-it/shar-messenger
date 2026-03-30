@@ -14,6 +14,8 @@ export interface AttachmentFile {
   file: File;
   preview?: string;
   type: 'image' | 'video' | 'file';
+  width?: number;
+  height?: number;
 }
 
 interface ChatInputProps {
@@ -84,6 +86,32 @@ export default function ChatInput({
       video.onloadedmetadata = () => { video.currentTime = Math.min(1, video.duration / 2); };
     });
 
+  const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: number }> =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      img.onerror = () => reject(new Error('image dimensions')); 
+      img.src = dataUrl;
+    });
+
+  const getVideoDimensions = (file: File): Promise<{ width: number; height: number }> =>
+    new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      const url = URL.createObjectURL(file);
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        const width = video.videoWidth || 0;
+        const height = video.videoHeight || 0;
+        URL.revokeObjectURL(url);
+        resolve({ width, height });
+      };
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('video dimensions'));
+      };
+      video.src = url;
+    });
+
   const processFiles = async (files: FileList | File[]) => {
     if (!onAttachmentsChange) return;
     const fileArray = Array.from(files);
@@ -94,6 +122,8 @@ export default function ChatInput({
         if (file.type.startsWith('image/')) type = 'image';
         else if (file.type.startsWith('video/')) type = 'video';
         let preview: string | undefined;
+        let width: number | undefined;
+        let height: number | undefined;
         if (type === 'image') {
           preview = await new Promise<string>((res, rej) => {
             const reader = new FileReader();
@@ -101,10 +131,24 @@ export default function ChatInput({
             reader.onerror = rej;
             reader.readAsDataURL(file);
           });
+          try {
+            const dims = await getImageDimensions(preview);
+            width = dims.width;
+            height = dims.height;
+          } catch {
+            // ignore dimension detection errors
+          }
         } else if (type === 'video') {
           preview = await generateVideoThumbnail(file).catch(() => undefined);
+          try {
+            const dims = await getVideoDimensions(file);
+            width = dims.width;
+            height = dims.height;
+          } catch {
+            // ignore dimension detection errors
+          }
         }
-        return { id, file, type, preview } as AttachmentFile;
+        return { id, file, type, preview, width, height } as AttachmentFile;
       })
     );
     onAttachmentsChange([...attachments, ...processed]);
@@ -115,6 +159,29 @@ export default function ChatInput({
       e.preventDefault();
       onSendMessage();
     }
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!onAttachmentsChange) return;
+
+    const items = Array.from(e.clipboardData?.items || []);
+    if (items.length === 0) return;
+
+    const pastedFiles: File[] = [];
+    for (const item of items) {
+      if (item.kind !== 'file') continue;
+      const file = item.getAsFile();
+      if (!file) continue;
+      if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
+        pastedFiles.push(file);
+      }
+    }
+
+    if (pastedFiles.length === 0) return;
+
+    // Prevent browser from inserting non-text clipboard payload into textarea.
+    e.preventDefault();
+    await processFiles(pastedFiles);
   };
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -243,6 +310,22 @@ export default function ChatInput({
     return () => document.removeEventListener('mousedown', handler);
   }, [showEmojiPicker]);
 
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    // After send/edit-submit message text becomes empty.
+    // Force composer back to baseline one-line height.
+    if (!messageText.trim()) {
+      textarea.style.height = '40px';
+      textarea.scrollTop = 0;
+      return;
+    }
+
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+  }, [messageText, textareaRef]);
+
   return (
     <div 
       ref={composerRef} 
@@ -250,10 +333,10 @@ export default function ChatInput({
     >
       {/* Edit Preview */}
       {editingMessageId && (
-        <div className="mx-3 mb-1.5 py-1.5 px-2.5 bg-orange-50 dark:bg-orange-900/20 border-l-[3px] border-orange-500 dark:border-orange-400 rounded-lg flex items-center gap-2">
+        <div className="mx-3 mb-1.5 py-2 px-3 bg-orange-50 dark:bg-orange-900/20 border-l-[3px] border-orange-500 dark:border-orange-400 rounded-lg flex items-center gap-2.5">
           <div className="flex-1 min-w-0 flex items-center gap-1.5">
             <Edit3 className="w-3 h-3 text-orange-600 dark:text-orange-400 flex-shrink-0" />
-            <div className="text-[11px] font-semibold text-orange-600 dark:text-orange-400 leading-tight">
+            <div className="text-[12px] md:text-[11px] font-semibold text-orange-600 dark:text-orange-400 leading-tight">
               Редактирование
             </div>
           </div>
@@ -317,7 +400,7 @@ export default function ChatInput({
                 {/* Always-visible remove button */}
                 <button
                   onClick={() => removeAttachment(attachment.id)}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-gray-800/85 dark:bg-black/75 text-white flex items-center justify-center hover:bg-gray-900 dark:hover:bg-black shadow-sm transition-colors"
+                  className="absolute top-1 right-1 z-10 w-5 h-5 rounded-full bg-gray-800/85 dark:bg-black/75 text-white flex items-center justify-center hover:bg-gray-900 dark:hover:bg-black shadow-sm transition-colors"
                   title="Удалить"
                 >
                   <X className="w-3 h-3" />
@@ -338,12 +421,12 @@ export default function ChatInput({
 
       {/* Editing Preview */}
       {editingMessageId && (
-        <div className="px-3 py-1.5 mb-1 bg-orange-50/80 dark:bg-orange-900/30 backdrop-blur-sm rounded-lg mx-3 flex items-center gap-2">
+        <div className="px-3 py-2 mb-1 bg-orange-50/80 dark:bg-orange-900/30 backdrop-blur-sm rounded-lg mx-3 flex items-center gap-2.5">
           <div className="flex-1 min-w-0">
-            <div className="text-[11px] font-medium text-orange-600 dark:text-orange-400 leading-tight">
+            <div className="text-[12px] md:text-[11px] font-medium text-orange-600 dark:text-orange-400 leading-tight">
               Редактирование сообщения
             </div>
-            <div className="text-[13px] text-gray-700 dark:text-gray-300 truncate leading-tight mt-0.5">
+            <div className="text-[14px] md:text-[13px] text-gray-700 dark:text-gray-300 truncate leading-tight mt-0.5">
               {messageText || 'Пустое сообщение'}
             </div>
           </div>
@@ -361,12 +444,12 @@ export default function ChatInput({
 
       {/* Reply Preview */}
       {replyTo && !editingMessageId && (
-        <div className="px-3 py-1.5 mb-1 bg-blue-50/80 dark:bg-blue-900/30 backdrop-blur-sm rounded-lg mx-3 flex items-center gap-2">
+        <div className="px-3 py-2 mb-1 bg-blue-50/80 dark:bg-blue-900/30 backdrop-blur-sm rounded-lg mx-3 flex items-center gap-2.5">
           <div className="flex-1 min-w-0">
-            <div className="text-[11px] font-medium text-blue-600 dark:text-blue-400 leading-tight">
+            <div className="text-[12px] md:text-[11px] font-medium text-blue-600 dark:text-blue-400 leading-tight">
               {replyTo.author}
             </div>
-            <div className="text-[13px] text-gray-700 dark:text-gray-300 truncate leading-tight mt-0.5">
+            <div className="text-[14px] md:text-[13px] text-gray-700 dark:text-gray-300 truncate leading-tight mt-0.5">
               {replyTo.text}
             </div>
           </div>
@@ -382,7 +465,7 @@ export default function ChatInput({
         </div>
       )}
 
-      <div className="flex items-center gap-1 w-full px-0 py-0">
+      <div className="flex items-center gap-1 w-full px-[5px] py-0">
         <input
           ref={fileInputRef}
           type="file"
@@ -391,16 +474,6 @@ export default function ChatInput({
           onChange={handleFileSelect}
           className="hidden"
         />
-        
-        <div className="flex-shrink-0 ml-[5px]">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="w-10 h-10 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-gray-600 dark:text-gray-300"
-            title="Прикрепить файл"
-          >
-            <Paperclip className="w-[16px] h-[16px]" />
-          </button>
-        </div>
 
         <div className="flex-1 relative">
           <textarea
@@ -408,6 +481,7 @@ export default function ChatInput({
             value={messageText}
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             onMouseUp={(e) => openTextMenu(e.clientX, e.clientY)}
             onContextMenu={(e) => {
               e.preventDefault();
@@ -416,30 +490,36 @@ export default function ChatInput({
               openTextMenu(e.clientX, e.clientY, isEmpty);
             }}
             placeholder="Введите сообщение..."
-            className="w-full px-4 pr-11 py-2 text-[13px] text-gray-900 dark:text-gray-100 bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 rounded-[22px] focus:outline-none focus:border-gray-300 dark:focus:border-gray-600 resize-none overflow-y-auto scrollbar-hide leading-5 block placeholder:select-none"
+            className="w-full pl-12 md:pl-11 pr-12 md:pr-11 py-3 md:py-2 min-h-[46px] md:min-h-[40px] text-[15px] md:text-[13px] text-gray-900 dark:text-gray-100 bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 rounded-[24px] md:rounded-[22px] focus:outline-none focus:border-gray-300 dark:focus:border-gray-600 resize-none overflow-y-auto scrollbar-hide leading-6 md:leading-5 block placeholder:select-none"
             style={{
-              minHeight: '40px',
               maxHeight: '200px',
             }}
             rows={1}
           />
           <button
             onClick={() => setShowEmojiPicker(prev => !prev)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            className="absolute left-3.5 md:left-3 top-1/2 -translate-y-1/2 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
             title="Эмодзи"
           >
-            <Smile className="w-[18px] h-[18px]" />
+            <Smile className="w-5 h-5 md:w-[18px] md:h-[18px]" />
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="absolute right-3.5 md:right-3 top-1/2 -translate-y-1/2 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            title="Прикрепить файл"
+          >
+            <Paperclip className="w-[18px] h-[18px] md:w-[16px] md:h-[16px]" />
           </button>
         </div>
 
-        <div className="flex-shrink-0 mr-[5px]">
+        <div className="flex-shrink-0">
           <button
             onClick={onSendMessage}
             disabled={!messageText.trim() && attachments.length === 0}
-            className="w-10 h-10 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 flex items-center justify-center transition-colors text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:cursor-not-allowed"
+            className="w-11 h-11 md:w-10 md:h-10 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 flex items-center justify-center transition-colors text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:cursor-not-allowed"
             title={editingMessageId ? "Сохранить" : "Отправить"}
           >
-            <Send className="w-[16px] h-[16px]" />
+            <Send className="w-[18px] h-[18px] md:w-[16px] md:h-[16px]" />
           </button>
         </div>
       </div>
@@ -452,7 +532,7 @@ export default function ChatInput({
       />
 
       {showEmojiPicker && (
-        <div className="absolute bottom-[56px] right-[8px] z-50">
+        <div className="absolute bottom-[56px] left-[8px] z-50">
           <EmojiPicker recents={recentEmojis} onSelect={insertEmoji} />
         </div>
       )}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import React from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { MessageCircle, Send, ArrowLeft, Users, Search, Plus, MoreVertical, Check, Edit3, Trash2, Reply, Pin, PinOff, X, Paperclip, FileText, Link as LinkIcon, Calendar, CalendarPlus, Image, File, Info, Grid, List, Play, Music, Download, CheckSquare, Mail, Phone, Upload, Smile, Star, Bell, ChevronLeft, ChevronRight, ChevronDown, Building, Globe, Moon, Sun } from 'lucide-react';
 import Link from 'next/link';
@@ -56,8 +56,11 @@ const DEPARTMENT_COLORS = [
 
 export default function MessagesPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { theme, toggleTheme } = useTheme();
+  const isAccountRoute = pathname === '/account';
+  const isAccountMessagesTab = !isAccountRoute || searchParams.get('tab') === 'messages';
 
   // Проверка авторизации
   useEffect(() => {
@@ -211,6 +214,8 @@ export default function MessagesPage() {
   const [creatingEventFromMessage, setCreatingEventFromMessage] = useState<Message | null>(null);
   const [activePinnedMessageId, setActivePinnedMessageId] = useState<string | null>(null);
   const [selectedChatNearBottom, setSelectedChatNearBottom] = useState(true);
+  const [isElectronEnvironment, setIsElectronEnvironment] = useState(false);
+  const [desktopComposerDockOffset, setDesktopComposerDockOffset] = useState(140);
   const [notificationSound] = useState(() => {
     if (typeof window !== 'undefined') {
       const audio = new Audio();
@@ -318,6 +323,28 @@ export default function MessagesPage() {
     return distanceToBottom <= thresholdPx;
   }, [getScrollContainer]);
 
+  const forceScrollToBottom = useCallback((smooth: boolean = false) => {
+    const container = getScrollContainer();
+    if (!container) return;
+
+    requestAnimationFrame(() => {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto',
+      });
+
+      messagesEndRef.current?.scrollIntoView({
+        behavior: smooth ? 'smooth' : 'auto',
+        block: 'end',
+      });
+
+      if (selectedChat?.id) {
+        chatNearBottomRef.current[selectedChat.id] = true;
+      }
+      setSelectedChatNearBottom(true);
+    });
+  }, [getScrollContainer, selectedChat?.id]);
+
   // Simple wrapper: prevents unnecessary re-renders when messages haven't changed
   const setMessagesWithTimelineSnapshot = useCallback((
     chatId: string | null | undefined,
@@ -355,6 +382,43 @@ export default function MessagesPage() {
     if (nextHeight !== previousHeight && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('composer-resize', { detail: { height: nextHeight } }));
     }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateDesktopComposerDockOffset = () => {
+      const composerEl = composerContainerRef.current;
+      const electronBottomOffset = Math.max(
+        0,
+        parseInt(getComputedStyle(document.documentElement).getPropertyValue('--electron-bottomnav-offset') || '0', 10) || 0
+      );
+
+      if (!composerEl) {
+        setDesktopComposerDockOffset(96 + electronBottomOffset);
+        return;
+      }
+
+      const composerRect = composerEl.getBoundingClientRect();
+      const nextOffset = Math.max(96, Math.round(composerRect.height + electronBottomOffset + 20));
+      setDesktopComposerDockOffset(nextOffset);
+    };
+
+    updateDesktopComposerDockOffset();
+
+    const resizeObserver = composerContainerRef.current ? new ResizeObserver(updateDesktopComposerDockOffset) : null;
+    if (composerContainerRef.current && resizeObserver) {
+      resizeObserver.observe(composerContainerRef.current);
+    }
+
+    window.addEventListener('resize', updateDesktopComposerDockOffset);
+    window.addEventListener('composer-resize', updateDesktopComposerDockOffset as EventListener);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', updateDesktopComposerDockOffset);
+      window.removeEventListener('composer-resize', updateDesktopComposerDockOffset as EventListener);
+    };
   }, []);
   
   // Обёртки для функций с правильной сигнатурой
@@ -706,6 +770,7 @@ export default function MessagesPage() {
       }
 
       localStorage.setItem('selectedChatId', chat.id);
+      localStorage.setItem('lastOpenedChatId', chat.id);
       if (shouldSyncUrl) {
         router.replace(`/account?tab=messages&chat=${encodeURIComponent(chat.id)}`, { scroll: false });
       }
@@ -889,18 +954,21 @@ export default function MessagesPage() {
     if (selectedChat) {
       loadMessages(selectedChat.id, false);
       
-      // Polling для обновления сообщений каждые 2 секунды (быстрая реактивность)
+      // Polling для обновления сообщений: не мешаем вводу в composer
       const chatId = selectedChat.id;
       const interval = setInterval(() => {
         // Не запрашиваем данные если вкладка не активна
         if (typeof document !== 'undefined' && document.hidden) return;
+
+        // Не перетираем основной поток во время ввода текста
+        if (typeof document !== 'undefined' && messageInputRef.current === document.activeElement) return;
         
         // Не обновляем если пользователь активен (печатает или взаимодействует)
         const timeSinceLastActivity = Date.now() - lastActivityTimeRef.current;
-        if (!isUserActiveRef.current || timeSinceLastActivity > 2000) {
+        if (!isUserActiveRef.current || timeSinceLastActivity > 1200) {
           loadMessages(chatId, true);
         }
-      }, 2000);
+      }, 3000);
       
       return () => clearInterval(interval);
     }
@@ -965,6 +1033,7 @@ export default function MessagesPage() {
   // Открываем стартовый чат один раз: сначала URL, затем fallback из localStorage.
   useEffect(() => {
     if (typeof window === 'undefined' || chats.length === 0 || hasResolvedInitialChatRef.current) return;
+    if (!isAccountMessagesTab) return;
 
     hasResolvedInitialChatRef.current = true;
 
@@ -972,20 +1041,21 @@ export default function MessagesPage() {
     let chatId = params.get('chat');
 
     if (!chatId) {
-      chatId = localStorage.getItem('selectedChatId');
+      chatId = localStorage.getItem('selectedChatId') || localStorage.getItem('lastOpenedChatId');
     }
 
     if (!chatId) return;
 
     const chat = chats.find(c => c.id === chatId);
     if (chat) {
-      selectChat(chat, { syncUrl: false });
+      selectChat(chat, { syncUrl: true });
     }
-  }, [chats, selectChat]);
+  }, [chats, selectChat, isAccountMessagesTab]);
 
   // После инициализации URL является источником истины для активного чата.
   useEffect(() => {
     if (!hasResolvedInitialChatRef.current || chats.length === 0) return;
+    if (!isAccountMessagesTab) return;
 
     const targetChatId = String(searchParams.get('chat') || '').trim();
     const currentChatId = String(selectedChat?.id || '').trim();
@@ -995,10 +1065,15 @@ export default function MessagesPage() {
     // Проверяем реальный URL (router.replace обновляет history синхронно через replaceState):
     // если и он пуст — это browser back, закрываем чат.
     if (!targetChatId) {
-      if (currentChatId && typeof window !== 'undefined') {
-        const realChatId = new URL(window.location.href).searchParams.get('chat') || '';
-        if (!realChatId) {
-          selectChat(null, { syncUrl: false });
+      if (typeof window !== 'undefined') {
+        const fallbackChatId = String(
+          localStorage.getItem('selectedChatId') || localStorage.getItem('lastOpenedChatId') || ''
+        ).trim();
+        if (fallbackChatId && fallbackChatId !== currentChatId) {
+          const fallbackChat = chats.find((item) => String(item.id) === fallbackChatId);
+          if (fallbackChat) {
+            selectChat(fallbackChat, { syncUrl: true, restoreComposer: false });
+          }
         }
       }
       return;
@@ -1010,7 +1085,7 @@ export default function MessagesPage() {
     if (chat) {
       selectChat(chat, { syncUrl: false, restoreComposer: false });
     }
-  }, [searchParams, chats, selectedChat?.id, selectChat]);
+  }, [searchParams, chats, selectedChat?.id, selectChat, isAccountMessagesTab]);
   
   // Отслеживание глобальной активности пользователя для предотвращения обновлений
   useEffect(() => {
@@ -1287,14 +1362,19 @@ export default function MessagesPage() {
       const res = await fetch(`/api/todos`);
       if (res.ok) {
         const data = await res.json();
+        console.log('[Messages] loadTasks - Получены данные:', data);
         // API возвращает объект с полем todos
         const tasksArray = data.todos || [];
         setTasks(tasksArray);
-        setTodoLists(Array.isArray(data.lists) ? data.lists : []);
-        console.log('Loaded all tasks:', tasksArray.length);
+        const lists = Array.isArray(data.lists) ? data.lists : (Array.isArray(data) ? data : []);
+        console.log('[Messages] loadTasks - Установка списков:', lists);
+        setTodoLists(lists);
+        console.log('[Messages] Loaded all tasks:', tasksArray.length, 'lists:', lists.length);
+      } else {
+        console.error('[Messages] loadTasks - Ошибка ответа API, статус:', res.status);
       }
     } catch (error) {
-      console.error('Error loading tasks:', error);
+      console.error('[Messages] Error loading tasks:', error);
       setTasks([]);
     }
   };
@@ -1968,6 +2048,7 @@ export default function MessagesPage() {
 
     pendingOutgoingRef.current = [...pendingOutgoingRef.current, optimisticMessage];
     setMessagesWithTimelineSnapshot(selectedChat.id, (prev) => [...prev, optimisticMessage]);
+    forceScrollToBottom(false);
 
     if (messageInputRef.current) {
       messageInputRef.current.value = '';
@@ -2007,6 +2088,7 @@ export default function MessagesPage() {
           const replaced = prev.map((msg) => (msg.id === optimisticMessage.id ? newMsg : msg));
           return hasServerMessage ? replaced.filter((msg) => msg.id !== optimisticMessage.id) : replaced;
         });
+        forceScrollToBottom(false);
         
         void updateUserStatus({ isOnline: true, force: true });
 
@@ -2030,7 +2112,7 @@ export default function MessagesPage() {
       setMessagesWithTimelineSnapshot(selectedChat.id, prev => prev.filter((msg) => msg.id !== optimisticMessage.id));
       console.error('Error sending message:', error);
     }
-  }, [messageInputRef, selectedChat, currentUser, attachments, replyToMessage, messagesListRef, loadChats, syncComposerHeight, updateUserStatus, recoverFromMissingChat, recreateDeletedChatAndResend, isNoAutoScrollChat, isTimelineNearBottom, setMessagesWithTimelineSnapshot]);
+  }, [messageInputRef, selectedChat, currentUser, attachments, replyToMessage, messagesListRef, loadChats, syncComposerHeight, updateUserStatus, recoverFromMissingChat, recreateDeletedChatAndResend, isNoAutoScrollChat, isTimelineNearBottom, setMessagesWithTimelineSnapshot, forceScrollToBottom]);
 
   useEffect(() => {
     if (!selectedChat) return;
@@ -2878,7 +2960,13 @@ export default function MessagesPage() {
         const bTime = new Date(b.lastMessage?.createdAt || b.createdAt || 0).getTime();
         return bTime - aTime;
       });
-    const allUnpinnedChats = sourceChats.filter(chat => !getPinState(chat));
+    const allUnpinnedChats = sourceChats
+      .filter(chat => !getPinState(chat))
+      .sort((a, b) => {
+        const aTime = new Date(a.lastMessage?.createdAt || a.createdAt || 0).getTime();
+        const bTime = new Date(b.lastMessage?.createdAt || b.createdAt || 0).getTime();
+        return bTime - aTime;
+      });
     
     return {
       pinnedChats: filterChatsBySearch(allPinnedChats),
@@ -3048,6 +3136,38 @@ export default function MessagesPage() {
     : String(chatSettings?.chatOverlayImageLight || '').trim();
   const desktopOverlayScale = Math.max(20, Math.min(200, Number(chatSettings?.chatOverlayScale ?? 100) || 100));
   const desktopOverlayOpacity = Math.max(0, Math.min(1, Number(chatSettings?.chatOverlayOpacity ?? 1) || 1));
+  const isElectronDesktop = isDesktopView && isElectronEnvironment;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateElectronEnvironment = () => {
+      setIsElectronEnvironment(
+        Boolean(window.sharDesktop?.windowControls) ||
+        document.documentElement.classList.contains('electron-app') ||
+        document.documentElement.hasAttribute('data-electron-react-shell')
+      );
+    };
+
+    updateElectronEnvironment();
+    const rafId = requestAnimationFrame(updateElectronEnvironment);
+    const timeoutId = window.setTimeout(updateElectronEnvironment, 50);
+
+    const observer = new MutationObserver(updateElectronEnvironment);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'style', 'data-electron-react-shell']
+    });
+
+    window.addEventListener('resize', updateElectronEnvironment);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.clearTimeout(timeoutId);
+      observer.disconnect();
+      window.removeEventListener('resize', updateElectronEnvironment);
+    };
+  }, []);
 
   console.log('[Messages] Overlay для чата:', {
     theme,
@@ -3057,27 +3177,48 @@ export default function MessagesPage() {
   });
 
   return (
-    <div 
-      ref={messagesContainerRef}
-      className={`${isDesktopView ? 'bg-transparent' : 'bg-[var(--bg-primary)] px-2'} text-[var(--text-primary)] flex w-full max-w-full overflow-hidden overflow-x-hidden rounded-none overscroll-none min-w-0 cursor-default relative`}
-      style={{
-        height: '100dvh',
-        maxHeight: '100dvh',
-        ...(isDesktopView
-          ? {
-              backgroundColor: desktopChatBackgroundColor,
-              ...(desktopChatBackgroundImage
-                ? {
-                    backgroundImage: `url('${desktopChatBackgroundImage}')`,
-                    backgroundSize: 'cover',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'center center'
-                  }
-                : {})
-            }
-          : {})
-      }}
-    >
+    <>
+      {isElectronDesktop && selectedChat ? (
+        <style jsx global>{`
+          .desktop-navigation,
+          .bottom-nav-fixed {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+          }
+        `}</style>
+      ) : null}
+
+      <div 
+        ref={messagesContainerRef}
+        className={`${isDesktopView ? 'bg-transparent' : 'bg-[var(--bg-primary)] px-2'} text-[var(--text-primary)] flex w-full max-w-full overflow-hidden overflow-x-hidden rounded-none overscroll-none min-w-0 cursor-default relative`}
+        style={{
+          height: isDesktopView
+            ? (isElectronDesktop
+                ? '100%'
+                : '100dvh')
+            : '100dvh',
+          maxHeight: isDesktopView
+            ? (isElectronDesktop
+                ? '100%'
+                : '100dvh')
+            : '100dvh',
+          ...(isDesktopView
+            ? {
+                backgroundColor: desktopChatBackgroundColor,
+                ...(desktopChatBackgroundImage
+                  ? {
+                      backgroundImage: `url('${desktopChatBackgroundImage}')`,
+                      backgroundSize: 'cover',
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'center center'
+                    }
+                  : {})
+              }
+            : {})
+        }}
+      >
       {isDesktopView && !selectedChat && desktopChatOverlayImage && (
         <div
           className="absolute inset-0 pointer-events-none"
@@ -3096,6 +3237,7 @@ export default function MessagesPage() {
       {/* Левая панель - список чатов (единый блок с разными состояниями) */}
       <ChatSidebar
         selectedChat={selectedChat}
+        isElectronDesktop={isElectronDesktop}
         isChatListCollapsed={isChatListCollapsed}
         setIsChatListCollapsed={setIsChatListCollapsed}
         showArchivedChats={showArchivedChats}
@@ -3277,6 +3419,7 @@ export default function MessagesPage() {
                 setCurrentImageUrl={setCurrentImageUrl}
                 setShowImageModal={setShowImageModal}
                 hasPinnedMessage={Boolean(activePinnedMessage) && !linkedTaskBanner.id && isPinnedOverlayMobileView}
+                scrollBottomPadding={isDesktopView ? desktopComposerDockOffset : undefined}
                 onNearBottomChange={(near) => {
                   chatNearBottomRef.current[selectedChat.id] = near;
                   setSelectedChatNearBottom(near);
@@ -3560,10 +3703,15 @@ export default function MessagesPage() {
             const res = await fetch(`/api/todos${userIdQuery}`);
             if (res.ok) {
               const data = await res.json();
-              setTodoLists(Array.isArray(data.lists) ? data.lists : []);
+              console.log('[Messages] Todo lists загружены из API:', data);
+              const lists = Array.isArray(data.lists) ? data.lists : (Array.isArray(data) ? data : []);
+              console.log('[Messages] Установка todoLists:', lists);
+              setTodoLists(lists);
+            } else {
+              console.error('[Messages] Ошибка загрузки списков задач, статус:', res.status);
             }
           } catch (error) {
-            console.error('Error loading todo lists:', error);
+            console.error('[Messages] Error loading todo lists:', error);
           }
         }}
         onShowEventSelector={(msg) => {
@@ -3647,6 +3795,7 @@ export default function MessagesPage() {
           }}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 }

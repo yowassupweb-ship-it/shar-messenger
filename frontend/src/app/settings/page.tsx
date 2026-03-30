@@ -972,6 +972,12 @@ export default function UserSettingsPage() {
                 <button
                   onClick={async () => {
                     try {
+                      const electronRuntime = typeof navigator !== 'undefined' && /electron/i.test(navigator.userAgent || '');
+                      if (electronRuntime) {
+                        setNotificationPermission('granted');
+                        return;
+                      }
+
                       if (typeof window !== 'undefined' && 'Notification' in window) {
                         const permission = await Notification.requestPermission();
                         setNotificationPermission(permission);
@@ -999,6 +1005,7 @@ export default function UserSettingsPage() {
                 <button
                   onClick={async () => {
                     try {
+                      const electronRuntime = typeof navigator !== 'undefined' && /electron/i.test(navigator.userAgent || '');
                       if (typeof window !== 'undefined' && window.sharDesktop?.showNotification) {
                         await window.sharDesktop.showNotification({
                           title: 'Тестовое уведомление',
@@ -1008,7 +1015,7 @@ export default function UserSettingsPage() {
                           url: '/account?tab=settings',
                           kind: 'system',
                         });
-                      } else if (typeof window !== 'undefined' && 'Notification' in window) {
+                      } else if (!electronRuntime && typeof window !== 'undefined' && 'Notification' in window) {
                         new Notification('Тестовое уведомление 🔔', {
                           body: 'Уведомления работают корректно! Вы будете получать напоминания о задачах, событиях и новых сообщениях.',
                           icon: '/Group 8.png',
@@ -1017,6 +1024,8 @@ export default function UserSettingsPage() {
                           requireInteraction: false,
                           silent: false
                         });
+                      } else if (electronRuntime) {
+                        alert('Кастомные уведомления Electron недоступны: bridge не инициализирован. Перезапустите Electron-клиент.');
                       }
                     } catch (error) {
                       console.error('Ошибка тестирования уведомлений:', error);

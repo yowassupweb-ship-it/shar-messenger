@@ -25,6 +25,9 @@ import './globals.css';
 
 const EventCalendarSelector = dynamic(() => import('@/components/features/messages/EventCalendarSelector'));
 const TaskListSelector = dynamic(() => import('@/components/features/messages/TaskListSelector'));
+const MESSAGE_POLL_INTERVAL_MS = 1800;
+const PRESENCE_POLL_INTERVAL_MS = 5000;
+const CHAT_LIST_POLL_INTERVAL_MS = 4500;
 
 export default function TestChat() {
   const { theme } = useTheme();
@@ -34,7 +37,7 @@ export default function TestChat() {
   const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [messageCache, setMessageCache] = useState<Record<string, Message[]>>({});
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [messageText, setMessageText] = useState('');
   const [replyTo, setReplyTo] = useState<ReplyMessage | null>(null);
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
@@ -63,7 +66,7 @@ export default function TestChat() {
   const [chatSettings, setChatSettings] = useState({
     bubbleStyle: 'modern' as 'modern' | 'classic' | 'minimal',
     fontSize: 13,
-    fontSizeMobile: 15,
+    fontSizeMobile: 16,
     bubbleColor: '#545190',
     bubbleColorLight: '#252546',
     bubbleColorOpponent: '#38414d',
@@ -100,8 +103,49 @@ export default function TestChat() {
   const [isBelow768, setIsBelow768] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 768 : false));
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatTimelineRef = useRef<ChatTimelineV2 | null>(null);
   const composerContainerRef = useRef<HTMLDivElement>(null);
   const messageInputRef = useRef<HTMLTextAreaElement>(null!);
+  const [composerDockHeight, setComposerDockHeight] = useState(67);
+  const lastMarkedReadRef = useRef<Record<string, string>>({});
+  const draftSaveTimeoutRef = useRef<number | null>(null);
+  const activeChatIdRef = useRef<string | null>(null);
+  const latestLoadRequestByChatRef = useRef<Record<string, number>>({});
+  const loadRequestSeqRef = useRef(0);
+
+  const normalizeAttachmentUrl = (rawUrl: string): string => {
+    if (!rawUrl) return rawUrl;
+
+    // Keep media URLs stable and proxied through immutable frontend endpoint.
+    // This avoids cache misses caused by backend host/query variations.
+    try {
+      const raw = String(rawUrl);
+      const trimmed = raw.trim();
+      const uploadsMatch = trimmed.match(/\/api\/uploads\/([^?#]+)/i);
+      if (uploadsMatch?.[1]) {
+        return `/api/uploads/${encodeURIComponent(decodeURIComponent(uploadsMatch[1]))}`;
+      }
+
+      if (trimmed.startsWith('/api/uploads/')) {
+        return trimmed.replace(/[?#].*$/, '');
+      }
+
+      return trimmed;
+    } catch {
+      return rawUrl;
+    }
+  };
+
+  const normalizeMessageAttachments = (msg: Message): Message => {
+    if (!msg?.attachments?.length) return msg;
+    return {
+      ...msg,
+      attachments: msg.attachments.map((att: any) => ({
+        ...att,
+        url: typeof att?.url === 'string' ? normalizeAttachmentUrl(att.url) : att?.url,
+      })),
+    };
+  };
 
   // Определение мобильного устройства
   useEffect(() => {
@@ -109,6 +153,40 @@ export default function TestChat() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (draftSaveTimeoutRef.current !== null) {
+        window.clearTimeout(draftSaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    activeChatIdRef.current = currentChatId;
+  }, [currentChatId]);
+
+  // Keep timeline bottom padding in sync with floating composer height
+  // so reply/edit bars never overlap the last message bubbles.
+  useEffect(() => {
+    const node = composerContainerRef.current;
+    if (!node) return;
+
+    const updateComposerDockHeight = () => {
+      const rect = node.getBoundingClientRect();
+      const next = Math.max(67, Math.ceil(rect.height) + 10);
+      setComposerDockHeight(prev => (prev === next ? prev : next));
+    };
+
+    updateComposerDockHeight();
+
+    const observer = new ResizeObserver(() => updateComposerDockHeight());
+    observer.observe(node);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [currentChatId, isBelow768, replyTo, editingMessageId, attachments.length, messageText]);
 
   // Загрузка chatSettings из localStorage
   useEffect(() => {
@@ -393,26 +471,30 @@ export default function TestChat() {
 
   const toggleGroupMute = useCallback(() => groupCallServiceRef.current?.toggleMute() ?? false, []);
 
-  // Загрузка пользователей
-  useEffect(() => {
+  const refreshUsers = useCallback(async () => {
     const username = localStorage.getItem('username') || 'admin';
-
-    fetch('/api/users')
-      .then(res => res.json())
-      .then((data: User[]) => {
-        setUsers(data);
-        const user = data.find(u => u.username === username);
-        if (user) {
-          console.log('[TEST-CHAT] Current user found:', user.id, user.username);
-          setCurrentUser(user);
-        } else {
-          console.warn('[TEST-CHAT] Current user not found in users list');
-        }
-      })
-      .catch(err => {
-        console.error('[TEST-CHAT] Failed to load users:', err);
-      });
+    try {
+      const res = await fetch('/api/users');
+      const data: User[] = await res.json();
+      setUsers(data);
+      const user = data.find(u => u.username === username);
+      if (user) {
+        setCurrentUser(user);
+      }
+    } catch (err) {
+      console.error('[TEST-CHAT] Failed to load users:', err);
+    }
   }, []);
+
+  // Загрузка пользователей + быстрый polling статусов онлайн
+  useEffect(() => {
+    void refreshUsers();
+    const interval = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      void refreshUsers();
+    }, PRESENCE_POLL_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+  }, [refreshUsers]);
 
   const loadChats = useCallback(async () => {
     if (!currentUser) {
@@ -462,7 +544,19 @@ export default function TestChat() {
           const lastMsg = chatMessages[chatMessages.length - 1];
           const isMyMessage = lastMsg.authorId === currentUser.id;
           const lastReadRaw = chat.readMessagesByUser?.[String(currentUser.id)];
-          const lastReadAt = lastReadRaw ? new Date(lastReadRaw).getTime() : 0;
+          let lastReadAt = 0;
+          if (lastReadRaw) {
+            const asDate = new Date(lastReadRaw).getTime();
+            if (!Number.isNaN(asDate)) {
+              lastReadAt = asDate;
+            } else {
+              const markerMessage = chatMessages.find(m => String(m.id) === String(lastReadRaw));
+              if (markerMessage?.createdAt) {
+                const markerTime = new Date(markerMessage.createdAt).getTime();
+                lastReadAt = Number.isNaN(markerTime) ? 0 : markerTime;
+              }
+            }
+          }
           const isFav = chat.isFavoritesChat || String(chat.id).startsWith('favorites_');
           const incomingUnreadCount = isFav ? 0 : chatMessages.filter(m => String(m.authorId) !== String(currentUser.id) && new Date(m.createdAt).getTime() > lastReadAt).length;
           return {
@@ -587,24 +681,36 @@ export default function TestChat() {
   }, [currentChatId]);
 
   const loadMessagesFromServer = useCallback((chatId: string, silent: boolean) => {
+    const requestSeq = ++loadRequestSeqRef.current;
+    latestLoadRequestByChatRef.current[chatId] = requestSeq;
+
     fetch(`/api/chats/${chatId}/messages`)
       .then(res => res.json())
       .then(async (data: Message[]) => {
-        console.log(`Loaded ${data.length} messages for ${chatId}:`, data.slice(0, 3));
-        setMessages(prev => {
-          // Keep optimistic local messages until server confirms them.
-          const pending = prev.filter(m => String(m.id).startsWith('temp_'));
-          const merged = [...data];
-          for (const temp of pending) {
-            if (!merged.some(m => String(m.id) === String(temp.id))) {
-              merged.push(temp);
+        if (latestLoadRequestByChatRef.current[chatId] !== requestSeq) {
+          return;
+        }
+
+        const normalized = data.map(normalizeMessageAttachments);
+        console.log(`Loaded ${normalized.length} messages for ${chatId}:`, normalized.slice(0, 3));
+
+        if (activeChatIdRef.current === chatId) {
+          setMessages(prev => {
+            // Keep optimistic local messages until server confirms them.
+            const pending = prev.filter(m => String(m.id).startsWith('temp_'));
+            const merged = [...normalized];
+            for (const temp of pending) {
+              if (!merged.some(m => String(m.id) === String(temp.id))) {
+                merged.push(temp);
+              }
             }
-          }
-          return merged;
-        });
+            return merged;
+          });
+        }
+
         setMessageCache(prev => {
           const pending = (prev[chatId] ?? []).filter(m => String(m.id).startsWith('temp_'));
-          const merged = [...data];
+          const merged = [...normalized];
           for (const temp of pending) {
             if (!merged.some(m => String(m.id) === String(temp.id))) {
               merged.push(temp);
@@ -612,11 +718,15 @@ export default function TestChat() {
           }
           return { ...prev, [chatId]: merged };
         });
-        if (!silent) setIsLoading(false);
+        if (!silent && activeChatIdRef.current === chatId) setIsLoading(false);
 
         // Mark messages as read
-        if (data.length > 0 && currentUser) {
-          const lastMessage = data[data.length - 1];
+        if (normalized.length > 0 && currentUser) {
+          const lastMessage = normalized[normalized.length - 1];
+          const normalizedLastId = String(lastMessage.id);
+          if (lastMarkedReadRef.current[chatId] === normalizedLastId) {
+            return;
+          }
           const markReadResponse = await fetch(`/api/chats/${chatId}/mark-read`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -628,6 +738,7 @@ export default function TestChat() {
 
           // Update readMessagesByUser in chats state
           if (markReadResponse?.ok) {
+            lastMarkedReadRef.current[chatId] = normalizedLastId;
             setChats(prev => prev.map(c => {
               if (c.id !== chatId) return c;
               const updated = { ...c } as any;
@@ -643,21 +754,64 @@ export default function TestChat() {
       })
       .catch(err => {
         console.error('Failed to load messages:', err);
-        if (!silent) setIsLoading(false);
+        if (!silent && activeChatIdRef.current === chatId) setIsLoading(false);
       });
   }, [currentUser, loadChats]);
+
+  const handleToggleArchivedChats = useCallback(() => {
+    setShowArchivedChats(prev => !prev);
+  }, []);
+
+  const handleOpenNewChat = useCallback(() => {
+    setShowNewChatModal(true);
+  }, []);
+
+  const handleChatContextMenu = useCallback((chatId: string, position: { top: number; left: number }) => {
+    setChatContextMenu({ chatId, top: position.top, left: position.left });
+  }, []);
 
   useEffect(() => {
     if (!currentChatId) return;
 
     const interval = window.setInterval(() => {
       loadMessagesFromServer(currentChatId, true);
-    }, 2500);
+    }, MESSAGE_POLL_INTERVAL_MS);
 
     return () => window.clearInterval(interval);
   }, [currentChatId, loadMessagesFromServer]);
 
-  const handleSendMessage = async () => {
+  // Быстро синхронизируем read-markers/галочки и превью чатов
+  useEffect(() => {
+    if (!currentUser) return;
+    const sync = () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      void loadChats();
+    };
+    sync();
+    const interval = window.setInterval(sync, CHAT_LIST_POLL_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+  }, [currentUser, loadChats]);
+
+  const forceScrollToBottom = useCallback((smooth = false) => {
+    const scroll = () => {
+      const container = chatTimelineRef.current?.containerRef?.current;
+      if (container) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: smooth ? 'smooth' : 'auto',
+        });
+        return;
+      }
+
+      messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'end' });
+    };
+    scroll();
+    setTimeout(scroll, 80);
+    setTimeout(scroll, 240);
+    setTimeout(scroll, 600);
+  }, []);
+
+  const handleSendMessage = useCallback(async () => {
     if ((!messageText.trim() && attachments.length === 0) || !currentChatId || !currentUser) return;
     
     const content = messageText.trim();
@@ -691,7 +845,7 @@ export default function TestChat() {
     }
 
     // Оптимистичное обновление UI
-    let uploadedAttachments: Array<{type: string; url: string; name: string; size: number}> = [];
+    let uploadedAttachments: Array<{type: string; url: string; name: string; size: number; width?: number; height?: number}> = [];
 
     // Upload files before sending
     if (attachments.length > 0) {
@@ -703,7 +857,14 @@ export default function TestChat() {
             const res = await fetch('/api/upload', { method: 'POST', body: formData });
             if (!res.ok) throw new Error('Upload failed');
             const data = await res.json();
-            return { type: att.type, url: data.url, name: att.file.name, size: att.file.size };
+            return {
+              type: att.type,
+              url: normalizeAttachmentUrl(data.url),
+              name: att.file.name,
+              size: att.file.size,
+              ...(att.width ? { width: att.width } : {}),
+              ...(att.height ? { height: att.height } : {}),
+            };
           })
         );
       } catch (err) {
@@ -733,10 +894,8 @@ export default function TestChat() {
     setAttachments([]); // Clear attachment strip
     localStorage.removeItem(`draft_${currentChatId}`);
     
-    // Автоскролл вниз
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 50);
+    // Всегда дожимаем скролл вниз после отправки, даже при последующей догрузке медиа.
+    forceScrollToBottom(true);
     
     // Обновляем превью последнего сообщения в чате
     setChats(prev => prev.map(c => 
@@ -762,7 +921,7 @@ export default function TestChat() {
       });
       
       if (res.ok) {
-        const newMessage = await res.json();
+        const newMessage = normalizeMessageAttachments(await res.json());
         // Заменяем временное сообщение реальным
         setMessages(prev => prev.map(m => m.id === tempMessage.id ? newMessage : m));
         // Обновляем кеш
@@ -789,20 +948,26 @@ export default function TestChat() {
       // Откатываем превью чата
       loadMessagesFromServer(currentChatId, true);
     }
-  };
+  }, [messageText, attachments, currentChatId, currentUser, editingMessageId, replyTo, loadMessagesFromServer, forceScrollToBottom]);
 
   // Обработчик изменения текста с сохранением черновика
   const handleMessageChange = (text: string) => {
     setMessageText(text);
-    
-    // Сохраняем черновик с небольшой задержкой (debounce)
-    if (currentChatId) {
-      if (text.trim()) {
-        localStorage.setItem(`draft_${currentChatId}`, text);
-      } else {
-        localStorage.removeItem(`draft_${currentChatId}`);
-      }
+
+    if (!currentChatId) return;
+
+    if (draftSaveTimeoutRef.current !== null) {
+      window.clearTimeout(draftSaveTimeoutRef.current);
     }
+
+    const chatId = currentChatId;
+    draftSaveTimeoutRef.current = window.setTimeout(() => {
+      if (text.trim()) {
+        localStorage.setItem(`draft_${chatId}`, text);
+      } else {
+        localStorage.removeItem(`draft_${chatId}`);
+      }
+    }, 180);
   };
 
   const handleDeleteMessage = useCallback(async (messageId: string) => {
@@ -1200,6 +1365,10 @@ export default function TestChat() {
     });
 
   const currentChat = chats.find(c => c.id === currentChatId);
+  const selectedChatForTimeline = currentChat ? {
+    ...currentChat,
+    title: (currentChat as any).displayTitle || currentChat.title || 'Чат'
+  } : null;
 
   // Subtitle for chat header: online status or type label
   const chatSubtitle = (() => {
@@ -1248,31 +1417,20 @@ export default function TestChat() {
   const hasPinnedMessages = pinnedMessages.length > 0;
 
   return (
-    <div 
-      className={`h-screen md:h-[100dvh] min-h-0 flex p-1 gap-1 md:pb-[52px] ${backgroundGradient} max-md:p-0 max-md:gap-0`} 
-      style={{ 
-        height: '100vh',
-        // @ts-ignore - dvh not in CSSProperties yet
-        height: '100dvh',
-        minHeight: '100vh',
-        // @ts-ignore
-        minHeight: '100dvh'
-      }}
-    >
+    <div className={`h-full min-h-0 flex p-1 gap-1 ${backgroundGradient} max-md:p-0 max-md:gap-0`}>
       {/* Скрываем сайдбар на мобильных когда открыт чат */}
-      <div className={`${isBelow768 && currentChatId ? 'hidden' : 'flex'} flex-col md:mb-[56px] md:h-full md:min-h-0 max-md:w-full max-md:h-full`}>
+      <div className={`${isBelow768 && currentChatId ? 'hidden' : 'flex'} flex-col md:h-full md:min-h-0 max-md:w-full max-md:h-full`}>
         <ChatSidebar 
           chats={visibleChats}
           currentChatId={currentChatId}
           currentUser={currentUser}
+          isLoading={isLoading}
           searchQuery={searchQuery}
           showArchivedChats={showArchivedChats}
           onSearchQueryChange={setSearchQuery}
-          onToggleArchivedChats={() => setShowArchivedChats(prev => !prev)}
-          onOpenNewChat={() => setShowNewChatModal(true)}
-          onChatContextMenu={(chatId, position) => {
-            setChatContextMenu({ chatId, top: position.top, left: position.left });
-          }}
+          onToggleArchivedChats={handleToggleArchivedChats}
+          onOpenNewChat={handleOpenNewChat}
+          onChatContextMenu={handleChatContextMenu}
           onSelectChat={selectChat}
         />
       </div>
@@ -1296,6 +1454,8 @@ export default function TestChat() {
               if (file.type.startsWith('image/')) type = 'image';
               else if (file.type.startsWith('video/')) type = 'video';
               let preview: string | undefined;
+              let width: number | undefined;
+              let height: number | undefined;
               if (type === 'image') {
                 preview = await new Promise<string>((res, rej) => {
                   const reader = new FileReader();
@@ -1303,13 +1463,29 @@ export default function TestChat() {
                   reader.onerror = rej;
                   reader.readAsDataURL(file);
                 });
+                try {
+                  const dims = await new Promise<{ width: number; height: number }>((res, rej) => {
+                    const img = new Image();
+                    img.onload = () => res({ width: img.naturalWidth, height: img.naturalHeight });
+                    img.onerror = () => rej(new Error('image dimensions'));
+                    img.src = preview as string;
+                  });
+                  width = dims.width;
+                  height = dims.height;
+                } catch {
+                  // ignore dimension detection errors
+                }
               } else if (type === 'video') {
                 try {
                   const video = document.createElement('video');
                   const url = URL.createObjectURL(file);
                   video.src = url; video.muted = true; video.playsInline = true;
                   preview = await new Promise<string>((res, rej) => {
-                    video.onloadedmetadata = () => { video.currentTime = Math.min(1, video.duration / 2); };
+                    video.onloadedmetadata = () => {
+                      width = video.videoWidth || undefined;
+                      height = video.videoHeight || undefined;
+                      video.currentTime = Math.min(1, video.duration / 2);
+                    };
                     video.onseeked = () => {
                       const canvas = document.createElement('canvas');
                       canvas.width = Math.min(video.videoWidth, 320); canvas.height = Math.min(video.videoHeight, 320);
@@ -1320,7 +1496,7 @@ export default function TestChat() {
                   });
                 } catch { /* no thumbnail */ }
               }
-              return { id, file, type, preview } as AttachmentFile;
+              return { id, file, type, preview, width, height } as AttachmentFile;
             })
           );
           setAttachments(prev => [...prev, ...processed]);
@@ -1371,31 +1547,29 @@ export default function TestChat() {
               {/* Сообщения — стартуют с верха, скролляются за хедером */}
               {currentChatId && messages.length > 0 ? (
                 <ChatTimelineV2
+                  ref={chatTimelineRef}
                   key={currentChatId}
                   chatId={currentChatId}
                   messages={messages}
                   messageSearchQuery=""
                   users={users}
                   currentUser={currentUser}
-                  selectedChat={{
-                    ...currentChat,
-                    title: (currentChat as any).displayTitle || currentChat.title || 'Чат'
-                  }}
+                  selectedChat={selectedChatForTimeline}
                   selectedMessages={selectedMessages}
                   editingMessageId={editingMessageId}
                   isSelectionMode={isSelectionMode}
                   messageRefs={messageRefs}
                   theme={theme}
                   chatSettings={chatSettings}
-                  isDesktopView={true}
+                  isDesktopView={!isBelow768}
                   myBubbleTextClass=""
                   useDarkTextOnBubble={false}
                   composerContainerRef={composerContainerRef}
                   messagesEndRef={messagesEndRef}
                   router={{}}
                   scrollTopPadding={hasPinnedMessages ? (isBelow768 ? 125 : 88) : (isBelow768 ? 100 : 72)}
-                  // Keep room for floating composer; bottom nav is hidden on mobile when chat is open
-                  scrollBottomPadding={67}
+                  // Keep room for floating composer.
+                  scrollBottomPadding={composerDockHeight}
                   setSelectedMessages={setSelectedMessages}
                   setIsSelectionMode={setIsSelectionMode}
                   setContextMenuMessage={setContextMenuMessage}
@@ -1440,6 +1614,7 @@ export default function TestChat() {
                   <ChatHeader 
                     title={(currentChat as any).displayTitle || currentChat.title || 'Чат'}
                     isLoading={isLoading}
+                    isTyping={false}
                     messageCount={messages.length}
                     chatId={currentChatId || ''}
                     isGroupChat={!!(currentChat as any).isGroup || ((currentChat.participantIds?.length ?? 0) > 2)}
@@ -1517,7 +1692,7 @@ export default function TestChat() {
             </div>
           </>
         ) : (
-          <EmptyState type="no-chat" />
+          <EmptyState type="no-chat" isLoading={isLoading} />
         )}
       </div>
 

@@ -109,16 +109,20 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen h-screen flex items-center justify-center p-0 md:p-4 overflow-y-auto" style={{ background: '#0f0f0f' }}>
-      <div className="w-full md:max-w-md h-full md:h-auto md:my-auto">
-        <div className="h-full md:h-auto rounded-none md:rounded-2xl p-6 md:p-8 flex flex-col justify-center" style={{
-          background: '#1a1a1a',
-          border: '1px solid rgba(255, 255, 255, 0.08)'
+    <div className="relative min-h-screen h-screen flex items-center justify-center p-3 md:p-6 overflow-y-auto bg-[#09101d]">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-24 -left-16 w-72 h-72 rounded-full blur-3xl opacity-35" style={{ background: 'radial-gradient(circle, #1e3a8a 0%, transparent 70%)' }} />
+        <div className="absolute -bottom-20 -right-20 w-80 h-80 rounded-full blur-3xl opacity-30" style={{ background: 'radial-gradient(circle, #0ea5e9 0%, transparent 72%)' }} />
+      </div>
+
+      <div className="w-full md:max-w-md h-full md:h-auto md:my-auto relative z-10">
+        <div className="h-full md:h-auto rounded-3xl p-6 md:p-9 flex flex-col justify-center shadow-2xl" style={{
+          background: 'linear-gradient(165deg, rgba(17, 24, 39, 0.95) 0%, rgba(10, 14, 25, 0.96) 100%)',
+          border: '1px solid rgba(148, 163, 184, 0.24)'
         }}>
           <div className="text-center mb-6 md:mb-8 select-none">
-            <p className="text-base md:text-lg text-[#e0e0e0] opacity-70">
-              Вход в систему
-            </p>
+            <h1 className="text-2xl md:text-3xl font-semibold text-white tracking-tight">Shar OS</h1>
+            <p className="mt-2 text-sm md:text-base text-slate-300/80">Вход в систему</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
@@ -131,18 +135,18 @@ export default function LoginPage() {
                 id="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-3 md:py-3.5 rounded-xl text-[15px] md:text-base text-[#e0e0e0] placeholder-[#666] transition-all"
+                className="w-full px-4 py-3 md:py-3.5 rounded-xl text-[15px] md:text-base text-slate-100 placeholder-slate-400/60 transition-all"
                 style={{
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  background: 'rgba(15, 23, 42, 0.7)',
+                  border: '1px solid rgba(148, 163, 184, 0.26)',
                   outline: 'none'
                 }}
                 onFocus={(e) => {
-                  e.target.style.borderColor = '#4a9eff';
-                  e.target.style.boxShadow = '0 0 0 3px rgba(74, 158, 255, 0.15)';
+                  e.target.style.borderColor = '#38bdf8';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(56, 189, 248, 0.16)';
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                  e.target.style.borderColor = 'rgba(148, 163, 184, 0.26)';
                   e.target.style.boxShadow = 'none';
                 }}
                 placeholder="Введите логин"
@@ -159,18 +163,18 @@ export default function LoginPage() {
                 id="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 md:py-3.5 rounded-xl text-[15px] md:text-base text-[#e0e0e0] placeholder-[#666] transition-all"
+                className="w-full px-4 py-3 md:py-3.5 rounded-xl text-[15px] md:text-base text-slate-100 placeholder-slate-400/60 transition-all"
                 style={{
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  background: 'rgba(15, 23, 42, 0.7)',
+                  border: '1px solid rgba(148, 163, 184, 0.26)',
                   outline: 'none'
                 }}
                 onFocus={(e) => {
-                  e.target.style.borderColor = '#4a9eff';
-                  e.target.style.boxShadow = '0 0 0 3px rgba(74, 158, 255, 0.15)';
+                  e.target.style.borderColor = '#38bdf8';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(56, 189, 248, 0.16)';
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                  e.target.style.borderColor = 'rgba(148, 163, 184, 0.26)';
                   e.target.style.boxShadow = 'none';
                 }}
                 placeholder="Введите пароль"
@@ -189,8 +193,8 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full text-white py-3.5 md:py-3 rounded-xl font-medium text-base disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:-translate-y-0.5"
               style={{
-                background: 'linear-gradient(135deg, #4a9eff 0%, #3b82f6 100%)',
-                boxShadow: '0 2px 8px rgba(74, 158, 255, 0.3), 0 1px 0 rgba(255, 255, 255, 0.2) inset'
+                background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
+                boxShadow: '0 8px 20px rgba(37, 99, 235, 0.32), 0 1px 0 rgba(255, 255, 255, 0.25) inset'
               }}
             >
               {loading ? 'Вход...' : 'Войти'}
@@ -202,7 +206,7 @@ export default function LoginPage() {
                 <div className="w-full border-t border-white/10"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 text-[#666]" style={{ background: '#1a1a1a' }}>или</span>
+                <span className="px-4 text-slate-400" style={{ background: 'rgba(12, 18, 33, 0.94)' }}>или</span>
               </div>
             </div>
 
@@ -214,8 +218,8 @@ export default function LoginPage() {
                 disabled={telegramLoading}
                 className="w-full py-3.5 md:py-3 rounded-xl font-medium text-base disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2"
                 style={{
-                  background: 'linear-gradient(135deg, #0088cc 0%, #0077b5 100%)',
-                  boxShadow: '0 2px 8px rgba(0, 136, 204, 0.3), 0 1px 0 rgba(255, 255, 255, 0.2) inset'
+                  background: 'linear-gradient(135deg, #0891b2 0%, #0e7490 100%)',
+                  boxShadow: '0 8px 20px rgba(8, 145, 178, 0.32), 0 1px 0 rgba(255, 255, 255, 0.22) inset'
                 }}
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">

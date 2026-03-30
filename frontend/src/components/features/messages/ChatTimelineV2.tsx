@@ -66,12 +66,53 @@ function renderTextWithLinks(text: string): React.ReactNode {
 
 // ── Lazy image with Telegram-style fade-in effect + in-memory cache ───────────
 const imgLoadedCache = new Set<string>();
+const IMG_CACHE_STORAGE_KEY = 'chat_timeline_loaded_images_v1';
+let isImgCacheHydrated = false;
+
+function hydrateImgLoadedCache() {
+  if (isImgCacheHydrated || typeof window === 'undefined') return;
+  isImgCacheHydrated = true;
+  try {
+    const raw = window.sessionStorage.getItem(IMG_CACHE_STORAGE_KEY);
+    if (!raw) return;
+    const urls = JSON.parse(raw) as string[];
+    urls.forEach(url => {
+      if (typeof url === 'string' && url) {
+        imgLoadedCache.add(url);
+      }
+    });
+  } catch {
+    // ignore session storage parsing errors
+  }
+}
+
+function persistImgLoadedCache() {
+  if (typeof window === 'undefined') return;
+  try {
+    const entries = Array.from(imgLoadedCache).slice(-500);
+    window.sessionStorage.setItem(IMG_CACHE_STORAGE_KEY, JSON.stringify(entries));
+  } catch {
+    // ignore session storage quota errors
+  }
+}
+
+const EMOJI_ONLY_REGEX = /^(?:\p{Extended_Pictographic}|\p{Emoji_Component}|\uFE0F|\u200D|\s)+$/u;
+
+function getEmojiOnlyCount(text: string): number {
+  const trimmed = text.trim();
+  if (!trimmed) return 0;
+  if (!EMOJI_ONLY_REGEX.test(trimmed)) return 0;
+  return (trimmed.match(/\p{Extended_Pictographic}/gu) || []).length;
+}
 
 function LazyImage({
   src,
   alt,
   className,
   style,
+  width,
+  height,
+  eager,
   onClick,
   onImageLoaded,
 }: {
@@ -79,33 +120,71 @@ function LazyImage({
   alt?: string;
   className?: string;
   style?: React.CSSProperties;
+  width?: number;
+  height?: number;
+  eager?: boolean;
   onClick?: (e: React.MouseEvent<HTMLImageElement>) => void;
   onImageLoaded?: () => void;
 }) {
-  const [loaded, setLoaded] = React.useState(() => imgLoadedCache.has(src));
+  const [loaded, setLoaded] = React.useState(() => {
+    hydrateImgLoadedCache();
+    return imgLoadedCache.has(src);
+  });
+  const [failed, setFailed] = React.useState(false);
+  const shouldUseAspectRatio = !style?.height;
+  const resolvedAspectRatio = width && height && width > 0 && height > 0
+    ? `${width} / ${height}`
+    : '4 / 3';
   return (
-    <img
-      src={src}
-      alt={alt || ''}
-      className={className}
+    <div
+      className="relative w-full overflow-hidden"
       style={{
+        ...(shouldUseAspectRatio ? { aspectRatio: resolvedAspectRatio } : {}),
         ...style,
-        opacity: loaded ? 1 : 0,
-        transition: loaded ? 'opacity 0.3s ease' : 'none',
       }}
-      loading="lazy"
-      decoding="async"
-      onLoad={() => { 
-        imgLoadedCache.add(src); 
-        setLoaded(true); 
-        // Notify parent that image loaded and layout may have changed
-        if (onImageLoaded) {
-          // Defer until layout is updated
-          requestAnimationFrame(() => onImageLoaded());
-        }
-      }}
-      onClick={onClick}
-    />
+    >
+      {!loaded && !failed && (
+        <div className="absolute inset-0 bg-slate-300/75 dark:bg-slate-700/75">
+          <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-transparent via-white/25 dark:via-white/10 to-transparent" />
+        </div>
+      )}
+      {failed && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-slate-200/85 text-slate-700 dark:bg-slate-800/85 dark:text-slate-300">
+          <span className="text-lg leading-none">!</span>
+          <span className="px-2 text-[11px] font-medium text-center">Файл недоступен</span>
+        </div>
+      )}
+      <img
+        src={src}
+        alt={alt || ''}
+        className={className}
+        width={width}
+        height={height}
+        style={{
+          width: '100%',
+          height: '100%',
+          opacity: loaded && !failed ? 1 : 0,
+          transition: loaded ? 'opacity 0.3s ease' : 'none',
+        }}
+        loading={eager ? 'eager' : 'lazy'}
+        fetchPriority={eager ? 'high' : 'auto'}
+        decoding="async"
+        onLoad={() => {
+          setFailed(false);
+          imgLoadedCache.add(src);
+          persistImgLoadedCache();
+          setLoaded(true);
+          if (onImageLoaded) {
+            requestAnimationFrame(() => onImageLoaded());
+          }
+        }}
+        onError={() => {
+          setFailed(true);
+          setLoaded(false);
+        }}
+        onClick={onClick}
+      />
+    </div>
   );
 }
 
@@ -209,6 +288,39 @@ export class ChatTimelineV2 extends Component<
   private _justRestoredPosition = false;
   private _isMounted = false;
   private _savedScrollBottomBeforeImageLoad: number | null = null;
+
+  shouldComponentUpdate(
+    nextProps: Readonly<ChatTimelineV2Props>,
+    nextState: Readonly<ChatTimelineV2State>
+  ): boolean {
+    if (nextState.messageLoadingState !== this.state.messageLoadingState) return true;
+    if (nextState.nearBottom !== this.state.nearBottom) return true;
+    if (nextState.showScrollButton !== this.state.showScrollButton) return true;
+
+    if (nextProps.chatId !== this.props.chatId) return true;
+    if (nextProps.messages !== this.props.messages) return true;
+    if (nextProps.messageSearchQuery !== this.props.messageSearchQuery) return true;
+    if (nextProps.users !== this.props.users) return true;
+    if ((nextProps.currentUser?.id ?? null) !== (this.props.currentUser?.id ?? null)) return true;
+    if (
+      nextProps.selectedChat.id !== this.props.selectedChat.id
+      || nextProps.selectedChat.title !== this.props.selectedChat.title
+      || Boolean((nextProps.selectedChat as any).isGroup) !== Boolean((this.props.selectedChat as any).isGroup)
+    ) return true;
+    if (nextProps.selectedMessages !== this.props.selectedMessages) return true;
+    if (nextProps.editingMessageId !== this.props.editingMessageId) return true;
+    if (nextProps.isSelectionMode !== this.props.isSelectionMode) return true;
+    if (nextProps.theme !== this.props.theme) return true;
+    if (nextProps.chatSettings !== this.props.chatSettings) return true;
+    if (nextProps.isDesktopView !== this.props.isDesktopView) return true;
+    if (nextProps.myBubbleTextClass !== this.props.myBubbleTextClass) return true;
+    if (nextProps.useDarkTextOnBubble !== this.props.useDarkTextOnBubble) return true;
+    if ((nextProps.hasPinnedMessage ?? false) !== (this.props.hasPinnedMessage ?? false)) return true;
+    if ((nextProps.scrollTopPadding ?? 0) !== (this.props.scrollTopPadding ?? 0)) return true;
+    if ((nextProps.scrollBottomPadding ?? 0) !== (this.props.scrollBottomPadding ?? 0)) return true;
+
+    return false;
+  }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -452,10 +564,16 @@ export class ChatTimelineV2 extends Component<
   };
 
   private _onImageLoaded = (): void => {
-    // When an image loads, it changes container height
-    // If we have a saved scroll position, restore it to prevent jump
     const container = this.containerRef.current;
-    if (!container || !this._savedScrollBottomBeforeImageLoad) return;
+    if (!container) return;
+
+    // Keep sticky behavior when user is already at the bottom.
+    if (isAtBottom(container) || this.state.nearBottom) {
+      scrollToBottom(container);
+      return;
+    }
+
+    if (!this._savedScrollBottomBeforeImageLoad) return;
 
     // Only restore if we're not at bottom and haven't scrolled manually
     if (!isAtBottom(container) && this._justRestoredPosition) {
@@ -628,10 +746,25 @@ export class ChatTimelineV2 extends Component<
               const msgFiles  = msgAtts.filter((a: any) => a.type !== 'image' && a.type !== 'video');
               const hasTextContent = !!message.content?.trim();
               const hasMedia = msgImages.length > 0 || msgVideos.length > 0;
+              const emojiOnlyCount = hasMedia || msgFiles.length > 0 || message.replyToId
+                ? 0
+                : getEmojiOnlyCount(message.content || '');
+              const isEmojiOnly = emojiOnlyCount > 0;
+              const emojiOnlyFontSize = emojiOnlyCount === 1 ? 56 : emojiOnlyCount === 2 ? 46 : emojiOnlyCount === 3 ? 38 : 32;
               // Media-only: images/video, no text, no files, no quote → Telegram-style overlay timestamp
               const isMediaOnly = hasMedia && !hasTextContent && !msgFiles.length && !message.replyToId;
               const fmtSize = (b: number) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
               const allImgUrls = msgImages.map((mi: any) => mi.url);
+              const isRecentMessage = index >= Math.max(0, messages.length - 12);
+              const getSingleImageBox = (att: any) => {
+                const rawWidth = Number(att?.width) || 0;
+                const rawHeight = Number(att?.height) || 0;
+                const ratio = rawWidth > 0 && rawHeight > 0 ? rawWidth / rawHeight : 4 / 3;
+                const clampedRatio = Math.max(0.55, Math.min(2.2, ratio));
+                const targetWidth = 320;
+                const targetHeight = Math.round(Math.max(120, Math.min(320, targetWidth / clampedRatio)));
+                return { width: targetWidth, height: targetHeight };
+              };
               const openImg = (url: string, allUrls: string[]) => {
                 const w = window as any;
                 if (w.sharDesktop?.photo?.open) { w.sharDesktop.photo.open(url, allUrls); }
@@ -794,7 +927,7 @@ export class ChatTimelineV2 extends Component<
                     </div>
                   )}
                   <div
-                    className={`inline-block relative rounded-[18px] ${isMediaOnly ? 'overflow-hidden' : 'px-2.5 py-1.5 pb-1.5 min-w-[100px]'} max-w-[420px] w-fit transition-all ${
+                    className={`inline-block relative rounded-[18px] ${(isMediaOnly || isEmojiOnly) ? 'overflow-hidden' : 'px-2.5 py-1.5 pb-1.5 min-w-[100px]'} max-w-[420px] w-fit transition-all ${
                       this.props.selectedMessages.has(String(message.id)) 
                         ? 'ring-2 ring-blue-500 ring-opacity-50' 
                         : ''
@@ -809,7 +942,7 @@ export class ChatTimelineV2 extends Component<
                     }}
                     style={{
                       fontFamily: 'Inter, -apple-system, system-ui, sans-serif',
-                      backgroundColor: bubbleColor,
+                      backgroundColor: isEmojiOnly ? 'transparent' : bubbleColor,
                       color: textColor
                     }}
                   >
@@ -828,13 +961,21 @@ export class ChatTimelineV2 extends Component<
 
                         {/* ── Image grid (Signal-style layouts) ── */}
                         {msgImages.length === 1 && (
+                          (() => {
+                            const box = getSingleImageBox(msgImages[0]);
+                            return (
                           <LazyImage
                             onImageLoaded={this._onImageLoaded} src={msgImages[0].url}
                             alt={msgImages[0].name || 'image'}
-                            className="w-full block object-cover cursor-zoom-in"
-                            style={{ maxHeight: 320, minHeight: 80, display: 'block' }}
+                            className="block object-cover cursor-zoom-in"
+                            width={msgImages[0].width}
+                            height={msgImages[0].height}
+                            eager={isRecentMessage}
+                            style={{ width: `${box.width}px`, height: `${box.height}px`, display: 'block' }}
                             onClick={(e) => { e.stopPropagation(); openImg(msgImages[0].url, allImgUrls); }}
                           />
+                            );
+                          })()
                         )}
 
                         {msgImages.length === 2 && (
@@ -844,6 +985,9 @@ export class ChatTimelineV2 extends Component<
                                 <LazyImage
                                   onImageLoaded={this._onImageLoaded} src={img.url} alt={img.name || 'image'}
                                   className="w-full h-full object-cover block cursor-zoom-in"
+                                  width={img.width}
+                                  height={img.height}
+                                  eager={isRecentMessage}
                                   onClick={(e) => { e.stopPropagation(); openImg(img.url, allImgUrls); }}
                                 />
                               </div>
@@ -857,6 +1001,9 @@ export class ChatTimelineV2 extends Component<
                               <LazyImage
                                 onImageLoaded={this._onImageLoaded} src={msgImages[0].url} alt={msgImages[0].name || 'image'}
                                 className="w-full h-full object-cover block cursor-zoom-in"
+                                width={msgImages[0].width}
+                                height={msgImages[0].height}
+                                eager={isRecentMessage}
                                 onClick={(e) => { e.stopPropagation(); openImg(msgImages[0].url, allImgUrls); }}
                               />
                             </div>
@@ -866,6 +1013,9 @@ export class ChatTimelineV2 extends Component<
                                   <LazyImage
                                     onImageLoaded={this._onImageLoaded} src={img.url} alt={img.name || 'image'}
                                     className="w-full h-full object-cover block cursor-zoom-in"
+                                    width={img.width}
+                                    height={img.height}
+                                    eager={isRecentMessage}
                                     onClick={(e) => { e.stopPropagation(); openImg(img.url, allImgUrls); }}
                                   />
                                 </div>
@@ -881,6 +1031,9 @@ export class ChatTimelineV2 extends Component<
                                 <LazyImage
                                   onImageLoaded={this._onImageLoaded} src={img.url} alt={img.name || 'image'}
                                   className="w-full h-full object-cover block cursor-zoom-in"
+                                  width={img.width}
+                                  height={img.height}
+                                  eager={isRecentMessage}
                                   onClick={(e) => { e.stopPropagation(); openImg(img.url, allImgUrls); }}
                                 />
                               </div>
@@ -895,6 +1048,9 @@ export class ChatTimelineV2 extends Component<
                                 <LazyImage
                                   onImageLoaded={this._onImageLoaded} src={img.url} alt={img.name || 'image'}
                                   className="w-full h-full object-cover block cursor-zoom-in"
+                                  width={img.width}
+                                  height={img.height}
+                                  eager={isRecentMessage}
                                   onClick={(e) => { e.stopPropagation(); openImg(img.url, allImgUrls); }}
                                 />
                                 {i === 3 && (
@@ -937,6 +1093,21 @@ export class ChatTimelineV2 extends Component<
                     ) : (
                       /* ── Normal bubble layout (text / files / media+text) ── */
                       <>
+                        {isEmojiOnly ? (
+                          <div
+                            className="pr-[44px] pt-[2px] select-none"
+                            style={{
+                              fontSize: `${emojiOnlyFontSize}px`,
+                              lineHeight: 1.08,
+                              letterSpacing: '-0.02em',
+                              filter: this.props.theme === 'dark' ? 'drop-shadow(0 1px 2px rgba(0,0,0,0.35))' : 'none',
+                              paddingBottom: emojiOnlyCount === 1 ? '10px' : '4px',
+                            }}
+                          >
+                            {message.content?.trim()}
+                          </div>
+                        ) : (
+                          <>
                         {/* Sender name */}
                         {!isMyMessage && author && !this.props.isDesktopView && (
                           <div
@@ -964,17 +1135,29 @@ export class ChatTimelineV2 extends Component<
                             onClick={(e) => e.stopPropagation()}
                           >
                             {msgImages.length === 1 && (
+                              (() => {
+                                const box = getSingleImageBox(msgImages[0]);
+                                return (
                               <LazyImage
                                 onImageLoaded={this._onImageLoaded} src={msgImages[0].url} alt={msgImages[0].name || 'image'}
-                                className="w-full max-h-[280px] object-cover block cursor-zoom-in"
+                                className="block object-cover cursor-zoom-in"
+                                width={msgImages[0].width}
+                                height={msgImages[0].height}
+                                eager={isRecentMessage}
+                                style={{ width: `${box.width}px`, height: `${box.height}px`, display: 'block' }}
                                 onClick={(e) => { e.stopPropagation(); openImg(msgImages[0].url, allImgUrls); }}
                               />
+                                );
+                              })()
                             )}
                             {msgImages.length === 2 && (
                               <div style={{ display: 'flex', gap: 2, height: 180 }}>
                                 {msgImages.map((img: any, i: number) => (
                                   <div key={`${message.id}-img-${i}`} style={{ flex: 1, overflow: 'hidden' }}>
                                     <LazyImage onImageLoaded={this._onImageLoaded} src={img.url} alt={img.name || 'image'} className="w-full h-full object-cover block cursor-zoom-in"
+                                      width={img.width}
+                                      height={img.height}
+                                      eager={isRecentMessage}
                                       onClick={(e) => { e.stopPropagation(); openImg(img.url, allImgUrls); }}
                                     />
                                   </div>
@@ -985,6 +1168,9 @@ export class ChatTimelineV2 extends Component<
                               <div style={{ display: 'flex', gap: 2, height: 190 }}>
                                 <div style={{ flex: 2, overflow: 'hidden' }}>
                                   <LazyImage onImageLoaded={this._onImageLoaded} src={msgImages[0].url} alt="" className="w-full h-full object-cover block cursor-zoom-in"
+                                    width={msgImages[0].width}
+                                    height={msgImages[0].height}
+                                    eager={isRecentMessage}
                                     onClick={(e) => { e.stopPropagation(); openImg(msgImages[0].url, allImgUrls); }}
                                   />
                                 </div>
@@ -992,6 +1178,9 @@ export class ChatTimelineV2 extends Component<
                                   {msgImages.slice(1).map((img: any, i: number) => (
                                     <div key={`${message.id}-img-${i + 1}`} style={{ flex: 1, overflow: 'hidden' }}>
                                       <LazyImage onImageLoaded={this._onImageLoaded} src={img.url} alt="" className="w-full h-full object-cover block cursor-zoom-in"
+                                        width={img.width}
+                                        height={img.height}
+                                        eager={isRecentMessage}
                                         onClick={(e) => { e.stopPropagation(); openImg(img.url, allImgUrls); }}
                                       />
                                     </div>
@@ -1004,6 +1193,9 @@ export class ChatTimelineV2 extends Component<
                                 {msgImages.slice(0, 4).map((img: any, i: number) => (
                                   <div key={`${message.id}-img-${i}`} style={{ height: 130, overflow: 'hidden', position: 'relative' }}>
                                     <LazyImage onImageLoaded={this._onImageLoaded} src={img.url} alt="" className="w-full h-full object-cover block cursor-zoom-in"
+                                      width={img.width}
+                                      height={img.height}
+                                      eager={isRecentMessage}
                                       onClick={(e) => { e.stopPropagation(); openImg(img.url, allImgUrls); }}
                                     />
                                     {i === 3 && msgImages.length > 4 && (
@@ -1057,6 +1249,8 @@ export class ChatTimelineV2 extends Component<
                               </a>
                             ))}
                           </div>
+                        )}
+                          </>
                         )}
 
                         {/* Inline timestamp */}

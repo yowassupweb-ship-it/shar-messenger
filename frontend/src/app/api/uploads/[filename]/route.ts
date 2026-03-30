@@ -20,7 +20,8 @@ export async function GET(
     try {
       const backendRes = await fetch(`${BACKEND_BASE_URL}/api/uploads/${encodeURIComponent(sanitizedFilename)}`, {
         method: 'GET',
-        cache: 'no-store'
+        cache: 'force-cache',
+        next: { revalidate: 31536000 }
       });
 
       if (backendRes.ok) {

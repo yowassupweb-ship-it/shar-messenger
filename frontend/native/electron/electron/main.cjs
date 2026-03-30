@@ -156,33 +156,34 @@ function registerWindowControls(mainWindow) {
     if (!mainWindow.isDestroyed()) {
       const currentZoom = mainWindow.webContents.getZoomFactor();
       mainWindow.webContents.setZoomFactor(Math.min(currentZoom + 0.1, 3.0));
-      return mainWindow.webContents.getZoomFactor();
+      return Math.round(mainWindow.webContents.getZoomFactor() * 100);
     }
-    return 1.0;
+    return 100;
   });
 
   ipcMain.handle('window:zoom-out', () => {
     if (!mainWindow.isDestroyed()) {
       const currentZoom = mainWindow.webContents.getZoomFactor();
       mainWindow.webContents.setZoomFactor(Math.max(currentZoom - 0.1, 0.5));
-      return mainWindow.webContents.getZoomFactor();
+      return Math.round(mainWindow.webContents.getZoomFactor() * 100);
     }
-    return 1.0;
+    return 100;
   });
 
-  ipcMain.handle('window:set-zoom', (_, zoomFactor) => {
+  ipcMain.handle('window:set-zoom', (_, zoomPercent) => {
     if (!mainWindow.isDestroyed()) {
+      const zoomFactor = zoomPercent / 100;
       mainWindow.webContents.setZoomFactor(Math.max(0.5, Math.min(zoomFactor, 3.0)));
-      return mainWindow.webContents.getZoomFactor();
+      return Math.round(mainWindow.webContents.getZoomFactor() * 100);
     }
-    return 1.0;
+    return 100;
   });
 
   ipcMain.handle('window:get-zoom', () => {
     if (!mainWindow.isDestroyed()) {
-      return mainWindow.webContents.getZoomFactor();
+      return Math.round(mainWindow.webContents.getZoomFactor() * 100);
     }
-    return 1.0;
+    return 100;
   });
 }
 
@@ -224,6 +225,12 @@ function registerInputContextMenu(mainWindow) {
 // Notification system
 let activeNotifications = [];
 let mainWindowRef = null;
+const NOTIFICATION_WIDTH = 380;
+const NOTIFICATION_HEIGHT = 94;
+const NOTIFICATION_MARGIN = 8;
+const NOTIFICATION_GAP = 0;
+const NOTIFICATION_AUTO_CLOSE_MS = 7000;
+const MAX_ACTIVE_NOTIFICATIONS = 4;
 
 function activateNotificationTarget(mainWindow, clickData) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -286,23 +293,24 @@ function createNotificationWindow(data, mainWindow) {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
-  const notificationWidth = 380;
-  const notificationHeight = 124;
-  const margin = 16;
+  activeNotifications = activeNotifications.filter(win => win && !win.isDestroyed() && !win.__isClosing);
+
+  // Keep stack compact like Telegram desktop.
+  while (activeNotifications.length >= MAX_ACTIVE_NOTIFICATIONS) {
+    const oldest = activeNotifications[0];
+    closeNotification(oldest);
+    activeNotifications = activeNotifications.filter(win => win && !win.isDestroyed());
+  }
   
   // Вычисляем позицию (правый нижний угол с учетом других уведомлений)
-  const baseX = screenWidth - notificationWidth - margin;
-  const baseY = screenHeight - notificationHeight - margin;
+  const baseX = screenWidth - NOTIFICATION_WIDTH - NOTIFICATION_MARGIN;
+  const baseY = screenHeight - NOTIFICATION_HEIGHT - NOTIFICATION_MARGIN;
   
-  // Смещаем вверх, если есть другие уведомления
-  const offsetY = activeNotifications.length * (notificationHeight + 6);
-  const yPosition = baseY - offsetY;
-
   const notificationWindow = new BrowserWindow({
-    width: notificationWidth,
-    height: notificationHeight,
+    width: NOTIFICATION_WIDTH,
+    height: NOTIFICATION_HEIGHT,
     x: baseX,
-    y: yPosition,
+    y: baseY,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -325,9 +333,42 @@ function createNotificationWindow(data, mainWindow) {
   notificationWindow.loadFile(path.join(__dirname, 'notification.html'));
 
   notificationWindow.once('ready-to-show', () => {
+    let appOrigin = '';
+    try {
+      const mainUrl = mainWindow?.webContents?.getURL?.() || '';
+      if (mainUrl) {
+        appOrigin = new URL(mainUrl).origin;
+      }
+    } catch {
+      appOrigin = '';
+    }
+
     notificationWindow.show();
-    notificationWindow.webContents.send('notification-data', data);
+    notificationWindow.webContents.send('notification-data', {
+      ...data,
+      appOrigin,
+    });
   });
+
+  let autoCloseTimer = null;
+  const scheduleAutoClose = () => {
+    if (autoCloseTimer) {
+      clearTimeout(autoCloseTimer);
+      autoCloseTimer = null;
+    }
+    autoCloseTimer = setTimeout(() => {
+      closeNotification(notificationWindow);
+    }, NOTIFICATION_AUTO_CLOSE_MS);
+  };
+
+  const pauseAutoClose = () => {
+    if (autoCloseTimer) {
+      clearTimeout(autoCloseTimer);
+      autoCloseTimer = null;
+    }
+  };
+
+  scheduleAutoClose();
 
   const notificationClickHandler = (event, clickData) => {
     if (!notificationWindow || notificationWindow.isDestroyed()) return;
@@ -344,16 +385,29 @@ function createNotificationWindow(data, mainWindow) {
     closeNotification(notificationWindow);
   };
 
+  const notificationHoverHandler = (event, hovering) => {
+    if (!notificationWindow || notificationWindow.isDestroyed()) return;
+    if (event.sender !== notificationWindow.webContents) return;
+
+    if (hovering) {
+      pauseAutoClose();
+    } else {
+      scheduleAutoClose();
+    }
+  };
+
   ipcMain.on('notification-click', notificationClickHandler);
   ipcMain.on('notification-close', notificationCloseHandler);
+  ipcMain.on('notification-hover', notificationHoverHandler);
 
-  // Уведомления теперь не закрываются автоматически
-  
   activeNotifications.push(notificationWindow);
+  repositionNotifications();
   
   notificationWindow.on('closed', () => {
     ipcMain.removeListener('notification-click', notificationClickHandler);
     ipcMain.removeListener('notification-close', notificationCloseHandler);
+    ipcMain.removeListener('notification-hover', notificationHoverHandler);
+    pauseAutoClose();
     const index = activeNotifications.indexOf(notificationWindow);
     if (index > -1) {
       activeNotifications.splice(index, 1);
@@ -365,8 +419,25 @@ function createNotificationWindow(data, mainWindow) {
 }
 
 function closeNotification(notificationWindow) {
-  if (notificationWindow && !notificationWindow.isDestroyed()) {
-    notificationWindow.close();
+  if (!notificationWindow || notificationWindow.isDestroyed()) return;
+  if (notificationWindow.__isClosing) return;
+
+  notificationWindow.__isClosing = true;
+  activeNotifications = activeNotifications.filter(win => win && win !== notificationWindow && !win.isDestroyed() && !win.__isClosing);
+  repositionNotifications();
+
+  try {
+    notificationWindow.hide();
+  } catch {
+    // ignore hide errors
+  }
+
+  try {
+    if (notificationWindow && !notificationWindow.isDestroyed()) {
+      notificationWindow.destroy();
+    }
+  } catch {
+    // ignore destroy errors
   }
 }
 
@@ -375,23 +446,21 @@ function repositionNotifications() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
-  const notificationWidth = 380;
-  const notificationHeight = 124;
-  const margin = 16;
-  
-  const baseX = screenWidth - notificationWidth - margin;
-  const baseY = screenHeight - notificationHeight - margin;
+  activeNotifications = activeNotifications.filter(notification => notification && !notification.isDestroyed() && !notification.__isClosing);
+
+  const baseX = screenWidth - NOTIFICATION_WIDTH - NOTIFICATION_MARGIN;
+  const baseY = screenHeight - NOTIFICATION_HEIGHT - NOTIFICATION_MARGIN;
 
   activeNotifications.forEach((notification, index) => {
     if (!notification.isDestroyed()) {
-      const offsetY = index * (notificationHeight + 6);
+      const offsetY = index * (NOTIFICATION_HEIGHT + NOTIFICATION_GAP);
       const yPosition = baseY - offsetY;
       
       notification.setBounds({
         x: baseX,
         y: yPosition,
-        width: notificationWidth,
-        height: notificationHeight,
+        width: NOTIFICATION_WIDTH,
+        height: NOTIFICATION_HEIGHT,
       });
     }
   });
@@ -584,10 +653,6 @@ ipcMain.handle('photo:open', (_event, data) => {
 // ── IPC handler для показа уведомлений ──────────────────────────────────────
 ipcMain.handle('show-notification', (event, data) => {
   if (mainWindowRef && !mainWindowRef.isDestroyed()) {
-    if (process.platform === 'win32' && showNativeNotification(data, mainWindowRef)) {
-      return true;
-    }
-
     createNotificationWindow(data, mainWindowRef);
     return true;
   }
@@ -786,6 +851,35 @@ function createWindow() {
     const logoDataUrl = getLogoDataUrl();
     mainWindow.webContents.executeJavaScript(`
       (function() {
+        // Hard-disable browser/system notification channels in Electron renderer.
+        // All desktop notifications must go through window.sharDesktop.showNotification.
+        try {
+          class ElectronBlockedNotification {
+            static permission = 'denied';
+            static requestPermission() {
+              return Promise.resolve('denied');
+            }
+            constructor() {
+              throw new Error('Notification API is disabled in Electron renderer');
+            }
+            close() {}
+          }
+
+          Object.defineProperty(window, 'Notification', {
+            configurable: true,
+            writable: true,
+            value: ElectronBlockedNotification,
+          });
+
+          if (navigator.serviceWorker?.getRegistrations) {
+            navigator.serviceWorker.getRegistrations()
+              .then((regs) => Promise.all(regs.map((reg) => reg.unregister())))
+              .catch(() => {});
+          }
+        } catch (e) {
+          console.warn('[MAIN INJECT] Failed to disable browser notifications', e);
+        }
+
         // If preload header already exists, skip this injection entirely
         if (document.getElementById('shar-electron-telegram-header')) {
           console.log('[MAIN INJECT] Preload header already present – skipping injection');
