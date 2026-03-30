@@ -788,6 +788,13 @@ export default function AccountPage() {
   const mobileNavButtonBaseClass = 'w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-200 focus:outline-none border backdrop-blur-xl';
   const mobileNavButtonActiveClass = 'bg-blue-500/20 text-gray-900 dark:text-white border-blue-500/30 shadow-[inset_0_1px_2px_rgba(96,165,250,0.4),0_3px_8px_rgba(59,130,246,0.2)]';
   const mobileNavButtonIdleClass = 'text-[var(--text-primary)] bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] border-[var(--border-light)] shadow-[var(--shadow-card)]';
+  const isElectronRuntime = typeof window !== 'undefined' && (
+    Boolean((window as any).sharDesktop?.windowControls)
+    || /electron/i.test(navigator.userAgent || '')
+    || document.documentElement.classList.contains('electron-app')
+    || document.documentElement.hasAttribute('data-electron-react-shell')
+  );
+  const accountContentBottomInset = shouldUseMobileNav ? 0 : (isElectronRuntime ? 0 : 46);
 
   return (
     <div
@@ -821,7 +828,7 @@ export default function AccountPage() {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 min-h-0 min-w-0 overflow-hidden overflow-x-hidden relative z-10">
+      <div className="flex-1 min-h-0 min-w-0 overflow-hidden overflow-x-hidden relative z-10" style={{ paddingBottom: `${accountContentBottomInset}px` }}>
         {hasMountedMessages && (
           <div className={`h-full min-w-0 overflow-x-hidden ${activeTab === 'messages' ? 'block' : 'hidden'}`}>
             <Suspense fallback={

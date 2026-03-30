@@ -1771,10 +1771,19 @@ const Editingtodo = memo(function Editingtodo({
 
   const permissionLabel = permission === 'editor' ? 'Редактор' : 'Читатель';
   const shareTargetLabel = accessTargetOptions.find(option => option.id === shareTarget)?.label || 'Ссылка';
-  const electronTitlebarOffset = typeof window !== 'undefined'
+  const electronTitlebarOffsetFromCss = typeof window !== 'undefined'
     ? (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--electron-titlebar-offset') || '0', 10) || 0)
     : 0;
-  const modalTopOffset = Math.max(0, electronTitlebarOffset);
+  const isElectronRuntime = typeof window !== 'undefined' && (
+    Boolean((window as any).sharDesktop?.windowControls)
+    || /electron/i.test(navigator.userAgent || '')
+    || document.documentElement.classList.contains('electron-app')
+    || document.documentElement.hasAttribute('data-electron-react-shell')
+  );
+  const electronSafeTopOffset = isElectronRuntime
+    ? Math.max(electronTitlebarOffsetFromCss, 40)
+    : electronTitlebarOffsetFromCss;
+  const modalTopOffset = Math.max(0, electronSafeTopOffset);
   const modalHeaderHeight = 40;
   const panelTopOffset = modalTopOffset + modalHeaderHeight;
   
