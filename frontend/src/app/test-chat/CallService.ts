@@ -501,6 +501,13 @@ export class CallService {
     this.currentCallId = `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     this.currentRemoteUserId = toUserId;
     this.currentChatId = chatId;
+    console.log('[CallService] startCall routing:', {
+      fromUserId: this.localUserId,
+      toUserId,
+      chatId,
+      callId: this.currentCallId,
+      callType,
+    });
     // Enter calling state immediately so simultaneous offers are handled by glare logic.
     this.setState('calling');
 
@@ -612,8 +619,10 @@ export class CallService {
       });
 
       console.log('[CallService] Answer sent:', {
+        fromUserId: this.localUserId,
         callId: this.currentCallId,
         toUserId: effectiveIncoming.fromUserId,
+        chatId: effectiveIncoming.chatId,
       });
 
       this.pendingIncomingCall = null;
@@ -776,7 +785,7 @@ export class CallService {
 
   private async poll() {
     try {
-      const res = await fetch(`/api/calls?userId=${encodeURIComponent(this.localUserId)}`);
+      const res = await fetch(`/api/calls?userId=${encodeURIComponent(this.localUserId)}&scope=p2p`);
       if (!res.ok) return;
       const signals: any[] = await res.json();
 
@@ -798,7 +807,16 @@ export class CallService {
             continue;
           }
         }
-        console.log('[CallService] Processing signal:', sig.type, 'from:', sig.fromUserId);
+        console.log(
+          '[CallService] Processing signal:',
+          sig.type,
+          'from:',
+          sig.fromUserId,
+          'to:',
+          sig.toUserId,
+          'callId:',
+          sig.callId,
+        );
         await this.handleSignal(sig);
       }
     } catch {
@@ -830,12 +848,67 @@ export class CallService {
           String(sig.fromUserId || '') === String(this.currentRemoteUserId || '') &&
           (this.isAcceptingIncoming || this.state === 'calling' || this.state === 'connected')
         ) {
-          // Duplicate/retry offer for the same active call must not reopen incoming flow.
-          console.warn('[CallService] Ignoring duplicate offer for active call', {
-            callId: sig.callId,
-            state: this.state,
-            isAcceptingIncoming: this.isAcceptingIncoming,
-          });
+          if (this.isAcceptingIncoming) {
+            // During initial accept flow we still ignore repeated offers.
+            console.warn('[CallService] Ignoring duplicate offer while accepting incoming call', {
+              callId: sig.callId,
+              state: this.state,
+            });
+            break;
+          }
+
+          // Active-call re-offers are valid for ICE restart / renegotiation.
+          // Handle them in-place instead of reopening incoming UI flow.
+          if (sig.payload?.type === 'offer') {
+            try {
+              if (!this.pc) {
+                console.warn('[CallService] Active-call re-offer received without peer connection; recreating connection');
+                const recreatedPc = this.createPeerConnection(sig.fromUserId, sig.chatId);
+                if (this.localStream) {
+                  this.localStream.getTracks().forEach(track => {
+                    recreatedPc.addTrack(track, this.localStream!);
+                  });
+                }
+              }
+
+              if (!this.pc) {
+                console.warn('[CallService] Failed to recreate peer connection for active-call re-offer');
+                break;
+              }
+
+              if (this.pc.signalingState !== 'stable') {
+                console.warn('[CallService] Ignoring active-call offer in non-stable signalingState:', this.pc.signalingState);
+                break;
+              }
+
+              const currentRemoteSdp = this.pc.remoteDescription?.sdp || '';
+              const incomingSdp = sig.payload?.sdp || '';
+              if (currentRemoteSdp && incomingSdp && currentRemoteSdp === incomingSdp) {
+                console.warn('[CallService] Ignoring byte-identical duplicate offer for active call');
+                break;
+              }
+
+              console.log('[CallService] Applying active-call re-offer (ICE restart / renegotiation)');
+              await this.pc.setRemoteDescription(sig.payload);
+              this.remoteIceUfrag = this.extractIceUfragFromSdp(sig.payload?.sdp);
+              await this.flushPendingIceCandidates();
+
+              const answer = await this.pc.createAnswer();
+              await this.pc.setLocalDescription(answer);
+              await this.signal({
+                type: 'answer',
+                toUserId: sig.fromUserId,
+                chatId: sig.chatId,
+                payload: answer,
+              });
+
+              console.log('[CallService] Sent answer for active-call re-offer');
+            } catch (e) {
+              console.error('[CallService] Failed to process active-call re-offer', e);
+            }
+          } else {
+            console.warn('[CallService] Ignoring active-call offer with invalid payload');
+          }
           break;
         }
 
@@ -991,28 +1064,63 @@ export class CallService {
   }
 
   private async signal(payload: Record<string, unknown>): Promise<SignalResponse | null> {
-    const response = await fetch('/api/calls', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...payload,
-        callId: this.currentCallId,
-        fromUserId: this.localUserId,
-      }),
-    });
+    const signalType = String(payload.type || 'unknown');
+    const maxAttempts = signalType === 'offer' ? 1 : 3;
+    let lastError: Error | null = null;
 
-    let result: SignalResponse | null = null;
-    try {
-      result = (await response.json()) as SignalResponse;
-    } catch {
-      result = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const response = await fetch('/api/calls', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...payload,
+            callId: this.currentCallId,
+            fromUserId: this.localUserId,
+          }),
+        });
+
+        let result: SignalResponse | null = null;
+        try {
+          result = (await response.json()) as SignalResponse;
+        } catch {
+          result = null;
+        }
+
+        if (response.ok || signalType === 'offer') {
+          if (!response.ok) {
+            console.warn('[CallService] Offer signaling non-OK response:', {
+              status: response.status,
+              result,
+              attempt,
+            });
+          }
+          return result;
+        }
+
+        const err = new Error(result?.error || `SIGNAL_FAILED_${response.status}`);
+        lastError = err;
+        console.warn('[CallService] Signaling attempt failed:', {
+          type: signalType,
+          attempt,
+          status: response.status,
+          error: err.message,
+        });
+      } catch (e: any) {
+        lastError = e instanceof Error ? e : new Error(String(e));
+        console.warn('[CallService] Signaling network error:', {
+          type: signalType,
+          attempt,
+          error: lastError.message,
+        });
+      }
+
+      if (attempt < maxAttempts) {
+        await new Promise<void>(resolve => setTimeout(resolve, 180 * attempt));
+      }
     }
 
-    if (!response.ok && payload.type !== 'offer') {
-      throw new Error(result?.error || `SIGNAL_FAILED_${response.status}`);
-    }
-
-    return result;
+    throw lastError || new Error(`SIGNAL_FAILED_${signalType}`);
   }
 
   private reset() {

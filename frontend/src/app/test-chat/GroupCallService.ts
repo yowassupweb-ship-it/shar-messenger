@@ -230,7 +230,7 @@ export class GroupCallService {
 
   private async poll() {
     try {
-      const res = await fetch(`/api/calls?userId=${encodeURIComponent(this.localUserId)}`);
+      const res = await fetch(`/api/calls?userId=${encodeURIComponent(this.localUserId)}&scope=group`);
       if (!res.ok) return;
       const signals: any[] = await res.json();
       for (const sig of signals) {

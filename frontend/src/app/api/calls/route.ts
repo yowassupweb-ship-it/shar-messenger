@@ -30,6 +30,7 @@ interface CallSignal {
 interface SignalEnvelope {
   signal: CallSignal;
   ts: number;
+  scope?: 'p2p' | 'group';
 }
 
 interface CallSession {
@@ -52,9 +53,18 @@ interface SignalingState {
 const TTL_MS = 30_000;
 const SESSION_TTL_MS = 45_000;
 const LOCK_STALE_MS = 10_000;
-const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_DIR = process.env.CALL_SIGNALING_DIR || path.join(process.cwd(), '..', 'runtime-data');
 const STATE_FILE = path.join(DATA_DIR, 'call-signaling.json');
 const LOCK_FILE = path.join(DATA_DIR, 'call-signaling.lock');
+const USE_MEMORY_SIGNALING = process.env.CALL_SIGNALING_STORE === 'memory';
+
+function getMemoryState(): SignalingState {
+  const globalStore = globalThis as unknown as { __callSignalingState?: SignalingState };
+  if (!globalStore.__callSignalingState) {
+    globalStore.__callSignalingState = createEmptyState();
+  }
+  return globalStore.__callSignalingState;
+}
 
 function createEmptyState(): SignalingState {
   return {
@@ -132,12 +142,22 @@ async function writeState(state: SignalingState) {
 async function withLockedState<T>(
   mutator: (state: SignalingState) => Promise<T> | T,
 ): Promise<T> {
+  if (USE_MEMORY_SIGNALING) {
+    const state = pruneState(getMemoryState());
+    const result = await mutator(state);
+    return result;
+  }
+
   await ensureStateFile();
   const lock = await acquireLock();
   try {
     const state = pruneState(await readState());
+    const before = JSON.stringify(state);
     const result = await mutator(state);
-    await writeState(state);
+    const after = JSON.stringify(state);
+    if (after !== before) {
+      await writeState(state);
+    }
     return result;
   } finally {
     await releaseLock(lock);
@@ -165,9 +185,14 @@ function pruneState(state: SignalingState): SignalingState {
   return state;
 }
 
-function enqueueSignal(state: SignalingState, signal: CallSignal, ts = Date.now()) {
+function enqueueSignal(
+  state: SignalingState,
+  signal: CallSignal,
+  ts = Date.now(),
+  scope: 'p2p' | 'group' = 'p2p',
+) {
   const queue = state.queues[signal.toUserId] ?? [];
-  queue.push({ signal, ts });
+  queue.push({ signal, ts, scope });
   state.queues[signal.toUserId] = queue;
 }
 
@@ -179,26 +204,77 @@ function getSessionKey(chatId: string, userA: string, userB: string) {
   return `${chatId}:${getParticipantKey(userA, userB)}`;
 }
 
+function findSessionForCall(
+  sessions: Record<string, CallSession>,
+  chatId: string,
+  callId: string,
+  fromUserId: string,
+): CallSession | null {
+  const direct = Object.values(sessions).find(
+    session =>
+      session.chatId === chatId &&
+      session.callId === callId &&
+      (session.initiatorUserId === fromUserId || session.recipientUserId === fromUserId),
+  );
+  if (direct) return direct;
+
+  return Object.values(sessions).find(
+    session =>
+      session.callId === callId &&
+      (session.initiatorUserId === fromUserId || session.recipientUserId === fromUserId),
+  ) ?? null;
+}
+
+function findSessionsByCall(
+  sessions: Record<string, CallSession>,
+  chatId: string,
+  callId: string,
+): CallSession[] {
+  return Object.values(sessions).filter(
+    session => session.chatId === chatId && session.callId === callId,
+  );
+}
+
 function isGroupSignal(type: CallSignal['type'], isGroup?: boolean, targetCount?: number) {
   return Boolean(isGroup) || type.startsWith('group-') || (targetCount ?? 0) > 1;
 }
 
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get('userId');
+  const scopeParam = req.nextUrl.searchParams.get('scope');
+  const scope: 'all' | 'p2p' | 'group' =
+    scopeParam === 'group' ? 'group' : scopeParam === 'all' ? 'all' : 'p2p';
   if (!userId) {
     return NextResponse.json({ error: 'userId required' }, { status: 400 });
   }
 
   try {
     const signals = await withLockedState(state => {
-      const queued = (state.queues[userId] ?? [])
-        .sort((left, right) => left.ts - right.ts)
-        .map(entry => entry.signal);
+      const queue = state.queues[userId] ?? [];
+      const deliverableEntries = queue
+        .filter(entry => {
+          const entryScope = entry.scope ?? 'p2p';
+          return scope === 'all' ? true : entryScope === scope;
+        })
+        .sort((left, right) => left.ts - right.ts);
+      const queued = deliverableEntries.map(entry => entry.signal);
 
-      delete state.queues[userId];
+      const remainingEntries = queue.filter(entry => {
+        const entryScope = entry.scope ?? 'p2p';
+        return scope === 'all' ? false : entryScope !== scope;
+      });
+
+      if (remainingEntries.length > 0) {
+        state.queues[userId] = remainingEntries;
+      } else {
+        delete state.queues[userId];
+      }
 
       if (queued.length > 0) {
-        console.log(`[CallsAPI] GET: Draining ${queued.length} signals for user ${userId}:`, queued.map(sig => sig.type));
+        console.log(
+          `[CallsAPI] GET: Draining ${queued.length} ${scope} signals for user ${userId}:`,
+          queued.map(sig => sig.type),
+        );
       }
 
       return queued;
@@ -241,14 +317,52 @@ export async function POST(req: NextRequest) {
     result = await withLockedState(state => {
     const conflicts: Array<{ toUserId: string; activeCallId: string }> = [];
 
-    for (const targetUserId of targets) {
+    const resolveTargetsForP2P = (initialTargets: string[]): string[] => {
+      if (groupSignal || type === 'offer') {
+        return initialTargets;
+      }
+
+      const sourceUserId = String(rest.fromUserId || '');
+      const chatId = String(rest.chatId || '');
+      const callId = String(rest.callId || '');
+      const resolved = new Set<string>(initialTargets.map(String));
+
+      const callSessions = findSessionsByCall(state.sessions, chatId, callId);
+      for (const session of callSessions) {
+        resolved.add(String(session.initiatorUserId));
+        resolved.add(String(session.recipientUserId));
+      }
+
+      const session = findSessionForCall(state.sessions, chatId, callId, sourceUserId);
+      if (session) {
+        const counterpart =
+          session.initiatorUserId === sourceUserId ? session.recipientUserId : session.initiatorUserId;
+        if (counterpart && counterpart !== sourceUserId) {
+          resolved.add(String(counterpart));
+        }
+      }
+
+      resolved.delete(sourceUserId);
+
+      if (callSessions.length === 0) {
+        console.warn(
+          `[CallsAPI] POST: no active session for ${type} callId=${callId}, chatId=${chatId}. Using requested targets only: ${initialTargets.join(',')}`,
+        );
+      }
+
+      return Array.from(resolved);
+    };
+
+    const effectiveTargets = resolveTargetsForP2P(targets);
+
+    for (const targetUserId of effectiveTargets) {
       const signal: CallSignal = {
         ...(rest as CallSignal),
         toUserId: targetUserId,
       };
 
       if (groupSignal) {
-        enqueueSignal(state, signal, now);
+        enqueueSignal(state, signal, now, 'group');
         continue;
       }
 
@@ -270,6 +384,7 @@ export async function POST(req: NextRequest) {
               payload: null,
             },
             now,
+            'p2p',
           );
           continue;
         }
@@ -293,6 +408,7 @@ export async function POST(req: NextRequest) {
               payload: null,
             },
             now,
+            'p2p',
           );
           continue;
         }
@@ -327,11 +443,11 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      enqueueSignal(state, signal, now);
+      enqueueSignal(state, signal, now, 'p2p');
     }
 
     console.log(
-      `[CallsAPI] POST: type=${type} from=${rest.fromUserId} to=${targets.join(',')} conflicts=${conflicts.length}`,
+      `[CallsAPI] POST: type=${type} callId=${rest.callId} from=${rest.fromUserId} to=${effectiveTargets.join(',')} requested=${targets.join(',')} conflicts=${conflicts.length}`,
     );
 
     return {
