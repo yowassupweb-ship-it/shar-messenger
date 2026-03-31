@@ -12,9 +12,10 @@
 'use client';
 
 import React, { Component, createRef } from 'react';
-import { Check, CheckCheck, Clock3, Download, FileText } from 'lucide-react';
+import { ArrowRight, Bell, Calendar, Check, CheckCheck, CheckSquare, Clock3 } from 'lucide-react';
 import MessageItem from './MessageItem';
 import Quote from './Quote';
+import FileAttachment from './FileAttachment';
 import type { Message, User, Chat } from './types';
 import { PinnedMessageAction } from '@/app/test-chat/PinnedMessageBar';
 import {
@@ -222,6 +223,7 @@ export interface ChatTimelineV2Props {
   onViewportReadyChange?: (value: boolean) => void;
   scrollTopPadding?: number;
   scrollBottomPadding?: number;
+  enableDragSelect?: boolean;
 }
 
 interface ChatTimelineV2State {
@@ -266,7 +268,7 @@ export class ChatTimelineV2 extends Component<
   ChatTimelineV2State,
   Snapshot
 > {
-  static defaultProps = { hasPinnedMessage: false };
+  static defaultProps = { hasPinnedMessage: false, enableDragSelect: true };
 
   containerRef = createRef<HTMLDivElement>();
 
@@ -327,9 +329,11 @@ export class ChatTimelineV2 extends Component<
   componentDidMount(): void {
     this._isMounted = true;
     this.containerRef.current?.addEventListener('scroll', this._onScroll);
-    this.containerRef.current?.addEventListener('mousedown', this._onDragDown);
-    window.addEventListener('mousemove', this._onDragMove);
-    window.addEventListener('mouseup', this._onDragUp);
+    if (this.props.enableDragSelect) {
+      this.containerRef.current?.addEventListener('mousedown', this._onDragDown);
+      window.addEventListener('mousemove', this._onDragMove);
+      window.addEventListener('mouseup', this._onDragUp);
+    }
     this._prevChatId = this.props.chatId;
     this._prevMessagesLength = this.props.messages.length;
     
@@ -381,9 +385,11 @@ export class ChatTimelineV2 extends Component<
     
     // Remove listeners
     this.containerRef.current?.removeEventListener('scroll', this._onScroll);
-    this.containerRef.current?.removeEventListener('mousedown', this._onDragDown);
-    window.removeEventListener('mousemove', this._onDragMove);
-    window.removeEventListener('mouseup', this._onDragUp);
+    if (this.props.enableDragSelect) {
+      this.containerRef.current?.removeEventListener('mousedown', this._onDragDown);
+      window.removeEventListener('mousemove', this._onDragMove);
+      window.removeEventListener('mouseup', this._onDragUp);
+    }
     this._cancelDrag();
   }
 
@@ -599,6 +605,7 @@ export class ChatTimelineV2 extends Component<
   // ── Drag-select helpers ───────────────────────────────────────────────────
 
   private _onDragDown = (e: MouseEvent): void => {
+    if (!this.props.enableDragSelect) return;
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
     if (target.closest('button, a, input, textarea, [role="button"], [contenteditable]')) return;
@@ -608,6 +615,7 @@ export class ChatTimelineV2 extends Component<
   };
 
   private _onDragMove = (e: MouseEvent): void => {
+    if (!this.props.enableDragSelect) return;
     if (!this._dragStart) return;
     this._dragCurrent = { x: e.clientX, y: e.clientY };
     const dx = Math.abs(this._dragCurrent.x - this._dragStart.x);
@@ -619,6 +627,7 @@ export class ChatTimelineV2 extends Component<
   };
 
   private _onDragUp = (): void => {
+    if (!this.props.enableDragSelect) return;
     if (this._isDragging) {
       this._selectMessagesInRect();
       // Keep _isDragging=true briefly so onClick handlers see it and skip
@@ -729,15 +738,103 @@ export class ChatTimelineV2 extends Component<
             </div>
           ) : (
             messages.map((message, index) => {
+              const metadataAny = (message.metadata as any) || {};
               const author = users.find(u => u.id === message.authorId);
+              const notificationActorId = String(
+                metadataAny.fromUserId ||
+                metadataAny.from_user_id ||
+                ''
+              );
+              const notificationActorById = notificationActorId
+                ? users.find((u) => String(u.id) === notificationActorId)
+                : null;
+              const notificationActorName = String(
+                metadataAny.fromUserName ||
+                metadataAny.from_user_name ||
+                ''
+              ).trim();
+              const notificationActorByName = !notificationActorById && notificationActorName
+                ? users.find((u) => {
+                    const name = String(u.name || '').trim();
+                    const username = String(u.username || '').trim();
+                    return name === notificationActorName || username === notificationActorName;
+                  })
+                : null;
               const isMyMessage = currentUser?.id === message.authorId;
+              const isNotificationsLikeChat = Boolean(
+                (this.props.selectedChat as any)?.isNotificationsChat ||
+                String((this.props.selectedChat as any)?.id || '').startsWith('notifications-') ||
+                String((this.props.selectedChat as any)?.id || '').startsWith('notifications_') ||
+                ((this.props.selectedChat as any)?.isSystemChat && (this.props.selectedChat as any)?.title === 'Уведомления')
+              );
+              const renderAsNotification = isNotificationsLikeChat || Boolean(message.isSystemMessage);
+              const effectiveLinkedTaskId = (
+                message.linkedTaskId ||
+                metadataAny.linkedTaskId ||
+                metadataAny.linked_task_id ||
+                metadataAny.taskId ||
+                metadataAny.todoId ||
+                ''
+              ).toString();
+              const effectiveLinkedEventId = (
+                (message as any).linkedEventId ||
+                metadataAny.linkedEventId ||
+                metadataAny.linked_event_id ||
+                metadataAny.eventId ||
+                ''
+              ).toString();
+              const effectiveLinkedPostId = (message.linkedPostId || metadataAny.linkedPostId || metadataAny.linked_post_id || '').toString();
+              const effectiveLinkedChatId = (message.linkedChatId || metadataAny.linkedChatId || metadataAny.linked_chat_id || '').toString();
+              const hasNotificationAction = renderAsNotification && Boolean(
+                effectiveLinkedTaskId || effectiveLinkedEventId || effectiveLinkedPostId || effectiveLinkedChatId
+              );
+              const openNotificationTarget = () => {
+                if (typeof window === 'undefined') return;
+                if (effectiveLinkedTaskId) {
+                  window.location.href = `/todos?task=${encodeURIComponent(effectiveLinkedTaskId)}`;
+                } else if (effectiveLinkedEventId) {
+                  window.location.href = `/account?tab=calendar&event=${encodeURIComponent(effectiveLinkedEventId)}`;
+                } else if (effectiveLinkedPostId) {
+                  window.location.href = `/content-plan?post=${encodeURIComponent(effectiveLinkedPostId)}`;
+                } else if (effectiveLinkedChatId) {
+                  window.location.href = `/account?tab=messages&chat=${encodeURIComponent(effectiveLinkedChatId)}`;
+                }
+              };
+              const notificationActionLabel = effectiveLinkedTaskId
+                ? 'Открыть задачу'
+                : effectiveLinkedEventId
+                  ? 'Открыть событие'
+                  : effectiveLinkedPostId
+                    ? 'Открыть публикацию'
+                    : 'Открыть чат';
+              const notificationTypeRaw = String(message.notificationType || '').trim().toLowerCase();
+              const notificationTypeLabelMap: Record<string, string> = {
+                new_task: 'Новая задача',
+                task_updated: 'Обновление задачи',
+                task_status_changed: 'Изменение статуса',
+                new_comment: 'Новый комментарий',
+                mention: 'Упоминание',
+                new_executor: 'Новый исполнитель',
+                removed_executor: 'Исполнитель удален',
+                post_updated: 'Обновление публикации',
+                post_status_changed: 'Статус публикации',
+                post_new_comment: 'Комментарий к публикации',
+                info: 'Уведомление',
+              };
+              const notificationTypeLabel = notificationTypeRaw === 'event_reminder'
+                ? ''
+                : (notificationTypeLabelMap[notificationTypeRaw] || 'Уведомление');
+              const isOwnBubble = isMyMessage && !renderAsNotification;
               const prevMessage = messages[index - 1];
               const nextMessage = messages[index + 1];
               const isGroupedWithPrev = !!prevMessage && prevMessage.authorId === message.authorId;
               const isGroupedWithNext = !!nextMessage && nextMessage.authorId === message.authorId;
               const isLastInGroup = !isGroupedWithNext;
               const showTail = isLastInGroup;
-              const showAvatar = this.props.isDesktopView && !isMyMessage && author && isLastInGroup;
+              const avatarSourceUser = renderAsNotification
+                ? (notificationActorById || notificationActorByName || author)
+                : author;
+              const showAvatar = this.props.isDesktopView && !isOwnBubble && !!avatarSourceUser && isLastInGroup;
               const isMultiline = String(message.content || '').includes('\n');
               // Attachment classification
               const msgAtts: any[] = (message.attachments as any[]) || [];
@@ -753,7 +850,27 @@ export class ChatTimelineV2 extends Component<
               const emojiOnlyFontSize = emojiOnlyCount === 1 ? 56 : emojiOnlyCount === 2 ? 46 : emojiOnlyCount === 3 ? 38 : 32;
               // Media-only: images/video, no text, no files, no quote → Telegram-style overlay timestamp
               const isMediaOnly = hasMedia && !hasTextContent && !msgFiles.length && !message.replyToId;
+              const timestampBottomClass = msgFiles.length > 0 ? 'bottom-0' : (isMultiline ? 'bottom-2' : 'bottom-1');
               const fmtSize = (b: number) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
+              const isMobileView = !this.props.isDesktopView;
+              const bodyFontSize = isMobileView ? '16px' : '14px';
+              const bodyLineHeight = isMobileView ? '22px' : '20px';
+              const forwardedFromUserId = (
+                message.forwardedFromUserId ||
+                (message.metadata as any)?.forwardedFromUserId ||
+                ''
+              ).toString();
+              const forwardedFromUser = forwardedFromUserId
+                ? users.find((u) => String(u.id) === forwardedFromUserId)
+                : null;
+              const forwardedFromName = (
+                message.forwardedFromUsername ||
+                (message.metadata as any)?.forwardedFromUsername ||
+                (message.metadata as any)?.fromUserName ||
+                forwardedFromUser?.name ||
+                forwardedFromUser?.username ||
+                ''
+              ).trim();
               const allImgUrls = msgImages.map((mi: any) => mi.url);
               const isRecentMessage = index >= Math.max(0, messages.length - 12);
               const getSingleImageBox = (att: any) => {
@@ -788,7 +905,7 @@ export class ChatTimelineV2 extends Component<
               })();
               const isPending = String(message.id).startsWith('temp_');
               const isReadByOther = (() => {
-                if (!isMyMessage || !currentUser) {
+                if (!isOwnBubble || !currentUser) {
                   return false;
                 }
                 
@@ -832,7 +949,10 @@ export class ChatTimelineV2 extends Component<
               let bubbleColor: string;
               let textColor: string;
               
-              if (isMyMessage) {
+              if (renderAsNotification) {
+                bubbleColor = this.props.theme === 'dark' ? '#1f2937' : '#f3f4f6';
+                textColor = this.props.theme === 'dark' ? '#e2e8f0' : '#1f2937';
+              } else if (isOwnBubble) {
                 bubbleColor = this.props.theme === 'dark' 
                   ? (chatSettings?.bubbleColor || '#545190')
                   : (chatSettings?.bubbleColorLight || '#252546');
@@ -850,12 +970,12 @@ export class ChatTimelineV2 extends Component<
               // - bubble width is fixed by min/max constraints (no adaptive % scaling)
               // - at chat width <= 1200px, messages are split by sides
               // - at wider desktop widths, all messages stay on the left
-              const alignment = isMyMessage
+              const alignment = isOwnBubble
                 ? (this.props.isDesktopView ? 'justify-start max-[1200px]:justify-end' : 'justify-end')
                 : 'justify-start';
               
               return (
-                <React.Fragment key={message.id}>
+                <React.Fragment key={`${message.id}-${index}`}>
                   {showDateDivider && (
                     <div className="flex justify-center my-3">
                       <span className="px-3 py-1 rounded-full bg-white/70 dark:bg-slate-800/70 border border-gray-200 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300">
@@ -913,21 +1033,31 @@ export class ChatTimelineV2 extends Component<
                     </div>
                   )}
                   {/* В desktop входящие сообщения группируются под одну аватарку (у последнего сообщения группы). */}
-                  {this.props.isDesktopView && !isMyMessage && !this.props.isSelectionMode && (
+                  {this.props.isDesktopView && !isOwnBubble && !this.props.isSelectionMode && (
                     <div className="flex-shrink-0 w-7 h-7 flex items-end justify-center">
                       {showAvatar && (
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white text-[11px] font-bold flex items-center justify-center">
-                          {(() => {
-                            const name = author?.name || author?.username || 'U';
-                            const words = name.trim().split(/\s+/);
-                            return words.length >= 2 ? `${words[0][0]}${words[1][0]}`.toUpperCase() : name.slice(0, 2).toUpperCase();
-                          })()}
-                        </div>
+                        <>
+                          {avatarSourceUser?.avatar ? (
+                            <img
+                              src={avatarSourceUser.avatar}
+                              alt={avatarSourceUser.name || avatarSourceUser.username || 'avatar'}
+                              className="w-7 h-7 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white text-[11px] font-bold flex items-center justify-center">
+                              {(() => {
+                                const name = avatarSourceUser?.name || avatarSourceUser?.username || 'U';
+                                const words = name.trim().split(/\s+/);
+                                return words.length >= 2 ? `${words[0][0]}${words[1][0]}`.toUpperCase() : name.slice(0, 2).toUpperCase();
+                              })()}
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   )}
                   <div
-                    className={`inline-block relative rounded-[18px] ${(isMediaOnly || isEmojiOnly) ? 'overflow-hidden' : 'px-2.5 py-1.5 pb-1.5 min-w-[100px]'} max-w-[420px] w-fit transition-all ${
+                    className={`inline-block relative rounded-[18px] ${(isMediaOnly || isEmojiOnly) ? 'overflow-hidden' : 'px-2.5 py-1.5 pb-1.5 min-w-[100px]'} ${renderAsNotification ? (isMobileView ? 'max-w-[92vw]' : 'max-w-[620px]') : (isMobileView ? 'max-w-[86vw]' : 'max-w-[420px]')} w-fit transition-all ${renderAsNotification ? 'border border-slate-300/70 dark:border-slate-600/70' : ''} ${
                       this.props.selectedMessages.has(String(message.id)) 
                         ? 'ring-2 ring-blue-500 ring-opacity-50' 
                         : ''
@@ -949,11 +1079,30 @@ export class ChatTimelineV2 extends Component<
                     {isMediaOnly ? (
                       /* ── Telegram-style: media fills the bubble, timestamp overlays ── */
                       <div className="relative">
-                        {/* Sender name pill overlay (non-desktop incoming) */}
-                        {!isMyMessage && author && !this.props.isDesktopView && (
+                        {/* Forwarded message indicator (media-only) */}
+                        {forwardedFromName && (
                           <div
-                            className="absolute top-1.5 left-1.5 z-10 bg-black/50 backdrop-blur-[2px] text-white rounded-full px-2 py-0.5 font-semibold pointer-events-none"
-                            style={{ fontSize: '12px', lineHeight: '18px' }}
+                            className="absolute top-1.5 left-1.5 z-10 bg-black/60 backdrop-blur-[2px] text-white rounded-full px-2 py-0.5 font-medium pointer-events-none flex items-center gap-1"
+                            style={{ fontSize: '11px', lineHeight: '16px' }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="15 17 20 12 15 7"></polyline>
+                              <path d="M4 18v-2a4 4 0 0 1 4-4h12"></path>
+                            </svg>
+                            <span>От {forwardedFromName}</span>
+                          </div>
+                        )}
+                        
+                        {/* Sender name pill overlay (non-desktop incoming) */}
+                        {!isOwnBubble && author && !this.props.isDesktopView && !renderAsNotification && (
+                          <div
+                            className="absolute z-10 bg-black/50 backdrop-blur-[2px] text-white rounded-full px-2 py-0.5 font-semibold pointer-events-none"
+                            style={{ 
+                              fontSize: '12px', 
+                              lineHeight: '18px',
+                              top: forwardedFromName ? '32px' : '6px',
+                              left: '6px'
+                            }}
                           >
                             {author.name || author.username}
                           </div>
@@ -1079,7 +1228,7 @@ export class ChatTimelineV2 extends Component<
                           style={{ fontSize: '11px', lineHeight: '16px', letterSpacing: '0.06px' }}
                         >
                           <span>{new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
-                          {isMyMessage && (
+                          {isOwnBubble && (
                             isPending ? (
                               <Clock3 className="w-[11px] h-[11px]" strokeWidth={2} />
                             ) : isReadByOther ? (
@@ -1108,8 +1257,37 @@ export class ChatTimelineV2 extends Component<
                           </div>
                         ) : (
                           <>
+                        {renderAsNotification && notificationTypeLabel && (
+                          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold opacity-90">
+                            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/20 dark:bg-white/10">
+                              {effectiveLinkedTaskId ? (
+                                <CheckSquare className="w-3 h-3" />
+                              ) : effectiveLinkedEventId ? (
+                                <Calendar className="w-3 h-3" />
+                              ) : (
+                                <Bell className="w-3 h-3" />
+                              )}
+                            </span>
+                            <span>{notificationTypeLabel}</span>
+                          </div>
+                        )}
+
+                        {/* Forwarded message indicator */}
+                        {forwardedFromName && (
+                          <div
+                            className="flex items-center gap-1 mb-1 opacity-60"
+                            style={{ fontSize: '12px', lineHeight: '16px' }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="15 17 20 12 15 7"></polyline>
+                              <path d="M4 18v-2a4 4 0 0 1 4-4h12"></path>
+                            </svg>
+                            <span>Переслано от {forwardedFromName}</span>
+                          </div>
+                        )}
+                        
                         {/* Sender name */}
-                        {!isMyMessage && author && !this.props.isDesktopView && (
+                        {!isOwnBubble && author && !this.props.isDesktopView && !renderAsNotification && (
                           <div
                             className="font-semibold mb-[3px]"
                             style={{ fontSize: '13px', lineHeight: '18px', letterSpacing: '-0.03px', opacity: 0.7 }}
@@ -1123,7 +1301,7 @@ export class ChatTimelineV2 extends Component<
                           <Quote
                             replyMessage={messages.find(m => m.id === message.replyToId) || null}
                             onJumpToMessage={this.props.scrollToMessage}
-                            isIncoming={!isMyMessage}
+                            isIncoming={!isOwnBubble}
                           />
                         )}
 
@@ -1221,7 +1399,7 @@ export class ChatTimelineV2 extends Component<
                         {hasTextContent ? (
                           <div
                             className="whitespace-pre-wrap break-words overflow-wrap-anywhere pr-[44px]"
-                            style={{ fontSize: '14px', lineHeight: '20px', letterSpacing: '-0.08px' }}
+                            style={{ fontSize: bodyFontSize, lineHeight: bodyLineHeight, letterSpacing: '-0.08px' }}
                           >
                             <span>{renderTextWithLinks(message.content || '')}</span>
                           </div>
@@ -1231,23 +1409,38 @@ export class ChatTimelineV2 extends Component<
 
                         {/* Files */}
                         {msgFiles.length > 0 && (
-                          <div className="mt-1.5 space-y-1 pb-[6px]">
+                          <div className="mt-1.5 space-y-1.5 pb-[6px]">
                             {msgFiles.map((att: any, idx: number) => (
-                              <a
+                              <FileAttachment
                                 key={`${message.id}-file-${idx}`}
-                                href={att.url}
-                                download={att.name}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-2 py-1.5 rounded-xl bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/15 transition-colors max-w-full"
+                                url={att.url}
+                                name={att.name}
+                                size={att.size}
+                                messageId={message.id}
                                 onClick={(e) => e.stopPropagation()}
-                              >
-                                <FileText className="w-4 h-4 flex-shrink-0 opacity-70" />
-                                <span className="text-[12px] truncate flex-1 min-w-0">{att.name || 'Файл'}</span>
-                                {att.size ? <span className="text-[11px] opacity-50 flex-shrink-0 whitespace-nowrap">{fmtSize(att.size)}</span> : null}
-                                <Download className="w-3.5 h-3.5 flex-shrink-0 opacity-60" />
-                              </a>
+                              />
                             ))}
+                          </div>
+                        )}
+
+                        {hasNotificationAction && (
+                          <div className="mt-2 mb-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openNotificationTarget();
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold border border-white/25 dark:border-white/20 bg-white/10 hover:bg-white/20 transition-colors"
+                            >
+                              {effectiveLinkedEventId && !effectiveLinkedTaskId ? (
+                                <Calendar className="w-3 h-3" />
+                              ) : (
+                                <CheckSquare className="w-3 h-3" />
+                              )}
+                              <span>{notificationActionLabel}</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
                           </div>
                         )}
                           </>
@@ -1255,11 +1448,11 @@ export class ChatTimelineV2 extends Component<
 
                         {/* Inline timestamp */}
                         <span
-                          className={`absolute right-2 inline-flex items-center gap-1 select-none whitespace-nowrap ${isMultiline ? 'bottom-2' : 'bottom-1'}`}
+                          className={`absolute right-2 inline-flex items-center gap-1 select-none whitespace-nowrap ${timestampBottomClass}`}
                           style={{ fontSize: '11px', lineHeight: '14px', letterSpacing: '0.06px', opacity: 0.6 }}
                         >
                           <span>{new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
-                          {isMyMessage && (
+                          {isOwnBubble && (
                             isPending ? (
                               <Clock3 className="w-[12px] h-[12px]" strokeWidth={2} />
                             ) : isReadByOther ? (
@@ -1274,8 +1467,8 @@ export class ChatTimelineV2 extends Component<
 
                     {/* Tail (always) */}
                     {showTail && (
-                      <span className={`absolute bottom-[4px] ${isMyMessage ? '-right-[2px]' : '-left-[2px]'}`} aria-hidden="true">
-                        <svg width="10" height="16" viewBox="0 0 10 16" className={isMyMessage ? '' : 'scale-x-[-1]'} style={{ display: 'block' }}>
+                      <span className={`absolute bottom-[4px] ${isOwnBubble ? '-right-[2px]' : '-left-[2px]'}`} aria-hidden="true">
+                        <svg width="10" height="16" viewBox="0 0 10 16" className={isOwnBubble ? '' : 'scale-x-[-1]'} style={{ display: 'block' }}>
                           <path d="M0 0C0 8 1 12 9.5 16H0V0Z" fill={bubbleColor} />
                         </svg>
                       </span>

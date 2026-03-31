@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Check } from 'lucide-react';
+import { X, Check, Loader2 } from 'lucide-react';
 import Avatar from '@/components/common/data-display/Avatar';
 import type { Message, Chat, User } from './types';
 import { getChatTitle, getChatAvatarData } from './utils';
@@ -8,6 +8,7 @@ interface ForwardModalProps {
   isOpen: boolean;
   onClose: () => void;
   onForward: () => void;
+  isForwarding: boolean;
   message: Message | null;
   selectedMessages: Set<string>;
   isSelectionMode: boolean;
@@ -24,6 +25,7 @@ export default function ForwardModal({
   isOpen,
   onClose,
   onForward,
+  isForwarding,
   message,
   selectedMessages,
   isSelectionMode,
@@ -60,6 +62,7 @@ export default function ForwardModal({
           </h3>
           <button
             onClick={handleClose}
+            disabled={isForwarding}
             className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           >
             <X className="w-5 h-5" />
@@ -98,6 +101,7 @@ export default function ForwardModal({
                 return (
                   <button
                     key={chat.id}
+                    disabled={isForwarding}
                     onClick={() => {
                       setSelectedChatsForForward(prev => 
                         prev.includes(chat.id) 
@@ -105,7 +109,7 @@ export default function ForwardModal({
                           : [...prev, chat.id]
                       );
                     }}
-                    className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${
+                    className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
                       selectedChatsForForward.includes(chat.id)
                         ? 'bg-cyan-500/20 border border-cyan-500/30'
                         : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)]'
@@ -134,16 +138,22 @@ export default function ForwardModal({
         <div className="flex gap-2 p-4 border-t border-[var(--border-color)]">
           <button
             onClick={handleClose}
-            className="flex-1 py-2 bg-[var(--bg-tertiary)] rounded-lg text-sm hover:bg-[var(--bg-primary)]"
+            disabled={isForwarding}
+            className="flex-1 py-2 bg-[var(--bg-tertiary)] rounded-lg text-sm hover:bg-[var(--bg-primary)] disabled:opacity-60 disabled:cursor-not-allowed"
           >
             Отмена
           </button>
           <button
             onClick={onForward}
-            disabled={selectedChatsForForward.length === 0}
-            className="flex-1 py-2 bg-cyan-500 hover:bg-cyan-600 disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-muted)] rounded-lg text-sm text-white disabled:cursor-not-allowed"
+            disabled={isForwarding || selectedChatsForForward.length === 0}
+            className="flex-1 py-2 bg-cyan-500 hover:bg-cyan-600 disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-muted)] rounded-lg text-sm text-white disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
           >
-            Переслать
+            {isForwarding ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Отправка...
+              </>
+            ) : 'Переслать'}
           </button>
         </div>
       </div>

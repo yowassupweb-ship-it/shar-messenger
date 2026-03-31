@@ -1,38 +1,18 @@
 import { X, Search, MessageSquare, Send } from 'lucide-react';
-import type { Chat, Message } from '@/components/features/messages/types';
+import type { Chat, Message, User } from '@/components/features/messages/types';
 import { useState } from 'react';
+import { getAvatarGradient, getChatAvatarUrl, getInitials, isFavoritesChat, isForwardTargetAllowed, isNotificationsChat } from './avatarUtils';
+import { Star, Bell } from 'lucide-react';
 
 interface ForwardMessageModalProps {
   isOpen: boolean;
   onClose: () => void;
   message: Message | null;
   chats: Chat[];
+  users: User[];
+  currentUser: User | null;
   currentChatId: string | null;
   onForward: (targetChatId: string) => Promise<void>;
-}
-
-function getInitials(title: string): string {
-  const words = title.trim().split(/\s+/);
-  if (words.length === 1) {
-    return words[0][0]?.toUpperCase() || '?';
-  }
-  return (words[0][0] + words[1][0]).toUpperCase();
-}
-
-const AVATAR_COLORS = [
-  'from-blue-400 to-blue-600',
-  'from-green-400 to-green-600',
-  'from-purple-400 to-purple-600',
-  'from-pink-400 to-pink-600',
-  'from-orange-400 to-orange-600',
-  'from-red-400 to-red-600',
-  'from-teal-400 to-teal-600',
-  'from-indigo-400 to-indigo-600',
-];
-
-function getAvatarColor(chatId: string): string {
-  const hash = chatId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
 export default function ForwardMessageModal({
@@ -40,6 +20,8 @@ export default function ForwardMessageModal({
   onClose,
   message,
   chats,
+  users,
+  currentUser,
   currentChatId,
   onForward,
 }: ForwardMessageModalProps) {
@@ -71,6 +53,7 @@ export default function ForwardMessageModal({
 
   const filteredChats = chats
     .filter(chat => chat.id !== currentChatId) // Исключаем текущий чат
+    .filter(chat => isForwardTargetAllowed(chat))
     .filter(chat => {
       const q = searchQuery.trim().toLowerCase();
       if (!q) return true;
@@ -127,7 +110,8 @@ export default function ForwardMessageModal({
             const selected = selectedChatId === chat.id;
             const displayTitle = (chat as any).displayTitle || chat.title || 'Чат';
             const initials = getInitials(displayTitle);
-            const avatarColor = getAvatarColor(chat.id);
+            const avatarColor = getAvatarGradient(chat.id);
+            const avatarUrl = getChatAvatarUrl(chat, currentUser, users);
 
             return (
               <label
@@ -145,9 +129,25 @@ export default function ForwardMessageModal({
                   onChange={() => setSelectedChatId(chat.id)}
                   className="w-4 h-4"
                 />
-                <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${avatarColor} text-white text-sm font-semibold flex items-center justify-center`}>
-                  {initials}
-                </div>
+                {isFavoritesChat(chat) ? (
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-400 to-orange-500 text-white shadow-sm">
+                    <Star className="w-5 h-5" fill="currentColor" strokeWidth={0} />
+                  </div>
+                ) : isNotificationsChat(chat) ? (
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-sm">
+                    <Bell className="w-5 h-5" />
+                  </div>
+                ) : avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={displayTitle}
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${avatarColor} text-white text-sm font-semibold flex items-center justify-center`}>
+                    {initials}
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                     {displayTitle}

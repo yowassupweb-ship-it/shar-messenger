@@ -99,6 +99,7 @@ export default function ChatHeader({
   deleteChat,
 }: ChatHeaderProps) {
   const [isChatLinkCopied, setIsChatLinkCopied] = useState(false);
+  const [showSelectionActionsMenu, setShowSelectionActionsMenu] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(() => {
     if (typeof window === 'undefined') return 1200;
     return window.innerWidth;
@@ -109,6 +110,7 @@ export default function ChatHeader({
   const isMiniTaskHeaderView = isMobileView && viewportWidth < 944;
   const useCompactLinkedTaskButton = isMobileView || viewportWidth < 1180;
   const chatMenuRef = useRef<HTMLDivElement>(null);
+  const selectionActionsMenuRef = useRef<HTMLDivElement>(null);
   const resizeRafRef = useRef<number | null>(null);
   const glassRoundButtonClass = 'no-mobile-scale flex-shrink-0 flex items-center justify-center w-[42px] h-[42px] rounded-full bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] backdrop-blur-xl border border-[var(--border-light)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] transition-all shadow-[var(--shadow-card)]';
   const glassPillClass = 'bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] backdrop-blur-xl border border-[var(--border-light)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] transition-all shadow-[var(--shadow-card)]';
@@ -194,6 +196,40 @@ export default function ChatHeader({
     };
   }, [showChatMenu, setShowChatMenu]);
 
+  useEffect(() => {
+    if (!showSelectionActionsMenu) return;
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (selectionActionsMenuRef.current && !selectionActionsMenuRef.current.contains(target)) {
+        setShowSelectionActionsMenu(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowSelectionActionsMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [showSelectionActionsMenu]);
+
+  useEffect(() => {
+    if (!isSelectionMode && showSelectionActionsMenu) {
+      setShowSelectionActionsMenu(false);
+    }
+  }, [isSelectionMode, showSelectionActionsMenu]);
+
   const handleCopyChatLink = async () => {
     const chatUrl = `/account?tab=messages&chat=${encodeURIComponent(selectedChat.id)}`;
     const absoluteChatUrl = typeof window !== 'undefined'
@@ -223,6 +259,7 @@ export default function ChatHeader({
               onClick={() => {
                 setIsSelectionMode(false);
                 setSelectedMessages(new Set());
+                setShowSelectionActionsMenu(false);
               }}
               className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-glass)] text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-all border border-[var(--border-glass)] backdrop-blur-sm"
             >
@@ -231,75 +268,130 @@ export default function ChatHeader({
             <div className="flex-1 font-medium text-sm">
               Выбрано: {selectedMessages.size}
             </div>
-            <div className="flex gap-1.5">
-              {/* Кнопка Ответить убрана - используйте правый клик на сообщении */}
-              {/* Переслать */}
-              <button
-                onClick={() => {
-                  // Открываем модал пересылки, НЕ сбрасывая режим выбора
-                  setShowForwardModal(true);
-                }}
-                className="w-8 h-8 rounded-full backdrop-blur-xl bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 flex items-center justify-center transition-all group/btn"
-                title={`Переслать (${selectedMessages.size})`}
-              >
-                <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12h18m0 0l-6-6m6 6l-6 6" />
-                </svg>
-              </button>
-              {/* Редактировать - только если выбрано 1 сообщение */}
-              {selectedMessages.size === 1 && (() => {
-                const selectedMessage = messages.find(m => selectedMessages.has(m.id));
-                return selectedMessage?.authorId === currentUser?.id && (
+            {(() => {
+              const selectedMessage = selectedMessages.size === 1
+                ? messages.find(m => selectedMessages.has(m.id))
+                : null;
+              const canEdit = Boolean(selectedMessage && selectedMessage.authorId === currentUser?.id);
+              const selectedMessagesArray = messages.filter(m => m && selectedMessages.has(m.id));
+              const canDelete = selectedMessagesArray.length > 0 && selectedMessagesArray.every(m => m?.authorId === currentUser?.id);
+
+              const openForward = () => {
+                setShowSelectionActionsMenu(false);
+                setShowForwardModal(true);
+              };
+
+              const openEdit = () => {
+                if (!selectedMessage) return;
+                setShowSelectionActionsMenu(false);
+                setSavedMessageText(messageInputRef.current?.value || newMessage);
+                setEditingMessageId(selectedMessage.id);
+                setEditingMessageText(selectedMessage.content);
+                setNewMessage(selectedMessage.content);
+                if (messageInputRef.current) {
+                  messageInputRef.current.value = selectedMessage.content;
+                }
+                setIsSelectionMode(false);
+                setSelectedMessages(new Set());
+                messageInputRef.current?.focus();
+              };
+
+              const removeSelected = async () => {
+                if (!canDelete) return;
+                if (!confirm(`Удалить ${selectedMessages.size === 1 ? 'это сообщение' : `эти ${selectedMessages.size} сообщений`}?`)) {
+                  return;
+                }
+                setShowSelectionActionsMenu(false);
+                for (const messageId of Array.from(selectedMessages)) {
+                  await deleteMessage(messageId);
+                }
+                setIsSelectionMode(false);
+                setSelectedMessages(new Set());
+              };
+
+              if (isMobileView) {
+                return (
+                  <div ref={selectionActionsMenuRef} className="relative">
+                    <button
+                      onClick={() => setShowSelectionActionsMenu(prev => !prev)}
+                      className="w-8 h-8 rounded-full backdrop-blur-xl bg-[var(--bg-glass)] border border-[var(--border-glass)] hover:bg-[var(--bg-glass-hover)] flex items-center justify-center transition-all"
+                      title="Действия"
+                    >
+                      <MoreVertical className="w-4 h-4 text-[var(--text-primary)]" />
+                    </button>
+
+                    {showSelectionActionsMenu && (
+                      <div className="absolute right-0 top-10 min-w-[170px] rounded-2xl border border-[var(--border-light)] bg-[var(--bg-secondary)]/95 backdrop-blur-xl shadow-[var(--shadow-card)] p-1.5 z-30">
+                        <button
+                          onClick={openForward}
+                          className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--bg-tertiary)] text-sm text-[var(--text-primary)]"
+                        >
+                          Переслать ({selectedMessages.size})
+                        </button>
+
+                        {canEdit && (
+                          <button
+                            onClick={openEdit}
+                            className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--bg-tertiary)] text-sm text-[var(--text-primary)]"
+                          >
+                            Редактировать
+                          </button>
+                        )}
+
+                        {canDelete && (
+                          <button
+                            onClick={() => {
+                              void removeSelected();
+                            }}
+                            className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-red-500/15 text-sm text-red-400"
+                          >
+                            Удалить
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <div className="flex gap-1.5">
                   <button
-                    onClick={() => {
-                      if (selectedMessage) {
-                        setSavedMessageText(messageInputRef.current?.value || newMessage);
-                        setEditingMessageId(selectedMessage.id);
-                        setEditingMessageText(selectedMessage.content);
-                        setNewMessage(selectedMessage.content);
-                        // Устанавливаем текст напрямую в инпут через ref
-                        if (messageInputRef.current) {
-                          messageInputRef.current.value = selectedMessage.content;
-                        }
-                        setIsSelectionMode(false);
-                        setSelectedMessages(new Set());
-                        messageInputRef.current?.focus();
-                      }
-                    }}
-                    className="w-8 h-8 rounded-full backdrop-blur-xl bg-purple-500/20 border border-purple-500/30 hover:bg-purple-500/30 flex items-center justify-center transition-all group/btn"
-                    title="Редактировать"
+                    onClick={openForward}
+                    className="w-8 h-8 rounded-full backdrop-blur-xl bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 flex items-center justify-center transition-all group/btn"
+                    title={`Переслать (${selectedMessages.size})`}
                   >
-                    <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12h18m0 0l-6-6m6 6l-6 6" />
                     </svg>
                   </button>
-                );
-              })()}
-              {/* Удалить - для любого количества выбранных сообщений */}
-              {(() => {
-                const selectedMessagesArray = messages.filter(m => m && selectedMessages.has(m.id));
-                const allAreOwn = selectedMessagesArray.every(m => m?.authorId === currentUser?.id);
-                return allAreOwn && selectedMessagesArray.length > 0 && (
-                  <button
-                    onClick={async () => {
-                      if (confirm(`Удалить ${selectedMessages.size === 1 ? 'это сообщение' : `эти ${selectedMessages.size} сообщений`}?`)) {
-                        for (const messageId of Array.from(selectedMessages)) {
-                          await deleteMessage(messageId);
-                        }
-                        setIsSelectionMode(false);
-                        setSelectedMessages(new Set());
-                      }
-                    }}
-                    className="w-8 h-8 rounded-full backdrop-blur-xl bg-red-500/20 border border-red-500/30 hover:bg-red-500/30 flex items-center justify-center transition-all group/btn"
-                    title="Удалить"
-                  >
-                    <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                );
-              })()}
-            </div>
+                  {canEdit && (
+                    <button
+                      onClick={openEdit}
+                      className="w-8 h-8 rounded-full backdrop-blur-xl bg-purple-500/20 border border-purple-500/30 hover:bg-purple-500/30 flex items-center justify-center transition-all group/btn"
+                      title="Редактировать"
+                    >
+                      <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      onClick={() => {
+                        void removeSelected();
+                      }}
+                      className="w-8 h-8 rounded-full backdrop-blur-xl bg-red-500/20 border border-red-500/30 hover:bg-red-500/30 flex items-center justify-center transition-all group/btn"
+                      title="Удалить"
+                    >
+                      <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
           </>
         ) : (
           <>

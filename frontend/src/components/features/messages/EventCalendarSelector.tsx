@@ -32,6 +32,8 @@ export default function EventCalendarSelector({
   const [type, setType] = useState<'work' | 'meeting' | 'event' | 'holiday'>('event');
   const [creating, setCreating] = useState(false);
 
+  console.log('[EventCalendarSelector] Рендер:', { show, calendarListsCount: calendarLists?.length || 0, calendarLists });
+
   const normalizedMessage = useMemo(() => {
     const text = (message?.content || '').replace(/\s+/g, ' ').trim();
     return text;

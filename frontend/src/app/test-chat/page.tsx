@@ -61,6 +61,8 @@ export default function TestChat() {
   const [showTaskListSelector, setShowTaskListSelector] = useState(false);
   const [showEventCalendarSelector, setShowEventCalendarSelector] = useState(false);
   const [selectedMessageForAction, setSelectedMessageForAction] = useState<Message | null>(null);
+  const [todoLists, setTodoLists] = useState<any[]>([]);
+  const [calendarLists, setCalendarLists] = useState<any[]>([]);
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [chatSettings, setChatSettings] = useState({
@@ -539,10 +541,22 @@ export default function TestChat() {
         try {
           const msgRes = await fetch(`/api/chats/${chat.id}/messages`);
           if (!msgRes.ok) return chat;
-          const chatMessages: Message[] = await msgRes.json();
-          if (!chatMessages.length) return chat;
-          const lastMsg = chatMessages[chatMessages.length - 1];
-          const isMyMessage = lastMsg.authorId === currentUser.id;
+          const rawMessages: any[] = await msgRes.json();
+          if (!rawMessages.length) return chat;
+
+          const normalizedMessages = rawMessages.map((m: any) => ({
+            id: m.id,
+            content: m.content,
+            authorId: m.authorId ?? m.author_id,
+            createdAt: m.createdAt ?? m.created_at,
+          }));
+
+          const lastMsg = normalizedMessages[normalizedMessages.length - 1];
+          const isNotifications =
+            Boolean(chat.isNotificationsChat) ||
+            String(chat.id).startsWith('notifications-') ||
+            String(chat.id).startsWith('notifications_');
+          const isMyMessage = !isNotifications && String(lastMsg.authorId ?? '') === String(currentUser.id);
           const lastReadRaw = chat.readMessagesByUser?.[String(currentUser.id)];
           let lastReadAt = 0;
           if (lastReadRaw) {
@@ -550,7 +564,7 @@ export default function TestChat() {
             if (!Number.isNaN(asDate)) {
               lastReadAt = asDate;
             } else {
-              const markerMessage = chatMessages.find(m => String(m.id) === String(lastReadRaw));
+              const markerMessage = normalizedMessages.find(m => String(m.id) === String(lastReadRaw));
               if (markerMessage?.createdAt) {
                 const markerTime = new Date(markerMessage.createdAt).getTime();
                 lastReadAt = Number.isNaN(markerTime) ? 0 : markerTime;
@@ -558,7 +572,18 @@ export default function TestChat() {
             }
           }
           const isFav = chat.isFavoritesChat || String(chat.id).startsWith('favorites_');
-          const incomingUnreadCount = isFav ? 0 : chatMessages.filter(m => String(m.authorId) !== String(currentUser.id) && new Date(m.createdAt).getTime() > lastReadAt).length;
+          const getCreatedAtTs = (value: any) => {
+            const ts = new Date(value || 0).getTime();
+            return Number.isNaN(ts) ? 0 : ts;
+          };
+          const incomingUnreadCount = isFav
+            ? 0
+            : isNotifications
+              ? normalizedMessages.filter(m => getCreatedAtTs(m.createdAt) > lastReadAt).length
+              : normalizedMessages.filter(m => {
+                  const createdAtTs = getCreatedAtTs(m.createdAt);
+                  return createdAtTs > lastReadAt && String(m.authorId ?? '') !== String(currentUser.id);
+                }).length;
           return {
             ...chat,
             lastMessageContent: `${isMyMessage ? 'Вы: ' : ''}${lastMsg.content || ''}`,
@@ -1052,6 +1077,16 @@ export default function TestChat() {
 
   const handleForwardToChat = useCallback(async (targetChatId: string) => {
     if (!forwardingMessage || !currentUser) throw new Error('No message or user');
+
+    const forwardedFromUserId =
+      forwardingMessage.forwardedFromUserId ||
+      (forwardingMessage.metadata as any)?.forwardedFromUserId ||
+      forwardingMessage.authorId;
+    const forwardedFromUsername =
+      forwardingMessage.forwardedFromUsername ||
+      (forwardingMessage.metadata as any)?.forwardedFromUsername ||
+      (forwardingMessage.metadata as any)?.fromUserName ||
+      forwardingMessage.authorName;
     
     const res = await fetch(`/api/chats/${targetChatId}/messages`, {
       method: 'POST',
@@ -1061,6 +1096,8 @@ export default function TestChat() {
         authorId: currentUser.id,
         authorName: currentUser.name || currentUser.username,
         forwardedFrom: forwardingMessage.id,
+        forwardedFromUserId,
+        forwardedFromUsername,
       }),
     });
     
@@ -1069,6 +1106,62 @@ export default function TestChat() {
     // Обновляем список чатов
     await loadChats();
   }, [forwardingMessage, currentUser, loadChats]);
+
+  const loadTodoLists = useCallback(async () => {
+    try {
+      let userId = currentUser?.id;
+      if (!userId) {
+        const myAccountRaw = localStorage.getItem('myAccount');
+        if (myAccountRaw) {
+          const myAccount = JSON.parse(myAccountRaw);
+          userId = myAccount?.id;
+        }
+      }
+
+      const userIdQuery = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+      const res = await fetch(`/api/todos${userIdQuery}`);
+      if (!res.ok) {
+        console.error('[TEST-CHAT] Failed to load todo lists, status:', res.status);
+        setTodoLists([]);
+        return;
+      }
+
+      const data = await res.json();
+      const lists = Array.isArray(data?.lists) ? data.lists : (Array.isArray(data) ? data : []);
+      setTodoLists(lists);
+    } catch (error) {
+      console.error('[TEST-CHAT] Error loading todo lists:', error);
+      setTodoLists([]);
+    }
+  }, [currentUser?.id]);
+
+  const loadCalendarLists = useCallback(async () => {
+    try {
+      const username = localStorage.getItem('username') || '';
+      const myAccountRaw = localStorage.getItem('myAccount');
+      const myAccount = myAccountRaw ? JSON.parse(myAccountRaw) : null;
+
+      const params = new URLSearchParams();
+      if (myAccount?.id) params.set('userId', myAccount.id);
+      if (username) params.set('username', username);
+      if (myAccount?.department) params.set('department', myAccount.department);
+
+      const url = params.toString() ? `/api/calendar-lists?${params.toString()}` : '/api/calendar-lists';
+      const res = await fetch(url);
+      if (!res.ok) {
+        console.error('[TEST-CHAT] Failed to load calendar lists, status:', res.status);
+        setCalendarLists([]);
+        return;
+      }
+
+      const data = await res.json();
+      const lists = Array.isArray(data) ? data : (Array.isArray(data?.lists) ? data.lists : []);
+      setCalendarLists(lists);
+    } catch (error) {
+      console.error('[TEST-CHAT] Error loading calendar lists:', error);
+      setCalendarLists([]);
+    }
+  }, []);
 
   // Возврат к списку чатов на мобильных
   const handleBack = () => {
@@ -1150,6 +1243,15 @@ export default function TestChat() {
             authorId: currentUser.id,
             authorName: currentUser.name || currentUser.username,
             forwardedFrom: message.id,
+            forwardedFromUserId:
+              message.forwardedFromUserId ||
+              (message.metadata as any)?.forwardedFromUserId ||
+              message.authorId,
+            forwardedFromUsername:
+              message.forwardedFromUsername ||
+              (message.metadata as any)?.forwardedFromUsername ||
+              (message.metadata as any)?.fromUserName ||
+              message.authorName,
             attachments: message.attachments || []
           })
         });
@@ -1243,6 +1345,79 @@ export default function TestChat() {
       await loadChats();
     } catch (err) {
       console.error('[TEST-CHAT] Failed to delete chat:', err);
+    }
+  }, [currentChatId, loadChats]);
+
+  const addParticipantToCurrentGroup = useCallback(async (userId: string) => {
+    if (!currentChatId) return;
+    try {
+      const res = await fetch(`/api/chats/${encodeURIComponent(currentChatId)}/participants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) throw new Error(`Add participant failed (${res.status})`);
+      await loadChats();
+      loadMessagesFromServer(currentChatId, true);
+    } catch (err) {
+      console.error('[TEST-CHAT] Failed to add participant:', err);
+      alert('Не удалось добавить участника');
+    }
+  }, [currentChatId, loadChats, loadMessagesFromServer]);
+
+  const removeParticipantFromCurrentGroup = useCallback(async (userId: string) => {
+    if (!currentChatId) return;
+    try {
+      const res = await fetch(`/api/chats/${encodeURIComponent(currentChatId)}/participants/${encodeURIComponent(userId)}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error(`Remove participant failed (${res.status})`);
+      await loadChats();
+      loadMessagesFromServer(currentChatId, true);
+    } catch (err) {
+      console.error('[TEST-CHAT] Failed to remove participant:', err);
+      alert('Не удалось удалить участника');
+    }
+  }, [currentChatId, loadChats, loadMessagesFromServer]);
+
+  const updateCurrentChatAvatar = useCallback(async (file: File) => {
+    if (!currentChatId) return;
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const uploadRes = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!uploadRes.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const uploadData = await uploadRes.json();
+      const avatarUrl = uploadData?.url;
+      if (!avatarUrl) {
+        throw new Error('Avatar URL is missing');
+      }
+
+      const updateRes = await fetch(`/api/chats/${encodeURIComponent(currentChatId)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatar: avatarUrl }),
+      });
+      if (!updateRes.ok) {
+        throw new Error('Chat update failed');
+      }
+
+      setChats(prev => prev.map(chat =>
+        chat.id === currentChatId
+          ? { ...chat, avatar: avatarUrl }
+          : chat
+      ));
+      await loadChats();
+    } catch (err) {
+      console.error('[TEST-CHAT] Failed to update chat avatar:', err);
+      alert('Не удалось обновить аватар чата');
     }
   }, [currentChatId, loadChats]);
 
@@ -1365,6 +1540,9 @@ export default function TestChat() {
     });
 
   const currentChat = chats.find(c => c.id === currentChatId);
+  const canManageCurrentGroup = !!currentChat &&
+    (!!(currentChat as any).isGroup || ((currentChat.participantIds?.length ?? 0) > 2)) &&
+    String((currentChat as any).creatorId ?? '') === String(currentUser?.id ?? '');
   const selectedChatForTimeline = currentChat ? {
     ...currentChat,
     title: (currentChat as any).displayTitle || currentChat.title || 'Чат'
@@ -1424,6 +1602,7 @@ export default function TestChat() {
           chats={visibleChats}
           currentChatId={currentChatId}
           currentUser={currentUser}
+          users={users}
           isLoading={isLoading}
           searchQuery={searchQuery}
           showArchivedChats={showArchivedChats}
@@ -1570,6 +1749,7 @@ export default function TestChat() {
                   scrollTopPadding={hasPinnedMessages ? (isBelow768 ? 125 : 88) : (isBelow768 ? 100 : 72)}
                   // Keep room for floating composer.
                   scrollBottomPadding={composerDockHeight}
+                  enableDragSelect={false}
                   setSelectedMessages={setSelectedMessages}
                   setIsSelectionMode={setIsSelectionMode}
                   setContextMenuMessage={setContextMenuMessage}
@@ -1670,6 +1850,10 @@ export default function TestChat() {
                   messages={messages}
                   users={users}
                   currentUser={currentUser}
+                  canManageGroup={canManageCurrentGroup}
+                  onAddParticipant={addParticipantToCurrentGroup}
+                  onRemoveParticipant={removeParticipantFromCurrentGroup}
+                  onUpdateChatAvatar={updateCurrentChatAvatar}
                   onClose={() => setShowProfilePanel(false)}
                   onArchiveChat={(chatId) => void toggleArchiveChat(chatId)}
                   onDeleteChat={(chatId) => {
@@ -1787,12 +1971,12 @@ export default function TestChat() {
             setSelectedMessageForAction(msg);
             setShowTaskListSelector(true);
           }}
-          onLoadTodoLists={async () => {}}
+          onLoadTodoLists={loadTodoLists}
           onShowEventSelector={(msg) => {
             setSelectedMessageForAction(msg);
             setShowEventCalendarSelector(true);
           }}
-          onLoadCalendars={async () => {}}
+          onLoadCalendars={loadCalendarLists}
           onTogglePin={handleTogglePin}
           onSelect={handleStartSelection}
           canPinMessage
@@ -1857,6 +2041,8 @@ export default function TestChat() {
         }}
         message={forwardingMessage}
         chats={chats}
+        users={users}
+        currentUser={currentUser}
         currentChatId={currentChatId}
         onForward={handleForwardToChat}
       />
@@ -1865,7 +2051,8 @@ export default function TestChat() {
         <TaskListSelector
           show={showTaskListSelector}
           message={selectedMessageForAction}
-          todoLists={[]}
+          todoLists={todoLists}
+          currentUserId={currentUser?.id}
           onClose={() => {
             setShowTaskListSelector(false);
             setSelectedMessageForAction(null);
@@ -1877,7 +2064,7 @@ export default function TestChat() {
         <EventCalendarSelector
           show={showEventCalendarSelector}
           message={selectedMessageForAction}
-          calendarLists={[]}
+          calendarLists={calendarLists}
           onClose={() => {
             setShowEventCalendarSelector(false);
             setSelectedMessageForAction(null);

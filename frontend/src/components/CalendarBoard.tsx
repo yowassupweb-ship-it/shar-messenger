@@ -916,39 +916,6 @@ export default function CalendarBoard() {
       {/* Градиент фона */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#007aff]/20 via-[#0a84ff]/5 to-transparent z-0 pointer-events-none" />
       
-      {/* Фоновый узор из настроек - ПОВЕРХ градиента */}
-      {(() => {
-        const overlayImage = theme === 'dark'
-          ? String(chatSettings?.chatOverlayImageDark || '').trim()
-          : String(chatSettings?.chatOverlayImageLight || '').trim();
-        const overlayScale = Math.max(20, Math.min(200, Number(chatSettings?.chatOverlayScale ?? 100) || 100));
-        const overlayOpacity = Math.max(0, Math.min(1, Number(chatSettings?.chatOverlayOpacity ?? 1) || 1));
-        
-        console.log('[CalendarBoard] Рендеринг overlay:', {
-          theme,
-          overlayImage: overlayImage ? overlayImage.substring(0, 50) + '...' : 'НЕТ',
-          overlayScale,
-          overlayOpacity,
-          willRender: !!overlayImage
-        });
-        
-        if (!overlayImage) return null;
-        
-        return (
-          <div 
-            className="absolute inset-0 z-[1] pointer-events-none"
-            style={{
-              backgroundImage: `url('${overlayImage}')`,
-              backgroundSize: `${overlayScale * 3}px`,
-              backgroundRepeat: 'repeat',
-              backgroundPosition: 'center center',
-              backgroundAttachment: 'fixed',
-              opacity: overlayOpacity,
-            }}
-          />
-        );
-      })()}
-      
       {/* Контент относительно z-index */}
       <div className="relative z-10 h-full flex flex-col border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden overflow-x-hidden">
       {showSharedCalendarToast && (
@@ -1348,6 +1315,7 @@ export default function CalendarBoard() {
                       ${isToday ? 'ring-2 ring-inset ring-blue-500/30 bg-blue-50/70 dark:bg-blue-500/5 backdrop-blur-md' : ''}
                       ${isWeekend && isCurrentMonth && !isToday ? 'bg-pink-100/60 dark:bg-pink-900/25' : ''}
                       group hover:bg-gray-50/90 dark:hover:bg-white/5 transition-colors
+                      ${totalItems > 4 ? 'min-h-[180px] sm:min-h-[220px]' : totalItems > 2 ? 'min-h-[130px] sm:min-h-[160px]' : ''}
                     `}
                   >
                     {/* Day Number */}
@@ -1362,7 +1330,7 @@ export default function CalendarBoard() {
                         {date.getDate()}
                       </span>
                       {totalItems > 0 && (
-                        <span className="text-[9px] bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-white/60 px-1 rounded font-medium">
+                        <span className="text-[9px] bg-gradient-to-r from-blue-500/20 to-purple-500/20 dark:from-blue-400/20 dark:to-purple-400/20 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded-full font-semibold border border-blue-300/30 dark:border-blue-500/30">
                           {totalItems}
                         </span>
                       )}
@@ -1380,30 +1348,33 @@ export default function CalendarBoard() {
 
                     {/* Events */}
                     <div className="space-y-0.5 sm:space-y-1">
-                      {dayEvents.slice(0, 2).map(event => {
+                      {dayEvents.map(event => {
                         const colors = EVENT_COLORS[event.type] || EVENT_COLORS.work;
                         return (
                           <div
                             key={event.id}
                             onClick={() => handleEditEvent(event)}
                             className={`
-                              text-[8px] sm:text-[9px] px-1 sm:px-1.5 py-0.5 sm:py-1 rounded cursor-pointer transition-all
-                              border-l-2 ${colors.border} ${colors.text}
-                              bg-white/60 dark:bg-white/10 backdrop-blur-md border border-white/30 dark:border-white/10
-                              hover:shadow-md group/item overflow-hidden max-w-full
+                              text-[8px] sm:text-[9px] px-1.5 sm:px-2 py-1 sm:py-1.5 rounded-lg cursor-pointer transition-all
+                              ${colors.text}
+                              bg-gradient-to-r ${colors.bg} backdrop-blur-md 
+                              border-l-3 ${colors.border}
+                              shadow-sm hover:shadow-lg hover:scale-[1.02] hover:z-10
+                              group/item overflow-hidden max-w-full
+                              relative
                             `}
                             title={`${event.title}${event.time ? ` (${event.time})` : ''}${event.description ? `\n${event.description}` : ''}${event.recurrence && event.recurrence !== 'once' ? ' (Повторяется)' : ''}`}
                           >
                             <div className="flex items-center justify-between gap-0.5 sm:gap-1 min-w-0">
-                              <div className="flex-1 min-w-0 overflow-hidden flex items-center gap-0.5">
+                              <div className="flex-1 min-w-0 overflow-hidden flex items-center gap-0.5 sm:gap-1">
                                 {event.recurrence && event.recurrence !== 'once' && (
-                                  <RefreshCw className="w-2 h-2 sm:w-2.5 sm:h-2.5 flex-shrink-0 opacity-60" />
+                                  <RefreshCw className="w-2 h-2 sm:w-2.5 sm:h-2.5 flex-shrink-0 opacity-70" />
                                 )}
                                 <div className="flex-1 min-w-0">
                                   {event.time && (
-                                    <span className="text-[7px] sm:text-[8px] font-semibold opacity-70 whitespace-nowrap">{event.time} </span>
+                                    <span className="text-[8px] sm:text-[9px] font-bold opacity-80 whitespace-nowrap block">{event.time}</span>
                                   )}
-                                  <span className="font-medium truncate whitespace-nowrap">{event.title}</span>
+                                  <span className="font-semibold truncate whitespace-nowrap block">{event.title}</span>
                                 </div>
                               </div>
                               <button
@@ -1411,7 +1382,7 @@ export default function CalendarBoard() {
                                   e.stopPropagation();
                                   handleDeleteEvent(event.id);
                                 }}
-                                className="opacity-0 group-hover/item:opacity-100 transition-opacity hidden sm:block"
+                                className="opacity-0 group-hover/item:opacity-100 transition-opacity hidden sm:block flex-shrink-0 hover:bg-red-500/20 rounded p-0.5"
                               >
                                 <X className="w-2.5 h-2.5" />
                               </button>
@@ -1419,12 +1390,6 @@ export default function CalendarBoard() {
                           </div>
                         );
                       })}
-
-                      {totalItems > 2 && (
-                        <div className="text-[8px] text-gray-500 dark:text-white/40 px-1.5 py-0.5 bg-gray-100 dark:bg-white/5 rounded text-center font-medium">
-                          +{totalItems - 2}
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
@@ -1506,13 +1471,14 @@ export default function CalendarBoard() {
       {/* Add/Edit Event Modal */}
       {showAddEvent && (selectedDate || editingEvent) && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 sm:p-4">
-          <div className="bg-gradient-to-br from-white/96 to-white/90 dark:from-[var(--bg-secondary)] dark:to-[var(--bg-secondary)]/90 rounded-t-2xl sm:rounded-2xl border-t sm:border border-gray-200/80 dark:border-white/10 w-full sm:max-w-[860px] lg:max-w-[980px] shadow-[0_20px_60px_rgba(0,0,0,0.28)] max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200/80 dark:border-white/10 flex-shrink-0 bg-white/70 dark:bg-white/[0.03] backdrop-blur-sm">
-              <h3 className="font-semibold text-sm sm:text-base text-gray-900 dark:text-white tracking-tight">
+          <div className="bg-white dark:bg-[#1e293b] rounded-t-[50px] sm:rounded-[50px] border-t sm:border border-gray-200 dark:border-gray-700 w-full sm:max-w-[600px] shadow-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+              <h3 className="font-semibold text-base sm:text-lg text-gray-900 dark:text-white">
                 {editingEvent ? (
                   <>Редактировать событие</>
                 ) : (
-                  <>Добавить событие - {selectedDate?.getDate()} {selectedDate && MONTHS[selectedDate.getMonth()]}</>
+                  <>Новое событие</>
                 )}
               </h3>
               <button
@@ -1521,69 +1487,76 @@ export default function CalendarBoard() {
                   setEditingEvent(null);
                   setNewEvent({ title: '', time: '', remind: false, description: '', type: 'work', recurrence: 'once' });
                 }}
-                className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl transition-colors"
+                className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-[50px] transition-colors"
               >
-                <X className="w-5 h-5 text-gray-500 dark:text-white/60" />
+                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
               </button>
             </div>
 
-            <div className="p-3 sm:p-4 space-y-3 overflow-y-auto flex-1 min-h-0 bg-gradient-to-b from-white/20 to-transparent dark:from-transparent">
+            {/* Content */}
+            <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
+              {/* Title Input */}
               <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-white/60 mb-1">Название</label>
+                <label className="block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Название события</label>
                 <input
                   type="text"
                   value={newEvent.title}
                   onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
-                  placeholder="Встреча, звонок, дедлайн..."
-                  className="w-full px-4 py-2.5 bg-gradient-to-r from-white/75 to-white/55 dark:from-white/10 dark:to-white/5 border border-gray-200/80 dark:border-white/15 rounded-[20px] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-900 dark:text-white backdrop-blur-xl"
+                  placeholder="Еще проверка"
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-[50px] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   autoFocus
                 />
               </div>
 
+              {/* Description */}
               <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-white/60 mb-1">Описание</label>
+                <label className="block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Описание</label>
                 <textarea
                   value={newEvent.description}
                   onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
-                  placeholder="Детали события..."
+                  placeholder="Добавьте детали, ссылки, заметки..."
                   rows={3}
-                  className="w-full px-4 py-2.5 bg-gradient-to-r from-white/75 to-white/55 dark:from-white/10 dark:to-white/5 border border-gray-200/80 dark:border-white/15 rounded-[20px] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-900 dark:text-white resize-none backdrop-blur-xl"
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-[50px] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white resize-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
                 />
               </div>
 
+              {/* Time & Reminder */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Время</label>
+                  <input
+                    type="time"
+                    value={newEvent.time}
+                    onChange={(e) => setNewEvent({ ...newEvent, time: e.target.value })}
+                    className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-[50px] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div className="flex items-end">
+                  <label className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-[50px] cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full">
+                    <input
+                      id="event-remind"
+                      type="checkbox"
+                      checked={newEvent.remind}
+                      onChange={(e) => setNewEvent({ ...newEvent, remind: e.target.checked })}
+                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 flex-1">Напомнить</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Event Type */}
               <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-white/60 mb-1">Время</label>
-                <input
-                  type="time"
-                  value={newEvent.time}
-                  onChange={(e) => setNewEvent({ ...newEvent, time: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-gradient-to-r from-white/75 to-white/55 dark:from-white/10 dark:to-white/5 border border-gray-200/80 dark:border-white/15 rounded-[20px] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-900 dark:text-white backdrop-blur-xl"
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  id="event-remind"
-                  type="checkbox"
-                  checked={newEvent.remind}
-                  onChange={(e) => setNewEvent({ ...newEvent, remind: e.target.checked })}
-                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <label htmlFor="event-remind" className="text-xs font-medium text-gray-600 dark:text-white/60">
-                  Напомнить
-                </label>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-white/60 mb-1">Тип</label>
-                <div className="flex gap-1.5 flex-wrap">
+                <label className="block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Тип события</label>
+                <div className="flex gap-2 flex-wrap">
                   <button
                     type="button"
                     onClick={() => setNewEvent({ ...newEvent, type: 'work' })}
-                    className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
+                    className={`px-4 py-2 rounded-[50px] text-sm font-medium transition-colors ${
                       newEvent.type === 'work' 
-                        ? 'bg-gradient-to-br from-blue-500/20 to-blue-600/30 text-blue-500 dark:text-blue-400 ring-1 ring-blue-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
-                        : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-blue-500/10 hover:to-blue-600/20 hover:text-blue-500 dark:hover:text-blue-400 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                     }`}
                   >
                     Работа
@@ -1591,10 +1564,10 @@ export default function CalendarBoard() {
                   <button
                     type="button"
                     onClick={() => setNewEvent({ ...newEvent, type: 'meeting' })}
-                    className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
+                    className={`px-4 py-2 rounded-[50px] text-sm font-medium transition-colors ${
                       newEvent.type === 'meeting' 
-                        ? 'bg-gradient-to-br from-purple-500/20 to-purple-600/30 text-purple-500 dark:text-purple-400 ring-1 ring-purple-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
-                        : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-purple-500/10 hover:to-purple-600/20 hover:text-purple-500 dark:hover:text-purple-400 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
+                        ? 'bg-purple-600 text-white' 
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                     }`}
                   >
                     Встреча
@@ -1602,10 +1575,10 @@ export default function CalendarBoard() {
                   <button
                     type="button"
                     onClick={() => setNewEvent({ ...newEvent, type: 'event' })}
-                    className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
+                    className={`px-4 py-2 rounded-[50px] text-sm font-medium transition-colors ${
                       newEvent.type === 'event' 
-                        ? 'bg-gradient-to-br from-green-500/20 to-green-600/30 text-green-500 dark:text-green-400 ring-1 ring-green-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
-                        : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-green-500/10 hover:to-green-600/20 hover:text-green-500 dark:hover:text-green-400 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
+                        ? 'bg-green-600 text-white' 
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                     }`}
                   >
                     Событие
@@ -1613,10 +1586,10 @@ export default function CalendarBoard() {
                   <button
                     type="button"
                     onClick={() => setNewEvent({ ...newEvent, type: 'holiday' })}
-                    className={`px-2 py-1.5 rounded-full text-[11px] font-medium transition-all ${
+                    className={`px-4 py-2 rounded-[50px] text-sm font-medium transition-colors ${
                       newEvent.type === 'holiday' 
-                        ? 'bg-gradient-to-br from-pink-500/20 to-pink-600/30 text-pink-500 dark:text-pink-400 ring-1 ring-pink-500/50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm' 
-                        : 'bg-gradient-to-br from-white/5 to-white/10 text-gray-500 dark:text-white/50 hover:from-pink-500/10 hover:to-pink-600/20 hover:text-pink-500 dark:hover:text-pink-400 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] backdrop-blur-sm border border-white/10'
+                        ? 'bg-pink-600 text-white' 
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                     }`}
                   >
                     Праздник
@@ -1624,9 +1597,10 @@ export default function CalendarBoard() {
                 </div>
               </div>
 
+              {/* Recurrence */}
               <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-white/60 mb-1.5">Повторение</label>
-                <div className="grid grid-cols-2 gap-2">
+                <label className="block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Повторение</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {[
                     { value: 'once', label: 'Не повторять' },
                     { value: 'daily', label: 'Каждый день' },
@@ -1640,10 +1614,10 @@ export default function CalendarBoard() {
                       key={option.value}
                       type="button"
                       onClick={() => setNewEvent({ ...newEvent, recurrence: option.value as any })}
-                      className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                      className={`px-3 py-2 rounded-[50px] text-xs font-medium transition-colors ${
                         newEvent.recurrence === option.value
-                          ? 'bg-blue-500 text-white shadow-md'
-                          : 'bg-white/70 dark:bg-white/5 text-gray-700 dark:text-white/70 border border-gray-200/70 dark:border-white/10 hover:bg-white dark:hover:bg-white/10'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                       }`}
                     >
                       {option.label}
@@ -1652,9 +1626,10 @@ export default function CalendarBoard() {
                 </div>
               </div>
 
+              {/* Author Info */}
               {editingEvent && (
-                <div className="rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 px-3 py-2">
-                  <div className="text-[11px] text-gray-500 dark:text-white/50">Автор события</div>
+                <div className="rounded-[50px] border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Автор события</div>
                   <div className="text-sm font-medium text-gray-900 dark:text-white">
                     {resolveEventAuthorName(editingEvent)}
                   </div>
@@ -1662,7 +1637,8 @@ export default function CalendarBoard() {
               )}
             </div>
 
-            <div className="flex gap-2 p-3 sm:p-4 border-t border-gray-200/80 dark:border-white/10 flex-shrink-0 bg-white/75 dark:bg-white/[0.03] backdrop-blur-sm">
+            {/* Footer */}
+            <div className="flex gap-2 p-4 sm:p-5 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
               {editingEvent && (
                 <>
                   <button
@@ -1670,7 +1646,7 @@ export default function CalendarBoard() {
                     onClick={() => {
                       handleDeleteEvent(editingEvent.id);
                     }}
-                    className="px-3 sm:px-4 py-2 sm:py-2.5 bg-red-500 text-white hover:bg-red-600 rounded-xl text-sm font-medium transition-colors"
+                    className="px-4 py-2.5 bg-red-600 text-white hover:bg-red-700 rounded-[50px] text-sm font-medium transition-colors"
                   >
                     Удалить
                   </button>
@@ -1685,7 +1661,7 @@ export default function CalendarBoard() {
                           setNewEvent({ title: '', time: '', remind: false, description: '', type: 'work', recurrence: 'once' });
                         }
                       }}
-                      className="px-3 sm:px-4 py-2 sm:py-2.5 bg-orange-500 text-white hover:bg-orange-600 rounded-xl text-sm font-medium transition-colors"
+                      className="px-4 py-2.5 bg-orange-600 text-white hover:bg-orange-700 rounded-[50px] text-sm font-medium transition-colors whitespace-nowrap"
                     >
                       Удалить серию ({editingRecurringGroupSize})
                     </button>
@@ -1695,7 +1671,7 @@ export default function CalendarBoard() {
               <button
                 onClick={editingEvent ? handleUpdateEvent : handleAddEvent}
                 disabled={!newEvent.title.trim()}
-                className="flex-1 py-2 sm:py-2.5 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white rounded-xl text-sm font-medium transition-colors disabled:cursor-not-allowed"
+                className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white rounded-[50px] text-sm font-medium transition-colors disabled:cursor-not-allowed"
               >
                 {editingEvent ? 'Сохранить' : 'Добавить'}
               </button>
@@ -1705,7 +1681,7 @@ export default function CalendarBoard() {
                   setEditingEvent(null);
                   setNewEvent({ title: '', time: '', remind: false, description: '', type: 'work', recurrence: 'once' });
                 }}
-                className="px-3 sm:px-4 py-2 sm:py-2.5 bg-white dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/20 border border-gray-200/80 dark:border-white/10 text-gray-700 dark:text-white rounded-xl text-sm font-medium transition-colors"
+                className="px-4 py-2.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-[50px] text-sm font-medium transition-colors"
               >
                 Отмена
               </button>

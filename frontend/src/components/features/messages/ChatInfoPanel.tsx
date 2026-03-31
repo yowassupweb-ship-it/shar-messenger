@@ -3,6 +3,7 @@ import {
   ArrowLeft, 
   X, 
   Mail, 
+  Camera,
   Edit3, 
   CheckSquare, 
   Plus, 
@@ -32,6 +33,7 @@ export interface ChatInfoPanelProps {
   scrollToMessage: (messageId: string) => void;
   getChatAvatarData: (chat: Chat) => { avatar: string | undefined; name: string; type: 'user' | 'group' | 'favorites' | 'notifications' | 'system' };
   getChatTitle: (chat: Chat) => string;
+  onUpdateChatAvatar: (file: File) => Promise<void>;
 }
 
 const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
@@ -51,8 +53,11 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
   scrollToMessage,
   getChatAvatarData,
   getChatTitle,
+  onUpdateChatAvatar,
 }) => {
   const router = useRouter();
+  const avatarInputRef = React.useRef<HTMLInputElement>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = React.useState(false);
   const [viewportWidth, setViewportWidth] = React.useState(() => {
     if (typeof window === 'undefined') return 1440;
     return window.innerWidth;
@@ -73,6 +78,10 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
 
   const isModalView = viewportWidth < 1300;
   const isMobileView = viewportWidth < 768;
+  const currentUserId = String(currentUser?.id ?? '');
+  const chatCreatorId = String(selectedChat?.creatorId ?? '');
+  const canManageGroup = Boolean(selectedChat?.isGroup && chatCreatorId && chatCreatorId === currentUserId);
+  const canEditGroupAvatar = canManageGroup;
 
   // Desktop layout constants (matching ChatSidebar)
   const desktopBottomMenuHeight = 46;
@@ -80,8 +89,8 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
   const desktopBottomOffset = desktopBottomMenuHeight + desktopBottomGap;
 
   // Определяем собеседника (не текущий пользователь)
-  const otherParticipantId = selectedChat?.participantIds?.find(id => id !== currentUser?.id);
-  const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : null;
+  const otherParticipantId = selectedChat?.participantIds?.find(id => String(id) !== currentUserId);
+  const otherUser = otherParticipantId ? users.find(u => String(u.id) === String(otherParticipantId)) : null;
   
   // Статистика вложений
   const mediaCount = messages.filter(m => m.attachments?.some(a => a.type === 'image')).length;
@@ -296,20 +305,52 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
           {(() => {
             const avatarData = getChatAvatarData(selectedChat!);
             return (
-              <div className="mb-3">
+              <div className="mb-3 relative">
                 <Avatar
                   src={avatarData.avatar}
                   name={avatarData.name}
                   type={avatarData.type}
                   size="xl"
                 />
+                {canEditGroupAvatar && (
+                  <>
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          setIsUploadingAvatar(true);
+                          await onUpdateChatAvatar(file);
+                        } catch (error) {
+                          console.error('Error updating chat avatar:', error);
+                        } finally {
+                          setIsUploadingAvatar(false);
+                          e.currentTarget.value = '';
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => avatarInputRef.current?.click()}
+                      disabled={isUploadingAvatar}
+                      className="absolute -right-1 -bottom-1 w-8 h-8 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-color)] flex items-center justify-center hover:bg-[var(--bg-tertiary)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                      title={isUploadingAvatar ? 'Загрузка аватара...' : 'Изменить аватар чата'}
+                    >
+                      <Camera className="w-4 h-4 text-[var(--text-primary)]" />
+                    </button>
+                  </>
+                )}
               </div>
             );
           })()}
           <div className="flex items-center gap-2">
             <h3 className="font-semibold text-lg text-center">{getChatTitle(selectedChat!)}</h3>
             {/* Кнопка переименования - только для создателя группы */}
-            {selectedChat?.isGroup && selectedChat.creatorId === currentUser?.id && (
+            {canManageGroup && (
               <button
                 onClick={() => {
                   setNewChatName(selectedChat.title || '');
@@ -484,7 +525,7 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
         {chatInfoTab === 'participants' && selectedChat?.isGroup && (
           <div className="pb-20">
             {/* Кнопка добавить участника - только для создателя */}
-            {selectedChat.creatorId === currentUser?.id && (
+            {canManageGroup && (
               <button
                 onClick={() => setShowAddParticipantModal(true)}
                 className="w-full p-3 mb-3 rounded-xl bg-[var(--bg-glass)] border border-[var(--border-light)] hover:bg-[var(--bg-primary)] transition-colors flex items-center gap-3"
@@ -499,10 +540,10 @@ const ChatInfoPanel: React.FC<ChatInfoPanelProps> = ({
             {/* Список участников */}
             <div className="space-y-2">
               {selectedChat.participantIds.map(participantId => {
-                const participant = users.find(u => u.id === participantId);
-                const isCreator = participantId === selectedChat.creatorId;
-                const isCurrentUser = participantId === currentUser?.id;
-                const canRemove = selectedChat.creatorId === currentUser?.id && !isCurrentUser;
+                const participant = users.find(u => String(u.id) === String(participantId));
+                const isCreator = String(participantId) === chatCreatorId;
+                const isCurrentUser = String(participantId) === currentUserId;
+                const canRemove = canManageGroup && !isCurrentUser;
                 
                 // Отладочное логирование
                 if (isCurrentUser) {

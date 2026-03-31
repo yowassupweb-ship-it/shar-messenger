@@ -556,6 +556,7 @@ class PostgresDatabase:
             self.conn.execute_query("ALTER TABLE chats ADD COLUMN IF NOT EXISTS pinned_order_by_user JSONB DEFAULT '{}'::jsonb")
             self.conn.execute_query("ALTER TABLE chats ADD COLUMN IF NOT EXISTS archived_by_user JSONB DEFAULT '{}'::jsonb")
             self.conn.execute_query("ALTER TABLE chats ADD COLUMN IF NOT EXISTS discussion_status VARCHAR(50)")
+            self.conn.execute_query("ALTER TABLE chats ADD COLUMN IF NOT EXISTS avatar TEXT")
         except Exception as e:
             print(f"Error ensuring chats columns: {e}")
 
@@ -624,6 +625,7 @@ class PostgresDatabase:
         
         field_mapping = {
             'title': 'title',
+            'avatar': 'avatar',
             'is_group': 'is_group',
             'isGroup': 'is_group',
             'todo_id': 'todo_id',
@@ -698,8 +700,8 @@ class PostgresDatabase:
         query = """
             INSERT INTO chats 
             (id, title, is_group, todo_id, is_notifications_chat, is_system_chat, is_favorites_chat, 
-             creator_id, read_messages_by_user, pinned_by_user, pinned_order_by_user, archived_by_user, discussion_status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             creator_id, read_messages_by_user, pinned_by_user, pinned_order_by_user, archived_by_user, discussion_status, avatar)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
         """
         params = (
@@ -716,6 +718,7 @@ class PostgresDatabase:
             Json(chat.get('pinned_order_by_user', chat.get('pinnedOrderByUser', {}))),
             Json(chat.get('archived_by_user', chat.get('archivedByUser', {}))),
             chat.get('discussion_status', chat.get('discussionStatus')),
+            chat.get('avatar')
         )
         result = self.conn.fetch_one(query, params)
         
@@ -1275,30 +1278,41 @@ class PostgresDatabase:
     # ==================== TODO LISTS ====================
     def get_todo_lists(self, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get all todo lists, optionally filtered by user"""
+        print(f"[get_todo_lists] Запрос списков для user_id={user_id}")
+        
         if user_id:
             # Получаем информацию о пользователе
-            user_query = "SELECT can_see_all_tasks, department, is_department_head, role FROM users WHERE id = %s"
+            user_query = "SELECT can_see_all_tasks, department, is_department_head, role, name FROM users WHERE id = %s"
             user_result = self.conn.fetch_one(user_query, (user_id,))
             
             if not user_result:
+                print(f"[get_todo_lists] Пользователь {user_id} не найден!")
                 return []
             
             can_see_all = user_result.get('can_see_all_tasks', False)
             is_admin = user_result.get('role') == 'admin'
             is_dept_head = user_result.get('is_department_head', False)
             user_dept = user_result.get('department')
+            user_name = user_result.get('name')
+            
+            print(f"[get_todo_lists] Пользователь: {user_name}, can_see_all={can_see_all}, is_admin={is_admin}, dept={user_dept}")
             
             # Админы и пользователи с can_see_all_tasks видят все списки
             if is_admin or can_see_all:
+                print(f"[get_todo_lists] Пользователь - админ или имеет can_see_all_tasks, возвращаем все списки")
                 query = "SELECT * FROM todo_lists ORDER BY list_order, created_at"
-                return self.conn.fetch_all(query)
+                result = self.conn.fetch_all(query)
+                print(f"[get_todo_lists] Найдено списков для админа: {len(result)}")
+                return result
             
             # Начальники отдела видят списки своих подчиненных
             if is_dept_head and user_dept:
+                print(f"[get_todo_lists] Пользователь - начальник отдела {user_dept}")
                 # Получаем ID всех пользователей отдела
                 dept_users_query = "SELECT id FROM users WHERE department = %s"
                 dept_users = self.conn.fetch_all(dept_users_query, (user_dept,))
                 dept_user_ids = [u['id'] for u in dept_users]
+                print(f"[get_todo_lists] Сотрудников в отделе: {len(dept_user_ids)}")
                 
                 # Списки созданные сотрудниками отдела + списки с задачами где участвуют сотрудники отдела
                 if dept_user_ids:
@@ -1325,23 +1339,44 @@ class PostgresDatabase:
                         ORDER BY l.list_order, l.created_at
                     """
                     params = tuple(dept_user_ids + dept_user_ids + dept_user_ids + assigned_to_params)
-                    return self.conn.fetch_all(query, tuple(params))
+                    result = self.conn.fetch_all(query, tuple(params))
+                    print(f"[get_todo_lists] Найдено списков для начальника отдела: {len(result)}")
+                    return result
             
+            print(f"[get_todo_lists] Обычный пользователь без специальных прав")
             # Обычные пользователи видят списки где:
             # 1. Они создатели (даже если список пустой)
             # 2. Есть задачи где они участники
+            # 3. Список публичный (allowed_users и allowed_departments пустые или NULL)
+            # 4. Они в allowed_users
+            # 5. Их отдел в allowed_departments
             query = """
                 SELECT DISTINCT l.* FROM todo_lists l
                 WHERE l.creator_id = %s
                 OR l.id IN (
                     SELECT DISTINCT list_id FROM tasks 
                     WHERE assigned_by_id = %s
-                    OR assigned_to = (SELECT name FROM users WHERE id = %s)
+                    OR assigned_to = %s
                     OR assigned_to_ids::jsonb @> %s::jsonb
+                )
+                OR (
+                    (l.allowed_users IS NULL OR l.allowed_users::text = '[]' OR l.allowed_users::text = 'null')
+                    AND (l.allowed_departments IS NULL OR l.allowed_departments::text = '[]' OR l.allowed_departments::text = 'null')
+                )
+                OR (l.allowed_users IS NOT NULL AND (l.allowed_users::jsonb @> %s::jsonb OR l.allowed_users::jsonb @> %s::jsonb))
+                OR (
+                    %s IS NOT NULL 
+                    AND l.allowed_departments IS NOT NULL 
+                    AND l.allowed_departments::jsonb @> %s::jsonb
                 )
                 ORDER BY l.list_order, l.created_at
             """
-            return self.conn.fetch_all(query, (user_id, user_id, user_id, f'["{user_id}"]'))
+            dept_json = f'["{user_dept}"]' if user_dept else None
+            result = self.conn.fetch_all(query, (user_id, user_id, user_name, f'["{user_id}"]', f'["{user_id}"]', f'["{user_name}"]', user_dept, dept_json))
+            print(f"[get_todo_lists] Найдено списков для обычного пользователя: {len(result)}")
+            if len(result) == 0:
+                print(f"[get_todo_lists] WARNING: Проверьте права доступа для пользователя {user_id} ({user_name})")
+            return result
         else:
             query = "SELECT * FROM todo_lists ORDER BY list_order, created_at"
             return self.conn.fetch_all(query)

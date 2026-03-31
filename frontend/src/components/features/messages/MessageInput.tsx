@@ -173,6 +173,22 @@ const MessageInput: React.FC<MessageInputProps> = ({
   }, []);
 
   const [composerBottomOffset, setComposerBottomOffset] = React.useState(() => getCurrentNavOffset());
+  const [isMobileViewport, setIsMobileViewport] = React.useState(() => {
+    if (typeof window === 'undefined') return false;
+    const isTouch = window.matchMedia('(pointer: coarse)').matches;
+    return window.innerWidth < 773 || isTouch;
+  });
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const updateMobileViewport = () => {
+      const isTouch = window.matchMedia('(pointer: coarse)').matches;
+      setIsMobileViewport(window.innerWidth < 773 || isTouch);
+    };
+    updateMobileViewport();
+    window.addEventListener('resize', updateMobileViewport);
+    return () => window.removeEventListener('resize', updateMobileViewport);
+  }, []);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -583,6 +599,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 onFocus={() => {
                   isUserActiveRef.current = true;
                   lastActivityTimeRef.current = Date.now();
+
+                  if (isMobileViewport) {
+                    requestAnimationFrame(() => {
+                      window.scrollTo({ top: 0, behavior: 'auto' });
+                    });
+                  }
                 }}
                 onBlur={() => {
                   setTimeout(() => {
@@ -612,8 +634,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 }}
                 placeholder={selectedChat?.isNotificationsChat ? "Чат только для чтения" : editingMessageId ? "Редактируйте сообщение..." : "Сообщение..."}
                 disabled={selectedChat?.isNotificationsChat}
-                className="w-full pl-12 pr-12 py-2.5 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-primary)] resize-none overflow-y-auto shadow-[var(--shadow-card)] backdrop-blur-xl disabled:opacity-50 disabled:cursor-not-allowed rounded-[22px]"
-                style={{ minHeight: '44px', maxHeight: '120px', lineHeight: '20px', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
+                className="w-full pl-12 pr-12 py-2.5 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] text-[16px] md:text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-primary)] resize-none overflow-y-auto shadow-[var(--shadow-card)] backdrop-blur-xl disabled:opacity-50 disabled:cursor-not-allowed rounded-[22px]"
+                style={{ minHeight: isMobileViewport ? '48px' : '44px', maxHeight: '120px', lineHeight: isMobileViewport ? '22px' : '20px', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
                 rows={1}
               />
             </div>
@@ -702,9 +724,9 @@ const MessageInput: React.FC<MessageInputProps> = ({
               onMouseDown={(e) => e.preventDefault()}
               onClick={sendMessage}
               disabled={selectedChat?.isNotificationsChat || isUploadingAttachments}
-              className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 border border-[var(--border-light)] disabled:from-[var(--bg-glass)] disabled:to-[var(--bg-glass)] disabled:border-[var(--border-color)] flex items-center justify-center text-white disabled:text-[var(--text-muted)] transition-all flex-shrink-0 shadow-[0_8px_32px_-8px_rgba(59,130,246,0.6),inset_0_1px_2px_rgba(255,255,255,0.2)] hover:shadow-[0_8px_40px_-8px_rgba(59,130,246,0.8),inset_0_1px_2px_rgba(255,255,255,0.25)] disabled:shadow-none disabled:cursor-not-allowed"
+              className="w-12 h-12 md:w-11 md:h-11 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 border border-[var(--border-light)] disabled:from-[var(--bg-glass)] disabled:to-[var(--bg-glass)] disabled:border-[var(--border-color)] flex items-center justify-center text-white disabled:text-[var(--text-muted)] transition-all flex-shrink-0 shadow-[0_8px_32px_-8px_rgba(59,130,246,0.6),inset_0_1px_2px_rgba(255,255,255,0.2)] hover:shadow-[0_8px_40px_-8px_rgba(59,130,246,0.8),inset_0_1px_2px_rgba(255,255,255,0.25)] disabled:shadow-none disabled:cursor-not-allowed"
             >
-              {isUploadingAttachments ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              {isUploadingAttachments ? <Loader2 className="w-4 h-4 md:w-4 md:h-4 animate-spin" /> : <Send className="w-4 h-4 md:w-4 md:h-4" />}
             </button>
           )}
         </div>

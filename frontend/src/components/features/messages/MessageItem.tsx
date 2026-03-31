@@ -423,12 +423,12 @@ const MessageItem: React.FC<MessageItemProps> = ({
       ? 'bg-[var(--bg-tertiary)] border-[var(--border-color)]'
       : 'bg-white border-gray-300')
     : (theme === 'dark'
-      ? 'bg-[var(--bg-tertiary)] border-[var(--border-color)] backdrop-blur-md'
-      : 'bg-gradient-to-br from-white/60 to-white/40 border-gray-300/70 backdrop-blur-md shadow-[0_2px_8px_rgba(0,0,0,0.08)]');
+      ? 'bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/20 hover:border-blue-500/40 transition-colors'
+      : 'bg-gradient-to-r from-orange-100 to-amber-100 border-orange-200 hover:border-orange-300 transition-colors');
   const notificationTextClass = theme === 'dark' ? 'text-[var(--text-primary)]' : 'text-gray-800';
   const notificationActionClass = theme === 'dark'
-    ? 'bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-primary)]'
-    : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] border-[var(--border-color)] text-[var(--text-primary)]';
+    ? 'bg-blue-500/15 hover:bg-blue-500/25 border-blue-500/30 text-blue-400'
+    : 'bg-blue-500/15 hover:bg-blue-500/25 border-blue-500/30 text-blue-600';
   const telegramUnreadCheckClass = useDarkTextOnBubble ? 'text-gray-700/85' : 'text-white/80';
   const telegramReadCheckClass = 'text-[#53bdeb]';
   const checkIconSizeClass = isDesktopView ? 'w-3.5 h-3.5' : 'w-2.5 h-2.5';
@@ -972,7 +972,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
               hasBackground
                 ? `${
                     isNotificationBubble
-                      ? `rounded-2xl px-3 py-2 md:px-4 relative w-full max-w-full border ${notificationSurfaceClass}`
+                      ? `rounded-[18px] px-3 py-2 relative w-fit max-w-full border ${notificationSurfaceClass}`
                       : `${bubbleRadius} px-3 py-2 relative w-fit max-w-full`
                   } ${
                     isNotificationBubble
@@ -1038,46 +1038,9 @@ const MessageItem: React.FC<MessageItemProps> = ({
                   <>
                     <span className="inline">
                       {isNotificationBubble ? (
-                        <span className="flex w-full min-w-0 items-start gap-2.5 flex-wrap">
-                          {/* Notification type icon badge */}
-                          <div className="flex-shrink-0 mt-0.5 flex items-center gap-1.5">
-                            {(() => {
-                              const nt = message.notificationType || '';
-                              const hasTask = !!message.linkedTaskId || nt.includes('task');
-                              const hasEvent = !!effectiveLinkedEventId || nt.includes('event') || nt.includes('calendar');
-                              const hasChat = !!message.linkedChatId || nt.includes('chat');
-                              if (hasTask) return (
-                                <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center shadow-sm">
-                                  <CheckSquare className="w-3.5 h-3.5 text-white" />
-                                </div>
-                              );
-                              if (hasEvent) return (
-                                <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-green-500 to-green-700 flex items-center justify-center shadow-sm">
-                                  <Calendar className="w-3.5 h-3.5 text-white" />
-                                </div>
-                              );
-                              if (hasChat) return (
-                                <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-sm">
-                                  <MessageCircle className="w-3.5 h-3.5 text-white" />
-                                </div>
-                              );
-                              return (
-                                <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-sm">
-                                  <Bell className="w-3.5 h-3.5 text-white" />
-                                </div>
-                              );
-                            })()}
-                            {notificationActorUser && (
-                              <Avatar
-                                src={notificationActorUser.avatar}
-                                name={notificationActorUser.name || notificationActorName || 'Пользователь'}
-                                size="xs"
-                                type="user"
-                              />
-                            )}
-                          </div>
+                        <span className="block w-full min-w-0">
                           <span
-                            className={`block flex-1 min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] text-left leading-tight ${notificationTextClass}`}
+                            className={`block min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] text-left leading-tight ${notificationTextClass}`}
                           >
                             {taskStatusTransition ? (
                               <>

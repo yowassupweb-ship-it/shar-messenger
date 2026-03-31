@@ -263,7 +263,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
       {/* Chats list */}
       <div
-        className="relative z-10 flex-1 min-h-0 overflow-y-auto overflow-x-hidden pt-[56px] md:pt-[58px] pb-[calc(env(safe-area-inset-bottom)+96px)] md:pb-4 bg-transparent"
+        className="relative z-10 flex-1 min-h-0 overflow-y-auto overflow-x-hidden pt-[56px] md:pt-[58px] pb-[calc(env(safe-area-inset-bottom)+124px)] md:pb-4 bg-transparent"
         style={{
           paddingBottom: isMobileView
             ? undefined

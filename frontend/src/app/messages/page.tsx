@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, startTransition } from 'react';
 import React from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -173,6 +173,7 @@ export default function MessagesPage() {
   const [showForwardModal, setShowForwardModal] = useState(false);
   const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
   const [selectedChatsForForward, setSelectedChatsForForward] = useState<string[]>([]);
+  const [isForwardingMessages, setIsForwardingMessages] = useState(false);
   const [showReadByModal, setShowReadByModal] = useState(false);
   const [readByMessage, setReadByMessage] = useState<Message | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -713,15 +714,35 @@ export default function MessagesPage() {
       // Есть кэш - мгновенное переключение
       setMessagesWithTimelineSnapshot(chat?.id || null, cachedInitMessages, 'reset');
       setIsLoadingMessages(false);
+      // Используем startTransition для обновления UI синхронно с данными
+      startTransition(() => {
+        setSelectedChatId(chat?.id || null);
+        setShowChatInfo(false);
+        setIsSelectionMode(false);
+        setSelectedMessages(new Set());
+      });
     } else if (chat) {
       // Нет кэша - показываем предыдущие messages пока грузятся новые
       // (не чистим messages, будет freeze-эффект как в Telegram)
       setIsLoadingMessages(true);
+      // Используем startTransition для плавного перехода
+      startTransition(() => {
+        setSelectedChatId(chat?.id || null);
+        setShowChatInfo(false);
+        setIsSelectionMode(false);
+        setSelectedMessages(new Set());
+      });
       // messages останутся от предыдущего чата и будут выглядеть как "loading" overlay
     } else {
       // Закрытие чата - чистим
       setMessagesWithTimelineSnapshot(null, [], 'reset');
       setIsLoadingMessages(false);
+      startTransition(() => {
+        setSelectedChatId(null);
+        setShowChatInfo(false);
+        setIsSelectionMode(false);
+        setSelectedMessages(new Set());
+      });
     }
 
     pendingRestoreChatScrollRef.current = chat?.id || null;
@@ -731,12 +752,6 @@ export default function MessagesPage() {
       chatNearBottomRef.current[chat.id] = false;
       skipNextAutoScrollRef.current[chat.id] = true;
     }
-    setSelectedChatNearBottom(false);
-
-    setSelectedChatId(chat?.id || null);
-    setShowChatInfo(false);
-    setIsSelectionMode(false);
-    setSelectedMessages(new Set());
 
     // Откладываем тяжёлую работу с drafts/composer после клика
     setTimeout(() => {
@@ -952,7 +967,8 @@ export default function MessagesPage() {
 
   useEffect(() => {
     if (selectedChat) {
-      loadMessages(selectedChat.id, false);
+      // Загружаем сообщения сразу без задержки
+      void loadMessages(selectedChat.id, false);
       
       // Polling для обновления сообщений: не мешаем вводу в composer
       const chatId = selectedChat.id;
@@ -2715,7 +2731,7 @@ export default function MessagesPage() {
 
   // Переслать сообщение(я)
   const forwardMessage = async () => {
-    if (selectedChatsForForward.length === 0) return;
+    if (isForwardingMessages || selectedChatsForForward.length === 0) return;
     
     // Если есть множественный выбор, пересылаем выбранные сообщения
     const messagesToForward = (isSelectionMode && selectedMessages.size > 0
@@ -2725,39 +2741,54 @@ export default function MessagesPage() {
     if (messagesToForward.length === 0) return;
     
     try {
+      setIsForwardingMessages(true);
       console.log('Forwarding messages:', messagesToForward.map(m => m.id), 'to chats:', selectedChatsForForward);
       
-      // Пересылаем каждое сообщение
-      for (const message of messagesToForward) {
-        // Используем ID чата сообщения, так как пересылаемое сообщение может быть из другого чата
+      // Пересылаем каждое сообщение c таймаутом, чтобы UI не зависал бесконечно.
+      const forwardSingleMessage = async (message: Message) => {
         const sourceChatId = message.chatId || selectedChat?.id;
         if (!sourceChatId) {
           throw new Error('Не удалось определить исходный чат для пересылки');
         }
 
-        const res = await fetch(
-          `/api/chats/${sourceChatId}/messages/${message.id}/forward`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ targetChatIds: selectedChatsForForward })
-          }
-        );
-        
-        if (!res.ok) {
-          let errorMessage = 'Ошибка при пересылке';
-          try {
-            const data = await res.json();
-            errorMessage = data.detail || data.error || errorMessage;
-          } catch {
-            const rawText = await res.text();
-            if (rawText) {
-              errorMessage = rawText;
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+
+        try {
+          const res = await fetch(
+            `/api/chats/${encodeURIComponent(sourceChatId)}/messages/${encodeURIComponent(message.id)}/forward`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ targetChatIds: selectedChatsForForward }),
+              signal: controller.signal,
             }
+          );
+
+          if (!res.ok) {
+            let errorMessage = 'Ошибка при пересылке';
+            try {
+              const data = await res.json();
+              errorMessage = data.detail || data.error || errorMessage;
+            } catch {
+              const rawText = await res.text();
+              if (rawText) {
+                errorMessage = rawText;
+              }
+            }
+            throw new Error(errorMessage);
           }
-          throw new Error(errorMessage);
+        } catch (err) {
+          if ((err as Error).name === 'AbortError') {
+            throw new Error('Таймаут пересылки: сервер не ответил за 15 секунд');
+          }
+          throw err;
+        } finally {
+          window.clearTimeout(timeoutId);
         }
-      }
+      };
+
+      await Promise.all(messagesToForward.map((message) => forwardSingleMessage(message)));
       
       setShowForwardModal(false);
       setForwardingMessage(null);
@@ -2776,6 +2807,8 @@ export default function MessagesPage() {
       console.error('Error forwarding message:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       alert(`Ошибка при пересылке сообщения: ${errorMessage}`);
+    } finally {
+      setIsForwardingMessages(false);
     }
   };
 
@@ -2805,7 +2838,7 @@ export default function MessagesPage() {
   // Переименовать групповой чат (только для создателя)
   const renameChat = async (newTitle: string) => {
     if (!selectedChat || !selectedChat.isGroup || !newTitle.trim()) return;
-    if (selectedChat.creatorId !== currentUser?.id) return;
+    if (String(selectedChat.creatorId ?? '') !== String(currentUser?.id ?? '')) return;
     
     try {
       const res = await fetch(`/api/chats/${selectedChat.id}`, {
@@ -2826,6 +2859,51 @@ export default function MessagesPage() {
       }
     } catch (error) {
       console.error('Error renaming chat:', error);
+    }
+  };
+
+  const updateChatAvatar = async (file: File) => {
+    if (!selectedChat || !selectedChat.isGroup || String(selectedChat.creatorId ?? '') !== String(currentUser?.id ?? '')) return;
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const uploadRes = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error('Не удалось загрузить файл аватара');
+      }
+
+      const uploadData = await uploadRes.json();
+      const avatarUrl = uploadData?.url;
+      if (!avatarUrl) {
+        throw new Error('Сервер не вернул URL аватара');
+      }
+
+      const updateRes = await fetch(`/api/chats/${encodeURIComponent(selectedChat.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatar: avatarUrl }),
+      });
+
+      if (!updateRes.ok) {
+        throw new Error('Не удалось сохранить аватар чата');
+      }
+
+      setChats(prev => prev.map(chat =>
+        chat.id === selectedChat.id
+          ? { ...chat, avatar: avatarUrl }
+          : chat
+      ));
+
+      await loadChats();
+    } catch (error) {
+      console.error('Error updating chat avatar:', error);
+      alert('Не удалось обновить аватар чата');
     }
   };
 
@@ -3267,7 +3345,10 @@ export default function MessagesPage() {
 
       {/* Правая панель - чат */}
       {selectedChat ? (
-        <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden bg-transparent">
+        <div
+          className="flex-1 min-h-0 min-w-0 flex overflow-hidden bg-transparent"
+          style={!isDesktopView ? { position: 'fixed', inset: 0, zIndex: 45 } : undefined}
+        >
           {/* Контейнер чата */}
           <div className="flex-1 min-h-0 min-w-0 flex flex-col relative bg-transparent">
           <ChatHeader
@@ -3432,6 +3513,18 @@ export default function MessagesPage() {
               />
             </div>
 
+            {/* Индикатор загрузки при переключении чата */}
+            {isLoadingMessages && (
+              <div className="absolute inset-0 bg-white/80 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-30 pointer-events-none">
+                <div className="bg-white dark:bg-gray-800 rounded-2xl px-6 py-4 shadow-xl border border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-3">
+                    <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Загрузка сообщений...</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Кнопка прокрутки вниз */}
             {!selectedChatNearBottom && (
               <button
@@ -3562,6 +3655,7 @@ export default function MessagesPage() {
               scrollToMessage={scrollToMessage}
               getChatAvatarData={getChatAvatarDataWrapper}
               getChatTitle={getChatTitleWrapper}
+              onUpdateChatAvatar={updateChatAvatar}
             />
           )}
         </div>
@@ -3635,10 +3729,12 @@ export default function MessagesPage() {
       <ForwardModal
         isOpen={showForwardModal}
         onClose={() => {
+          if (isForwardingMessages) return;
           setShowForwardModal(false);
           setForwardingMessage(null);
         }}
         onForward={forwardMessage}
+        isForwarding={isForwardingMessages}
         message={forwardingMessage}
         selectedMessages={selectedMessages}
         isSelectionMode={isSelectionMode}
@@ -3699,7 +3795,19 @@ export default function MessagesPage() {
         }}
         onLoadTodoLists={async () => {
           try {
-            const userIdQuery = currentUser?.id ? `?userId=${encodeURIComponent(currentUser.id)}` : '';
+            // Получаем userId из всех возможных источников
+            let userId = currentUser?.id;
+            if (!userId) {
+              const myAccountRaw = localStorage.getItem('myAccount');
+              if (myAccountRaw) {
+                const myAccount = JSON.parse(myAccountRaw);
+                userId = myAccount?.id;
+              }
+            }
+            
+            const userIdQuery = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+            console.log('[Messages] Загрузка списков задач для userId:', userId);
+            
             const res = await fetch(`/api/todos${userIdQuery}`);
             if (res.ok) {
               const data = await res.json();

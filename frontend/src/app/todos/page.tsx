@@ -2268,6 +2268,12 @@ export default function TodosPage() {
 
   // Переключение статуса задачи
   const toggleTodo = useCallback(async (todo: Todo) => {
+    // Проверка прав: только заказчик может отмечать задачу выполненной
+    if (todo.assignedById && todo.assignedById !== myAccountId) {
+      alert('Только заказчик может отметить задачу как выполненную');
+      return;
+    }
+    
     try {
       const nextCompleted = !todo.completed;
       const res = await fetch('/api/todos', {
@@ -3095,6 +3101,15 @@ export default function TodosPage() {
 
     const draggedTodoId = draggedTodo?.id || payload.id;
     if (!draggedTodoId || draggedTodoId === targetTodo.id) return;
+    
+    // Проверка прав: только заказчик может изменять порядок задачи
+    const sourceTodoForCheck = todos.find((item) => item.id === draggedTodoId);
+    if (sourceTodoForCheck?.assignedById && sourceTodoForCheck.assignedById !== myAccountId) {
+      alert('Только заказчик может изменять порядок задач');
+      setDraggedTodo(null);
+      dragPayloadRef.current = { type: null, id: null };
+      return;
+    }
 
     const targetRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const insertAfter = e.clientY > targetRect.top + targetRect.height / 2;
@@ -3113,6 +3128,15 @@ export default function TodosPage() {
 
     const draggedTodoId = draggedTodo?.id || payload.id;
     if (!draggedTodoId) return;
+    
+    // Проверка прав: только заказчик может перемещать задачу
+    const sourceTodoForCheck = todos.find((item) => item.id === draggedTodoId);
+    if (sourceTodoForCheck?.assignedById && sourceTodoForCheck.assignedById !== myAccountId) {
+      alert('Только заказчик может перемещать задачу в другой столбец');
+      setDraggedTodo(null);
+      dragPayloadRef.current = { type: null, id: null };
+      return;
+    }
 
     if (dragOverTodoId) {
       const targetTodo = todos.find((item) => item.id === dragOverTodoId && item.listId === listId && !item.archived);

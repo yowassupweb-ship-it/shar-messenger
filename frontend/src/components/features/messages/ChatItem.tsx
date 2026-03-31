@@ -38,8 +38,9 @@ const ChatItem = React.memo<ChatItemProps>(({
 }) => {
   const avatarData = getChatAvatarData(chat);
   const chatTitle = getChatTitle(chat);
-  const otherParticipantId = !chat.isGroup ? chat.participantIds?.find(id => id !== currentUser?.id) : undefined;
-  const otherUser = otherParticipantId ? users.find(u => u.id === otherParticipantId) : undefined;
+  const currentUserId = String(currentUser?.id ?? '');
+  const otherParticipantId = !chat.isGroup ? chat.participantIds?.find(id => String(id) !== currentUserId) : undefined;
+  const otherUser = otherParticipantId ? users.find(u => String(u.id) === String(otherParticipantId)) : undefined;
   const hasUnread = !chat.isFavoritesChat && (chat.unreadCount || 0) > 0;
 
   // Collapsed icon view (только desktop)

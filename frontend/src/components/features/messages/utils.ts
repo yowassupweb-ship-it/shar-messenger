@@ -78,6 +78,7 @@ export function formatMessageText(text: string): string {
 export function getChatTitle(chat: any, currentUser: any = null, users: any[] = []): string {
   const safeUsers = Array.isArray(users) ? users : [];
   const participantIds = Array.isArray(chat?.participantIds) ? chat.participantIds : [];
+  const currentUserId = String(currentUser?.id ?? '');
 
   if (chat.isFavoritesChat) return 'Избранное';
   if (chat.isNotificationsChat) return 'Уведомления';
@@ -85,8 +86,8 @@ export function getChatTitle(chat: any, currentUser: any = null, users: any[] = 
   if (chat.title) return chat.title;
   
   if (!chat.isGroup && participantIds.length > 0) {
-    const otherParticipantId = participantIds.find((id: string) => id !== currentUser?.id);
-    const otherUser = safeUsers.find((u) => u.id === otherParticipantId);
+    const otherParticipantId = participantIds.find((id: string) => String(id) !== currentUserId);
+    const otherUser = safeUsers.find((u) => String(u.id) === String(otherParticipantId));
     return otherUser?.name || otherUser?.username || 'Пользователь';
   }
   
@@ -103,6 +104,7 @@ export function getChatAvatarData(chat: any, currentUser: any = null, users: any
 } {
   const safeUsers = Array.isArray(users) ? users : [];
   const participantIds = Array.isArray(chat?.participantIds) ? chat.participantIds : [];
+  const currentUserId = String(currentUser?.id ?? '');
 
   if (chat.isFavoritesChat) {
     return { type: 'favorites', name: 'Избранное', avatar: undefined };
@@ -125,8 +127,8 @@ export function getChatAvatarData(chat: any, currentUser: any = null, users: any
     return { type: 'group', name: chat.title || 'Группа', avatar: chat.avatar };
   }
   
-  const otherParticipantId = participantIds.find((id: string) => id !== currentUser?.id);
-  const otherUser = safeUsers.find((u) => u.id === otherParticipantId);
+  const otherParticipantId = participantIds.find((id: string) => String(id) !== currentUserId);
+  const otherUser = safeUsers.find((u) => String(u.id) === String(otherParticipantId));
   
   return {
     type: 'user',

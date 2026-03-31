@@ -667,6 +667,9 @@ export class BrowserPushService {
                 });
                 
                 console.log(`[BrowserPushService] ✅ Немедленное напоминание отправлено для события "${event.title}"`);
+                
+                // Пропускаем дальнейшую обработку этого события, чтобы не было дубликата
+                continue;
               }
             }
           }
@@ -753,8 +756,9 @@ export class BrowserPushService {
   ): Promise<void> {
     if (!this.userId) return;
 
+    const eventTitle = event.title || 'Событие';
     await this.postNotificationToChat({
-      content: `Напоминание о событии\n${body}`,
+      content: `📅 ${eventTitle}\n${body}`,
       notificationType: 'event_reminder',
       linkedEventId: event?.id ? String(event.id) : null,
       linkedEventTitle: event.title || null,
@@ -784,8 +788,10 @@ export class BrowserPushService {
   ): Promise<void> {
     if (!this.userId) return;
 
+    const eventTitle = event?.title || 'Событие';
+    const notificationTitle = title === 'Новое событие' ? `📅 ${eventTitle}` : `📝 ${eventTitle}`;
     await this.postNotificationToChat({
-      content: `${title}\n${body}`,
+      content: `${notificationTitle}\n${body}`,
       notificationType: 'event_update',
       linkedEventId: event?.id ? String(event.id) : null,
       linkedEventTitle: event?.title || null,

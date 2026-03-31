@@ -46,3 +46,31 @@ export async function DELETE(
     return NextResponse.json({ error: 'Failed to delete chat' }, { status: 500 });
   }
 }
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ chatId: string }> }
+) {
+  try {
+    const { chatId } = await params;
+    const body = await request.json();
+
+    const response = await fetch(`${BACKEND_URL}/api/chats/${chatId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return NextResponse.json(data, { status: response.status });
+    }
+
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Error updating chat:', error);
+    return NextResponse.json({ error: 'Failed to update chat' }, { status: 500 });
+  }
+}

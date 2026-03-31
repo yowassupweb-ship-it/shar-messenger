@@ -4186,6 +4186,8 @@ def save_calculator_history(user_id: str, data: Dict[str, Any]):
 @app.get("/api/todos")
 def get_todos(userId: Optional[str] = None, taskId: Optional[str] = None):
     """Получить список задач"""
+    print(f"[GET /api/todos] userId={userId}, taskId={taskId}")
+    
     stage_keys = {
         'stagesEnabled',
         'technicalSpecTabs',
@@ -4219,6 +4221,10 @@ def get_todos(userId: Optional[str] = None, taskId: Optional[str] = None):
     todos = db.get_tasks(user_id=userId) if userId else db.get_tasks()
     lists = db.get_todo_lists(user_id=userId) if userId else db.get_todo_lists()
     categories = db.get_todo_categories()
+    
+    print(f"[GET /api/todos] Найдено списков: {len(lists)}, задач: {len(todos)}, категорий: {len(categories)}")
+    if userId and len(lists) == 0:
+        print(f"[GET /api/todos] WARNING: Пользователь {userId} не имеет доступа ни к одному списку!")
 
     # Преобразуем snake_case в camelCase
     todos = [hydrate_task(todo) for todo in todos]
@@ -4794,6 +4800,10 @@ class MessageCreate(BaseModel):
     mentions: Optional[List[str]] = []
     replyToId: Optional[str] = None
     attachments: Optional[List[Dict[str, Any]]] = []
+    forwardedFrom: Optional[str] = None
+    forwardedFromUserId: Optional[str] = None
+    forwardedFromUsername: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 @app.get("/api/chats")
 def get_chats(user_id: Optional[str] = None, include_archived: bool = False):
@@ -5069,6 +5079,43 @@ def get_chat(chat_id: str):
         raise HTTPException(status_code=404, detail="Chat not found")
     return snake_to_camel(chat)
 
+@app.put("/api/chats/{chat_id}")
+def update_chat(chat_id: str, update_data: dict = Body(...)):
+    """Обновить данные чата (например, title, avatar)"""
+    chat = db.get_chat(chat_id)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    allowed_fields = {
+        'title',
+        'avatar',
+        'isGroup',
+        'is_group',
+        'todoId',
+        'todo_id',
+        'discussionStatus',
+        'discussion_status',
+        'readMessagesByUser',
+        'read_messages_by_user',
+        'pinnedByUser',
+        'pinned_by_user',
+        'pinnedOrderByUser',
+        'pinned_order_by_user',
+        'archivedByUser',
+        'archived_by_user',
+    }
+
+    normalized = {k: v for k, v in update_data.items() if k in allowed_fields}
+    if not normalized:
+        raise HTTPException(status_code=400, detail="No valid fields provided")
+
+    normalized['updated_at'] = datetime.now().isoformat()
+    updated_chat = db.update_chat(chat_id, normalized)
+    if not updated_chat:
+        raise HTTPException(status_code=500, detail="Failed to update chat")
+
+    return snake_to_camel(updated_chat)
+
 @app.delete("/api/chats/{chat_id}")
 def delete_chat(chat_id: str):
     """Удалить чат и все его сообщения"""
@@ -5186,6 +5233,55 @@ def send_message(chat_id: str, message_data: MessageCreate):
     
     message_created_at = datetime.now(timezone.utc)
 
+    metadata_payload: Dict[str, Any] = dict(message_data.metadata or {})
+    forwarded_from_message_id = message_data.forwardedFrom or metadata_payload.get('forwardedFromMessageId')
+    forwarded_from_user_id = message_data.forwardedFromUserId or metadata_payload.get('forwardedFromUserId')
+    forwarded_from_username = message_data.forwardedFromUsername or metadata_payload.get('forwardedFromUsername') or metadata_payload.get('fromUserName')
+
+    if forwarded_from_message_id and (not forwarded_from_user_id or not forwarded_from_username):
+      try:
+        original_row = None
+        if hasattr(db, 'conn'):
+            original_row = db.conn.fetch_one(
+                "SELECT author_id, author_name, metadata FROM messages WHERE id = %s",
+                (forwarded_from_message_id,)
+            )
+        if original_row:
+            original_message = dict(original_row)
+            if not forwarded_from_user_id:
+                forwarded_from_user_id = original_message.get('author_id')
+            if not forwarded_from_username:
+                forwarded_from_username = original_message.get('author_name')
+                original_meta = original_message.get('metadata')
+                if isinstance(original_meta, dict):
+                    forwarded_from_username = (
+                        forwarded_from_username
+                        or original_meta.get('forwardedFromUsername')
+                        or original_meta.get('fromUserName')
+                    )
+      except Exception as forward_meta_error:
+        logger.warning(f"Failed to resolve forwarded metadata for message {forwarded_from_message_id}: {forward_meta_error}")
+
+        if forwarded_from_user_id and not forwarded_from_username:
+            try:
+                forwarded_user = db.get_user(str(forwarded_from_user_id))
+                if forwarded_user:
+                        forwarded_from_username = (
+                                forwarded_user.get('name')
+                                or forwarded_user.get('username')
+                                or forwarded_user.get('email')
+                        )
+            except Exception as forward_user_error:
+                logger.warning(f"Failed to resolve forwarded user {forwarded_from_user_id}: {forward_user_error}")
+
+    if forwarded_from_message_id:
+        metadata_payload.update({
+            'forwardedFromMessageId': forwarded_from_message_id,
+            'forwardedFromUserId': str(forwarded_from_user_id) if forwarded_from_user_id is not None else None,
+            'forwardedFromUsername': forwarded_from_username,
+            'fromUserName': forwarded_from_username,
+        })
+
     new_message = {
         "id": str(uuid.uuid4()),
         "chat_id": chat_id,
@@ -5197,7 +5293,11 @@ def send_message(chat_id: str, message_data: MessageCreate):
         "created_at": message_created_at.isoformat(),
         "updated_at": None,
         "is_edited": False,
-        "attachments": message_data.attachments or []
+        "attachments": message_data.attachments or [],
+        "metadata": metadata_payload,
+        "forwarded_from_user_id": str(forwarded_from_user_id) if forwarded_from_user_id is not None else None,
+        "forwarded_from_username": forwarded_from_username,
+        "forwarded_from_message_id": forwarded_from_message_id,
     }
     
     result = db.add_message(new_message)
@@ -5419,6 +5519,13 @@ def forward_message(chat_id: str, message_id: str, forward_data: dict = Body(...
     
     # Создаем копию сообщения для каждого целевого чата
     for target_chat_id in target_chat_ids:
+        forwarded_from_user_id = pick(original_message, 'author_id', 'authorId')
+        forwarded_from_username = pick(original_message, 'author_name', 'authorName', 'Unknown')
+        forwarded_from_message_id = pick(original_message, 'id', 'id')
+        original_metadata = pick(original_message, 'metadata', 'metadata', {})
+        if not isinstance(original_metadata, dict):
+            original_metadata = {}
+
         new_message = {
             'id': str(uuid.uuid4()),
             'chat_id': target_chat_id,
@@ -5430,7 +5537,18 @@ def forward_message(chat_id: str, message_id: str, forward_data: dict = Body(...
             'isEdited': False,
             'isDeleted': False,
             'attachments': pick(original_message, 'attachments', 'attachments', []),
-            'isSystemMessage': False
+            'isSystemMessage': False,
+            'metadata': {
+                **original_metadata,
+                'forwardedFromUserId': forwarded_from_user_id,
+                'forwardedFromUsername': forwarded_from_username,
+                'forwardedFromMessageId': forwarded_from_message_id,
+                'fromUserName': forwarded_from_username,
+            },
+            # Добавляем информацию о пересылке
+            'forwardedFromUserId': forwarded_from_user_id,
+            'forwardedFromUsername': forwarded_from_username,
+            'forwardedFromMessageId': forwarded_from_message_id
         }
 
         saved_message = db.add_message(new_message)
@@ -5638,13 +5756,20 @@ def send_notification_message(user_id: str, notification_data: dict):
 
     notification_type = notification_data.get('notificationType') or notification_data.get('notification_type') or 'info'
 
-    message_author_id = user_id
+    from_user_id = (
+        notification_data.get('fromUserId')
+        or notification_data.get('from_user_id')
+        or notification_data.get('senderId')
+        or notification_data.get('sender_id')
+    )
+
+    message_author_id = from_user_id or user_id
     try:
-        resolved_user = db.get_user(user_id)
+        resolved_user = db.get_user(str(message_author_id))
         if resolved_user and resolved_user.get('id'):
             message_author_id = resolved_user['id']
         else:
-            fallback_author_id = notifications_chat.get('creator_id')
+            fallback_author_id = notifications_chat.get('creator_id') or user_id
             if fallback_author_id and db.get_user(fallback_author_id):
                 message_author_id = fallback_author_id
             else:
@@ -5676,6 +5801,7 @@ def send_notification_message(user_id: str, notification_data: dict):
         "metadata": {
             "linkedEventId": notification_data.get('linkedEventId') or notification_data.get('linked_event_id'),
             "linkedEventTitle": notification_data.get('linkedEventTitle') or notification_data.get('linked_event_title'),
+            "fromUserId": str(from_user_id) if from_user_id is not None else None,
             "fromUserName": notification_data.get('fromUserName') or notification_data.get('from_user_name'),
         }
     }
@@ -5764,12 +5890,13 @@ def send_notification_to_multiple_users(notification_data: dict = Body(...)):
             notifications_chat = get_or_create_notifications_chat(user_id)
             print(f"[Notifications] Chat for {user_id}: {notifications_chat.get('id', 'NO ID')}")
 
-            message_author_id = user_id
-            resolved_user = db.get_user(user_id)
+            from_user_id = data.get('fromUserId') or data.get('from_user_id')
+            message_author_id = from_user_id or user_id
+            resolved_user = db.get_user(str(message_author_id))
             if resolved_user and resolved_user.get('id'):
                 message_author_id = resolved_user['id']
             else:
-                fallback_author_id = notifications_chat.get('creatorId') or notifications_chat.get('creator_id')
+                fallback_author_id = notifications_chat.get('creatorId') or notifications_chat.get('creator_id') or user_id
                 if fallback_author_id:
                     fallback_user = db.get_user(fallback_author_id)
                     if fallback_user and fallback_user.get('id'):
@@ -5791,6 +5918,7 @@ def send_notification_to_multiple_users(notification_data: dict = Body(...)):
                 "linkedPostId": data.get('postId'),
                 "notificationType": notification_type,
                 "metadata": {
+                    "fromUserId": str(from_user_id) if from_user_id is not None else None,
                     "fromUserName": data.get('fromUserName'),
                     "taskTitle": data.get('taskTitle'),
                     "postTitle": data.get('postTitle'),

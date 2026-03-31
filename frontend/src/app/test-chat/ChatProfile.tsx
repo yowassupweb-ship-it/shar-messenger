@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, Image as ImageIcon, FileText, Link as LinkIcon, Bell, BellOff, Trash2, Archive, ChevronRight, Copy, Check, Video, File } from 'lucide-react';
+import { useState, useEffect, type ChangeEvent } from 'react';
+import { X, Image as ImageIcon, FileText, Link as LinkIcon, Bell, BellOff, Trash2, Archive, ChevronRight, Copy, Check, Video, File, Camera, UserPlus, UserMinus } from 'lucide-react';
 import type { Chat, Message, User } from '@/components/features/messages/types';
+import { getAvatarGradient, getInitials } from './avatarUtils';
 
 interface ChatProfileProps {
   chat: Chat;
@@ -13,32 +14,12 @@ interface ChatProfileProps {
   onArchiveChat: (chatId: string) => void;
   onDeleteChat: (chatId: string) => void;
   onToggleMute?: (chatId: string) => void;
+  canManageGroup?: boolean;
+  onAddParticipant?: (userId: string) => Promise<void>;
+  onRemoveParticipant?: (userId: string) => Promise<void>;
+  onUpdateChatAvatar?: (file: File) => Promise<void>;
   isMuted?: boolean;
   isMobile?: boolean;
-}
-
-const AVATAR_COLORS = [
-  'from-blue-400 to-blue-600',
-  'from-green-400 to-green-600',
-  'from-purple-400 to-purple-600',
-  'from-pink-400 to-pink-600',
-  'from-orange-400 to-orange-600',
-  'from-red-400 to-red-600',
-  'from-teal-400 to-teal-600',
-  'from-indigo-400 to-indigo-600',
-];
-
-function getInitials(name: string): string {
-  const words = name.trim().split(/\s+/);
-  if (words.length === 1) {
-    return words[0].slice(0, 2).toUpperCase();
-  }
-  return (words[0][0] + words[1][0]).toUpperCase();
-}
-
-function getAvatarColor(id: string): string {
-  const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
 type TabType = 'media' | 'files' | 'links' | 'participants';
@@ -52,6 +33,10 @@ export default function ChatProfile({
   onArchiveChat,
   onDeleteChat,
   onToggleMute,
+  canManageGroup = false,
+  onAddParticipant,
+  onRemoveParticipant,
+  onUpdateChatAvatar,
   isMuted = false,
   isMobile = false,
 }: ChatProfileProps) {
@@ -60,10 +45,16 @@ export default function ChatProfile({
   const [mediaItems, setMediaItems] = useState<Message[]>([]);
   const [fileItems, setFileItems] = useState<Message[]>([]);
   const [linkItems, setLinkItems] = useState<Message[]>([]);
+  const [isSavingAvatar, setIsSavingAvatar] = useState(false);
+  const [participantActionBusy, setParticipantActionBusy] = useState<string | null>(null);
 
   const displayTitle = (chat as any).displayTitle || chat.title || 'Чат';
   const isGroupChat = !!(chat as any).isGroup || ((chat.participantIds?.length ?? 0) > 2);
   const participantCount = chat.participantIds?.length || 0;
+  const availableUsers = users.filter(u =>
+    String(u.id) !== String(currentUser?.id) &&
+    !(chat.participantIds || []).some(pid => String(pid) === String(u.id))
+  );
 
   useEffect(() => {
     const media: Message[] = [];
@@ -100,6 +91,18 @@ export default function ChatProfile({
       setTimeout(() => setLinkCopied(false), 2000);
     } catch (error) {
       console.error('Failed to copy link:', error);
+    }
+  };
+
+  const handleAvatarFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !onUpdateChatAvatar) return;
+    try {
+      setIsSavingAvatar(true);
+      await onUpdateChatAvatar(file);
+    } finally {
+      setIsSavingAvatar(false);
+      event.target.value = '';
     }
   };
 
@@ -229,19 +232,28 @@ export default function ChatProfile({
             {(chat.participantIds || []).map(pid => {
               const user = users.find(u => String(u.id) === String(pid));
               const userName = user?.name || user?.username || user?.email || pid;
-              const avatarColor = getAvatarColor(String(pid));
+              const avatarColor = getAvatarGradient(String(pid));
               const initials = getInitials(userName);
+              const canRemove = canManageGroup && String(pid) !== String(currentUser?.id) && !!onRemoveParticipant;
 
               return (
                 <div
                   key={pid}
                   className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                 >
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br ${avatarColor} text-white font-semibold text-sm flex-shrink-0`}
-                  >
-                    {initials}
-                  </div>
+                  {user?.avatar ? (
+                    <img
+                      src={user.avatar}
+                      alt={userName}
+                      className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br ${avatarColor} text-white font-semibold text-sm flex-shrink-0`}
+                    >
+                      {initials}
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                       {userName}
@@ -250,9 +262,61 @@ export default function ChatProfile({
                       {String(pid) === String(currentUser?.id) ? 'Вы' : 'был(а) в сети недавно'}
                     </div>
                   </div>
+                  {canRemove && (
+                    <button
+                      onClick={async () => {
+                        if (!onRemoveParticipant) return;
+                        if (!confirm(`Удалить ${userName} из группы?`)) return;
+                        try {
+                          setParticipantActionBusy(String(pid));
+                          await onRemoveParticipant(String(pid));
+                        } finally {
+                          setParticipantActionBusy(null);
+                        }
+                      }}
+                      disabled={participantActionBusy === String(pid)}
+                      className="px-2 py-1 rounded-lg text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+                      title="Исключить участника"
+                    >
+                      <UserMinus className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               );
             })}
+
+            {canManageGroup && onAddParticipant && (
+              <div className="mt-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-slate-800/70">
+                <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Добавить участника</div>
+                {availableUsers.length === 0 ? (
+                  <div className="text-xs text-gray-500 dark:text-gray-400">Нет доступных пользователей</div>
+                ) : (
+                  <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
+                    {availableUsers.map(u => {
+                      const label = u.name || u.username || u.email || String(u.id);
+                      return (
+                        <button
+                          key={u.id}
+                          onClick={async () => {
+                            try {
+                              setParticipantActionBusy(String(u.id));
+                              await onAddParticipant(String(u.id));
+                            } finally {
+                              setParticipantActionBusy(null);
+                            }
+                          }}
+                          disabled={participantActionBusy === String(u.id)}
+                          className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50"
+                        >
+                          <span className="text-sm text-gray-800 dark:text-gray-100 truncate">{label}</span>
+                          <UserPlus className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         );
 
@@ -276,10 +340,28 @@ export default function ChatProfile({
 
       <div className="flex-1 overflow-y-auto">
         <div className="p-6 flex flex-col items-center border-b border-gray-200 dark:border-gray-700">
-          <div
-            className={`w-24 h-24 rounded-full flex items-center justify-center bg-gradient-to-br ${getAvatarColor(chat.id)} text-white font-bold text-3xl shadow-lg mb-4`}
-          >
-            {getInitials(displayTitle)}
+          <div className="relative w-24 h-24 mb-4">
+            {chat.avatar ? (
+              <img src={chat.avatar} alt={displayTitle} className="w-24 h-24 rounded-full object-cover shadow-lg" />
+            ) : (
+              <div
+                className={`w-24 h-24 rounded-full flex items-center justify-center bg-gradient-to-br ${getAvatarGradient(chat.id)} text-white font-bold text-3xl shadow-lg`}
+              >
+                {getInitials(displayTitle)}
+              </div>
+            )}
+            {isGroupChat && canManageGroup && onUpdateChatAvatar && (
+              <label className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center cursor-pointer shadow-lg hover:bg-blue-700 transition-colors">
+                <Camera className="w-4 h-4" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={isSavingAvatar}
+                  onChange={handleAvatarFileChange}
+                />
+              </label>
+            )}
           </div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 text-center mb-1">
             {displayTitle}

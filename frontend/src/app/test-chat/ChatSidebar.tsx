@@ -1,12 +1,14 @@
-import { Search, Archive, Plus, Moon, Sun, Star, Bell, Pin } from 'lucide-react';
+import { Search, Archive, Plus, Moon, Sun, Star, Bell, Pin, MoreVertical } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { Chat, User } from '@/components/features/messages/types';
 import React from 'react';
+import { getAvatarGradient, getChatAvatarUrl, getInitials, isFavoritesChat, isNotificationsChat } from './avatarUtils';
 
 interface ChatSidebarProps {
   chats: Chat[];
   currentChatId: string | null;
   currentUser: User | null;
+  users: User[];
   isLoading: boolean;
   searchQuery: string;
   showArchivedChats: boolean;
@@ -15,32 +17,6 @@ interface ChatSidebarProps {
   onOpenNewChat: () => void;
   onChatContextMenu: (chatId: string, position: { top: number; left: number }) => void;
   onSelectChat: (chatId: string) => void;
-}
-
-// Функция для получения первой буквы имени для аватара
-function getInitials(title: string): string {
-  const words = title.trim().split(/\s+/);
-  if (words.length === 1) {
-    return words[0][0]?.toUpperCase() || '?';
-  }
-  return (words[0][0] + words[1][0]).toUpperCase();
-}
-
-// Градиенты аватаров как в Signal
-const AVATAR_COLORS = [
-  'from-blue-400 to-blue-600',
-  'from-green-400 to-green-600',
-  'from-purple-400 to-purple-600',
-  'from-pink-400 to-pink-600',
-  'from-orange-400 to-orange-600',
-  'from-red-400 to-red-600',
-  'from-teal-400 to-teal-600',
-  'from-indigo-400 to-indigo-600',
-];
-
-function getAvatarColor(chatId: string): string {
-  const hash = chatId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
 // Функция для получения черновика из localStorage
@@ -57,6 +33,7 @@ function ChatSidebar({
   chats,
   currentChatId,
   currentUser,
+  users,
   isLoading,
   searchQuery,
   showArchivedChats,
@@ -67,6 +44,27 @@ function ChatSidebar({
   onSelectChat,
 }: ChatSidebarProps) {
   const { theme, toggleTheme } = useTheme();
+  const [showToolsMenu, setShowToolsMenu] = React.useState(false);
+  const toolsMenuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!showToolsMenu) return;
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (toolsMenuRef.current && !toolsMenuRef.current.contains(target)) {
+        setShowToolsMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showToolsMenu]);
+
+  const isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
   
   return (
     <div className="w-80 h-full min-h-0 flex flex-col bg-transparent rounded-t-[26px] rounded-b-2xl shadow-lg overflow-hidden relative max-md:w-full max-md:rounded-none max-md:flex-1 max-md:overflow-x-hidden">
@@ -86,33 +84,81 @@ function ChatSidebar({
           </div>
           
           {/* Островок кнопок */}
-          <div className="h-10 max-md:h-12 mt-[2px] mr-[5px] px-1.5 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 shadow-[0_3px_10px_rgba(0,0,0,0.09)] dark:shadow-[0_3px_10px_rgba(0,0,0,0.45)] flex items-center gap-1.5 flex-shrink-0 ml-auto">
-            <button
-              className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center justify-center"
-              title={theme === 'dark' ? 'Светлая тема' : 'Темная тема'}
-              onClick={toggleTheme}
-            >
-              {theme === 'dark' ? <Sun className="w-[14px] h-[14px]" /> : <Moon className="w-[14px] h-[14px]" />}
-            </button>
-            <button
-              onClick={onToggleArchivedChats}
-              className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center justify-center"
-              title={showArchivedChats ? 'Показать активные чаты' : 'Показать архив'}
-            >
-              <Archive className={`w-[14px] h-[14px] ${showArchivedChats ? 'text-blue-500 dark:text-blue-400' : ''}`} />
-            </button>
-            <button
-              onClick={onOpenNewChat}
-              className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center justify-center"
-              title="Новый чат"
-            >
-              <Plus className="w-[14px] h-[14px]" />
-            </button>
+          <div ref={toolsMenuRef} className="h-10 max-md:h-12 mt-[2px] mr-[5px] px-1.5 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 shadow-[0_3px_10px_rgba(0,0,0,0.09)] dark:shadow-[0_3px_10px_rgba(0,0,0,0.45)] flex items-center gap-1.5 flex-shrink-0 ml-auto relative">
+            {isMobile ? (
+              <>
+                <button
+                  onClick={() => setShowToolsMenu(prev => !prev)}
+                  className="w-8 h-8 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100/80 dark:hover:bg-slate-700/80 transition-colors flex items-center justify-center"
+                  title="Меню"
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+                {showToolsMenu && (
+                  <div className="absolute right-0 top-12 min-w-[190px] rounded-2xl border border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl p-1.5 shadow-2xl z-30">
+                    <button
+                      onClick={() => {
+                        toggleTheme();
+                        setShowToolsMenu(false);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl text-left text-sm hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                    >
+                      {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                      {theme === 'dark' ? 'Светлая тема' : 'Темная тема'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        onToggleArchivedChats();
+                        setShowToolsMenu(false);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl text-left text-sm hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                    >
+                      <Archive className="w-4 h-4" />
+                      {showArchivedChats ? 'Показать активные чаты' : 'Показать архив'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        onOpenNewChat();
+                        setShowToolsMenu(false);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl text-left text-sm hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Новый чат
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <button
+                  className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center justify-center"
+                  title={theme === 'dark' ? 'Светлая тема' : 'Темная тема'}
+                  onClick={toggleTheme}
+                >
+                  {theme === 'dark' ? <Sun className="w-[14px] h-[14px]" /> : <Moon className="w-[14px] h-[14px]" />}
+                </button>
+                <button
+                  onClick={onToggleArchivedChats}
+                  className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center justify-center"
+                  title={showArchivedChats ? 'Показать активные чаты' : 'Показать архив'}
+                >
+                  <Archive className={`w-[14px] h-[14px] ${showArchivedChats ? 'text-blue-500 dark:text-blue-400' : ''}`} />
+                </button>
+                <button
+                  onClick={onOpenNewChat}
+                  className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center justify-center"
+                  title="Новый чат"
+                >
+                  <Plus className="w-[14px] h-[14px]" />
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
       
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-transparent scrollbar-hide pt-[50px] max-md:pt-[58px] pb-8 md:pb-[96px]">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-transparent scrollbar-hide pt-[50px] max-md:pt-[58px] pb-[calc(env(safe-area-inset-bottom)+124px)] md:pb-[96px]">
         {chats.length === 0 ? (
           isLoading ? (
             <div className="space-y-0">
@@ -152,7 +198,18 @@ function ChatSidebar({
           chats.map(chat => {
             const displayTitle = (chat as any).displayTitle || chat.title || 'Чат';
             const isActive = currentChatId === chat.id;
-            const isPinned = currentUser && (chat as any).pinned_by_user?.[currentUser.id];
+            const pinMap = (chat as any).pinnedByUser || (chat as any).pinned_by_user || {};
+            const isPinned = currentUser
+              ? (pinMap[String(currentUser.id)] === true || String(pinMap[String(currentUser.id)]).toLowerCase() === 'true')
+              : false;
+            const avatarUrl = getChatAvatarUrl(chat, currentUser, users);
+            const unreadIncomingRaw =
+              (chat as any).incomingUnreadCount ??
+              (chat as any).incoming_unread_count ??
+              (chat as any).unreadCount ??
+              (chat as any).unread_count ??
+              0;
+            const unreadIncoming = Number(unreadIncomingRaw) || 0;
             
             // Черновик показываем только если это НЕ активный чат
             const draft = isActive ? '' : getDraft(chat.id);
@@ -205,19 +262,25 @@ function ChatSidebar({
               >
                 <div className="flex items-center gap-3 max-md:gap-3.5 min-w-0">
                   {/* Avatar */}
-                  {(chat.isFavoritesChat || String(chat.id).startsWith('favorites_')) ? (
+                  {isFavoritesChat(chat) ? (
                     <div className="w-11 h-11 max-md:w-13 max-md:h-13 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-yellow-400 to-orange-500 text-white shadow-sm">
                       <Star className="w-5 h-5 max-md:w-6 max-md:h-6" fill="currentColor" strokeWidth={0} />
                     </div>
-                  ) : (chat.isNotificationsChat || String(chat.id).startsWith('notifications-') || String(chat.id).startsWith('notifications_')) ? (
+                  ) : isNotificationsChat(chat) ? (
                     <div className="w-11 h-11 max-md:w-13 max-md:h-13 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-sm">
                       <Bell className="w-5 h-5 max-md:w-6 max-md:h-6" />
                     </div>
+                  ) : avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt={displayTitle}
+                      className="w-11 h-11 max-md:w-13 max-md:h-13 rounded-full object-cover flex-shrink-0"
+                    />
                   ) : (
                     <div 
                       className={`
                         w-11 h-11 max-md:w-13 max-md:h-13 rounded-full flex items-center justify-center flex-shrink-0
-                        bg-gradient-to-br ${getAvatarColor(chat.id)} text-white font-semibold text-sm max-md:text-base
+                        bg-gradient-to-br ${getAvatarGradient(chat.id)} text-white font-semibold text-sm max-md:text-base
                         shadow-sm
                       `}
                     >
@@ -250,9 +313,9 @@ function ChatSidebar({
                       }`}>
                         {lastMessage}
                       </p>
-                      {!!(chat as any).incomingUnreadCount && (chat as any).incomingUnreadCount > 0 && (
+                      {unreadIncoming > 0 && (
                         <span className="flex-shrink-0 min-w-[20px] h-5 px-1.5 max-md:min-w-[24px] max-md:h-6 max-md:px-2 rounded-full bg-blue-500 text-white text-[11px] max-md:text-[12px] font-semibold flex items-center justify-center">
-                          {(chat as any).incomingUnreadCount}
+                          {unreadIncoming}
                         </span>
                       )}
                     </div>

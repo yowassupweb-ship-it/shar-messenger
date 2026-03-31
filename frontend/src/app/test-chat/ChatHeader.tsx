@@ -126,7 +126,7 @@ export default function ChatHeader({
                 : isTyping
                 ? 'печатает...'
                 : isGroupChat
-                ? 'нажмите, чтобы узнать больше'
+                ? (subtitle || 'Групповой чат')
                 : (subtitle || 'был(а) в сети недавно')}
             </div>
           </button>
@@ -223,7 +223,7 @@ export default function ChatHeader({
                 : isTyping
                 ? 'печатает...'
                 : isGroupChat
-                ? 'нажмите, чтобы узнать больше'
+                ? (subtitle || 'Групповой чат')
                 : (subtitle || 'был(а) в сети недавно')}
             </div>
           </div>

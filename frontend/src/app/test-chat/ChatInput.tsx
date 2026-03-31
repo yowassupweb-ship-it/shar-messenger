@@ -317,7 +317,7 @@ export default function ChatInput({
     // After send/edit-submit message text becomes empty.
     // Force composer back to baseline one-line height.
     if (!messageText.trim()) {
-      textarea.style.height = '40px';
+      textarea.style.height = '44px';
       textarea.scrollTop = 0;
       return;
     }
@@ -490,7 +490,7 @@ export default function ChatInput({
               openTextMenu(e.clientX, e.clientY, isEmpty);
             }}
             placeholder="Введите сообщение..."
-            className="w-full pl-12 md:pl-11 pr-12 md:pr-11 py-3 md:py-2 min-h-[46px] md:min-h-[40px] text-[15px] md:text-[13px] text-gray-900 dark:text-gray-100 bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 rounded-[24px] md:rounded-[22px] focus:outline-none focus:border-gray-300 dark:focus:border-gray-600 resize-none overflow-y-auto scrollbar-hide leading-6 md:leading-5 block placeholder:select-none"
+            className="w-full pl-12 md:pl-11 pr-12 md:pr-11 py-2.5 md:py-2 min-h-[44px] md:min-h-[40px] text-[15px] md:text-[13px] text-gray-900 dark:text-gray-100 bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 rounded-[24px] md:rounded-[22px] focus:outline-none focus:border-gray-300 dark:focus:border-gray-600 resize-none overflow-y-auto scrollbar-hide leading-5 md:leading-5 block placeholder:select-none"
             style={{
               maxHeight: '200px',
             }}

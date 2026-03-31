@@ -39,10 +39,17 @@ export interface Message {
   linkedEventId?: string;
   notificationType?: string;
   callInfo?: CallInfo; // информация о звонке
+  // Информация о пересылке
+  forwardedFromUserId?: string;
+  forwardedFromUsername?: string;
+  forwardedFromMessageId?: string;
   metadata?: {
     taskTitle?: string;
     postTitle?: string;
     fromUserName?: string;
+    forwardedFromUserId?: string;
+    forwardedFromUsername?: string;
+    forwardedFromMessageId?: string;
     linkedEventId?: string;
     linkedEventTitle?: string;
     oldStatus?: string;
@@ -59,6 +66,7 @@ export interface Message {
 export interface Chat {
   id: string;
   title?: string;
+  avatar?: string;
   isGroup: boolean;
   isNotificationsChat?: boolean;
   isSystemChat?: boolean;
