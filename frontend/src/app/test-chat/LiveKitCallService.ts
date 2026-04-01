@@ -37,6 +37,11 @@ interface SignalResponse {
   error?: string;
 }
 
+interface CallStatusResponse {
+  exists?: boolean;
+  status?: 'ringing' | 'answered' | 'ended';
+}
+
 const POLL_INTERVAL_MS = 1200;
 
 export class CallService {
@@ -282,6 +287,41 @@ export class CallService {
           // transient; keep polling retries
         }
       }
+
+      // Source-of-truth fallback: rely on backend session status in case answer signal is lost.
+      if (
+        this.state === 'calling'
+        && this.currentCallId
+        && this.currentChatId
+        && this.currentRemoteUserId
+      ) {
+        const callStatus = await this.fetchCallStatus(
+          this.currentCallId,
+          this.currentChatId,
+          this.localUserId,
+          this.currentRemoteUserId,
+        );
+
+        if (callStatus?.status === 'answered') {
+          if (this.currentRoomName && !this.room) {
+            try {
+              await this.connectLiveKitRoom(this.currentRoomName, this.currentCallType, this.localUserId);
+            } catch {
+              // transient; room join will retry in next poll
+            }
+          }
+
+          if (this.room) {
+            this.setState('connected');
+          }
+        }
+
+        if (callStatus?.status === 'ended') {
+          this.cbs.onCallEnded();
+          this.reset(false);
+          return;
+        }
+      }
     } catch {
       // transient
     }
@@ -512,6 +552,20 @@ export class CallService {
 
     try {
       return (await response.json()) as SignalResponse;
+    } catch {
+      return null;
+    }
+  }
+
+  private async fetchCallStatus(callId: string, chatId: string, userA: string, userB: string): Promise<CallStatusResponse | null> {
+    const url = `/api/calls/status?callId=${encodeURIComponent(callId)}&chatId=${encodeURIComponent(chatId)}&userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+
+    try {
+      return (await response.json()) as CallStatusResponse;
     } catch {
       return null;
     }

@@ -5003,6 +5003,50 @@ def get_call_signals(userId: Optional[str] = None, scope: str = "p2p"):
     return queued_signals
 
 
+@app.get("/api/calls/status")
+def get_call_status(callId: str, chatId: str, userA: str, userB: str):
+    if not callId or not chatId or not userA or not userB:
+        raise HTTPException(status_code=400, detail="callId, chatId, userA, userB required")
+
+    with CALL_SIGNALING_LOCK:
+        state = _prune_call_state(_load_call_state())
+        sessions = state.get("sessions", {})
+        pair_key = _participant_key(userA, userB)
+
+        matched = next(
+            (
+                s for s in sessions.values()
+                if str(s.get("callId") or "") == str(callId)
+                and str(s.get("chatId") or "") == str(chatId)
+                and str(s.get("participantKey") or "") == pair_key
+            ),
+            None,
+        )
+
+        _save_call_state(state)
+
+    if not matched:
+        return {
+            "exists": False,
+            "status": "ended",
+            "callId": str(callId),
+            "chatId": str(chatId),
+            "userA": str(userA),
+            "userB": str(userB),
+            "lastActivityAt": None,
+        }
+
+    return {
+        "exists": True,
+        "status": str(matched.get("status") or "ringing"),
+        "callId": str(matched.get("callId") or callId),
+        "chatId": str(matched.get("chatId") or chatId),
+        "userA": str(userA),
+        "userB": str(userB),
+        "lastActivityAt": int(matched.get("lastActivityAt", 0) or 0),
+    }
+
+
 @app.post("/api/calls")
 def post_call_signal(body: CallSignalBody):
     targets = list(body.toUserIds or ([] if not body.toUserId else [body.toUserId]))
