@@ -6,12 +6,14 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
+from threading import Lock
 import sys
 import os
 import re
 import json
 import secrets
 import asyncio
+import time
 import logging
 import uuid
 import shutil
@@ -20,6 +22,10 @@ from urllib.parse import quote
 from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+try:
+    from livekit import api as livekit_api
+except Exception:
+    livekit_api = None
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -4804,6 +4810,429 @@ class MessageCreate(BaseModel):
     forwardedFromUserId: Optional[str] = None
     forwardedFromUsername: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+
+
+class CallSignalBody(BaseModel):
+    type: str
+    callId: str
+    fromUserId: str
+    chatId: str
+    toUserId: Optional[str] = None
+    toUserIds: Optional[List[str]] = None
+    callType: Optional[str] = None
+    fromUserName: Optional[str] = None
+    isGroup: Optional[bool] = None
+    groupParticipants: Optional[List[str]] = None
+    payload: Optional[Dict[str, Any]] = None
+
+
+class GroupCallBody(BaseModel):
+    action: str
+    callId: str
+    chatId: str
+    userId: str
+    userName: Optional[str] = None
+
+
+class LiveKitTokenRequest(BaseModel):
+    roomName: str
+    userId: str
+    userName: Optional[str] = None
+    canPublish: bool = True
+    canSubscribe: bool = True
+    canPublishData: bool = True
+    metadata: Optional[Dict[str, Any]] = None
+
+
+CALL_SIGNAL_TTL_MS = 30_000
+CALL_SESSION_TTL_MS = 45_000
+GROUP_CALL_STALE_MS = 60_000
+CALL_SIGNALING_DIR = Path(os.getenv("CALL_SIGNALING_DIR", str((Path(__file__).resolve().parent.parent / "runtime-data").resolve())))
+CALL_SIGNALING_FILE = CALL_SIGNALING_DIR / "call-signaling.json"
+CALL_SIGNALING_LOCK = Lock()
+
+
+def _create_empty_call_state() -> Dict[str, Any]:
+    return {
+        "queues": {},
+        "sessions": {},
+        "groupCalls": {},
+    }
+
+
+def _ensure_call_state_file() -> None:
+    CALL_SIGNALING_DIR.mkdir(parents=True, exist_ok=True)
+    if not CALL_SIGNALING_FILE.exists():
+        CALL_SIGNALING_FILE.write_text(json.dumps(_create_empty_call_state(), ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _load_call_state() -> Dict[str, Any]:
+    _ensure_call_state_file()
+    try:
+        raw = CALL_SIGNALING_FILE.read_text(encoding="utf-8")
+        parsed = json.loads(raw)
+        if not isinstance(parsed, dict):
+            return _create_empty_call_state()
+        parsed.setdefault("queues", {})
+        parsed.setdefault("sessions", {})
+        parsed.setdefault("groupCalls", {})
+        return parsed
+    except Exception:
+        return _create_empty_call_state()
+
+
+def _save_call_state(state: Dict[str, Any]) -> None:
+    _ensure_call_state_file()
+    temp_file = CALL_SIGNALING_FILE.with_suffix(".json.tmp")
+    temp_file.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    temp_file.replace(CALL_SIGNALING_FILE)
+
+
+def _participant_key(user_a: str, user_b: str) -> str:
+    return ":".join(sorted([str(user_a), str(user_b)]))
+
+
+def _session_key(chat_id: str, user_a: str, user_b: str) -> str:
+    return f"{chat_id}:{_participant_key(user_a, user_b)}"
+
+
+def _is_group_signal(signal_type: str, is_group: Optional[bool], target_count: int) -> bool:
+    return bool(is_group) or signal_type.startswith("group-") or target_count > 1
+
+
+def _prune_call_state(state: Dict[str, Any]) -> Dict[str, Any]:
+    now = int(time.time() * 1000)
+
+    queues = state.get("queues", {})
+    for user_id in list(queues.keys()):
+        queue = queues.get(user_id, [])
+        fresh = [entry for entry in queue if now - int(entry.get("ts", 0)) < CALL_SIGNAL_TTL_MS]
+        if fresh:
+            queues[user_id] = fresh
+        else:
+            queues.pop(user_id, None)
+
+    sessions = state.get("sessions", {})
+    for skey in list(sessions.keys()):
+        session = sessions.get(skey, {})
+        if now - int(session.get("lastActivityAt", 0)) >= CALL_SESSION_TTL_MS:
+            sessions.pop(skey, None)
+
+    group_calls = state.get("groupCalls", {})
+    for call_id in list(group_calls.keys()):
+        call = group_calls.get(call_id, {})
+        participants = call.get("participants", [])
+        if participants:
+            continue
+        started_at = int(call.get("startedAt", 0) or 0)
+        if now - started_at > GROUP_CALL_STALE_MS:
+            group_calls.pop(call_id, None)
+
+    return state
+
+
+def _enqueue_signal(state: Dict[str, Any], signal: Dict[str, Any], scope: str) -> None:
+    queues = state.setdefault("queues", {})
+    to_user_id = str(signal.get("toUserId", "")).strip()
+    if not to_user_id:
+        return
+    queue = queues.get(to_user_id, [])
+    queue.append({
+        "signal": signal,
+        "ts": int(time.time() * 1000),
+        "scope": scope,
+    })
+    queues[to_user_id] = queue
+
+
+@app.get("/api/calls")
+def get_call_signals(userId: Optional[str] = None, scope: str = "p2p"):
+    if not userId:
+        raise HTTPException(status_code=400, detail="userId required")
+
+    effective_scope = "all" if scope == "all" else "group" if scope == "group" else "p2p"
+
+    with CALL_SIGNALING_LOCK:
+        state = _prune_call_state(_load_call_state())
+        queue = state.get("queues", {}).get(str(userId), [])
+
+        deliverable_entries = [
+            entry for entry in queue
+            if effective_scope == "all" or str(entry.get("scope", "p2p")) == effective_scope
+        ]
+        deliverable_entries.sort(key=lambda entry: int(entry.get("ts", 0)))
+        queued_signals = [entry.get("signal", {}) for entry in deliverable_entries]
+
+        if effective_scope == "all":
+            remaining_entries = []
+        else:
+            remaining_entries = [
+                entry for entry in queue
+                if str(entry.get("scope", "p2p")) != effective_scope
+            ]
+
+        if remaining_entries:
+            state.setdefault("queues", {})[str(userId)] = remaining_entries
+        else:
+            state.setdefault("queues", {}).pop(str(userId), None)
+
+        _save_call_state(state)
+
+    return queued_signals
+
+
+@app.post("/api/calls")
+def post_call_signal(body: CallSignalBody):
+    targets = list(body.toUserIds or ([] if not body.toUserId else [body.toUserId]))
+    if not targets:
+        raise HTTPException(status_code=400, detail="toUserId or toUserIds required")
+
+    signal_type = str(body.type)
+    group_signal = _is_group_signal(signal_type, body.isGroup, len(targets))
+
+    with CALL_SIGNALING_LOCK:
+        state = _prune_call_state(_load_call_state())
+        sessions = state.setdefault("sessions", {})
+        now = int(time.time() * 1000)
+        conflicts: List[Dict[str, str]] = []
+
+        def resolve_targets_for_p2p(initial_targets: List[str]) -> List[str]:
+            if group_signal or signal_type == "offer":
+                return [str(t) for t in initial_targets]
+
+            source_user_id = str(body.fromUserId)
+            chat_id = str(body.chatId)
+            call_id = str(body.callId)
+            resolved = set(str(t) for t in initial_targets)
+
+            call_sessions = [
+                s for s in sessions.values()
+                if str(s.get("chatId")) == chat_id and str(s.get("callId")) == call_id
+            ]
+            for session in call_sessions:
+                resolved.add(str(session.get("initiatorUserId")))
+                resolved.add(str(session.get("recipientUserId")))
+
+            related = next(
+                (
+                    s for s in sessions.values()
+                    if str(s.get("callId")) == call_id and (
+                        str(s.get("initiatorUserId")) == source_user_id or
+                        str(s.get("recipientUserId")) == source_user_id
+                    )
+                ),
+                None,
+            )
+            if related:
+                counterpart = str(related.get("recipientUserId")) if str(related.get("initiatorUserId")) == source_user_id else str(related.get("initiatorUserId"))
+                if counterpart and counterpart != source_user_id:
+                    resolved.add(counterpart)
+
+            resolved.discard(source_user_id)
+            return list(resolved)
+
+        effective_targets = resolve_targets_for_p2p(targets)
+
+        for target_user_id in effective_targets:
+            signal = {
+                "type": signal_type,
+                "callId": str(body.callId),
+                "fromUserId": str(body.fromUserId),
+                "toUserId": str(target_user_id),
+                "chatId": str(body.chatId),
+                "callType": body.callType,
+                "fromUserName": body.fromUserName,
+                "isGroup": body.isGroup,
+                "groupParticipants": body.groupParticipants,
+                "payload": body.payload,
+            }
+
+            if group_signal:
+                _enqueue_signal(state, signal, "group")
+                continue
+
+            skey = _session_key(signal["chatId"], signal["fromUserId"], str(target_user_id))
+            existing_session = sessions.get(skey)
+
+            if signal_type == "offer":
+                if existing_session and str(existing_session.get("callId")) != signal["callId"]:
+                    conflicts.append({"toUserId": str(target_user_id), "activeCallId": str(existing_session.get("callId"))})
+                    _enqueue_signal(state, {
+                        "type": "reject",
+                        "callId": signal["callId"],
+                        "fromUserId": str(target_user_id),
+                        "toUserId": signal["fromUserId"],
+                        "chatId": signal["chatId"],
+                        "callType": signal.get("callType"),
+                        "payload": None,
+                    }, "p2p")
+                    continue
+
+                if existing_session and str(existing_session.get("callId")) == signal["callId"] and str(existing_session.get("initiatorUserId")) != signal["fromUserId"]:
+                    _enqueue_signal(state, {
+                        "type": "reject",
+                        "callId": signal["callId"],
+                        "fromUserId": str(target_user_id),
+                        "toUserId": signal["fromUserId"],
+                        "chatId": signal["chatId"],
+                        "callType": signal.get("callType"),
+                        "payload": None,
+                    }, "p2p")
+                    continue
+
+                sessions[skey] = {
+                    "sessionKey": skey,
+                    "callId": signal["callId"],
+                    "chatId": signal["chatId"],
+                    "participantKey": _participant_key(signal["fromUserId"], str(target_user_id)),
+                    "initiatorUserId": signal["fromUserId"],
+                    "recipientUserId": str(target_user_id),
+                    "status": "ringing",
+                    "createdAt": int(existing_session.get("createdAt", now)) if existing_session else now,
+                    "lastActivityAt": now,
+                }
+            elif signal_type == "answer":
+                if existing_session and str(existing_session.get("callId")) == signal["callId"]:
+                    existing_session["status"] = "answered"
+                    existing_session["lastActivityAt"] = now
+            elif signal_type == "ice-candidate":
+                if existing_session and str(existing_session.get("callId")) != signal["callId"]:
+                    continue
+                if existing_session:
+                    existing_session["lastActivityAt"] = now
+            elif signal_type in ("reject", "hangup"):
+                if (not existing_session) or str(existing_session.get("callId")) == signal["callId"]:
+                    sessions.pop(skey, None)
+
+            _enqueue_signal(state, signal, "p2p")
+
+        _save_call_state(state)
+
+    ok = len(conflicts) == 0
+    return Response(
+        content=json.dumps({"ok": ok, "accepted": ok, "conflicts": conflicts}, ensure_ascii=False),
+        media_type="application/json",
+        status_code=200 if ok else 409,
+    )
+
+
+@app.get("/api/calls/group")
+def get_group_call(callId: Optional[str] = None, chatId: Optional[str] = None):
+    if not callId and not chatId:
+        raise HTTPException(status_code=400, detail="callId or chatId required")
+
+    with CALL_SIGNALING_LOCK:
+        state = _prune_call_state(_load_call_state())
+        group_calls = state.setdefault("groupCalls", {})
+
+        result = None
+        if callId:
+            result = group_calls.get(str(callId))
+        elif chatId:
+            result = next((c for c in group_calls.values() if str(c.get("chatId")) == str(chatId)), None)
+
+        _save_call_state(state)
+        return result
+
+
+@app.post("/api/calls/group")
+def post_group_call(body: GroupCallBody):
+    if not body.callId or not body.userId:
+        raise HTTPException(status_code=400, detail="callId and userId required")
+
+    action = str(body.action)
+    now = int(time.time() * 1000)
+
+    with CALL_SIGNALING_LOCK:
+        state = _prune_call_state(_load_call_state())
+        group_calls = state.setdefault("groupCalls", {})
+
+        if action == "start":
+            call = {
+                "callId": str(body.callId),
+                "chatId": str(body.chatId),
+                "startedAt": now,
+                "participants": [{
+                    "userId": str(body.userId),
+                    "userName": body.userName or str(body.userId),
+                    "joinedAt": now,
+                }],
+            }
+            group_calls[str(body.callId)] = call
+            _save_call_state(state)
+            return call
+
+        call = group_calls.get(str(body.callId))
+        if not call:
+            raise HTTPException(status_code=404, detail="Call not found")
+
+        participants = call.setdefault("participants", [])
+        if action == "join":
+            exists = any(str(p.get("userId")) == str(body.userId) for p in participants)
+            if not exists:
+                participants.append({
+                    "userId": str(body.userId),
+                    "userName": body.userName or str(body.userId),
+                    "joinedAt": now,
+                })
+            _save_call_state(state)
+            return call
+
+        if action == "leave":
+            call["participants"] = [p for p in participants if str(p.get("userId")) != str(body.userId)]
+            if not call["participants"]:
+                group_calls.pop(str(body.callId), None)
+            _save_call_state(state)
+            return {"ok": True}
+
+    raise HTTPException(status_code=400, detail="Unknown action")
+
+
+@app.post("/api/livekit/token")
+def create_livekit_token(body: LiveKitTokenRequest):
+    if livekit_api is None:
+        raise HTTPException(status_code=500, detail="livekit-api package is not installed")
+
+    api_key = os.getenv("LIVEKIT_API_KEY", "").strip()
+    api_secret = os.getenv("LIVEKIT_API_SECRET", "").strip()
+    ws_url = os.getenv("LIVEKIT_URL", "").strip()
+
+    if not api_key or not api_secret or not ws_url:
+        raise HTTPException(
+            status_code=500,
+            detail="LIVEKIT_API_KEY, LIVEKIT_API_SECRET and LIVEKIT_URL must be set",
+        )
+
+    identity = str(body.userId).strip()
+    room_name = str(body.roomName).strip()
+    if not identity or not room_name:
+        raise HTTPException(status_code=400, detail="userId and roomName are required")
+
+    grants = livekit_api.VideoGrants(
+        room_join=True,
+        room=room_name,
+        can_publish=bool(body.canPublish),
+        can_subscribe=bool(body.canSubscribe),
+        can_publish_data=bool(body.canPublishData),
+    )
+
+    token_builder = livekit_api.AccessToken(api_key, api_secret)
+    token_builder = token_builder.with_identity(identity)
+    token_builder = token_builder.with_name((body.userName or identity).strip())
+    token_builder = token_builder.with_grants(grants)
+
+    metadata_payload = body.metadata or {}
+    if metadata_payload:
+        token_builder = token_builder.with_metadata(json.dumps(metadata_payload, ensure_ascii=False))
+
+    jwt_token = token_builder.to_jwt()
+
+    return {
+        "token": jwt_token,
+        "url": ws_url,
+        "roomName": room_name,
+        "identity": identity,
+    }
 
 @app.get("/api/chats")
 def get_chats(user_id: Optional[str] = None, include_archived: bool = False):

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Volume2 } from 'lucide-react';
-import type { CallState, CallType, IncomingCall, CallDebugDump } from './CallService';
+import type { CallState, CallType, IncomingCall, CallDebugDump } from './LiveKitCallService';
 
 export interface CallOverlayProps {
   /** Current call state from CallService */

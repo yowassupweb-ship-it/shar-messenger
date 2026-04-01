@@ -16,10 +16,10 @@ import GroupCallView from './GroupCallView';
 import MessageContextMenu from '@/components/features/messages/MessageContextMenu';
 import NewChatModal from '@/components/features/messages/NewChatModal';
 import { X, Archive, Trash2, Pin } from 'lucide-react';
-import { CallService, type CallState, type CallType, type IncomingCall } from './CallService';
+import { CallService, type CallState, type CallType, type IncomingCall } from './LiveKitCallService';
 import { GroupCallService, type GroupCallState } from './GroupCallService';
 import type { GroupParticipantUI } from './GroupCallView';
-import type { CallDebugDump } from './CallService';
+import type { CallDebugDump } from './LiveKitCallService';
 import type { Message, User, Chat } from '@/components/features/messages/types';
 import './globals.css';
 
@@ -103,6 +103,8 @@ export default function TestChat() {
   const groupCallServiceRef = useRef<GroupCallService | null>(null);
 
   const [isBelow768, setIsBelow768] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 768 : false));
+  const [mobileViewportHeight, setMobileViewportHeight] = useState<number | null>(null);
+  const [mobileKeyboardOffset, setMobileKeyboardOffset] = useState(0);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatTimelineRef = useRef<ChatTimelineV2 | null>(null);
@@ -114,6 +116,7 @@ export default function TestChat() {
   const activeChatIdRef = useRef<string | null>(null);
   const latestLoadRequestByChatRef = useRef<Record<string, number>>({});
   const loadRequestSeqRef = useRef(0);
+  const isTauri = typeof window !== 'undefined' && localStorage.getItem('_platform') === 'tauri';
 
   const normalizeAttachmentUrl = (rawUrl: string): string => {
     if (!rawUrl) return rawUrl;
@@ -155,6 +158,38 @@ export default function TestChat() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateViewport = () => {
+      const vv = window.visualViewport;
+      const viewportHeight = vv ? Math.round(vv.height) : window.innerHeight;
+      setMobileViewportHeight(viewportHeight);
+
+      if (!vv || !isBelow768) {
+        setMobileKeyboardOffset(0);
+        return;
+      }
+
+      // Android keyboard reduces visual viewport height; move composer above it.
+      const keyboardHeight = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      setMobileKeyboardOffset(keyboardHeight > 70 ? keyboardHeight : 0);
+    };
+
+    updateViewport();
+
+    const vv = window.visualViewport;
+    window.addEventListener('resize', updateViewport);
+    vv?.addEventListener('resize', updateViewport);
+    vv?.addEventListener('scroll', updateViewport);
+
+    return () => {
+      window.removeEventListener('resize', updateViewport);
+      vv?.removeEventListener('resize', updateViewport);
+      vv?.removeEventListener('scroll', updateViewport);
+    };
+  }, [isBelow768]);
 
   useEffect(() => {
     return () => {
@@ -1595,7 +1630,10 @@ export default function TestChat() {
   const hasPinnedMessages = pinnedMessages.length > 0;
 
   return (
-    <div className={`h-full min-h-0 flex p-1 gap-1 ${backgroundGradient} max-md:p-0 max-md:gap-0`}>
+    <div
+      className={`h-full min-h-0 flex p-1 gap-1 ${backgroundGradient} max-md:p-0 max-md:gap-0`}
+      style={isBelow768 && mobileViewportHeight ? { height: `${mobileViewportHeight}px` } : undefined}
+    >
       {/* Скрываем сайдбар на мобильных когда открыт чат */}
       <div className={`${isBelow768 && currentChatId ? 'hidden' : 'flex'} flex-col md:h-full md:min-h-0 max-md:w-full max-md:h-full`}>
         <ChatSidebar 
@@ -1733,7 +1771,7 @@ export default function TestChat() {
                   messageSearchQuery=""
                   users={users}
                   currentUser={currentUser}
-                  selectedChat={selectedChatForTimeline}
+                  selectedChat={selectedChatForTimeline || currentChat}
                   selectedMessages={selectedMessages}
                   editingMessageId={editingMessageId}
                   isSelectionMode={isSelectionMode}
@@ -1780,7 +1818,14 @@ export default function TestChat() {
 
               {/* Хедер — абсолютно позиционирован поверх фона чата.
                   Сообщения скроллятся за ним, позиции баблов определяет scrollTopPadding. */}
-              <div className="absolute top-0 md:-top-[7px] left-0 right-0 z-10" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+              <div
+                className="absolute top-0 left-0 right-0 z-10"
+                style={{
+                  paddingTop: isBelow768
+                    ? (isTauri ? '0px' : 'env(safe-area-inset-top, 0px)')
+                    : '0px',
+                }}
+              >
                 {isSelectionMode ? (
                   <SelectionActionsBar
                     selectedCount={selectedMessages.size}
@@ -1820,7 +1865,11 @@ export default function TestChat() {
               </div>
 
               {/* Floating composer over chat background (no separate underlay block). */}
-              <div className={`absolute ${isBelow768 && currentChatId ? 'bottom-0' : 'bottom-[56px] md:bottom-0'} left-0 right-0 z-10`} ref={composerContainerRef}>
+              <div
+                className={`absolute ${isBelow768 && currentChatId ? 'bottom-0' : 'bottom-[56px] md:bottom-0'} left-0 right-0 z-10`}
+                style={isBelow768 && currentChatId ? { bottom: `${mobileKeyboardOffset}px` } : undefined}
+                ref={composerContainerRef}
+              >
                 {(currentChat?.isNotificationsChat || String(currentChatId || '').startsWith('notifications-') || String(currentChatId || '').startsWith('notifications_')) ? (
                   <div className="mx-2 mb-2 px-4 py-3 rounded-2xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-gray-200 dark:border-slate-700 text-[13px] text-gray-400 dark:text-gray-500 text-center select-none">
                     Чат только для чтения
