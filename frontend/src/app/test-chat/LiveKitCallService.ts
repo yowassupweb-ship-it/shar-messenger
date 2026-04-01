@@ -269,6 +269,19 @@ export class CallService {
       if (this.room) {
         this.syncConnectedStateFromRoom(this.room);
       }
+
+      // Hard fallback: if caller is still in calling state without a room,
+      // retry room join even when answer signaling is delayed/lost.
+      if (this.state === 'calling' && !this.room && this.currentRoomName) {
+        try {
+          await this.connectLiveKitRoom(this.currentRoomName, this.currentCallType, this.localUserId);
+          if (this.room) {
+            this.syncConnectedStateFromRoom(this.room);
+          }
+        } catch {
+          // transient; keep polling retries
+        }
+      }
     } catch {
       // transient
     }
