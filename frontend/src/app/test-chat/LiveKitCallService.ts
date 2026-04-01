@@ -114,6 +114,10 @@ export class CallService {
         throw new Error(signalResult?.error || 'Failed to send outgoing call signal');
       }
 
+      // Join room right after successful invite delivery.
+      // This prevents caller from being stuck in "calling" when answer signaling is delayed.
+      await this.connectLiveKitRoom(this.currentRoomName, callType, fromUserName || this.localUserId);
+
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to start call';
       this.cbs.onError(message);
