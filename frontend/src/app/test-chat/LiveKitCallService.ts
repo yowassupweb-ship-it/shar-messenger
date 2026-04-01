@@ -121,7 +121,7 @@ export class CallService {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to start call';
       this.cbs.onError(message);
-      this.reset(false);
+      // Keep calling state: polling fallback will retry room join.
     }
   }
 
@@ -328,7 +328,7 @@ export class CallService {
             } catch (error: unknown) {
               const message = error instanceof Error ? error.message : 'Failed to connect caller room';
               this.cbs.onError(message);
-              this.reset(false);
+              // Keep calling state and let poll retries continue.
               return;
             }
           }
@@ -449,6 +449,11 @@ export class CallService {
     });
 
     room.on(RoomEvent.Disconnected, () => {
+      if (this.state === 'calling') {
+        // Transient failures while calling are recoverable; poll loop will retry connect.
+        this.room = null;
+        return;
+      }
       if (this.state !== 'idle') {
         this.cbs.onCallEnded();
       }
