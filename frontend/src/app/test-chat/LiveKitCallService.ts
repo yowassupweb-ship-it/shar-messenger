@@ -56,6 +56,9 @@ export class CallService {
 
   private pendingIncomingCall: IncomingCall | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private acceptInFlight = false;
+  private connectingRoomName: string | null = null;
+  private roomConnectPromise: Promise<void> | null = null;
 
   constructor(localUserId: string, callbacks: CallServiceCallbacks) {
     this.localUserId = localUserId;
@@ -119,6 +122,12 @@ export class CallService {
   }
 
   async acceptCall(call: IncomingCall) {
+    if (this.acceptInFlight) return;
+    if (this.currentCallId === call.callId && (this.state === 'connected' || this.connectingRoomName === call.roomName)) {
+      return;
+    }
+
+    this.acceptInFlight = true;
     this.pendingIncomingCall = null;
     this.currentCallId = call.callId;
     this.currentRemoteUserId = call.fromUserId;
@@ -143,6 +152,8 @@ export class CallService {
       const message = error instanceof Error ? error.message : 'Failed to accept call';
       this.cbs.onError(message);
       this.reset(false);
+    } finally {
+      this.acceptInFlight = false;
     }
   }
 
@@ -259,6 +270,9 @@ export class CallService {
       case 'offer': {
         if (!sig.callId || String(sig.fromUserId) === String(this.localUserId)) return;
         if (this.state === 'connected' || this.state === 'ending') return;
+        if (this.currentCallId && String(sig.callId) === String(this.currentCallId) && this.state === 'ringing') {
+          return;
+        }
 
         const roomName = String(sig?.payload?.roomName || '');
         if (!roomName) return;
@@ -316,6 +330,25 @@ export class CallService {
   }
 
   private async connectLiveKitRoom(roomName: string, callType: CallType, displayName: string) {
+    if (this.room && this.currentRoomName === roomName) {
+      return;
+    }
+
+    if (this.roomConnectPromise && this.connectingRoomName === roomName) {
+      await this.roomConnectPromise;
+      return;
+    }
+
+    const connectPromise = (async () => {
+      if (this.room) {
+        try {
+          this.room.disconnect();
+        } catch {
+          // ignore
+        }
+        this.room = null;
+      }
+
     const tokenResponse = await fetch('/api/livekit/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -358,6 +391,16 @@ export class CallService {
     this.room = room;
     this.updateLocalStreamFromRoom();
     this.updateRemoteStreamFromRoom();
+    })();
+
+    this.connectingRoomName = roomName;
+    this.roomConnectPromise = connectPromise;
+    try {
+      await connectPromise;
+    } finally {
+      this.roomConnectPromise = null;
+      this.connectingRoomName = null;
+    }
   }
 
   private bindRoomEvents(room: Room) {
