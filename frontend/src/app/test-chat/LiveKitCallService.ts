@@ -395,6 +395,7 @@ export class CallService {
     this.room = room;
     this.updateLocalStreamFromRoom();
     this.updateRemoteStreamFromRoom();
+    this.syncConnectedStateFromRoom(room);
     })();
 
     this.connectingRoomName = roomName;
@@ -410,9 +411,7 @@ export class CallService {
   private bindRoomEvents(room: Room) {
     room.on(RoomEvent.TrackSubscribed, () => {
       this.updateRemoteStreamFromRoom();
-      if (this.state === 'calling' || this.state === 'ringing') {
-        this.setState('connected');
-      }
+      this.syncConnectedStateFromRoom(room);
     });
 
     room.on(RoomEvent.TrackUnsubscribed, () => {
@@ -420,9 +419,7 @@ export class CallService {
     });
 
     room.on(RoomEvent.ParticipantConnected, () => {
-      if (this.state === 'calling' || this.state === 'ringing') {
-        this.setState('connected');
-      }
+      this.syncConnectedStateFromRoom(room);
     });
 
     room.on(RoomEvent.ParticipantDisconnected, () => {
@@ -471,6 +468,12 @@ export class CallService {
 
     this.remoteStream = new MediaStream(tracks);
     this.cbs.onRemoteStream(this.remoteStream);
+  }
+
+  private syncConnectedStateFromRoom(room: Room) {
+    if (room.remoteParticipants.size > 0 && (this.state === 'calling' || this.state === 'ringing')) {
+      this.setState('connected');
+    }
   }
 
   private async signal(payload: Record<string, unknown>): Promise<SignalResponse | null> {

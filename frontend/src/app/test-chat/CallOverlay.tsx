@@ -240,17 +240,19 @@ export default function CallOverlay({
 
       // WebAudio fallback: some environments report play() success but remain silent.
       // Routing stream through AudioContext destination makes playback more reliable.
-      try {
-        webAudioCtx = new AudioContext();
-        webAudioSource = webAudioCtx.createMediaStreamSource(remoteStream);
-        webAudioGain = webAudioCtx.createGain();
-        webAudioGain.gain.value = 1.0;
-        webAudioSource.connect(webAudioGain);
-        webAudioGain.connect(webAudioCtx.destination);
-        webAudioCtx.resume().catch(() => {});
-        console.log('[CallOverlay] WebAudio fallback connected');
-      } catch (err) {
-        console.warn('[CallOverlay] WebAudio fallback failed:', err);
+      if (remoteStream.getAudioTracks().length > 0) {
+        try {
+          webAudioCtx = new AudioContext();
+          webAudioSource = webAudioCtx.createMediaStreamSource(remoteStream);
+          webAudioGain = webAudioCtx.createGain();
+          webAudioGain.gain.value = 1.0;
+          webAudioSource.connect(webAudioGain);
+          webAudioGain.connect(webAudioCtx.destination);
+          webAudioCtx.resume().catch(() => {});
+          console.log('[CallOverlay] WebAudio fallback connected');
+        } catch (err) {
+          console.warn('[CallOverlay] WebAudio fallback failed:', err);
+        }
       }
     }
     
