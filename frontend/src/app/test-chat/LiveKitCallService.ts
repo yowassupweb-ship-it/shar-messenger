@@ -95,9 +95,7 @@ export class CallService {
     this.setState('calling');
 
     try {
-      await this.connectLiveKitRoom(this.currentRoomName, callType, fromUserName || this.localUserId);
-
-      await this.signal({
+      const signalResult = await this.signal({
         type: 'offer',
         toUserId: this.currentRemoteUserId,
         chatId: this.currentChatId,
@@ -108,6 +106,11 @@ export class CallService {
           protocol: 'livekit',
         },
       });
+
+      if (!signalResult || signalResult.ok === false || signalResult.accepted === false || signalResult.error) {
+        throw new Error(signalResult?.error || 'Failed to send outgoing call signal');
+      }
+
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to start call';
       this.cbs.onError(message);
@@ -283,6 +286,17 @@ export class CallService {
       case 'answer': {
         if (this.currentCallId && String(sig.callId) !== String(this.currentCallId)) return;
         if (this.state === 'calling') {
+          if (this.currentRoomName) {
+            try {
+              await this.connectLiveKitRoom(this.currentRoomName, this.currentCallType, this.localUserId);
+            } catch (error: unknown) {
+              const message = error instanceof Error ? error.message : 'Failed to connect caller room';
+              this.cbs.onError(message);
+              this.reset(false);
+              return;
+            }
+          }
+
           this.setState('connected');
         }
         break;
