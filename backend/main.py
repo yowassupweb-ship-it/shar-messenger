@@ -4896,6 +4896,28 @@ def _session_key(chat_id: str, user_a: str, user_b: str) -> str:
     return f"{chat_id}:{_participant_key(user_a, user_b)}"
 
 
+def _clear_p2p_sessions(sessions: Dict[str, Any], chat_id: str, user_a: str, user_b: str, call_id: Optional[str] = None) -> None:
+    participant_key = _participant_key(user_a, user_b)
+    for existing_key in list(sessions.keys()):
+        session = sessions.get(existing_key, {})
+        if str(session.get("participantKey") or "") == participant_key:
+            sessions.pop(existing_key, None)
+            continue
+
+        if call_id and str(session.get("callId") or "") == str(call_id):
+            sessions.pop(existing_key, None)
+            continue
+
+        if (
+            str(session.get("chatId") or "") == str(chat_id)
+            and {
+                str(session.get("initiatorUserId") or ""),
+                str(session.get("recipientUserId") or ""),
+            } == {str(user_a), str(user_b)}
+        ):
+            sessions.pop(existing_key, None)
+
+
 def _is_group_signal(signal_type: str, is_group: Optional[bool], target_count: int) -> bool:
     return bool(is_group) or signal_type.startswith("group-") or target_count > 1
 
@@ -5055,30 +5077,14 @@ def post_call_signal(body: CallSignalBody):
             existing_session = sessions.get(skey)
 
             if signal_type == "offer":
-                if existing_session and str(existing_session.get("callId")) != signal["callId"]:
-                    conflicts.append({"toUserId": str(target_user_id), "activeCallId": str(existing_session.get("callId"))})
-                    _enqueue_signal(state, {
-                        "type": "reject",
-                        "callId": signal["callId"],
-                        "fromUserId": str(target_user_id),
-                        "toUserId": signal["fromUserId"],
-                        "chatId": signal["chatId"],
-                        "callType": signal.get("callType"),
-                        "payload": None,
-                    }, "p2p")
-                    continue
-
-                if existing_session and str(existing_session.get("callId")) == signal["callId"] and str(existing_session.get("initiatorUserId")) != signal["fromUserId"]:
-                    _enqueue_signal(state, {
-                        "type": "reject",
-                        "callId": signal["callId"],
-                        "fromUserId": str(target_user_id),
-                        "toUserId": signal["fromUserId"],
-                        "chatId": signal["chatId"],
-                        "callType": signal.get("callType"),
-                        "payload": None,
-                    }, "p2p")
-                    continue
+                # Hard reset model: a new outgoing call always drops previous pair sessions first.
+                _clear_p2p_sessions(
+                    sessions,
+                    chat_id=signal["chatId"],
+                    user_a=signal["fromUserId"],
+                    user_b=str(target_user_id),
+                    call_id=signal["callId"],
+                )
 
                 sessions[skey] = {
                     "sessionKey": skey,
@@ -5101,8 +5107,13 @@ def post_call_signal(body: CallSignalBody):
                 if existing_session:
                     existing_session["lastActivityAt"] = now
             elif signal_type in ("reject", "hangup"):
-                if (not existing_session) or str(existing_session.get("callId")) == signal["callId"]:
-                    sessions.pop(skey, None)
+                _clear_p2p_sessions(
+                    sessions,
+                    chat_id=signal["chatId"],
+                    user_a=signal["fromUserId"],
+                    user_b=str(target_user_id),
+                    call_id=signal["callId"],
+                )
 
             _enqueue_signal(state, signal, "p2p")
 
