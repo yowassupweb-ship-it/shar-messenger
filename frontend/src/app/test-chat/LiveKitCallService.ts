@@ -264,6 +264,11 @@ export class CallService {
       for (const sig of signals) {
         await this.handleSignal(sig);
       }
+
+      // Fallback state sync: some environments miss participant/track events.
+      if (this.room) {
+        this.syncConnectedStateFromRoom(this.room);
+      }
     } catch {
       // transient
     }
