@@ -146,6 +146,8 @@ export class CallService {
 
     try {
       await this.connectLiveKitRoom(call.roomName, call.callType, this.localUserId);
+      // Если комната отвалилась во время подключения (Disconnected event), прерываем.
+      if (!this.room) throw new Error('Room disconnected during setup');
       await this.signal({
         type: 'answer',
         toUserId: call.fromUserId,
@@ -360,7 +362,7 @@ export class CallService {
       }
 
       case 'answer': {
-        if (this.currentCallId && String(sig.callId) !== String(this.currentCallId)) return;
+        if (!sig.callId || !this.currentCallId || String(sig.callId) !== String(this.currentCallId)) return;
         
         if (this.state === 'calling' || this.state === 'connected') {
           if (this.currentRoomName) {
@@ -382,7 +384,7 @@ export class CallService {
 
       case 'reject':
       case 'hangup': {
-        if (this.currentCallId && String(sig.callId) !== String(this.currentCallId)) return;
+        if (!sig.callId || !this.currentCallId || String(sig.callId) !== String(this.currentCallId)) return;
         this.cbs.onCallEnded();
         this.reset(false);
         break;
@@ -450,6 +452,10 @@ export class CallService {
     this.room = room;
 
     try {
+      // Предварительно запрашиваем системное разрешение на микрофон у браузера
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop());
+      
       await room.localParticipant.setMicrophoneEnabled(true);
     } catch (e) {
       console.warn('[LiveKitCallService] Failed to enable microphone:', e);
@@ -457,6 +463,10 @@ export class CallService {
     
     if (callType === 'video') {
       try {
+        // Предварительно запрашиваем системное разрешение на камеру
+        const vs = await navigator.mediaDevices.getUserMedia({ video: true });
+        vs.getTracks().forEach(track => track.stop());
+        
         await room.localParticipant.setCameraEnabled(true);
       } catch (e) {
         console.warn('[LiveKitCallService] Failed to enable camera:', e);
@@ -494,15 +504,18 @@ export class CallService {
 
     room.on(RoomEvent.ParticipantDisconnected, () => {
       this.updateRemoteStreamFromRoom();
-      if (room.remoteParticipants.size === 0 && this.state !== 'idle') {
+      // Завершаем звонок только если уже были в connected — до этого момента
+      // отвал участников является нормой (ресивер ещё подключается).
+      if (room.remoteParticipants.size === 0 && this.state === 'connected') {
         this.cbs.onCallEnded();
         this.reset(true);
       }
     });
 
     room.on(RoomEvent.Disconnected, () => {
-      if (this.state === 'calling') {
-        // Transient failures while calling are recoverable; poll loop will retry connect.
+      if (this.state === 'calling' || this.state === 'ringing') {
+        // Временный сбой во время установки соединения — пусть acceptCall / poll
+        // сами обработают через catch, не вызываем onCallEnded раньше времени.
         this.room = null;
         return;
       }
@@ -546,9 +559,10 @@ export class CallService {
   }
 
   private syncConnectedStateFromRoom(room: Room) {
-    if (room.remoteParticipants.size > 0 && (this.state === 'calling' || this.state === 'ringing')) {
-      this.setState('connected');
-    }
+    // Мы убираем автоматический переход в 'connected' при подключении remote участника.
+    // Переход в 'connected' должен происходить только по получению сигнала 'answer' 
+    // или из API проверки статуса. Иначе Caller будет думать, что звонок начался,
+    // пока Receiver еще только пытается установить WebRTC соединение (висит в ringing).
   }
 
   private async signal(payload: Record<string, unknown>): Promise<SignalResponse | null> {
