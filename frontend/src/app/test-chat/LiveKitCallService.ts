@@ -303,16 +303,16 @@ export class CallService {
         );
 
         if (callStatus?.status === 'answered') {
+          if (this.state !== 'connected') {
+            this.setState('connected');
+          }
+
           if (this.currentRoomName && !this.room) {
             try {
               await this.connectLiveKitRoom(this.currentRoomName, this.currentCallType, this.localUserId);
             } catch {
               // transient; room join will retry in next poll
             }
-          }
-
-          if (this.room) {
-            this.setState('connected');
           }
         }
 
@@ -361,19 +361,21 @@ export class CallService {
 
       case 'answer': {
         if (this.currentCallId && String(sig.callId) !== String(this.currentCallId)) return;
-        if (this.state === 'calling') {
+        
+        if (this.state === 'calling' || this.state === 'connected') {
           if (this.currentRoomName) {
             try {
               await this.connectLiveKitRoom(this.currentRoomName, this.currentCallType, this.localUserId);
             } catch (error: unknown) {
               const message = error instanceof Error ? error.message : 'Failed to connect caller room';
               this.cbs.onError(message);
-              // Keep calling state and let poll retries continue.
-              return;
+              // Connection failed but we know the call was answered. Let poll retries continue
             }
           }
 
-          this.setState('connected');
+          if (this.state !== 'connected') {
+             this.setState('connected');
+          }
         }
         break;
       }
@@ -445,12 +447,22 @@ export class CallService {
 
     await room.connect(wsUrl, token, { autoSubscribe: true });
 
-    await room.localParticipant.setMicrophoneEnabled(true);
+    this.room = room;
+
+    try {
+      await room.localParticipant.setMicrophoneEnabled(true);
+    } catch (e) {
+      console.warn('[LiveKitCallService] Failed to enable microphone:', e);
+    }
+    
     if (callType === 'video') {
-      await room.localParticipant.setCameraEnabled(true);
+      try {
+        await room.localParticipant.setCameraEnabled(true);
+      } catch (e) {
+        console.warn('[LiveKitCallService] Failed to enable camera:', e);
+      }
     }
 
-    this.room = room;
     this.updateLocalStreamFromRoom();
     this.updateRemoteStreamFromRoom();
     this.syncConnectedStateFromRoom(room);
