@@ -559,10 +559,12 @@ export class CallService {
   }
 
   private syncConnectedStateFromRoom(room: Room) {
-    // Мы убираем автоматический переход в 'connected' при подключении remote участника.
-    // Переход в 'connected' должен происходить только по получению сигнала 'answer' 
-    // или из API проверки статуса. Иначе Caller будет думать, что звонок начался,
-    // пока Receiver еще только пытается установить WebRTC соединение (висит в ringing).
+    // Переходим в connected только из calling — когда удалённый участник появился
+    // в LiveKit комнате. Для ringing не делаем: ресивер должен вручную нажать "Принять"
+    // и сам выставить состояние через acceptCall → setState('connected').
+    if (room.remoteParticipants.size > 0 && this.state === 'calling') {
+      this.setState('connected');
+    }
   }
 
   private async signal(payload: Record<string, unknown>): Promise<SignalResponse | null> {
