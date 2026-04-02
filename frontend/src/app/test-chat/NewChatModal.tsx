@@ -1,5 +1,6 @@
 import { X, Search, Users, MessageSquare } from 'lucide-react';
 import type { User } from '@/components/features/messages/types';
+import { useState } from 'react';
 
 interface NewChatModalProps {
   isOpen: boolean;
@@ -37,6 +38,8 @@ export default function NewChatModal({
   setSelectedUsers,
   filteredUsers,
 }: NewChatModalProps) {
+  const [failedAvatarIds, setFailedAvatarIds] = useState<Set<string>>(new Set());
+
   if (!isOpen) return null;
 
   const handleClose = () => {
@@ -132,9 +135,18 @@ export default function NewChatModal({
                   }}
                   className="w-4 h-4"
                 />
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white text-[11px] font-semibold flex items-center justify-center">
-                  {initialsFromUser(user)}
-                </div>
+                {user.avatar && !failedAvatarIds.has(user.id) ? (
+                  <img
+                    src={user.avatar}
+                    alt={label}
+                    className="w-8 h-8 rounded-full object-cover"
+                    onError={() => setFailedAvatarIds(prev => new Set(prev).add(user.id))}
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white text-[11px] font-semibold flex items-center justify-center">
+                    {initialsFromUser(user)}
+                  </div>
+                )}
                 <div className="min-w-0">
                   <div className="text-sm text-gray-900 dark:text-gray-100 truncate">{label}</div>
                   {user.email && <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</div>}

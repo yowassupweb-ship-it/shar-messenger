@@ -3,7 +3,6 @@ import type { Chat, Message, User } from '@/components/features/messages/types';
 import { useState } from 'react';
 import { getAvatarGradient, getChatAvatarUrl, getInitials, isFavoritesChat, isForwardTargetAllowed, isNotificationsChat } from './avatarUtils';
 import { Star, Bell } from 'lucide-react';
-
 interface ForwardMessageModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -28,6 +27,7 @@ export default function ForwardMessageModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [failedAvatarIds, setFailedAvatarIds] = useState<Set<string>>(new Set());
 
   if (!isOpen || !message) return null;
 
@@ -137,11 +137,12 @@ export default function ForwardMessageModal({
                   <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-sm">
                     <Bell className="w-5 h-5" />
                   </div>
-                ) : avatarUrl ? (
+                ) : avatarUrl && !failedAvatarIds.has(chat.id) ? (
                   <img
                     src={avatarUrl}
                     alt={displayTitle}
                     className="w-10 h-10 rounded-full object-cover"
+                    onError={() => setFailedAvatarIds(prev => new Set(prev).add(chat.id))}
                   />
                 ) : (
                   <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${avatarColor} text-white text-sm font-semibold flex items-center justify-center`}>

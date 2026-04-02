@@ -31,8 +31,27 @@ export default function TaskListSelector({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [creating, setCreating] = useState(false);
+  const [localLists, setLocalLists] = useState<TodoList[]>([]);
 
-  console.log('[TaskListSelector] Рендер:', { show, todoListsCount: todoLists?.length || 0, todoLists });
+  // Загружаем списки самостоятельно при открытии — иначе пропс todoLists ещё не обновлён (race condition)
+  useEffect(() => {
+    if (!show) return;
+    const myAccountRaw = typeof window !== 'undefined' ? localStorage.getItem('myAccount') : null;
+    const myAccount = myAccountRaw ? JSON.parse(myAccountRaw) : null;
+    const userId = myAccount?.id || currentUserId;
+    const query = userId ? `?userId=${encodeURIComponent(String(userId))}` : '';
+    fetch(`/api/todos${query}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) {
+          const lists = Array.isArray(data?.lists) ? data.lists : (Array.isArray(data) ? data : []);
+          setLocalLists(lists);
+        }
+      })
+      .catch(() => {});
+  }, [show, currentUserId]);
+
+  const activeLists = localLists.length > 0 ? localLists : todoLists;
 
   const normalizedMessage = useMemo(() => {
     const text = (message?.content || '').replace(/\s+/g, ' ').trim();
@@ -106,14 +125,14 @@ export default function TaskListSelector({
 
         <div className="p-4 border-b border-gray-200 dark:border-white/10">
           <p className="text-xs text-gray-500 dark:text-white/50 mb-2">Шаг 1: Выберите список</p>
-          {!todoLists || todoLists.length === 0 ? (
+          {!activeLists || activeLists.length === 0 ? (
             <div className="text-sm text-gray-500 dark:text-white/50 p-4 bg-yellow-50 dark:bg-yellow-500/10 rounded-lg border border-yellow-200 dark:border-yellow-500/30">
               <p className="font-medium mb-1">Списки задач не найдены</p>
               <p className="text-xs">Создайте список задач в разделе &quot;Задачи&quot; перед созданием задачи из сообщения.</p>
             </div>
           ) : (
             <div className="max-h-44 overflow-y-auto space-y-2">
-              {todoLists.map((list) => {
+              {activeLists.map((list) => {
                 const isSelected = selectedList?.id === list.id;
                 return (
                   <button

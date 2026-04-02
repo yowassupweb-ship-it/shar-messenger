@@ -31,8 +31,31 @@ export default function EventCalendarSelector({
   const [time, setTime] = useState('');
   const [type, setType] = useState<'work' | 'meeting' | 'event' | 'holiday'>('event');
   const [creating, setCreating] = useState(false);
+  const [localLists, setLocalLists] = useState<CalendarList[]>([]);
 
-  console.log('[EventCalendarSelector] Рендер:', { show, calendarListsCount: calendarLists?.length || 0, calendarLists });
+  // Загружаем календари самостоятельно при открытии — иначе пропс calendarLists ещё не обновлён (race condition)
+  useEffect(() => {
+    if (!show) return;
+    const username = typeof window !== 'undefined' ? localStorage.getItem('username') || '' : '';
+    const myAccountRaw = typeof window !== 'undefined' ? localStorage.getItem('myAccount') : null;
+    const myAccount = myAccountRaw ? JSON.parse(myAccountRaw) : null;
+    const params = new URLSearchParams();
+    if (myAccount?.id) params.set('userId', myAccount.id);
+    if (username) params.set('username', username);
+    if (myAccount?.department) params.set('department', myAccount.department);
+    const url = params.toString() ? `/api/calendar-lists?${params.toString()}` : '/api/calendar-lists';
+    fetch(url)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) {
+          const lists = Array.isArray(data) ? data : (Array.isArray(data?.lists) ? data.lists : []);
+          setLocalLists(lists);
+        }
+      })
+      .catch(() => {});
+  }, [show]);
+
+  const activeLists = localLists.length > 0 ? localLists : calendarLists;
 
   const normalizedMessage = useMemo(() => {
     const text = (message?.content || '').replace(/\s+/g, ' ').trim();
@@ -119,7 +142,7 @@ export default function EventCalendarSelector({
 
         <div className="p-4 border-b border-gray-200 dark:border-white/10">
           <p className="text-xs text-gray-500 dark:text-white/50 mb-2">Шаг 1: Выберите календарь</p>
-          {calendarLists.length === 0 ? (
+          {activeLists.length === 0 ? (
             <div className="text-center py-8 text-gray-500 dark:text-white/50">
               <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p className="text-sm">Нет доступных календарей</p>
@@ -127,7 +150,7 @@ export default function EventCalendarSelector({
             </div>
           ) : (
             <div className="max-h-44 overflow-y-auto space-y-2">
-              {calendarLists.map(list => {
+              {activeLists.map(list => {
                 const isSelected = selectedList?.id === list.id;
                 return (
                   <button
