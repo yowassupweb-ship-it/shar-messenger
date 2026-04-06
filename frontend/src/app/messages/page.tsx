@@ -3355,10 +3355,17 @@ export default function MessagesPage() {
           ref={chatPanelRef}
           style={!isDesktopView
             ? { position: 'fixed', top: 0, left: 0, right: 0, height: '100dvh', zIndex: 45 }
-            : { margin: '5px 5px 5px 0', height: 'calc(100% - 10px)' }}
+            : {
+                margin: '5px 5px 5px 0',
+                height: 'calc(100% - 10px)',
+                borderRadius: '20px',
+                border: '1px solid var(--border-light)',
+                backgroundColor: 'var(--bg-secondary)',
+              }
+          }
         >
           {/* Контейнер чата */}
-          <div className="flex-1 min-h-0 min-w-0 flex flex-col relative bg-transparent">
+          <div className="flex-1 min-h-0 min-w-0 flex flex-col relative bg-transparent overflow-hidden" style={{ borderRadius: isDesktopView ? '20px' : '0' }}>
           <ChatHeader
             selectedChat={selectedChat}
             isSelectionMode={isSelectionMode}
