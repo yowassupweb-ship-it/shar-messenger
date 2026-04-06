@@ -1758,7 +1758,10 @@ export default function TestChat() {
     const cid = String(currentChatId || '');
     if ((currentChat as any).isFavoritesChat || cid.startsWith('favorites_')) return 'Личный архив';
     if ((currentChat as any).isNotificationsChat || cid.startsWith('notifications-') || cid.startsWith('notifications_')) return 'Системные уведомления';
-    if (!!(currentChat as any).isGroup || ((currentChat.participantIds?.length ?? 0) > 2)) return '';
+    if (!!(currentChat as any).isGroup || ((currentChat.participantIds?.length ?? 0) > 2)) {
+      const count = currentChat.participantIds?.length ?? 0;
+      return `${count} участник${count % 10 === 1 && count % 100 !== 11 ? '' : count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20) ? 'а' : 'ов'}`;
+    }
     const otherId = (currentChat.participantIds || []).find(id => String(id) !== String(currentUser?.id));
     const other = otherId ? users.find(u => String(u.id) === String(otherId)) : null;
     if (!other) return 'был(а) в сети недавно';
