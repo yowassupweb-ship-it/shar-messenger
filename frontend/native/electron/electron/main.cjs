@@ -78,7 +78,7 @@ require('electron').ipcMain.handle('updater:install', () => {
   if (isInstallingUpdate) return;
   isInstallingUpdate = true;
   try {
-    autoUpdater.quitAndInstall(false, true);
+    autoUpdater.quitAndInstall(true, true);
   } catch (error) {
     isInstallingUpdate = false;
     console.error('Failed to install update:', error);
