@@ -1014,6 +1014,67 @@ export class ChatTimelineV2 extends Component<
                 ? (this.props.isDesktopView ? 'justify-start max-[1200px]:justify-end' : 'justify-end')
                 : 'justify-start';
               
+              // ── Call message: render as Telegram-style centered row (early return) ──
+              if (String(message.notificationType || '').trim().toLowerCase() === 'call') {
+                const callMeta = (message.metadata as any) || {};
+                const callStatus: string = callMeta.callStatus || 'completed';
+                const callType: string = callMeta.callType || 'voice';
+                const durationSec: number | undefined = callMeta.duration ? Number(callMeta.duration) : undefined;
+                const durationLabel = (durationSec != null && durationSec > 0)
+                  ? `${Math.floor(durationSec / 60)}:${String(durationSec % 60).padStart(2, '0')}`
+                  : null;
+                const isMissed = callStatus === 'missed' || callStatus === 'rejected';
+                const accentColor = isMissed
+                  ? (this.props.theme === 'dark' ? '#f87171' : '#dc2626')
+                  : (this.props.theme === 'dark' ? '#4ade80' : '#16a34a');
+                const callLabel =
+                  callStatus === 'missed' ? 'Пропущенный звонок'
+                  : callStatus === 'rejected' ? 'Звонок отклонён'
+                  : callType === 'video' ? 'Видеозвонок' : 'Голосовой звонок';
+                const timeLabel = new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+                const PhoneIconEl = callStatus === 'missed'
+                  ? <PhoneMissed className="w-3.5 h-3.5 flex-shrink-0" />
+                  : callStatus === 'rejected'
+                    ? <PhoneOff className="w-3.5 h-3.5 flex-shrink-0" />
+                    : callType === 'video'
+                      ? <Video className="w-3.5 h-3.5 flex-shrink-0" />
+                      : isMyMessage
+                        ? <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                        : <PhoneIncoming className="w-3.5 h-3.5 flex-shrink-0" />;
+                return (
+                  <React.Fragment key={`${message.id}-${index}`}>
+                    {showDateDivider && (
+                      <div className="flex justify-center my-3">
+                        <span className="px-3 py-1 rounded-full bg-white/70 dark:bg-slate-800/70 border border-gray-200 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300">
+                          {dateLabel}
+                        </span>
+                      </div>
+                    )}
+                    <div
+                      ref={(el) => { this.props.messageRefs.current[message.id] = el; }}
+                      className="flex justify-center my-0.5"
+                    >
+                      <div
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] select-none"
+                        style={{
+                          backgroundColor: this.props.theme === 'dark' ? 'rgba(30,41,59,0.65)' : 'rgba(255,255,255,0.65)',
+                          border: `1px solid ${accentColor}33`,
+                          color: this.props.theme === 'dark' ? '#cbd5e1' : '#475569',
+                          backdropFilter: 'blur(6px)',
+                        }}
+                      >
+                        <span style={{ color: accentColor }} className="flex-shrink-0">{PhoneIconEl}</span>
+                        <span className="font-medium" style={{ color: accentColor }}>{callLabel}</span>
+                        {durationLabel && (
+                          <span className="opacity-60">· {durationLabel}</span>
+                        )}
+                        <span className="opacity-40 text-[11px]">{timeLabel}</span>
+                      </div>
+                    </div>
+                  </React.Fragment>
+                );
+              }
+
               return (
                 <React.Fragment key={`${message.id}-${index}`}>
                   {showDateDivider && (
@@ -1299,56 +1360,8 @@ export class ChatTimelineV2 extends Component<
                             {message.content?.trim()}
                           </div>
                         ) : String(message.notificationType || '').trim().toLowerCase() === 'call' ? (
-                          /* ── Call message (Telegram-style) ── */
-                          (() => {
-                            const callMeta = (message.metadata as any) || {};
-                            const callStatus: string = callMeta.callStatus || 'completed';
-                            const callType: string = callMeta.callType || 'voice';
-                            const durationSec: number | undefined = callMeta.duration ? Number(callMeta.duration) : undefined;
-                            const isOutgoing = isMyMessage;
-                            const durationLabel = (durationSec != null && durationSec > 0)
-                              ? `${Math.floor(durationSec / 60)}:${String(durationSec % 60).padStart(2, '0')}`
-                              : null;
-                            const statusLabel =
-                              callStatus === 'missed' ? 'Пропущенный звонок'
-                              : callStatus === 'rejected' ? 'Звонок отклонён'
-                              : callType === 'video' ? 'Видеозвонок' : 'Голосовой звонок';
-                            const accentColor = callStatus === 'missed' || callStatus === 'rejected'
-                              ? (this.props.theme === 'dark' ? '#f87171' : '#dc2626')
-                              : (this.props.theme === 'dark' ? '#4ade80' : '#16a34a');
-                            return (
-                              <div className="flex items-center gap-2.5 pr-[44px] py-0.5 min-w-[170px]">
-                                <span
-                                  className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center"
-                                  style={{ backgroundColor: accentColor + '22', color: accentColor }}
-                                >
-                                  {callStatus === 'missed' ? (
-                                    <PhoneMissed className="w-4 h-4" />
-                                  ) : callStatus === 'rejected' ? (
-                                    <PhoneOff className="w-4 h-4" />
-                                  ) : callType === 'video' ? (
-                                    <Video className="w-4 h-4" />
-                                  ) : isOutgoing ? (
-                                    <Phone className="w-4 h-4" />
-                                  ) : (
-                                    <PhoneIncoming className="w-4 h-4" />
-                                  )}
-                                </span>
-                                <div className="flex flex-col gap-0.5 min-w-0">
-                                  <span
-                                    className="text-[13px] font-medium leading-tight"
-                                    style={{ color: accentColor }}
-                                  >
-                                    {statusLabel}
-                                  </span>
-                                  <span className="text-[11px] opacity-55 leading-none">
-                                    {isOutgoing ? 'Исходящий' : 'Входящий'}
-                                    {durationLabel ? ` · ${durationLabel}` : ''}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })()
+                          /* ── Call messages are rendered as centered pill rows (early return above) ── */
+                          null
                         ) : (
                           <>
                         {renderAsNotification && notificationTypeLabel && (
