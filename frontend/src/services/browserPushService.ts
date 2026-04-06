@@ -1,6 +1,8 @@
 type PollContext = {
   activeTab?: string;
   isChatOpen?: boolean;
+  /** ID чата, открытого прямо сейчас (для точечного подавления дублей). */
+  activeChatId?: string;
 };
 
 type StartOptions = {
@@ -424,7 +426,13 @@ export class BrowserPushService {
 
       const context = this.getContext?.();
       const isPageVisible = typeof document !== 'undefined' ? document.visibilityState === 'visible' : true;
-      if (isPageVisible && context?.activeTab === 'messages' && context?.isChatOpen) {
+      // Подавляем только если прямо сейчас открыт ИМЕННО ЭТОТ чат.
+      // Если открыт другой чат — уведомление показываем всегда.
+      const isThisChatVisible = isPageVisible
+        && context?.activeTab === 'messages'
+        && !!context?.activeChatId
+        && context.activeChatId === chatId;
+      if (isThisChatVisible) {
         continue;
       }
 

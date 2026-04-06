@@ -107,6 +107,7 @@ export default function AccountPage() {
   const browserPushRef = useRef<BrowserPushService | null>(null);
   const activeTabRef = useRef<TabType>('messages');
   const isChatOpenRef = useRef(false);
+  const activeChatIdRef = useRef<string | null>(null);
   
   // Состояния видимости вкладок навигации
   const [visibleTabs, setVisibleTabs] = useState({
@@ -463,6 +464,7 @@ export default function AccountPage() {
     const chatId = searchParams.get('chat');
     // Скрываем боттом бар только если есть chatId в URL
     setIsChatOpen(!!chatId);
+    activeChatIdRef.current = chatId || null;
   }, [searchParams]);
 
   // Открытие задачи по событию из чат-уведомления (shar:open-task)
@@ -493,6 +495,7 @@ export default function AccountPage() {
         const isMessagesTab = activeTab === 'messages';
         const hasChatSelected = !!chatIdFromUrl;
         setIsChatOpen(isMessagesTab && hasChatSelected);
+        activeChatIdRef.current = (isMessagesTab && chatIdFromUrl) ? chatIdFromUrl : null;
       }
     };
 
@@ -618,6 +621,7 @@ export default function AccountPage() {
       getContext: () => ({
         activeTab: activeTabRef.current,
         isChatOpen: isChatOpenRef.current,
+        activeChatId: activeChatIdRef.current ?? undefined,
       }),
     });
 
