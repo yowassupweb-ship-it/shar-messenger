@@ -101,13 +101,13 @@ cmd_clear() {
 
 cmd_update() {
   header "shar update"
-  command -v node >/dev/null 2>&1 || fail "Node.js не найден"
-  cd "$ELECTRON_DIR" || fail "Папка $ELECTRON_DIR не найдена"
-  info "npm install..."
-  npm install --prefer-offline || fail "npm install: ошибка"
-  info "Сборка nsis-web инсталлера..."
-  npm run build:win || fail "Сборка Electron: ошибка"
-  ok "Инсталлер собран"
+  # Сборка .exe требует Windows (electron-builder + NSIS).
+  # Этот сервер Linux — публикует уже загруженные файлы из ELECTRON_DIR/release/
+  # Загрузку делай локально: .\publish-electron.ps1
+  if [ ! -f "$ELECTRON_DIR/release/latest.yml" ]; then
+    fail "Файлы релиза не найдены в $ELECTRON_DIR/release/\nЗапусти publish-electron.ps1 на Windows для сборки и загрузки."
+  fi
+  info "Публикуем файлы из $ELECTRON_DIR/release/ → $UPDATES_DIR..."
   mkdir -p "$UPDATES_DIR"
   cp "$ELECTRON_DIR/release/latest.yml" "$UPDATES_DIR/latest.yml" && ok "latest.yml опубликован"
   [ -d "$ELECTRON_DIR/release/nsis-web" ] && cp -r "$ELECTRON_DIR/release/nsis-web/." "$UPDATES_DIR/" && ok "nsis-web chunks скопированы"
@@ -115,7 +115,7 @@ cmd_update() {
     [ -f "$f" ] && cp "$f" "$UPDATES_DIR/" && ok "$(basename "$f") скопирован"
   done
   VERSION=$(grep '^version:' "$UPDATES_DIR/latest.yml" 2>/dev/null | awk '{print $2}')
-  ok "Обновление v${VERSION} опубликовано → /updates/"
+  ok "Обновление v${VERSION} опубликовано → https://vokrug-sveta.shar-os.ru/updates/"
 }
 
 cmd_deploy() {
