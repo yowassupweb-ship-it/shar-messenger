@@ -14,7 +14,7 @@
  */
 type AvatarGenerationMethod = 'initials' | 'boringavatars' | 'dicebear' | 'ui-avatars' | 'gravatar';
 
-const AVATAR_METHOD: AvatarGenerationMethod = 'initials';
+const AVATAR_METHOD: AvatarGenerationMethod = 'dicebear';
 
 /**
  * Генерация цвета на основе имени
@@ -75,9 +75,9 @@ export const generateAvatarUrl = (name: string, size: number = 80): string | nul
 
     case 'dicebear':
       // https://www.dicebear.com/
-      // Стили: avataaars, bottts, gridy, identicon, initials, lorelei, micah, personas, pixel-art
-      const dicebearStyle = 'initials'; // можно менять стили
-      return `https://api.dicebear.com/7.x/${dicebearStyle}/svg?seed=${encodeURIComponent(name)}&size=${size}`;
+      // Стили: thumbs (мишки 🐻), bottts, adventurer, fun-emoji, pixel-art, croodles
+      const dicebearStyle = 'thumbs';
+      return `https://api.dicebear.com/9.x/${dicebearStyle}/svg?seed=${encodeURIComponent(name)}&size=${size}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
 
     case 'ui-avatars':
       // https://ui-avatars.com/
@@ -109,10 +109,10 @@ export const usesExternalUrl = (): boolean => {
  * Получение названия текущего метода генерации
  */
 export const getAvatarMethodName = (): string => {
-  const names = {
+  const names: Record<AvatarGenerationMethod, string> = {
     'initials': 'Инициалы',
     'boringavatars': 'Boring Avatars',
-    'dicebear': 'DiceBear',
+    'dicebear': 'DiceBear Thumbs 🐻',
     'ui-avatars': 'UI Avatars',
     'gravatar': 'Gravatar'
   };
