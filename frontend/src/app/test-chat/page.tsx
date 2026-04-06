@@ -1,5 +1,5 @@
 ﻿'use client';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ChatTimelineV2 } from '@/components/features/messages/ChatTimelineV2';
@@ -65,6 +65,56 @@ export default function TestChat() {
   const [calendarLists, setCalendarLists] = useState<any[]>([]);
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+
+  // ── Message search ────────────────────────────────────────────────────────
+  const [showMessageSearch, setShowMessageSearch] = useState(false);
+  const [messageSearchQuery, setMessageSearchQuery] = useState('');
+  const [searchMatchIndex, setSearchMatchIndex] = useState(0);
+
+  const searchMatches = useMemo(() => {
+    const q = messageSearchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return messages
+      .filter(m => m.content && m.content.toLowerCase().includes(q))
+      .map(m => String(m.id));
+  }, [messages, messageSearchQuery]);
+
+  useEffect(() => {
+    setSearchMatchIndex(0);
+  }, [messageSearchQuery, currentChatId]);
+
+  useEffect(() => {
+    if (searchMatches.length === 0) return;
+    const id = searchMatches[searchMatchIndex];
+    if (!id) return;
+    const el = messageRefs.current[id];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [searchMatchIndex, searchMatches]);
+
+  const handleSearchPrev = useCallback(() => {
+    if (searchMatches.length === 0) return;
+    setSearchMatchIndex(i => (i - 1 + searchMatches.length) % searchMatches.length);
+  }, [searchMatches.length]);
+
+  const handleSearchNext = useCallback(() => {
+    if (searchMatches.length === 0) return;
+    setSearchMatchIndex(i => (i + 1) % searchMatches.length);
+  }, [searchMatches.length]);
+
+  const handleOpenSearch = useCallback(() => {
+    setShowActionsMenu(false);
+    setMessageSearchQuery('');
+    setSearchMatchIndex(0);
+    setShowMessageSearch(true);
+  }, []);
+
+  const handleCloseSearch = useCallback(() => {
+    setShowMessageSearch(false);
+    setMessageSearchQuery('');
+    setSearchMatchIndex(0);
+  }, []);
   const [chatSettings, setChatSettings] = useState({
     bubbleStyle: 'modern' as 'modern' | 'classic' | 'minimal',
     fontSize: 13,
@@ -95,6 +145,21 @@ export default function TestChat() {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const callServiceRef = useRef<CallService | null>(null);
+
+  // ── Call meta – tracks current call for history logging ─────
+  const callMetaRef = useRef<{
+    callId: string;
+    chatId: string;
+    callType: CallType;
+    isOutgoing: boolean;
+    startedAt: number;
+    connectedAt?: number;
+    remoteUserId?: string;
+    logged?: boolean;
+  } | null>(null);
+
+  // Always-fresh log helper (avoids stale closures in CallService callbacks)
+  const logCallEndRef = useRef<((status: 'completed' | 'missed' | 'rejected') => void) | null>(null);
 
   // ── Group call state ─────────────────────────────────────────
   const [groupCallState, setGroupCallState] = useState<GroupCallState | null>(null);
@@ -238,6 +303,40 @@ export default function TestChat() {
     }
   }, []);
 
+  // ── Keep logCallEndRef up-to-date whenever currentUser changes ──
+  useEffect(() => {
+    logCallEndRef.current = (status: 'completed' | 'missed' | 'rejected') => {
+      const meta = callMetaRef.current;
+      if (!meta || meta.logged || !currentUser) return;
+      meta.logged = true;
+
+      const duration =
+        status === 'completed' && meta.connectedAt
+          ? Math.round((Date.now() - meta.connectedAt) / 1000)
+          : undefined;
+
+      fetch('/api/calls/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          callId: meta.callId,
+          chatId: meta.chatId,
+          authorId: String(currentUser.id),
+          authorName: currentUser.name || currentUser.username,
+          remoteUserId: meta.remoteUserId,
+          callType: meta.callType,
+          callStatus: status,
+          duration,
+        }),
+      })
+        .then(() => {
+          // Refresh messages so the call log appears immediately
+          if (meta.chatId) loadMessagesFromServer(meta.chatId, true);
+        })
+        .catch(err => console.error('[TEST-CHAT] Failed to log call:', err));
+    };
+  }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Initialise CallService once currentUser is known ────────
   useEffect(() => {
     if (!currentUser) return;
@@ -247,6 +346,10 @@ export default function TestChat() {
     const svc = new CallService(String(currentUser.id), {
       onStateChange: (newState) => {
         console.log('[TEST-CHAT] CallService state changed:', newState);
+        // Track when the call becomes connected (for duration calculation)
+        if (newState === 'connected' && callMetaRef.current && !callMetaRef.current.connectedAt) {
+          callMetaRef.current.connectedAt = Date.now();
+        }
         setCallState(newState);
       },
       onLocalStream: setLocalStream,
@@ -270,6 +373,15 @@ export default function TestChat() {
       },
       onIncomingCall: (call) => {
         console.log('[TEST-CHAT] Incoming call from:', call.fromUserId, call.fromUserName);
+        // Track incoming call meta (callee side — not logged by callee)
+        callMetaRef.current = {
+          callId: call.callId,
+          chatId: call.chatId,
+          callType: call.callType,
+          isOutgoing: false,
+          startedAt: Date.now(),
+          remoteUserId: call.fromUserId,
+        };
         setIncomingCall(call);
         setCallType(call.callType);
         // Resolve caller name from user list
@@ -278,6 +390,12 @@ export default function TestChat() {
       },
       onCallEnded: () => {
         console.log('[TEST-CHAT] Call ended');
+        // Log from the OUTGOING side only (caller logs the call)
+        const meta = callMetaRef.current;
+        if (meta?.isOutgoing && !meta.logged) {
+          const status = meta.connectedAt ? 'completed' : 'missed';
+          logCallEndRef.current?.(status);
+        }
         setIncomingCall(null);
         setRemoteStream(null);
         setLocalStream(null);
@@ -318,6 +436,15 @@ export default function TestChat() {
     setCallTargetUser(remote);
     setCallType('voice');
     callServiceRef.current.startCall(String(remoteId), String(currentChatId), 'voice', currentUser.name ?? currentUser.username);
+    // Track outgoing call meta (callId set synchronously inside startCall before first await)
+    callMetaRef.current = {
+      callId: callServiceRef.current.getCurrentCallId() || `call_${Date.now()}`,
+      chatId: String(currentChatId),
+      callType: 'voice',
+      isOutgoing: true,
+      startedAt: Date.now(),
+      remoteUserId: String(remoteId),
+    };
   }, [currentUser, chats, currentChatId, users]);
 
   const startVideoCall = useCallback(() => {
@@ -330,6 +457,15 @@ export default function TestChat() {
     setCallTargetUser(remote);
     setCallType('video');
     callServiceRef.current.startCall(String(remoteId), String(currentChatId), 'video', currentUser.name ?? currentUser.username);
+    // Track outgoing video call meta
+    callMetaRef.current = {
+      callId: callServiceRef.current.getCurrentCallId() || `call_${Date.now()}`,
+      chatId: String(currentChatId),
+      callType: 'video',
+      isOutgoing: true,
+      startedAt: Date.now(),
+      remoteUserId: String(remoteId),
+    };
   }, [currentUser, chats, currentChatId, users]);
 
   const acceptCall = useCallback(async () => {
@@ -344,10 +480,20 @@ export default function TestChat() {
 
   const rejectCall = useCallback(() => {
     if (!incomingCall || !callServiceRef.current) return;
+    // Callee rejects — do NOT log (caller's onCallEnded fires and logs 'missed')
     callServiceRef.current.rejectCall(incomingCall).then(() => setIncomingCall(null));
   }, [incomingCall]);
 
   const hangup = useCallback(() => {
+    // Whoever hangs up: log if outgoing; if incoming and connected, also log from our side
+    const meta = callMetaRef.current;
+    if (meta && !meta.logged) {
+      if (meta.isOutgoing) {
+        const status = meta.connectedAt ? 'completed' : 'missed';
+        logCallEndRef.current?.(status);
+      }
+      // Note: incoming side doesn't log — the caller will log via onCallEnded
+    }
     callServiceRef.current?.hangup();
     setIncomingCall(null);
     setRemoteStream(null);
@@ -444,6 +590,8 @@ export default function TestChat() {
       onStateChange: setGroupCallState,
       onLocalStream: setGroupLocalStream,
       onParticipantStream: (uid, stream) => {
+        // Не добавляем себя — self-аватар рисуется отдельно через localUser
+        if (uid === String(currentUser.id)) return;
         setGroupParticipants(prev => {
           const existing = prev.find(p => p.userId === uid);
           if (existing) {
@@ -478,23 +626,8 @@ export default function TestChat() {
     if (!chat) return;
     const others = (chat.participantIds ?? []).map(String).filter(id => id !== String(currentUser.id));
 
-    // Add self to participant list immediately
-    const AVATAR_COLORS = ['from-blue-400 to-blue-600', 'from-green-400 to-green-600', 'from-purple-400 to-purple-600', 'from-pink-400 to-pink-600', 'from-orange-400 to-orange-600'];
-    const uid = String(currentUser.id);
-    const selfInitials = (() => {
-      const n = currentUser.name ?? currentUser.username ?? 'Я';
-      const w = n.trim().split(/\s+/);
-      return w.length === 1 ? w[0][0].toUpperCase() : (w[0][0] + w[1][0]).toUpperCase();
-    })();
-    setGroupParticipants([{
-      userId: uid,
-      userName: currentUser.name ?? currentUser.username ?? 'Я',
-      initials: selfInitials,
-      avatarColor: AVATAR_COLORS[uid.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length],
-      stream: null,
-      isMuted: false,
-      isSpeaking: false,
-    }]);
+    // Сбрасываем участников — self-аватар рисуется отдельно через localUser в GroupCallView
+    setGroupParticipants([]);
 
     await svc.startGroupCall(currentChatId, others);
   }, [currentUser, currentChatId, chats, initGroupCallService]);
@@ -660,10 +793,8 @@ export default function TestChat() {
       const url = new URL(window.location.href);
       if (chatId) {
         url.searchParams.set('chat', chatId);
-        // Ensure tab=messages is set if we're in account page
-        if (url.pathname === '/account') {
-          url.searchParams.set('tab', 'messages');
-        }
+        // Note: do NOT force tab=messages here — it would override other tabs
+        // (calendar, tasks, etc.) and trigger useSearchParams redirect back to chat.
       } else {
         url.searchParams.delete('chat');
       }
@@ -698,7 +829,8 @@ export default function TestChat() {
     const draft = localStorage.getItem(`draft_${chatId}`) || '';
     setMessageText(draft);
     setEditingMessageId(null);
-    
+    handleCloseSearch();
+
     if (messageCache[chatId]) {
       console.log('Using cached messages');
       setMessages(messageCache[chatId]);
@@ -1768,7 +1900,8 @@ export default function TestChat() {
                   key={currentChatId}
                   chatId={currentChatId}
                   messages={messages}
-                  messageSearchQuery=""
+                  messageSearchQuery={messageSearchQuery}
+                  activeSearchMessageId={searchMatches[searchMatchIndex]}
                   users={users}
                   currentUser={currentUser}
                   selectedChat={selectedChatForTimeline || currentChat}
@@ -1860,6 +1993,15 @@ export default function TestChat() {
                       if (message) handleTogglePin(message);
                     }}
                     canUnpin={true}
+                    onOpenSearch={handleOpenSearch}
+                    showMessageSearch={showMessageSearch}
+                    messageSearchQuery={messageSearchQuery}
+                    onMessageSearchQueryChange={setMessageSearchQuery}
+                    searchMatchCount={searchMatches.length}
+                    searchMatchIndex={searchMatchIndex}
+                    onSearchPrev={handleSearchPrev}
+                    onSearchNext={handleSearchNext}
+                    onCloseSearch={handleCloseSearch}
                   />
                 )}
               </div>
@@ -1915,7 +2057,7 @@ export default function TestChat() {
 
               {showActionsMenu && currentChat && (
                 <ChatActionsMenu
-                  onSearch={() => {/* TODO: implement search */}}
+                  onSearch={handleOpenSearch}
                   onArchive={() => void toggleArchiveChat(currentChat.id)}
                   onDelete={() => void deleteChat(currentChat.id)}
                   onClose={() => setShowActionsMenu(false)}

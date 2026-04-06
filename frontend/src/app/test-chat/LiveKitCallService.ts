@@ -87,6 +87,22 @@ export class CallService {
     return this.state;
   }
 
+  getCurrentCallId(): string | null {
+    return this.currentCallId;
+  }
+
+  getCurrentChatId(): string | null {
+    return this.currentChatId;
+  }
+
+  getCurrentCallType(): CallType {
+    return this.currentCallType;
+  }
+
+  getCurrentRemoteUserId(): string | null {
+    return this.currentRemoteUserId;
+  }
+
   getLocalStream() {
     return this.localStream;
   }

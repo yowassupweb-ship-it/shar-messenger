@@ -1,4 +1,5 @@
-import { MoreVertical, ArrowLeft, Phone, Video, Users, Star, Bell } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { MoreVertical, ArrowLeft, Phone, Video, Users, Star, Bell, Search, X, ChevronUp, ChevronDown } from 'lucide-react';
 import type { Message } from '@/components/features/messages/types';
 import PinnedMessageBar from './PinnedMessageBar';
 
@@ -9,29 +10,30 @@ interface ChatHeaderProps {
   messageCount: number;
   chatId: string;
   isGroupChat?: boolean;
-  /** Whether there is an active group voice chat in this chat */
   hasActiveGroupCall?: boolean;
-  /** Number of participants in active group call */
   groupCallParticipants?: number;
   onBack?: () => void;
   isMobile?: boolean;
-  /** Start a 1:1 voice call */
   onStartVoiceCall?: () => void;
-  /** Start a 1:1 video call */
   onStartVideoCall?: () => void;
-  /** Start / join group voice call */
   onStartGroupCall?: () => void;
-  /** Open chat profile/info block */
   onOpenProfile?: () => void;
-  /** Open chat actions menu (archive, delete, etc) */
   onOpenMenu?: () => void;
-  /** Subtitle shown below the chat name (e.g. online status) */
   subtitle?: string;
-  /** Pinned messages data */
   pinnedMessages?: Message[];
   onGoToMessage?: (messageId: string) => void;
   onUnpinMessage?: (messageId: string) => void;
   canUnpin?: boolean;
+  onOpenSearch?: () => void;
+  // Message search
+  showMessageSearch?: boolean;
+  messageSearchQuery?: string;
+  onMessageSearchQueryChange?: (q: string) => void;
+  searchMatchCount?: number;
+  searchMatchIndex?: number;
+  onSearchPrev?: () => void;
+  onSearchNext?: () => void;
+  onCloseSearch?: () => void;
 }
 
 // Градиенты аватаров
@@ -80,8 +82,113 @@ export default function ChatHeader({
   onGoToMessage,
   onUnpinMessage,
   canUnpin = true,
+  onOpenSearch,
+  showMessageSearch = false,
+  messageSearchQuery = '',
+  onMessageSearchQueryChange,
+  searchMatchCount = 0,
+  searchMatchIndex = 0,
+  onSearchPrev,
+  onSearchNext,
+  onCloseSearch,
 }: ChatHeaderProps) {
   const hasPinnedMessages = pinnedMessages.length > 0;
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (showMessageSearch) {
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+    }
+  }, [showMessageSearch]);
+
+  // ── Search bar (overlay): same for mobile and desktop ───────────────────
+  if (showMessageSearch) {
+    const counter = searchMatchCount > 0
+      ? `${searchMatchIndex + 1} / ${searchMatchCount}`
+      : (messageSearchQuery.trim() ? '0 результатов' : '');
+
+    if (isMobile) {
+      return (
+        <div className="px-0 pt-0 pb-1 bg-transparent border-0 shadow-none">
+          <div className="mx-0 w-full h-14 px-3 rounded-none border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 flex items-center gap-2 min-w-0">
+            <button
+              onClick={onCloseSearch}
+              className="w-9 h-9 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex-shrink-0 text-gray-600 dark:text-gray-300"
+              title="Закрыть поиск"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <div className="flex-1 flex items-center gap-1 min-w-0 bg-gray-100 dark:bg-slate-700 rounded-full px-3 h-9">
+              <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={messageSearchQuery}
+                onChange={(e) => onMessageSearchQueryChange?.(e.target.value)}
+                placeholder="Поиск в чате..."
+                className="flex-1 bg-transparent text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 outline-none min-w-0"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.shiftKey ? onSearchPrev?.() : onSearchNext?.(); }
+                  if (e.key === 'Escape') onCloseSearch?.();
+                }}
+              />
+              {messageSearchQuery && (
+                <button onClick={() => onMessageSearchQueryChange?.('')} className="flex-shrink-0 text-gray-400 hover:text-gray-600">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            {counter && <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 min-w-[52px] text-center">{counter}</span>}
+            <button onClick={onSearchPrev} disabled={searchMatchCount === 0} className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex-shrink-0 text-gray-600 dark:text-gray-300 disabled:opacity-40">
+              <ChevronUp className="w-4 h-4" />
+            </button>
+            <button onClick={onSearchNext} disabled={searchMatchCount === 0} className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex-shrink-0 text-gray-600 dark:text-gray-300 disabled:opacity-40">
+              <ChevronDown className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="px-0 pt-2 pb-2 flex items-center bg-transparent border-0 shadow-none">
+        <div className="flex items-center gap-1 w-full px-0">
+          <div className="h-10 mt-[2px] ml-[5px] flex-1 px-2.5 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 shadow-[0_3px_10px_rgba(0,0,0,0.09)] dark:shadow-[0_3px_10px_rgba(0,0,0,0.45)] flex items-center gap-2 min-w-0">
+            <Search className="w-4 h-4 text-gray-400 flex-shrink-0 ml-1" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={messageSearchQuery}
+              onChange={(e) => onMessageSearchQueryChange?.(e.target.value)}
+              placeholder="Поиск по сообщениям..."
+              className="flex-1 bg-transparent text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 outline-none min-w-0"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.shiftKey ? onSearchPrev?.() : onSearchNext?.(); }
+                if (e.key === 'Escape') onCloseSearch?.();
+              }}
+            />
+            {messageSearchQuery && (
+              <button onClick={() => onMessageSearchQueryChange?.('')} className="flex-shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {counter && <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 pr-1 min-w-[64px] text-right">{counter}</span>}
+          </div>
+          <div className="h-10 mt-[2px] mr-[5px] px-1 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 shadow-[0_3px_10px_rgba(0,0,0,0.09)] dark:shadow-[0_3px_10px_rgba(0,0,0,0.45)] flex items-center gap-1 flex-shrink-0">
+            <button onClick={onSearchPrev} disabled={searchMatchCount === 0} className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-gray-600 dark:text-gray-300 disabled:opacity-40" title="Предыдущее (Shift+Enter)">
+              <ChevronUp className="w-[14px] h-[14px]" />
+            </button>
+            <button onClick={onSearchNext} disabled={searchMatchCount === 0} className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-gray-600 dark:text-gray-300 disabled:opacity-40" title="Следующее (Enter)">
+              <ChevronDown className="w-[14px] h-[14px]" />
+            </button>
+            <button onClick={onCloseSearch} className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-gray-600 dark:text-gray-300" title="Закрыть поиск">
+              <X className="w-[14px] h-[14px]" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isMobile) {
     return (
@@ -169,6 +276,15 @@ export default function ChatHeader({
                 </button>
               )}
             </>
+          )}
+          {onOpenSearch && (
+            <button
+              onClick={onOpenSearch}
+              className="w-9 h-9 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex-shrink-0 text-gray-600 dark:text-gray-300"
+              title="Поиск"
+            >
+              <Search className="w-4 h-4" />
+            </button>
           )}
         </div>
         {hasPinnedMessages && onGoToMessage && onUnpinMessage && (
@@ -282,6 +398,16 @@ export default function ChatHeader({
                 </button>
               )}
             </>
+          )}
+
+          {onOpenSearch && (
+            <button
+              onClick={onOpenSearch}
+              className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-gray-600 dark:text-gray-300"
+              title="Поиск"
+            >
+              <Search className="w-[14px] h-[14px]" />
+            </button>
           )}
 
           <button

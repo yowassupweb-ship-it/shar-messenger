@@ -453,7 +453,13 @@ export default function CallOverlay({
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center">
+    <div
+      className="fixed top-6 left-1/2 -translate-x-1/2 z-[200] w-[320px] rounded-2xl overflow-hidden shadow-2xl"
+      style={{
+        background: 'linear-gradient(160deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%)',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06)',
+      }}
+    >
       {/* Hidden audio player for remote stream */}
       <audio
         ref={remoteAudioRef}
@@ -463,37 +469,30 @@ export default function CallOverlay({
         style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
       />
 
-      {/* Blurred background gradient */}
+      {/* Subtle glow accent at top */}
       <div
-        className="absolute inset-0"
-        style={{
-          background: 'linear-gradient(160deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%)',
-        }}
-      />
-      {/* Soft radial glow behind avatar */}
-      <div
-        className="absolute rounded-full blur-[120px] opacity-40 w-80 h-80"
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-20 rounded-full blur-3xl opacity-30 pointer-events-none"
         style={{ background: AVATAR_COLORS[remoteAvatarColor] || '#6366f1' }}
       />
 
       {/* Main content */}
-      <div className="relative z-10 flex flex-col items-center gap-5 px-8 w-full max-w-sm">
-        {/* Avatar */}
-        <div
-          className={`w-28 h-28 rounded-full flex items-center justify-center bg-gradient-to-br ${remoteAvatarColor} text-white font-bold text-4xl shadow-2xl border-4 border-white/20`}
-        >
-          {remoteInitials}
-        </div>
-
-        {/* Name + status */}
-        <div className="text-center">
-          <p className="text-white text-2xl font-semibold leading-tight">{remoteUserName}</p>
-          <p className="text-white/60 text-sm mt-1 animate-pulse">{statusLabel}</p>
+      <div className="relative z-10 flex flex-col items-center gap-3 px-5 py-5">
+        {/* Avatar + name row */}
+        <div className="flex items-center gap-3 w-full">
+          <div
+            className={`w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br ${remoteAvatarColor} text-white font-bold text-lg shadow-lg flex-shrink-0`}
+          >
+            {remoteInitials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-white font-semibold text-[15px] leading-tight truncate">{remoteUserName}</p>
+            <p className="text-white/55 text-xs mt-0.5 animate-pulse">{statusLabel}</p>
+          </div>
         </div>
 
         {/* Video preview for video calls */}
         {callType === 'video' && callState === 'connected' && (
-          <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black/40">
+          <div className="relative w-full rounded-xl overflow-hidden bg-black/40" style={{ aspectRatio: '16/9' }}>
             <video
               ref={remoteVideoRef}
               autoPlay
@@ -501,7 +500,7 @@ export default function CallOverlay({
               className="w-full h-full object-cover"
             />
             {/* Local PiP */}
-            <div className="absolute bottom-2 right-2 w-24 aspect-video rounded-xl overflow-hidden border-2 border-white/30 shadow-lg">
+            <div className="absolute bottom-1.5 right-1.5 w-16 rounded-lg overflow-hidden border border-white/20 shadow-md" style={{ aspectRatio: '4/3' }}>
               <video
                 ref={localVideoRef}
                 autoPlay
@@ -516,107 +515,90 @@ export default function CallOverlay({
         {/* Control buttons */}
         {callState === 'ringing' ? (
           /* Incoming call — accept / reject */
-          <div className="flex items-center gap-12 mt-4">
-            {/* Reject */}
-            <div className="flex flex-col items-center gap-2">
+          <div className="flex items-center justify-center gap-10 w-full pt-1">
+            <div className="flex flex-col items-center gap-1.5">
               <button
                 onClick={onReject}
-                className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-xl shadow-red-500/40 transition-all active:scale-95"
+                className="w-12 h-12 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-lg transition-all active:scale-95"
               >
-                <PhoneOff className="w-7 h-7" />
+                <PhoneOff className="w-5 h-5" />
               </button>
-              <span className="text-white/60 text-xs">Отклонить</span>
+              <span className="text-white/50 text-[10px]">Отклонить</span>
             </div>
-
-            {/* Accept */}
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-col items-center gap-1.5">
               <button
                 onClick={onAccept}
-                className="w-16 h-16 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center shadow-xl shadow-green-500/40 transition-all active:scale-95"
+                className="w-12 h-12 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center shadow-lg transition-all active:scale-95"
               >
-                <Phone className="w-7 h-7" />
+                <Phone className="w-5 h-5" />
               </button>
-              <span className="text-white/60 text-xs">Принять</span>
+              <span className="text-white/50 text-[10px]">Принять</span>
             </div>
           </div>
         ) : (
-          /* Calling / connected — action row */
-          <div className="flex items-center gap-4 mt-4">
+          /* Calling / connected */
+          <div className="flex items-center justify-center gap-3 w-full pt-1">
             {/* Mute */}
-            <div className="flex flex-col items-center gap-1.5">
+            <button
+              onClick={handleMute}
+              title={isMuted ? 'Включить микрофон' : 'Выключить микрофон'}
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+                isMuted ? 'bg-white/25 text-white' : 'bg-white/10 hover:bg-white/20 text-white'
+              }`}
+            >
+              {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
+
+            {/* Camera (video only) */}
+            {callType === 'video' && (
               <button
-                onClick={handleMute}
-                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-                  isMuted
-                    ? 'bg-white/20 text-white'
-                    : 'bg-white/10 hover:bg-white/20 text-white'
+                onClick={handleCamera}
+                title={isCameraOff ? 'Включить камеру' : 'Выключить камеру'}
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+                  isCameraOff ? 'bg-white/25 text-white' : 'bg-white/10 hover:bg-white/20 text-white'
                 }`}
               >
-                {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+                {isCameraOff ? <VideoOff className="w-4 h-4" /> : <Video className="w-4 h-4" />}
               </button>
-              <span className="text-white/50 text-[10px]">{isMuted ? 'Откл. микр.' : 'Микрофон'}</span>
-            </div>
-
-            {/* Camera (only for video) */}
-            {callType === 'video' && (
-              <div className="flex flex-col items-center gap-1.5">
-                <button
-                  onClick={handleCamera}
-                  className={`w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-                    isCameraOff
-                      ? 'bg-white/20 text-white'
-                      : 'bg-white/10 hover:bg-white/20 text-white'
-                  }`}
-                >
-                  {isCameraOff ? <VideoOff className="w-6 h-6" /> : <Video className="w-6 h-6" />}
-                </button>
-                <span className="text-white/50 text-[10px]">{isCameraOff ? 'Камера выкл.' : 'Камера'}</span>
-              </div>
             )}
 
-            {/* Speaker placeholder */}
-            <div className="flex flex-col items-center gap-1.5">
-              <button
-                className="w-14 h-14 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all active:scale-95"
-              >
-                <Volume2 className="w-6 h-6" />
-              </button>
-              <span className="text-white/50 text-[10px]">Динамик</span>
-            </div>
+            {/* Speaker */}
+            <button
+              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all active:scale-95"
+              title="Громкость"
+            >
+              <Volume2 className="w-4 h-4" />
+            </button>
 
-            {/* Logs */}
-            <div className="flex flex-col items-center gap-1.5">
-              <button
-                onClick={() => setShowLogs(v => !v)}
-                className={`w-14 h-14 rounded-full text-white flex items-center justify-center transition-all active:scale-95 ${showLogs ? 'bg-blue-500/70' : 'bg-white/10 hover:bg-white/20'}`}
-              >
-                Логи
-              </button>
-              <span className="text-white/50 text-[10px]">Логи</span>
-            </div>
+            {/* Logs toggle */}
+            <button
+              onClick={() => setShowLogs(v => !v)}
+              className={`w-10 h-10 rounded-full text-white text-[10px] font-mono flex items-center justify-center transition-all active:scale-95 ${showLogs ? 'bg-blue-500/70' : 'bg-white/10 hover:bg-white/20'}`}
+              title="Логи"
+            >
+              LOG
+            </button>
 
             {/* End call */}
-            <div className="flex flex-col items-center gap-1.5">
-              <button
-                onClick={onHangup}
-                className="w-14 h-14 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-lg shadow-red-500/40 transition-all active:scale-95"
-              >
-                <PhoneOff className="w-6 h-6" />
-              </button>
-              <span className="text-white/50 text-[10px]">Завершить</span>
-            </div>
+            <button
+              onClick={onHangup}
+              className="w-10 h-10 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-md transition-all active:scale-95"
+              title="Завершить"
+            >
+              <PhoneOff className="w-4 h-4" />
+            </button>
           </div>
         )}
 
         {showLogs && (
-          <div className="w-full max-w-2xl mt-4 rounded-xl border border-white/20 bg-black/60 backdrop-blur-md p-3 text-white">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
-              <label className="text-xs text-white/70 flex flex-col gap-1">
+          <div className="w-full mt-1 rounded-xl border border-white/15 bg-black/50 backdrop-blur-md p-2 text-white">
+            <div className="grid grid-cols-2 gap-1.5 mb-2">
+              <label className="text-[10px] text-white/60 flex flex-col gap-0.5">
                 Микрофон
                 <select
                   value={selectedInputId}
                   onChange={(e) => handleChangeInput(e.target.value)}
-                  className="bg-black/40 border border-white/20 rounded px-2 py-1 text-xs"
+                  className="bg-black/40 border border-white/15 rounded px-1.5 py-0.5 text-[10px]"
                 >
                   {audioInputs.map((d, i) => (
                     <option key={d.deviceId || String(i)} value={d.deviceId}>
@@ -625,13 +607,12 @@ export default function CallOverlay({
                   ))}
                 </select>
               </label>
-
-              <label className="text-xs text-white/70 flex flex-col gap-1">
-                Устройство вывода
+              <label className="text-[10px] text-white/60 flex flex-col gap-0.5">
+                Вывод
                 <select
                   value={selectedOutputId}
                   onChange={(e) => handleChangeOutput(e.target.value)}
-                  className="bg-black/40 border border-white/20 rounded px-2 py-1 text-xs"
+                  className="bg-black/40 border border-white/15 rounded px-1.5 py-0.5 text-[10px]"
                 >
                   {audioOutputs.map((d, i) => (
                     <option key={d.deviceId || String(i)} value={d.deviceId}>
@@ -641,8 +622,7 @@ export default function CallOverlay({
                 </select>
               </label>
             </div>
-
-            <div className="h-44 overflow-y-auto rounded border border-white/15 bg-black/40 p-2 font-mono text-[11px] leading-4 whitespace-pre-wrap">
+            <div className="h-32 overflow-y-auto rounded border border-white/10 bg-black/40 p-1.5 font-mono text-[9px] leading-3.5 whitespace-pre-wrap">
               {logLines.length === 0 ? 'Логи появятся здесь…' : logLines.join('\n')}
             </div>
           </div>

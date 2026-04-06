@@ -12,7 +12,7 @@
 'use client';
 
 import React, { Component, createRef } from 'react';
-import { ArrowRight, Bell, Calendar, Check, CheckCheck, CheckSquare, Clock3 } from 'lucide-react';
+import { ArrowRight, Bell, Calendar, Check, CheckCheck, CheckSquare, Clock3, Phone, PhoneIncoming, PhoneMissed, PhoneOff, Video } from 'lucide-react';
 import MessageItem from './MessageItem';
 import Quote from './Quote';
 import FileAttachment from './FileAttachment';
@@ -33,6 +33,43 @@ import {
 
 // ── URL rendering ─────────────────────────────────────────────────────────────
 const URL_REGEX = /https?:\/\/[^\s<>"']+/g;
+
+function renderTextWithLinksAndHighlight(text: string, searchQuery: string, isActiveMatch: boolean): React.ReactNode {
+  if (!text) return null;
+  if (!searchQuery) return renderTextWithLinks(text);
+
+  const query = searchQuery.toLowerCase();
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let keyIdx = 0;
+
+  while (remaining.length > 0) {
+    const lowerRemaining = remaining.toLowerCase();
+    const matchIdx = lowerRemaining.indexOf(query);
+    if (matchIdx === -1) {
+      parts.push(<React.Fragment key={keyIdx++}>{renderTextWithLinks(remaining)}</React.Fragment>);
+      break;
+    }
+    if (matchIdx > 0) {
+      parts.push(<React.Fragment key={keyIdx++}>{renderTextWithLinks(remaining.slice(0, matchIdx))}</React.Fragment>);
+    }
+    const matchedText = remaining.slice(matchIdx, matchIdx + query.length);
+    parts.push(
+      <mark
+        key={keyIdx++}
+        style={{
+          backgroundColor: isActiveMatch ? 'rgba(255, 180, 0, 0.85)' : 'rgba(255, 230, 80, 0.6)',
+          color: 'inherit',
+          borderRadius: '2px',
+          padding: '0 1px',
+        }}
+      >{matchedText}</mark>
+    );
+    remaining = remaining.slice(matchIdx + query.length);
+  }
+
+  return <>{parts}</>;
+}
 
 function renderTextWithLinks(text: string): React.ReactNode {
   if (!text) return null;
@@ -195,6 +232,7 @@ export interface ChatTimelineV2Props {
   chatId: string;
   messages: Message[];
   messageSearchQuery: string;
+  activeSearchMessageId?: string;
   users: User[];
   currentUser: User | null;
   selectedChat: Chat;
@@ -302,6 +340,7 @@ export class ChatTimelineV2 extends Component<
     if (nextProps.chatId !== this.props.chatId) return true;
     if (nextProps.messages !== this.props.messages) return true;
     if (nextProps.messageSearchQuery !== this.props.messageSearchQuery) return true;
+    if ((nextProps.activeSearchMessageId ?? null) !== (this.props.activeSearchMessageId ?? null)) return true;
     if (nextProps.users !== this.props.users) return true;
     if ((nextProps.currentUser?.id ?? null) !== (this.props.currentUser?.id ?? null)) return true;
     if (
@@ -791,7 +830,8 @@ export class ChatTimelineV2 extends Component<
               const openNotificationTarget = () => {
                 if (typeof window === 'undefined') return;
                 if (effectiveLinkedTaskId) {
-                  window.location.href = `/todos?task=${encodeURIComponent(effectiveLinkedTaskId)}`;
+                  // Dispatch event for in-page navigation (keeps React alive, avoids full reload race conditions)
+                  window.dispatchEvent(new CustomEvent('shar:open-task', { detail: { taskId: effectiveLinkedTaskId } }));
                 } else if (effectiveLinkedEventId) {
                   window.location.href = `/account?tab=calendar&event=${encodeURIComponent(effectiveLinkedEventId)}`;
                 } else if (effectiveLinkedPostId) {
@@ -992,6 +1032,7 @@ export class ChatTimelineV2 extends Component<
                       this.props.messageRefs.current[message.id] = el;
                     }}
                     className={`flex items-end ${alignment} ${isGroupedWithNext ? 'mb-[2px]' : 'mb-[6px]'} ${isGroupedWithPrev ? 'mt-[2px]' : 'mt-[6px]'} gap-2 cursor-pointer`}
+                    style={undefined}
                     onClick={() => {
                       // Skip click if this was the end of a drag-select gesture
                       if (this._isDragging) return;
@@ -1059,7 +1100,9 @@ export class ChatTimelineV2 extends Component<
                   <div
                     className={`inline-block relative rounded-[18px] ${(isMediaOnly || isEmojiOnly) ? 'overflow-hidden' : 'px-2.5 py-1.5 pb-1.5 min-w-[100px]'} ${renderAsNotification ? (isMobileView ? 'max-w-[92vw]' : 'max-w-[620px]') : (isMobileView ? 'max-w-[86vw]' : 'max-w-[420px]')} w-fit transition-all ${renderAsNotification ? 'border border-slate-300/70 dark:border-slate-600/70' : ''} ${
                       this.props.selectedMessages.has(String(message.id)) 
-                        ? 'ring-2 ring-blue-500 ring-opacity-50' 
+                        ? 'ring-2 ring-blue-500 ring-opacity-50'
+                        : this.props.activeSearchMessageId === String(message.id)
+                        ? 'ring-2 ring-amber-400/70'
                         : ''
                     }`}
                     onContextMenu={(e) => {
@@ -1255,6 +1298,57 @@ export class ChatTimelineV2 extends Component<
                           >
                             {message.content?.trim()}
                           </div>
+                        ) : String(message.notificationType || '').trim().toLowerCase() === 'call' ? (
+                          /* ── Call message (Telegram-style) ── */
+                          (() => {
+                            const callMeta = (message.metadata as any) || {};
+                            const callStatus: string = callMeta.callStatus || 'completed';
+                            const callType: string = callMeta.callType || 'voice';
+                            const durationSec: number | undefined = callMeta.duration ? Number(callMeta.duration) : undefined;
+                            const isOutgoing = isMyMessage;
+                            const durationLabel = (durationSec != null && durationSec > 0)
+                              ? `${Math.floor(durationSec / 60)}:${String(durationSec % 60).padStart(2, '0')}`
+                              : null;
+                            const statusLabel =
+                              callStatus === 'missed' ? 'Пропущенный звонок'
+                              : callStatus === 'rejected' ? 'Звонок отклонён'
+                              : callType === 'video' ? 'Видеозвонок' : 'Голосовой звонок';
+                            const accentColor = callStatus === 'missed' || callStatus === 'rejected'
+                              ? (this.props.theme === 'dark' ? '#f87171' : '#dc2626')
+                              : (this.props.theme === 'dark' ? '#4ade80' : '#16a34a');
+                            return (
+                              <div className="flex items-center gap-2.5 pr-[44px] py-0.5 min-w-[170px]">
+                                <span
+                                  className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center"
+                                  style={{ backgroundColor: accentColor + '22', color: accentColor }}
+                                >
+                                  {callStatus === 'missed' ? (
+                                    <PhoneMissed className="w-4 h-4" />
+                                  ) : callStatus === 'rejected' ? (
+                                    <PhoneOff className="w-4 h-4" />
+                                  ) : callType === 'video' ? (
+                                    <Video className="w-4 h-4" />
+                                  ) : isOutgoing ? (
+                                    <Phone className="w-4 h-4" />
+                                  ) : (
+                                    <PhoneIncoming className="w-4 h-4" />
+                                  )}
+                                </span>
+                                <div className="flex flex-col gap-0.5 min-w-0">
+                                  <span
+                                    className="text-[13px] font-medium leading-tight"
+                                    style={{ color: accentColor }}
+                                  >
+                                    {statusLabel}
+                                  </span>
+                                  <span className="text-[11px] opacity-55 leading-none">
+                                    {isOutgoing ? 'Исходящий' : 'Входящий'}
+                                    {durationLabel ? ` · ${durationLabel}` : ''}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })()
                         ) : (
                           <>
                         {renderAsNotification && notificationTypeLabel && (
@@ -1401,7 +1495,7 @@ export class ChatTimelineV2 extends Component<
                             className="whitespace-pre-wrap break-words overflow-wrap-anywhere pr-[44px]"
                             style={{ fontSize: bodyFontSize, lineHeight: bodyLineHeight, letterSpacing: '-0.08px' }}
                           >
-                            <span>{renderTextWithLinks(message.content || '')}</span>
+                            <span>{renderTextWithLinksAndHighlight(message.content || '', this.props.messageSearchQuery, this.props.activeSearchMessageId === String(message.id))}</span>
                           </div>
                         ) : (
                           <div className="pr-[44px] h-[1px]" />

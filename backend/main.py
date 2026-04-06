@@ -5243,6 +5243,79 @@ def post_group_call(body: GroupCallBody):
     raise HTTPException(status_code=400, detail="Unknown action")
 
 
+class CallLogBody(BaseModel):
+    callId: str
+    chatId: str
+    authorId: str
+    authorName: Optional[str] = None
+    remoteUserId: Optional[str] = None
+    callType: str = "voice"   # 'voice' | 'video'
+    callStatus: str           # 'completed' | 'missed' | 'rejected'
+    duration: Optional[int] = None  # seconds, only for completed
+
+
+@app.post("/api/calls/log")
+def log_call(body: CallLogBody):
+    """Save a call outcome as a system message in the chat. Idempotent by callId."""
+    import uuid as _uuid
+
+    chat = db.get_chat(body.chatId)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    # Deduplication – skip if this callId was already logged in this chat.
+    if hasattr(db, 'conn'):
+        existing = db.conn.fetch_one(
+            "SELECT id FROM messages WHERE chat_id = %s AND notification_type = 'call' AND metadata->>'callId' = %s",
+            (body.chatId, body.callId),
+        )
+        if existing:
+            return {"ok": True, "duplicate": True}
+
+    # Build textual content
+    if body.callStatus == "completed" and body.duration:
+        mins = body.duration // 60
+        secs = body.duration % 60
+        icon = "📹" if body.callType == "video" else "📞"
+        content = f"{icon} Звонок {mins}:{secs:02d}"
+    elif body.callStatus == "missed":
+        content = "📞 Пропущенный звонок"
+    else:
+        content = "📞 Звонок отклонён"
+
+    author = db.get_user_by_id(body.authorId)
+    author_name: Optional[str] = None
+    if author:
+        author_name = author.get("name") or author.get("username")
+    author_name = author_name or body.authorName or body.authorId
+
+    new_message: Dict[str, Any] = {
+        "id": str(_uuid.uuid4()),
+        "chat_id": body.chatId,
+        "author_id": body.authorId,
+        "author_name": author_name,
+        "content": content,
+        "mentions": [],
+        "reply_to_id": None,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": None,
+        "is_edited": False,
+        "attachments": [],
+        "is_system_message": True,
+        "notification_type": "call",
+        "metadata": {
+            "callId": body.callId,
+            "callType": body.callType,
+            "callStatus": body.callStatus,
+            "duration": body.duration,
+            "initiatorId": body.authorId,
+            "remoteUserId": body.remoteUserId,
+        },
+    }
+    db.add_message(new_message)
+    return {"ok": True, "duplicate": False}
+
+
 @app.post("/api/livekit/token")
 def create_livekit_token(body: LiveKitTokenRequest):
     if livekit_api is None:

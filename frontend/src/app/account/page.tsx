@@ -465,6 +465,17 @@ export default function AccountPage() {
     setIsChatOpen(!!chatId);
   }, [searchParams]);
 
+  // Открытие задачи по событию из чат-уведомления (shar:open-task)
+  useEffect(() => {
+    const handleOpenTask = (e: Event) => {
+      const { taskId } = (e as CustomEvent<{ taskId: string }>).detail;
+      setActiveTab('tasks');
+      router.push(`/account?tab=tasks&task=${encodeURIComponent(taskId)}`, { scroll: false });
+    };
+    window.addEventListener('shar:open-task', handleOpenTask);
+    return () => window.removeEventListener('shar:open-task', handleOpenTask);
+  }, [router]);
+
   // Интервал для проверки URL параметра chat (replaceState не триггерит searchParams)
   // ref для хранения состояния события (чтобы интервал не перебивал результат события)
   const chatOpenFromEvent = useRef(false);
