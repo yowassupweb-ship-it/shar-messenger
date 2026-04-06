@@ -23,6 +23,10 @@ function getLogoDataUrl() {
 
 const logoSrc = getLogoDataUrl();
 const HEADER_ID = 'shar-electron-telegram-header';
+
+let _appVersion = 'unknown';
+try { _appVersion = require('../package.json').version; } catch {}
+
 const CONTENT_ATTR = 'data-electron-content-root';
 const CONTENT_OFFSET_ATTR = 'data-electron-header-offset';
 const HEADER_HEIGHT = 46;
@@ -48,6 +52,7 @@ const windowControls = {
 
 contextBridge.exposeInMainWorld('sharDesktop', {
   platform: process.platform,
+  appVersion: _appVersion,
   assets: {
     logoSrc,
   },

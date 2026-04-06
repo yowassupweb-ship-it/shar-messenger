@@ -722,25 +722,42 @@ export default function AccountPage() {
               ))}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-5xl mx-auto mt-8 mb-2">
-              <a
-                href="/updates/Shar%20setup.exe"
-                className="group flex items-center gap-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors px-4 py-4"
-              >
-                <div className="w-11 h-11 rounded-xl bg-[#0078d4]/15 border border-[#0078d4]/25 flex items-center justify-center flex-shrink-0">
-                  <FaWindows className="w-5 h-5 text-[#0078d4]" />
+              {isElectronRuntime ? (
+                /* Уже запущено в Electron — показываем версию приложения */
+                <div className="sm:col-span-2 flex items-center gap-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] px-4 py-4">
+                  <div className="w-11 h-11 rounded-xl bg-[#0078d4]/15 border border-[#0078d4]/25 flex items-center justify-center flex-shrink-0">
+                    <FaWindows className="w-5 h-5 text-[#0078d4]" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-[var(--text-primary)]">Shar Desktop</div>
+                    <div className="text-xs text-[var(--text-secondary)] mt-0.5">
+                      версия {(typeof window !== 'undefined' && (window as any).sharDesktop?.appVersion) ? `v${(window as any).sharDesktop.appVersion}` : 'установлена'} · обновляется автоматически
+                    </div>
+                  </div>
                 </div>
-                <div className="text-sm font-semibold text-[var(--text-primary)]">Скачать для Windows</div>
-              </a>
+              ) : (
+                <>
+                  <a
+                    href="/updates/Shar%20setup.exe"
+                    className="group flex items-center gap-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors px-4 py-4"
+                  >
+                    <div className="w-11 h-11 rounded-xl bg-[#0078d4]/15 border border-[#0078d4]/25 flex items-center justify-center flex-shrink-0">
+                      <FaWindows className="w-5 h-5 text-[#0078d4]" />
+                    </div>
+                    <div className="text-sm font-semibold text-[var(--text-primary)]">Скачать для Windows</div>
+                  </a>
 
-              <a
-                href="/downloads/Shar-Android.apk"
-                className="group flex items-center gap-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors px-4 py-4"
-              >
-                <div className="w-11 h-11 rounded-xl bg-[#3ddc84]/15 border border-[#3ddc84]/30 flex items-center justify-center flex-shrink-0">
-                  <FaAndroid className="w-5 h-5 text-[#2bbf6a]" />
-                </div>
-                <div className="text-sm font-semibold text-[var(--text-primary)]">Скачать для Android</div>
-              </a>
+                  <a
+                    href="/downloads/Shar-Android.apk"
+                    className="group flex items-center gap-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors px-4 py-4"
+                  >
+                    <div className="w-11 h-11 rounded-xl bg-[#3ddc84]/15 border border-[#3ddc84]/30 flex items-center justify-center flex-shrink-0">
+                      <FaAndroid className="w-5 h-5 text-[#2bbf6a]" />
+                    </div>
+                    <div className="text-sm font-semibold text-[var(--text-primary)]">Скачать для Android</div>
+                  </a>
+                </>
+              )}
             </div>
           </div>
   );
