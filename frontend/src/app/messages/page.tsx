@@ -3356,7 +3356,7 @@ export default function MessagesPage() {
           style={!isDesktopView
             ? { position: 'fixed', top: 0, left: 0, right: 0, height: '100dvh', zIndex: 45 }
             : {
-                margin: '-5px 5px 5px 0',
+                margin: '-10px 5px 5px 0',
                 height: '100%',
                 borderRadius: '20px',
                 border: '1px solid var(--border-light)',
