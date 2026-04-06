@@ -3,7 +3,7 @@
 import React, { useRef, useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Message, User } from './types';
-import { Reply, Edit3, Forward, CheckSquare, CalendarPlus, Trash2, Pin, PinOff, CheckCheck } from 'lucide-react';
+import { Reply, Edit3, Forward, CheckSquare, CalendarPlus, Trash2, Pin, PinOff, CheckCheck, Copy } from 'lucide-react';
 
 interface MessageContextMenuProps {
   message: Message | null;
@@ -160,6 +160,27 @@ export default function MessageContextMenu({
         >
           <Forward className="w-4 h-4 text-green-400" />
           Переслать
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const selected = typeof window !== 'undefined' ? window.getSelection()?.toString().trim() : '';
+            const textToCopy = selected || message.content || '';
+            navigator.clipboard.writeText(textToCopy).catch(() => {
+              const el = document.createElement('textarea');
+              el.value = textToCopy;
+              document.body.appendChild(el);
+              el.select();
+              document.execCommand('copy');
+              document.body.removeChild(el);
+            });
+            onClose();
+          }}
+          className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-tertiary)] transition-colors flex items-center gap-3 text-[var(--text-primary)]"
+        >
+          <Copy className="w-4 h-4 text-sky-400" />
+          Копировать
         </button>
 
         {canEdit && (
