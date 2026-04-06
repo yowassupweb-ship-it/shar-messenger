@@ -72,6 +72,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   });
   const [showAllChats, setShowAllChats] = useState(false);
   const [draggedPinnedChatId, setDraggedPinnedChatId] = useState<string | null>(null);
+  const [dragOverPinnedChatId, setDragOverPinnedChatId] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -146,17 +147,25 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   const glassRoundButtonSmallClass = 'flex-shrink-0 flex items-center justify-center w-[32px] h-[32px] rounded-full bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] backdrop-blur-xl border border-[var(--border-light)] hover:from-[var(--bg-glass-hover)] hover:to-[var(--bg-glass)] transition-all shadow-[var(--shadow-card)]';
   const glassSearchPillClass = 'w-full h-[37px] pl-10 pr-3 bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] rounded-full text-sm focus:outline-none transition-all duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--border-primary)] shadow-[var(--shadow-card)] backdrop-blur-xl';
 
-  const handlePinnedDragStart = (chatId: string) => {
+  const handlePinnedDragStart = (chatId: string, e: React.DragEvent<HTMLDivElement>) => {
     if (!canReorderPinnedChats) return;
     setDraggedPinnedChatId(chatId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handlePinnedDragEnter = (chatId: string) => {
+    if (!canReorderPinnedChats || !draggedPinnedChatId || draggedPinnedChatId === chatId) return;
+    setDragOverPinnedChatId(chatId);
   };
 
   const handlePinnedDragOver = (event: React.DragEvent<HTMLDivElement>) => {
     if (!canReorderPinnedChats) return;
     event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
   };
 
   const handlePinnedDrop = (targetChatId: string) => {
+    setDragOverPinnedChatId(null);
     if (!canReorderPinnedChats || !draggedPinnedChatId || draggedPinnedChatId === targetChatId) {
       return;
     }
@@ -175,6 +184,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
   const handlePinnedDragEnd = () => {
     setDraggedPinnedChatId(null);
+    setDragOverPinnedChatId(null);
   };
 
   // Скролл-контент сам резервирует место под нижнюю панель, поэтому outer container не должен дополнительно ужиматься.
@@ -339,12 +349,16 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                       <div
                         key={chat.id}
                         draggable={canReorderPinnedChats}
-                        onDragStart={() => handlePinnedDragStart(chat.id)}
+                        onDragStart={(e) => handlePinnedDragStart(chat.id, e)}
+                        onDragEnter={() => handlePinnedDragEnter(chat.id)}
                         onDragOver={handlePinnedDragOver}
                         onDrop={() => handlePinnedDrop(chat.id)}
                         onDragEnd={handlePinnedDragEnd}
-                        className={draggedPinnedChatId === chat.id ? 'opacity-50' : ''}
+                        className={`relative transition-opacity ${draggedPinnedChatId === chat.id ? 'opacity-40' : ''} ${canReorderPinnedChats ? 'cursor-grab active:cursor-grabbing' : ''}`}
                       >
+                        {dragOverPinnedChatId === chat.id && draggedPinnedChatId !== chat.id && (
+                          <div className="absolute top-0 left-3 right-3 h-0.5 bg-blue-400 rounded-full z-10 pointer-events-none" />
+                        )}
                         <ChatItem
                           chat={chat}
                           isSelected={selectedChat?.id === chat.id}
@@ -415,12 +429,16 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                       <div
                         key={chat.id}
                         draggable={canReorderPinnedChats}
-                        onDragStart={() => handlePinnedDragStart(chat.id)}
+                        onDragStart={(e) => handlePinnedDragStart(chat.id, e)}
+                        onDragEnter={() => handlePinnedDragEnter(chat.id)}
                         onDragOver={handlePinnedDragOver}
                         onDrop={() => handlePinnedDrop(chat.id)}
                         onDragEnd={handlePinnedDragEnd}
-                        className={draggedPinnedChatId === chat.id ? 'opacity-50' : ''}
+                        className={`relative transition-opacity ${draggedPinnedChatId === chat.id ? 'opacity-40' : ''} ${canReorderPinnedChats ? 'cursor-grab active:cursor-grabbing' : ''}`}
                       >
+                        {dragOverPinnedChatId === chat.id && draggedPinnedChatId !== chat.id && (
+                          <div className="absolute top-0 left-3 right-3 h-0.5 bg-blue-400 rounded-full z-10 pointer-events-none" />
+                        )}
                         <ChatItem
                           chat={chat}
                           isSelected={selectedChat?.id === chat.id}
