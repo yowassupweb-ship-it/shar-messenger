@@ -1,7 +1,30 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MoreVertical, ArrowLeft, Phone, Video, Users, Star, Bell, Search, X, ChevronUp, ChevronDown } from 'lucide-react';
 import type { Message } from '@/components/features/messages/types';
 import PinnedMessageBar from './PinnedMessageBar';
+
+function getDiceBearUrl(seed: string) {
+  return `https://api.dicebear.com/9.x/thumbs/svg?seed=${encodeURIComponent(seed)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+}
+
+/** Аватар с 2-уровневым фолбэком: src → DiceBear → градиент+инициали */
+function ChatAvatar({ src, name, chatId, className = '' }: { src?: string; name: string; chatId: string; className?: string }) {
+  const [srcFailed, setSrcFailed] = useState(false);
+  const [diceFailed, setDiceFailed] = useState(false);
+  const dicebearUrl = getDiceBearUrl(name || chatId);
+
+  if (!srcFailed && src) {
+    return <img src={src} alt={name} className={className} onError={() => setSrcFailed(true)} />;
+  }
+  if (!diceFailed) {
+    return <img src={dicebearUrl} alt={name} className={className} onError={() => setDiceFailed(true)} />;
+  }
+  return (
+    <div className={`${className} flex items-center justify-center bg-gradient-to-br ${getAvatarColor(chatId)} text-white font-semibold text-xs`}>
+      {getInitials(name)}
+    </div>
+  );
+}
 
 interface ChatHeaderProps {
   title: string;
@@ -216,19 +239,13 @@ export default function ChatHeader({
             <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-sm flex-shrink-0">
               <Bell className="w-5 h-5" />
             </div>
-          ) : avatarSrc ? (
-            <img
-              src={avatarSrc}
-              alt={title}
-              className="w-10 h-10 rounded-full object-cover shadow-sm flex-shrink-0"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-            />
           ) : (
-            <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br ${getAvatarColor(chatId)} text-white font-semibold text-sm shadow-sm flex-shrink-0`}
-            >
-              {getInitials(title)}
-            </div>
+            <ChatAvatar
+              src={avatarSrc}
+              name={title}
+              chatId={chatId}
+              className="w-10 h-10 rounded-full object-cover shadow-sm flex-shrink-0"
+            />
           )}
 
           <button
@@ -333,19 +350,13 @@ export default function ChatHeader({
             <div className="-ml-1 w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-sm">
               <Bell className="w-4 h-4" />
             </div>
-          ) : avatarSrc ? (
-            <img
-              src={avatarSrc}
-              alt={title}
-              className="-ml-1 w-8 h-8 rounded-full object-cover shadow-sm flex-shrink-0"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-            />
           ) : (
-            <div
-              className={`-ml-1 w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br ${getAvatarColor(chatId)} text-white font-semibold text-xs shadow-sm`}
-            >
-              {getInitials(title)}
-            </div>
+            <ChatAvatar
+              src={avatarSrc}
+              name={title}
+              chatId={chatId}
+              className="-ml-1 w-8 h-8 rounded-full object-cover shadow-sm flex-shrink-0"
+            />
           )}
 
           <div className="flex flex-col justify-center min-w-0">
