@@ -2307,7 +2307,7 @@ export default function TodosPage() {
     } catch (error) {
       console.error('Error toggling todo:', error);
     }
-  }, []);
+  }, [myAccountId, canSeeAllTasks]);
 
   // Обновление задачи
   const updateTodo = async (todo: Todo) => {
@@ -3121,7 +3121,7 @@ export default function TodosPage() {
     const targetRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const insertAfter = e.clientY > targetRect.top + targetRect.height / 2;
     await reorderTodoRelativeToTarget(draggedTodoId, targetTodo, insertAfter);
-  }, [draggedTodo, getDragPayload, reorderTodoRelativeToTarget]);
+  }, [draggedTodo, getDragPayload, reorderTodoRelativeToTarget, myAccountId, canSeeAllTasks]);
 
   const handleDrop = useCallback(async (e: React.DragEvent, listId: string) => {
     e.preventDefault();
@@ -3190,7 +3190,7 @@ export default function TodosPage() {
     setDraggedTodo(null);
     dragOverTodoInsertAfterRef.current = false;
     dragPayloadRef.current = { type: null, id: null };
-  }, [dragOverTodoId, draggedTodo, getDragPayload, loadData, persistTodos, reorderTodoRelativeToTarget, todos]);
+  }, [dragOverTodoId, draggedTodo, getDragPayload, loadData, persistTodos, reorderTodoRelativeToTarget, todos, myAccountId, canSeeAllTasks]);
 
   // Drag and Drop handlers for lists
   const handleListDragStart = useCallback((e: React.DragEvent, list: TodoList) => {
