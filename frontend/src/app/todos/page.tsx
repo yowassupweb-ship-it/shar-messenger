@@ -1077,8 +1077,7 @@ export default function TodosPage() {
           : firstNotif.type === 'new_task'
             ? 'Новая задача'
             : 'Уведомление';
-    const noun = firstNotif.type === 'comment' ? 'комментариев' : 'уведомлений';
-    const content = `${title}\n${firstNotif.fromUserName}: +${groupNotifs.length} ${noun}`;
+    const content = `${title}\n${firstNotif.fromUserName}: ${firstNotif.message || ''}`.trim();
 
     fetch(`/api/chats/notifications/${myAccountId}/send`, {
       method: 'POST',
@@ -1148,9 +1147,7 @@ export default function TodosPage() {
                     firstNotif.type === 'assignee_response' ? '💬 Ответ по задаче' :
                        firstNotif.type === 'new_task' ? '📋 Новая задача' :
                        '🔔 Уведомление',
-                message: count > 1 
-                  ? `${firstNotif.fromUserName}: +${count} ${firstNotif.type === 'comment' ? 'комментариев' : 'уведомлений'}`
-                  : firstNotif.message,
+                message: firstNotif.message,
                 todoId: firstNotif.todoId,
                 createdAt: Date.now(),
                 groupKey,
