@@ -1,8 +1,34 @@
 import { Search, Archive, Plus, Moon, Sun, Star, Bell, Pin, MoreVertical } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { Chat, User } from '@/components/features/messages/types';
-import React from 'react';
+import React, { useState } from 'react';
 import { getAvatarGradient, getChatAvatarUrl, getInitials, isFavoritesChat, isNotificationsChat } from './avatarUtils';
+
+function ChatAvatar({ src, name, chatId, isGroup }: { src?: string; name: string; chatId: string; isGroup?: boolean }) {
+  const [imgError, setImgError] = useState(false);
+  const dicebearUrl = !isGroup
+    ? `https://api.dicebear.com/9.x/thumbs/svg?seed=${encodeURIComponent(name)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`
+    : undefined;
+
+  const finalSrc = src && !imgError ? src : (!imgError && dicebearUrl ? dicebearUrl : undefined);
+
+  if (finalSrc) {
+    return (
+      <img
+        src={finalSrc}
+        alt={name}
+        className="w-11 h-11 max-md:w-13 max-md:h-13 rounded-full object-cover flex-shrink-0"
+        onError={() => setImgError(true)}
+      />
+    );
+  }
+
+  return (
+    <div className={`w-11 h-11 max-md:w-13 max-md:h-13 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-to-br ${getAvatarGradient(chatId)} text-white font-semibold text-sm max-md:text-base shadow-sm`}>
+      {getInitials(name)}
+    </div>
+  );
+}
 
 interface ChatSidebarProps {
   chats: Chat[];
@@ -270,22 +296,13 @@ function ChatSidebar({
                     <div className="w-11 h-11 max-md:w-13 max-md:h-13 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-sm">
                       <Bell className="w-5 h-5 max-md:w-6 max-md:h-6" />
                     </div>
-                  ) : avatarUrl ? (
-                    <img
-                      src={avatarUrl}
-                      alt={displayTitle}
-                      className="w-11 h-11 max-md:w-13 max-md:h-13 rounded-full object-cover flex-shrink-0"
-                    />
                   ) : (
-                    <div 
-                      className={`
-                        w-11 h-11 max-md:w-13 max-md:h-13 rounded-full flex items-center justify-center flex-shrink-0
-                        bg-gradient-to-br ${getAvatarGradient(chat.id)} text-white font-semibold text-sm max-md:text-base
-                        shadow-sm
-                      `}
-                    >
-                      {getInitials(displayTitle)}
-                    </div>
+                    <ChatAvatar
+                      src={avatarUrl}
+                      name={displayTitle}
+                      chatId={chat.id}
+                      isGroup={chat.isGroup}
+                    />
                   )}
                   
                   {/* Chat Info */}

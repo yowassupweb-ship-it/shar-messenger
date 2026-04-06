@@ -53,19 +53,25 @@ export const Avatar: React.FC<AvatarProps> = ({
   bgColor,
   isOnline,
 }) => {
-  const [imageError, setImageError] = useState(false);
+  const [srcError, setSrcError] = useState(false);
+  const [generatedError, setGeneratedError] = useState(false);
   const sizeClass = sizeClasses[size];
   const iconSize = iconSizes[size];
   const sizeInPixels = sizePixels[size];
   
-  // Сбрасываем ошибку при изменении src
+  // Сбрасываем ошибки при изменении src
   useEffect(() => {
-    setImageError(false);
+    setSrcError(false);
+    setGeneratedError(false);
   }, [src]);
-  
-  // Генерируем URL аватара для обычных пользователей
-  const generatedAvatarUrl = type === 'user' && !src ? generateAvatarUrl(name, sizeInPixels) : null;
-  const finalSrc = !imageError ? (src || generatedAvatarUrl) : null;
+
+  // DiceBear-заглушка всегда генерируется для пользователей
+  const generatedAvatarUrl = type === 'user' ? generateAvatarUrl(name, sizeInPixels) : null;
+
+  // Двухуровневый фолбэк: src → DiceBear → инициалы
+  let finalSrc: string | null = null;
+  if (src && !srcError) finalSrc = src;
+  else if (generatedAvatarUrl && !generatedError) finalSrc = generatedAvatarUrl;
   
   // Определяем цвет фона
   const getBgClass = () => {
@@ -87,14 +93,15 @@ export const Avatar: React.FC<AvatarProps> = ({
   const renderContent = () => {
     // Если есть изображение или сгенерированный URL и нет ошибки
     if (finalSrc) {
+      const isGenerated = finalSrc === generatedAvatarUrl;
       return (
         <img
           src={finalSrc}
           alt={name || 'Avatar'}
           className="w-full h-full object-cover"
           onError={() => {
-            // Если изображение не загрузилось, показываем инициалы
-            setImageError(true);
+            if (isGenerated) setGeneratedError(true);
+            else setSrcError(true);
           }}
         />
       );
