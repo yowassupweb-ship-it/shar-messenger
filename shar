@@ -21,21 +21,11 @@ dim()    { echo -e "${DIM}$1${NC}"; }
 cmd_pull() {
   header "shar pull"
   cd "$APP_DIR" || fail "Папка $APP_DIR не найдена"
-  # Сохраняем локальные изменения перед pull
-  STASH_OUT=$(git stash 2>&1)
-  if echo "$STASH_OUT" | grep -q "Saved working directory"; then
-    warn "Локальные изменения сохранены (git stash)"
-    STASHED=1
-  else
-    STASHED=0
-  fi
-  info "git pull origin main..."
-  if ! git pull origin main; then
-    [ "$STASHED" -eq 1 ] && git stash pop
-    fail "git pull завершился с ошибкой"
-  fi
+  info "git fetch origin..."
+  git fetch origin || fail "git fetch завершился с ошибкой"
+  info "git reset --hard origin/main..."
+  git reset --hard origin/main || fail "git reset завершился с ошибкой"
   ok "Код обновлён"
-  [ "$STASHED" -eq 1 ] && git stash pop && ok "Локальные изменения восстановлены (git stash pop)"
   info "npm run build..."
   cd "$FRONTEND_DIR" || fail "Папка $FRONTEND_DIR не найдена"
   npm run build || fail "npm run build завершился с ошибкой"
