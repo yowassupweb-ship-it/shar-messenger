@@ -90,7 +90,8 @@ if (-not $UploadOnly) {
 
     Write-Info "Versiya: $currentVersion -> $newVersion"
     $pkg.version = $newVersion
-    $pkg | ConvertTo-Json -Depth 10 | Set-Content $pkgPath -Encoding UTF8
+    $jsonContent = $pkg | ConvertTo-Json -Depth 10
+    [System.IO.File]::WriteAllText($pkgPath, $jsonContent, [System.Text.UTF8Encoding]::new($false))
     Write-Ok "package.json: version=$newVersion"
 }
 
