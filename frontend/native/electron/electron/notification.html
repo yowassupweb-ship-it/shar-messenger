@@ -128,7 +128,8 @@
       padding-right: 14px;
       display: flex;
       flex-direction: column;
-      justify-content: space-evenly;
+      justify-content: center;
+      gap: 1px;
       min-height: 100%;
       padding-top: 1px;
       padding-bottom: 1px;
@@ -429,13 +430,11 @@
 
       // Устанавливаем название чата (если групповой)
       const chatNameEl = document.getElementById('chatName');
-      chatNameEl.style.display = 'block';
-      chatNameEl.style.visibility = 'hidden';
-      chatNameEl.textContent = '\u00A0';
-
       if (resolvedSubtitle && resolvedSubtitle !== resolvedTitle && !isNoiseLabel(resolvedSubtitle)) {
         chatNameEl.textContent = resolvedSubtitle;
-        chatNameEl.style.visibility = 'visible';
+        chatNameEl.style.display = 'block';
+      } else {
+        chatNameEl.style.display = 'none';
       }
 
       // Устанавливаем текст сообщения

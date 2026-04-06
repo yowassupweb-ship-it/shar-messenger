@@ -10,7 +10,8 @@ param(
     [ValidateSet("major","minor","patch")]
     [string]$Bump = "patch",
     [switch]$UploadOnly,
-    [string]$Server = "root@81.90.31.129",
+    [string]$ServerHost = "81.90.31.129",
+    [string]$ServerUser = "root",
     [string]$RemotePath = "/var/www/shar/updates"
 )
 
@@ -26,6 +27,47 @@ function Write-Fail($msg) { Write-Host "[!!] $msg" -ForegroundColor Red; exit 1 
 Write-Host ""
 Write-Host "  Shar OS -- publikatsiia Electron-obnovleniia (Windows -> Server)" -ForegroundColor Cyan
 Write-Host ""
+
+# --- Load .env ----------------------------------------------------------
+$envFile = "$PSScriptRoot\.env"
+if (Test-Path $envFile) {
+    Get-Content $envFile | ForEach-Object {
+        if ($_ -match '^\s*([^#][^=]*?)\s*=\s*(.*)\s*$') {
+            [System.Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process')
+        }
+    }
+    Write-Ok ".env loaded"
+}
+
+$sshPassword = $env:SSH_PASSWORD
+if (-not $sshPassword) { Write-Fail "SSH_PASSWORD not set. Add SSH_PASSWORD=<pass> to .env" }
+
+# --- Ensure Posh-SSH is available ---------------------------------------
+if (-not (Get-Module -ListAvailable -Name "Posh-SSH")) {
+    Write-Info "Installing Posh-SSH module (one-time)..."
+    Install-Module -Name Posh-SSH -Force -Scope CurrentUser -AllowClobber
+}
+Import-Module Posh-SSH -ErrorAction Stop
+
+$sshCred = New-Object PSCredential($ServerUser, (ConvertTo-SecureString $sshPassword -AsPlainText -Force))
+
+function Get-SshSession {
+    $session = New-SSHSession -ComputerName $ServerHost -Credential $sshCred -AcceptKey -Force -WarningAction SilentlyContinue
+    return $session
+}
+
+function Invoke-Remote($cmd) {
+    $s = Get-SshSession
+    $result = Invoke-SSHCommand -SessionId $s.SessionId -Command $cmd
+    Remove-SSHSession -SessionId $s.SessionId | Out-Null
+    return $result
+}
+
+function Upload-File($localPath, $remoteDest) {
+    $s = New-SSHSession -ComputerName $ServerHost -Credential $sshCred -AcceptKey -Force -WarningAction SilentlyContinue
+    Set-SCPItem -ComputerName $ServerHost -Credential $sshCred -Path $localPath -Destination $remoteDest -AcceptKey -Force | Out-Null
+    Remove-SSHSession -SessionId $s.SessionId | Out-Null
+}
 
 # --- Version bump -------------------------------------------------------
 $pkgPath = "$ElectronDir\package.json"
@@ -76,31 +118,31 @@ $builtVersion = ($latestYml | Select-String "^version:\s*(.+)").Matches[0].Group
 Write-Info "Release version: $builtVersion"
 
 # --- Upload to server ---------------------------------------------------
-Write-Info "Uploading to $Server : $RemotePath ..."
+Write-Info "Uploading to $ServerUser@$ServerHost : $RemotePath ..."
 
-ssh $Server "mkdir -p $RemotePath"
-if ($LASTEXITCODE -ne 0) { Write-Fail "Could not create $RemotePath on server" }
+$mkdirResult = Invoke-Remote "mkdir -p $RemotePath"
+if ($mkdirResult.ExitStatus -ne 0) { Write-Fail "Could not create $RemotePath on server" }
 
-scp "$ReleaseDir\latest.yml" "${Server}:${RemotePath}/latest.yml"
+Upload-File "$ReleaseDir\latest.yml" $RemotePath
 Write-Ok "latest.yml uploaded"
 
 $exeFiles = Get-ChildItem "$ReleaseDir\*.exe" -ErrorAction SilentlyContinue
 foreach ($f in $exeFiles) {
     Write-Info "Uploading $($f.Name) ($([Math]::Round($f.Length/1MB,1)) MB) ..."
-    scp $f.FullName "${Server}:${RemotePath}/$($f.Name)"
+    Upload-File $f.FullName $RemotePath
     Write-Ok "$($f.Name) uploaded"
 }
 
 $blockmaps = Get-ChildItem "$ReleaseDir\*.blockmap" -ErrorAction SilentlyContinue
 foreach ($f in $blockmaps) {
-    scp $f.FullName "${Server}:${RemotePath}/$($f.Name)"
+    Upload-File $f.FullName $RemotePath
     Write-Ok "$($f.Name) uploaded"
 }
 
 if (Test-Path "$ReleaseDir\nsis-web") {
     $chunks = Get-ChildItem "$ReleaseDir\nsis-web\*" -ErrorAction SilentlyContinue
     foreach ($f in $chunks) {
-        scp $f.FullName "${Server}:${RemotePath}/$($f.Name)"
+        Upload-File $f.FullName $RemotePath
         Write-Ok "nsis-web/$($f.Name) uploaded"
     }
 }
