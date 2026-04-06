@@ -1,0 +1,165 @@
+#!/bin/bash
+# Shar OS CLI — управление сервером
+# Установка: scp shar root@81.90.31.129:/usr/local/bin/shar && ssh root@81.90.31.129 "chmod +x /usr/local/bin/shar"
+
+APP_DIR="/var/www/shar"
+FRONTEND_DIR="$APP_DIR/frontend"
+ELECTRON_DIR="$APP_DIR/frontend/native/electron"
+UPDATES_DIR="$APP_DIR/updates"
+FRONTEND_SERVICE="shar-frontend"
+BACKEND_SERVICE="shar-backend"
+
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+ok()   { echo -e "${GREEN}✓${NC} $1"; }
+info() { echo -e "${CYAN}→${NC} $1"; }
+warn() { echo -e "${YELLOW}!${NC} $1"; }
+fail() { echo -e "${RED}✗${NC} $1"; exit 1; }
+header() { echo -e "\n${BOLD}${CYAN}$1${NC}"; }
+
+# ─── pull ─────────────────────────────────────────────────────────────────────
+cmd_pull() {
+  header "shar pull — обновление сервера"
+
+  info "Переходим в $APP_DIR..."
+  cd "$APP_DIR" || fail "Папка $APP_DIR не найдена"
+
+  info "git pull origin main..."
+  git pull origin main || fail "git pull завершился с ошибкой"
+  ok "Код обновлён"
+
+  info "Сборка фронтенда..."
+  cd "$FRONTEND_DIR" || fail "Папка $FRONTEND_DIR не найдена"
+  npm run build || fail "npm run build завершился с ошибкой"
+  ok "Фронтенд собран"
+
+  cmd_restart
+}
+
+# ─── restart ──────────────────────────────────────────────────────────────────
+cmd_restart() {
+  header "shar restart — перезапуск сервисов"
+
+  info "Перезапуск $FRONTEND_SERVICE..."
+  systemctl restart "$FRONTEND_SERVICE" && ok "$FRONTEND_SERVICE перезапущен" || warn "Не удалось перезапустить $FRONTEND_SERVICE"
+
+  info "Перезапуск $BACKEND_SERVICE..."
+  systemctl restart "$BACKEND_SERVICE" && ok "$BACKEND_SERVICE перезапущен" || warn "Не удалось перезапустить $BACKEND_SERVICE"
+}
+
+# ─── status ───────────────────────────────────────────────────────────────────
+cmd_status() {
+  header "shar status — состояние сервисов"
+
+  for svc in "$FRONTEND_SERVICE" "$BACKEND_SERVICE"; do
+    if systemctl is-active --quiet "$svc"; then
+      echo -e "  ${GREEN}●${NC} $svc — ${GREEN}active${NC}"
+    else
+      echo -e "  ${RED}●${NC} $svc — ${RED}inactive${NC}"
+    fi
+  done
+
+  echo ""
+  info "Git статус:"
+  cd "$APP_DIR" && git log --oneline -3
+}
+
+# ─── logs ─────────────────────────────────────────────────────────────────────
+cmd_logs() {
+  SERVICE="${2:-$FRONTEND_SERVICE}"
+  LINES="${3:-50}"
+  header "shar logs — последние $LINES строк $SERVICE"
+  journalctl -u "$SERVICE" -n "$LINES" --no-pager
+}
+
+# ─── update (electron build) ──────────────────────────────────────────────────
+cmd_update() {
+  header "shar update — сборка обновления Electron"
+
+  # Проверяем Node.js
+  command -v node >/dev/null 2>&1 || fail "Node.js не найден"
+
+  cd "$ELECTRON_DIR" || fail "Папка $ELECTRON_DIR не найдена"
+
+  info "npm install..."
+  npm install --prefer-offline || fail "npm install завершился с ошибкой"
+
+  info "Сборка инсталлера (nsis-web)..."
+  npm run build:win || fail "Сборка Electron завершилась с ошибкой"
+  ok "Инсталлер собран в $ELECTRON_DIR/release/"
+
+  info "Публикуем файлы обновлений..."
+  mkdir -p "$UPDATES_DIR"
+
+  # Копируем latest.yml (метаданные версии — без кэша)
+  cp "$ELECTRON_DIR/release/latest.yml" "$UPDATES_DIR/latest.yml"
+  ok "latest.yml скопирован"
+
+  # Копируем nsis-web chunks (если есть)
+  if [ -d "$ELECTRON_DIR/release/nsis-web" ]; then
+    cp -r "$ELECTRON_DIR/release/nsis-web/." "$UPDATES_DIR/"
+    ok "nsis-web chunks скопированы"
+  fi
+
+  # Копируем полный инсталлер
+  for f in "$ELECTRON_DIR/release/"*.exe "$ELECTRON_DIR/release/"*.blockmap; do
+    [ -f "$f" ] && cp "$f" "$UPDATES_DIR/" && ok "$(basename "$f") скопирован"
+  done
+
+  # Ссылка на скачивание — "Shar setup.exe" → доступен как /updates/Shar setup.exe
+  VERSION=$(grep '^version:' "$UPDATES_DIR/latest.yml" | awk '{print $2}')
+  ok "Обновление v${VERSION} опубликовано в $UPDATES_DIR"
+  info "Ссылка для скачивания: https://vokrug-sveta.shar-os.ru/updates/Shar%20setup.exe"
+}
+
+# ─── deploy (pull + update) ───────────────────────────────────────────────────
+cmd_deploy() {
+  header "shar deploy — полный деплой + electron update"
+  cmd_pull
+  cmd_update
+  ok "Деплой завершён"
+}
+
+# ─── install (копирование CLI на сервер) ──────────────────────────────────────
+cmd_install_hint() {
+  header "Установка CLI на сервер"
+  echo -e "  Выполни локально:"
+  echo -e "  ${CYAN}scp shar root@81.90.31.129:/usr/local/bin/shar${NC}"
+  echo -e "  ${CYAN}ssh root@81.90.31.129 \"chmod +x /usr/local/bin/shar\"${NC}"
+}
+
+# ─── help ─────────────────────────────────────────────────────────────────────
+cmd_help() {
+  echo -e "${BOLD}Shar OS CLI${NC}"
+  echo ""
+  echo -e "  ${CYAN}shar pull${NC}       — git pull + npm build + restart"
+  echo -e "  ${CYAN}shar restart${NC}    — перезапуск frontend + backend сервисов"
+  echo -e "  ${CYAN}shar status${NC}     — статус сервисов + последние коммиты"
+  echo -e "  ${CYAN}shar logs${NC}       — логи (по умолч. frontend, N строк)"
+  echo -e "              ${YELLOW}shar logs backend 100${NC}"
+  echo -e "  ${CYAN}shar update${NC}     — сборка Electron инсталлера + публикация обновлений"
+  echo -e "  ${CYAN}shar deploy${NC}     — pull + build + electron update (всё сразу)"
+  echo -e "  ${CYAN}shar help${NC}       — эта справка"
+}
+
+# ─── router ───────────────────────────────────────────────────────────────────
+case "${1:-help}" in
+  pull)    cmd_pull ;;
+  restart) cmd_restart ;;
+  status)  cmd_status ;;
+  logs)    cmd_logs "$@" ;;
+  update)  cmd_update ;;
+  deploy)  cmd_deploy ;;
+  install) cmd_install_hint ;;
+  help|-h|--help) cmd_help ;;
+  *)
+    warn "Неизвестная команда: $1"
+    cmd_help
+    exit 1
+    ;;
+esac

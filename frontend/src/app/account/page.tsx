@@ -723,7 +723,7 @@ export default function AccountPage() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-5xl mx-auto mt-8 mb-2">
               <a
-                href="/downloads/Shar-Setup.exe"
+                href="/updates/Shar%20setup.exe"
                 className="group flex items-center gap-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors px-4 py-4"
               >
                 <div className="w-11 h-11 rounded-xl bg-[#0078d4]/15 border border-[#0078d4]/25 flex items-center justify-center flex-shrink-0">
