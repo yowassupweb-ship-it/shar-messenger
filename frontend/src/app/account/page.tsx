@@ -562,8 +562,13 @@ export default function AccountPage() {
   // Скрываем нижнюю мобильную навигацию, когда открыт конкретный чат.
   const hideBottomNavInOpenedChat = activeTab === 'messages' && isBelow768 && (isChatOpen || hasChatInUrl);
 
+  // Флаги первого монтирования по вкладкам — каждая вкладка монтируется при первом посещении и не размонтируется
   const [hasMountedMessages, setHasMountedMessages] = useState(true);
   const [hasMountedTasks, setHasMountedTasks] = useState(true);
+  const [hasMountedCalendar, setHasMountedCalendar] = useState(false);
+  const [hasMountedContacts, setHasMountedContacts] = useState(false);
+  const [hasMountedLinks, setHasMountedLinks] = useState(false);
+  const [hasMountedTools, setHasMountedTools] = useState(false);
 
   const handleTabChange = (tab: TabType) => {
     if (tab !== activeTab) {
@@ -580,12 +585,12 @@ export default function AccountPage() {
   };
 
   useEffect(() => {
-    if (activeTab === 'messages') {
-      setHasMountedMessages(true);
-    }
-    if (activeTab === 'tasks') {
-      setHasMountedTasks(true);
-    }
+    if (activeTab === 'messages') setHasMountedMessages(true);
+    if (activeTab === 'tasks') setHasMountedTasks(true);
+    if (activeTab === 'calendar') setHasMountedCalendar(true);
+    if (activeTab === 'contacts') setHasMountedContacts(true);
+    if (activeTab === 'links') setHasMountedLinks(true);
+    if (activeTab === 'tools') setHasMountedTools(true);
   }, [activeTab]);
 
   useEffect(() => {
@@ -644,44 +649,9 @@ export default function AccountPage() {
     router.push('/login');
   };
 
-  const renderNonMessagesContent = () => {
-    switch (activeTab) {
-      case 'calendar':
-        return (
-          <Suspense fallback={
-            <div className="flex items-center justify-center h-full">
-              <div className="text-white/50">Загрузка календаря...</div>
-            </div>
-          }>
-            <CalendarBoard />
-          </Suspense>
-        );
-      
-      case 'contacts':
-        return (
-          <Suspense fallback={
-            <div className="flex items-center justify-center h-full">
-              <div className="text-white/50">Загрузка контактов...</div>
-            </div>
-          }>
-            <ContactsBoard />
-          </Suspense>
-        );
-      
-      case 'links':
-        return (
-          <Suspense fallback={
-            <div className="flex items-center justify-center h-full">
-              <div className="text-white/50">Загрузка ссылок...</div>
-            </div>
-          }>
-            <LinksBoard />
-          </Suspense>
-        );
-      
-      case 'tools':
-        return (
-          <div className="h-full min-h-full overflow-y-auto p-4 sm:p-6 pb-[calc(env(safe-area-inset-bottom)+92px)] bg-transparent">
+  // Только контент инструментов вынесен в отдельный метод (не перестраивается при переключении вкладок)
+  const renderToolsContent = () => (
+    <div className="h-full min-h-full overflow-y-auto p-4 sm:p-6 pb-[calc(env(safe-area-inset-bottom)+92px)] bg-transparent">
             <div className="flex flex-col items-center mb-6 max-w-5xl mx-auto">
               <div className="flex items-center justify-between w-full">
                 <h2 className="text-2xl font-bold text-center flex-1">Инструменты</h2>
@@ -773,12 +743,7 @@ export default function AccountPage() {
               </a>
             </div>
           </div>
-        );
-      
-      default:
-        return null;
-    }
-  };
+  );
 
   const isChatStyledTab = activeTab === 'tasks' || activeTab === 'contacts' || activeTab === 'tools' || activeTab === 'links' || activeTab === 'calendar';
   const isTauri = typeof window !== 'undefined' && localStorage.getItem('_platform') === 'tauri';
@@ -840,6 +805,7 @@ export default function AccountPage() {
 
       {/* Main Content */}
       <div className="flex-1 min-h-0 min-w-0 overflow-hidden overflow-x-hidden relative z-10" style={{ paddingBottom: `${accountContentBottomInset}px` }}>
+        {/* Месседжер */}
         {hasMountedMessages && (
           <div className={`h-full min-w-0 overflow-x-hidden ${activeTab === 'messages' ? 'block' : 'hidden'}`}>
             <Suspense fallback={
@@ -851,6 +817,7 @@ export default function AccountPage() {
             </Suspense>
           </div>
         )}
+        {/* Задачи */}
         {hasMountedTasks && (
           <div className={`h-full min-w-0 overflow-x-hidden ${activeTab === 'tasks' ? 'block' : 'hidden'}`}>
             <Suspense fallback={
@@ -862,9 +829,48 @@ export default function AccountPage() {
             </Suspense>
           </div>
         )}
-        <div className={`tab-content-enter h-full min-w-0 overflow-y-auto overflow-x-hidden ${activeTab === 'messages' || activeTab === 'tasks' ? 'hidden' : 'block'}`}>
-          {renderNonMessagesContent()}
-        </div>
+        {/* Календарь */}
+        {hasMountedCalendar && (
+          <div className={`h-full min-w-0 overflow-x-hidden ${activeTab === 'calendar' ? 'block' : 'hidden'}`}>
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-full">
+                <div className="text-white/50">Загрузка календаря...</div>
+              </div>
+            }>
+              <CalendarBoard />
+            </Suspense>
+          </div>
+        )}
+        {/* Контакты */}
+        {hasMountedContacts && (
+          <div className={`h-full min-w-0 overflow-y-auto overflow-x-hidden ${activeTab === 'contacts' ? 'block' : 'hidden'}`}>
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-full">
+                <div className="text-white/50">Загрузка контактов...</div>
+              </div>
+            }>
+              <ContactsBoard />
+            </Suspense>
+          </div>
+        )}
+        {/* Ссылки */}
+        {hasMountedLinks && (
+          <div className={`h-full min-w-0 overflow-y-auto overflow-x-hidden ${activeTab === 'links' ? 'block' : 'hidden'}`}>
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-full">
+                <div className="text-white/50">Загрузка ссылок...</div>
+              </div>
+            }>
+              <LinksBoard />
+            </Suspense>
+          </div>
+        )}
+        {/* Инструменты */}
+        {hasMountedTools && (
+          <div className={`h-full min-w-0 overflow-y-auto overflow-x-hidden ${activeTab === 'tools' ? 'block' : 'hidden'}`}>
+            {renderToolsContent()}
+          </div>
+        )}
       </div>
 
       {/* Mobile Bottom Navigation Bar - стеклянные кнопки */}

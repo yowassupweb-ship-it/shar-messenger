@@ -493,6 +493,23 @@ export default function ContactsPage() {
                         <p className="text-[10px] md:text-xs text-[var(--text-muted)] truncate">
                           {contact.position || 'Должность не указана'}
                         </p>
+                        {contact.isOnline ? (
+                          <p className="text-[10px] text-green-400 truncate">в сети</p>
+                        ) : contact.lastSeen ? (
+                          <p className="text-[10px] text-[var(--text-muted)] truncate">
+                            {(() => {
+                              const diff = Date.now() - new Date(contact.lastSeen).getTime();
+                              const mins = Math.floor(diff / 60000);
+                              const hours = Math.floor(diff / 3600000);
+                              const days = Math.floor(diff / 86400000);
+                              if (mins < 1) return 'был(а) только что';
+                              if (mins < 60) return `был(а) ${mins} мин. назад`;
+                              if (hours < 24) return `был(а) ${hours} ч. назад`;
+                              if (days === 1) return 'был(а) вчера';
+                              return `был(а) ${new Date(contact.lastSeen).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}`;
+                            })()}
+                          </p>
+                        ) : null}
                       </div>
 
                       {/* Quick Actions - всегда видны */}
