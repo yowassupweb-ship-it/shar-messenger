@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { Minus, Square, Copy, X, PhoneCall, BellRing, MoreVertical, RotateCw, CheckCircle2, Calendar, UserPlus, ArrowRight } from 'lucide-react';
+import { Minus, Square, Copy, X, PhoneCall, BellRing, MoreVertical, RotateCw, CheckCircle2, Calendar, UserPlus, ArrowRight, Download, RefreshCw } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
@@ -98,6 +98,9 @@ export default function ElectronShell({ children }: ElectronShellProps) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [notificationsUnreadCount, setNotificationsUnreadCount] = useState(0);
   const [lastMessageId, setLastMessageId] = useState<string | null>(null);
+  const [updateState, setUpdateState] = useState<'idle' | 'downloading' | 'downloaded'>('idle');
+  const [updatePercent, setUpdatePercent] = useState(0);
+  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [isMarqueeFlowActive, setIsMarqueeFlowActive] = useState(false);
   const [showMarquee, setShowMarquee] = useState(false);
   const [showExpandedContent, setShowExpandedContent] = useState(false);
@@ -228,13 +231,18 @@ export default function ElectronShell({ children }: ElectronShellProps) {
     controls?.isMaximized?.().then((value) => setIsMaximized(Boolean(value))).catch(() => {});
     const unsubscribe = controls?.onMaximizedChanged?.((value) => setIsMaximized(Boolean(value)));
 
+    const unsubscribeUpdater = window.sharDesktop?.updater?.onStatus?.((data) => {
+      setUpdateState(data.state === 'downloaded' ? 'downloaded' : 'downloading');
+      if (typeof data.percent === 'number') setUpdatePercent(Math.round(data.percent));
+      if (data.version) setUpdateVersion(data.version);
+    });
+
     return () => {
       document.documentElement.classList.remove('electron-app');
       document.documentElement.removeAttribute('data-electron-react-shell');
       document.body.classList.remove('electron-app');
-      if (typeof unsubscribe === 'function') {
-        unsubscribe();
-      }
+      if (typeof unsubscribe === 'function') unsubscribe();
+      if (typeof unsubscribeUpdater === 'function') unsubscribeUpdater();
     };
   }, []);
 
@@ -686,6 +694,29 @@ export default function ElectronShell({ children }: ElectronShellProps) {
               className="flex items-center gap-1 pointer-events-auto"
               style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
             >
+              {/* Кнопка обновления */}
+              {updateState !== 'idle' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (updateState === 'downloaded') {
+                      window.sharDesktop?.updater?.install?.();
+                    }
+                  }}
+                  className={`flex items-center gap-1 px-2 h-[22px] rounded-full text-[10px] font-semibold whitespace-nowrap transition-all ${
+                    updateState === 'downloaded'
+                      ? 'bg-green-500 hover:bg-green-400 text-white cursor-pointer'
+                      : 'bg-blue-500/20 text-blue-400 cursor-default'
+                  }`}
+                  title={updateState === 'downloaded' ? `Установить v${updateVersion || ''} и перезапустить` : `Загрузка обновления ${updatePercent}%`}
+                  disabled={updateState === 'downloading'}
+                >
+                  {updateState === 'downloaded'
+                    ? <><RefreshCw className="h-2.5 w-2.5" strokeWidth={2.5} />Обновить{updateVersion ? ` v${updateVersion}` : ''}</>
+                    : <><Download className="h-2.5 w-2.5" strokeWidth={2.5} />{updatePercent}%</>}
+                </button>
+              )}
+
               {/* Меню с тремя точками */}
               <div className="relative" ref={menuRef}>
                 <button

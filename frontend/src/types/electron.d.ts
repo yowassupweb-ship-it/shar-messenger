@@ -27,6 +27,7 @@ export interface WindowControls {
 
 export interface SharDesktop {
   platform: string;
+  appVersion?: string;
   assets: {
     logoSrc: string;
   };
@@ -35,6 +36,10 @@ export interface SharDesktop {
   showNotification: (data: NotificationData) => Promise<void>;
   onOpenChat: (callback: (chatId: string) => void) => () => void;
   onOpenRoute: (callback: (url: string) => void) => () => void;
+  updater?: {
+    onStatus: (callback: (data: { state: 'downloading' | 'downloaded'; version?: string; percent?: number }) => void) => () => void;
+    install: () => Promise<void>;
+  };
 }
 
 declare global {

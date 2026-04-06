@@ -92,6 +92,17 @@ contextBridge.exposeInMainWorld('sharDesktop', {
     updateState: (state) => ipcRenderer.send('call:update-state', state),
   },
 
+  // ── Auto-updater API ─────────────────────────────────────
+  updater: {
+    // callback({ state: 'downloading'|'downloaded', version?, percent? })
+    onStatus: (callback) => {
+      const handler = (_, data) => callback(data);
+      ipcRenderer.on('updater:status', handler);
+      return () => ipcRenderer.removeListener('updater:status', handler);
+    },
+    install: () => ipcRenderer.invoke('updater:install'),
+  },
+
   // ── Photo preview API ────────────────────────────────────
   photo: {
     // Open photo preview. url: current image URL, urls: all URLs in the group, names: optional filename list

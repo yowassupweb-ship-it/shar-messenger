@@ -46,6 +46,7 @@ autoUpdater.on('checking-for-update', () => {
 autoUpdater.on('update-available', (info) => {
   console.log('Update available:', info);
   sendSplashStatus(`Найдено обновление v${info.version}...`);
+  sendUpdaterStatus({ state: 'downloading', version: info.version, percent: 0 });
 });
 
 autoUpdater.on('update-not-available', (info) => {
@@ -56,25 +57,32 @@ autoUpdater.on('update-not-available', (info) => {
 autoUpdater.on('download-progress', (progressObj) => {
   console.log(`Download progress: ${progressObj.percent}%`);
   sendSplashStatus(`Загрузка обновления ${Math.round(progressObj.percent)}%`, progressObj.percent);
+  sendUpdaterStatus({ state: 'downloading', percent: progressObj.percent });
 });
 
 autoUpdater.on('update-downloaded', (info) => {
   console.log('Update downloaded:', info);
+  sendUpdaterStatus({ state: 'downloaded', version: info.version });
+});
 
-  if (isInstallingUpdate) {
-    return;
-  }
+function sendUpdaterStatus(payload) {
+  try {
+    const wins = require('electron').BrowserWindow.getAllWindows();
+    wins.forEach(win => {
+      if (!win.isDestroyed()) win.webContents.send('updater:status', payload);
+    });
+  } catch {}
+}
 
+require('electron').ipcMain.handle('updater:install', () => {
+  if (isInstallingUpdate) return;
   isInstallingUpdate = true;
-
-  setTimeout(() => {
-    try {
-      autoUpdater.quitAndInstall(false, true);
-    } catch (error) {
-      isInstallingUpdate = false;
-      console.error('Failed to install update:', error);
-    }
-  }, 1500);
+  try {
+    autoUpdater.quitAndInstall(false, true);
+  } catch (error) {
+    isInstallingUpdate = false;
+    console.error('Failed to install update:', error);
+  }
 });
 
 const DEFAULT_REMOTE_URL = 'https://vokrug-sveta.shar-os.ru';
