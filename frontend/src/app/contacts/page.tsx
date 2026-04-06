@@ -510,56 +510,62 @@ export default function ContactsPage() {
                           onClick={async () => {
                             try {
                               const myAccountStr = localStorage.getItem('myAccount');
-                              if (!myAccountStr) {
-                                console.error('[Contacts] myAccount not found in localStorage');
-                                return;
-                              }
-                              const myAccount = JSON.parse(myAccountStr);
-                              if (!myAccount.id) {
-                                console.error('[Contacts] myAccount.id is missing');
-                                return;
-                              }
-                              
-                              console.log('[Contacts] Opening chat with contact:', contact.id);
-                              console.log('[Contacts] My account ID:', myAccount.id);
-                              
-                              // Если это тот же пользователь - открываем избранное
+                              if (!myAccountStr) return;
+                              const myAccount = JSON.parse(myAccountStr) as { id: string };
+                              if (!myAccount.id) return;
                               if (contact.id === myAccount.id) {
-                                console.log('[Contacts] Same user, opening favorites');
-                                router.push(`/account?tab=messages&chat=favorites_${myAccount.id}`);
+                                const favId = `favorites_${myAccount.id}`;
+                                window.dispatchEvent(new CustomEvent('shar:open-chat', { detail: { chatId: favId } }));
+                                router.push(`/account?tab=messages&chat=${favId}`);
                                 return;
                               }
-                              
-                              console.log('[Contacts] Creating/opening chat...');
                               const res = await fetch('/api/chats', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  participantIds: [myAccount.id, contact.id],
-                                  isGroup: false
-                                })
+                                body: JSON.stringify({ participantIds: [myAccount.id, contact.id], isGroup: false })
                               });
-                              
                               if (res.ok) {
-                                const chat = await res.json();
-                                if (chat && chat.id) {
-                                  console.log('[Contacts] Chat created/retrieved:', chat.id);
+                                const chat = await res.json() as { id?: string };
+                                if (chat?.id) {
+                                  window.dispatchEvent(new CustomEvent('shar:open-chat', { detail: { chatId: chat.id } }));
                                   router.push(`/account?tab=messages&chat=${chat.id}`);
-                                } else {
-                                  console.error('[Contacts] Invalid chat response:', chat);
                                 }
-                              } else {
-                                console.error('[Contacts] Failed to create chat:', res.status, await res.text());
                               }
-                            } catch (error) {
-                              console.error('[Contacts] Error opening chat:', error);
-                            }
+                            } catch { /* ignore */ }
                           }}
                           className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/25 hover:to-white/10 border border-white/20 flex items-center justify-center transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,0,0,0.1)] backdrop-blur-md"
                           title="Написать сообщение"
                         >
                           <MessageCircle className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-700 dark:text-white" />
                         </button>
+                        {contact.id !== currentUser?.id && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                const myAccountStr = localStorage.getItem('myAccount');
+                                if (!myAccountStr) return;
+                                const myAccount = JSON.parse(myAccountStr) as { id: string };
+                                if (!myAccount.id || contact.id === myAccount.id) return;
+                                const res = await fetch('/api/chats', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ participantIds: [myAccount.id, contact.id], isGroup: false })
+                                });
+                                if (res.ok) {
+                                  const chat = await res.json() as { id?: string };
+                                  if (chat?.id) {
+                                    window.dispatchEvent(new CustomEvent('shar:open-chat', { detail: { chatId: chat.id, autoCall: 'voice' } }));
+                                    router.push(`/account?tab=messages&chat=${chat.id}`);
+                                  }
+                                }
+                              } catch { /* ignore */ }
+                            }}
+                            className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/25 hover:to-white/10 border border-white/20 flex items-center justify-center transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,0,0,0.1)] backdrop-blur-md"
+                            title="Позвонить"
+                          >
+                            <Phone className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-700 dark:text-white" />
+                          </button>
+                        )}
                         <button
                           onClick={() => {
                             setSelectedContact(contact);

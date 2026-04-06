@@ -34,6 +34,8 @@ interface ChatHeaderProps {
   onSearchPrev?: () => void;
   onSearchNext?: () => void;
   onCloseSearch?: () => void;
+  /** URL аватарки чата (реальное фото пользователя или группы) */
+  avatarSrc?: string;
 }
 
 // Градиенты аватаров
@@ -91,6 +93,7 @@ export default function ChatHeader({
   onSearchPrev,
   onSearchNext,
   onCloseSearch,
+  avatarSrc,
 }: ChatHeaderProps) {
   const hasPinnedMessages = pinnedMessages.length > 0;
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -213,6 +216,13 @@ export default function ChatHeader({
             <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-sm flex-shrink-0">
               <Bell className="w-5 h-5" />
             </div>
+          ) : avatarSrc ? (
+            <img
+              src={avatarSrc}
+              alt={title}
+              className="w-10 h-10 rounded-full object-cover shadow-sm flex-shrink-0"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+            />
           ) : (
             <div
               className={`w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br ${getAvatarColor(chatId)} text-white font-semibold text-sm shadow-sm flex-shrink-0`}
@@ -323,6 +333,13 @@ export default function ChatHeader({
             <div className="-ml-1 w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-sm">
               <Bell className="w-4 h-4" />
             </div>
+          ) : avatarSrc ? (
+            <img
+              src={avatarSrc}
+              alt={title}
+              className="-ml-1 w-8 h-8 rounded-full object-cover shadow-sm flex-shrink-0"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+            />
           ) : (
             <div
               className={`-ml-1 w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br ${getAvatarColor(chatId)} text-white font-semibold text-xs shadow-sm`}
@@ -343,6 +360,17 @@ export default function ChatHeader({
                 : (subtitle || 'был(а) в сети недавно')}
             </div>
           </div>
+
+          {/* Inline phone button inside the name pill for quick access */}
+          {!isGroupChat && onStartVoiceCall && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onStartVoiceCall(); }}
+              className="ml-1 shrink-0 w-7 h-7 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-gray-600 dark:text-gray-300"
+              title="Позвонить"
+            >
+              <Phone className="w-3 h-3" />
+            </button>
+          )}
         </div>
 
         {/* Pinned messages pill - гибкий элемент, сжимается при нехватке места */}

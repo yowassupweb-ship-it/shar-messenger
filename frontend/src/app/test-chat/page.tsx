@@ -21,6 +21,7 @@ import { GroupCallService, type GroupCallState } from './GroupCallService';
 import type { GroupParticipantUI } from './GroupCallView';
 import type { CallDebugDump } from './LiveKitCallService';
 import type { Message, User, Chat } from '@/components/features/messages/types';
+import { getChatAvatarUrl } from './avatarUtils';
 import './globals.css';
 
 const EventCalendarSelector = dynamic(() => import('@/components/features/messages/EventCalendarSelector'));
@@ -181,6 +182,8 @@ export default function TestChat() {
   const activeChatIdRef = useRef<string | null>(null);
   const latestLoadRequestByChatRef = useRef<Record<string, number>>({});
   const loadRequestSeqRef = useRef(0);
+  /** Ожидающий автозвонок после перехода в чат (из контактов) */
+  const pendingAutoCallRef = useRef<'voice' | 'video' | null>(null);
   const isTauri = typeof window !== 'undefined' && localStorage.getItem('_platform') === 'tauri';
 
   const normalizeAttachmentUrl = (rawUrl: string): string => {
@@ -871,6 +874,36 @@ export default function TestChat() {
       try { localStorage.setItem('lastOpenedChatId', currentChatId); } catch { /* ignore */ }
     }
   }, [currentChatId]);
+
+  // Обработчик события shar:open-chat (переход в чат из контактов или других мест)
+  useEffect(() => {
+    const handleOpenChat = (e: Event) => {
+      const detail = (e as CustomEvent<{ chatId: string; autoCall?: 'voice' | 'video' }>).detail;
+      if (!detail?.chatId) return;
+      selectChat(detail.chatId);
+      pendingAutoCallRef.current = detail.autoCall ?? null;
+      // Обновляем список чатов, чтобы только что созданный чат появился в списке
+      void loadChats();
+    };
+    window.addEventListener('shar:open-chat', handleOpenChat);
+    return () => window.removeEventListener('shar:open-chat', handleOpenChat);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadChats]);
+
+  // Запуск ожидающего звонка после того как чат загружен в список
+  useEffect(() => {
+    if (!currentChatId || !pendingAutoCallRef.current) return;
+    const callType = pendingAutoCallRef.current;
+    const chat = chats.find(c => String(c.id) === String(currentChatId));
+    if (!chat) return; // Ждём следующего обновления chats
+    pendingAutoCallRef.current = null;
+    const timer = window.setTimeout(() => {
+      if (callType === 'voice') startVoiceCall();
+      else startVideoCall();
+    }, 300);
+    return () => window.clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentChatId, chats]);
 
   const loadMessagesFromServer = useCallback((chatId: string, silent: boolean) => {
     const requestSeq = ++loadRequestSeqRef.current;
@@ -1715,6 +1748,10 @@ export default function TestChat() {
     title: (currentChat as any).displayTitle || currentChat.title || 'Чат'
   } : null;
 
+  const currentChatAvatarSrc = currentChat
+    ? getChatAvatarUrl(currentChat as any, currentUser, users)
+    : undefined;
+
   // Subtitle for chat header: online status or type label
   const chatSubtitle = (() => {
     if (!currentChat) return '';
@@ -1981,6 +2018,7 @@ export default function TestChat() {
                     onBack={handleBack}
                     isMobile={isBelow768}
                     subtitle={chatSubtitle}
+                    avatarSrc={currentChatAvatarSrc}
                     onStartVoiceCall={(currentChat as any)?.isFavoritesChat || String(currentChatId || '').startsWith('favorites_') || (currentChat as any)?.isNotificationsChat ? undefined : startVoiceCall}
                     onStartVideoCall={(currentChat as any)?.isFavoritesChat || String(currentChatId || '').startsWith('favorites_') || (currentChat as any)?.isNotificationsChat ? undefined : startVideoCall}
                     onStartGroupCall={(currentChat as any)?.isFavoritesChat || String(currentChatId || '').startsWith('favorites_') || (currentChat as any)?.isNotificationsChat ? undefined : (groupCallState?.isActive ? leaveGroupCall : startGroupCall)}
