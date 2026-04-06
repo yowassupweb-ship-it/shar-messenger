@@ -1,6 +1,6 @@
 {
   "name": "shar-os-client",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "author": "Shar OS",
   "main": "electron/main.cjs",

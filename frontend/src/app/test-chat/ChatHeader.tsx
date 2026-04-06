@@ -372,16 +372,6 @@ export default function ChatHeader({
             </div>
           </div>
 
-          {/* Inline phone button inside the name pill for quick access */}
-          {!isGroupChat && onStartVoiceCall && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onStartVoiceCall(); }}
-              className="ml-1 shrink-0 w-7 h-7 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-gray-600 dark:text-gray-300"
-              title="Позвонить"
-            >
-              <Phone className="w-3 h-3" />
-            </button>
-          )}
         </div>
 
         {/* Pinned messages pill - гибкий элемент, сжимается при нехватке места */}
