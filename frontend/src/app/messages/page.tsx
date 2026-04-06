@@ -3053,6 +3053,7 @@ export default function MessagesPage() {
   }, [chats, currentUser?.id, searchQuery, showArchivedChats]); // Заменили filterChatsBySearch на searchQuery
 
   const messagesContainerRef = useRef<HTMLDivElement>(null); // Ref для основного контейнера страницы
+  const chatPanelRef = useRef<HTMLDivElement>(null); // Ref для мобильного chat-панели (position:fixed, keyboard fix)
 
   // Синхронизируем состояние открытия чата с оболочкой account мгновенно
   useEffect(() => {
@@ -3127,6 +3128,10 @@ export default function MessagesPage() {
       }
       
       messagesContainerRef.current.style.height = `${vh}px`;
+      // Обновляем высоту мобильного chat-панели (position:fixed не реагирует на dvh в старых iOS)
+      if (chatPanelRef.current) {
+        chatPanelRef.current.style.height = `${vh}px`;
+      }
       
       // Также подстраиваем body, чтобы не было скролла за пределы
       document.body.style.height = `${vh}px`;
@@ -3256,7 +3261,7 @@ export default function MessagesPage() {
 
   return (
     <>
-      {isElectronDesktop && selectedChat ? (
+      {selectedChat && (isElectronDesktop || !isDesktopView) ? (
         <style jsx global>{`
           .desktop-navigation,
           .bottom-nav-fixed {
@@ -3347,7 +3352,10 @@ export default function MessagesPage() {
       {selectedChat ? (
         <div
           className="flex-1 min-h-0 min-w-0 flex overflow-hidden bg-transparent"
-          style={!isDesktopView ? { position: 'fixed', inset: 0, zIndex: 45 } : undefined}
+          ref={chatPanelRef}
+          style={!isDesktopView
+            ? { position: 'fixed', top: 0, left: 0, right: 0, height: '100dvh', zIndex: 45 }
+            : { margin: '5px 5px 5px 0', height: 'calc(100% - 10px)' }}
         >
           {/* Контейнер чата */}
           <div className="flex-1 min-h-0 min-w-0 flex flex-col relative bg-transparent">
