@@ -1,165 +1,162 @@
 #!/bin/bash
-# Shar OS CLI — управление сервером
-# Установка: scp shar root@81.90.31.129:/usr/local/bin/shar && ssh root@81.90.31.129 "chmod +x /usr/local/bin/shar"
-
+# Shar OS CLI
 APP_DIR="/var/www/shar"
 FRONTEND_DIR="$APP_DIR/frontend"
 ELECTRON_DIR="$APP_DIR/frontend/native/electron"
 UPDATES_DIR="$APP_DIR/updates"
 FRONTEND_SERVICE="shar-frontend"
 BACKEND_SERVICE="shar-backend"
+SIGNAL_SERVICE="shar-signal"
 
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m'
+GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'
+CYAN='\033[0;36m'; BOLD='\033[1m'; DIM='\033[2m'; NC='\033[0m'
 
-ok()   { echo -e "${GREEN}✓${NC} $1"; }
-info() { echo -e "${CYAN}→${NC} $1"; }
-warn() { echo -e "${YELLOW}!${NC} $1"; }
-fail() { echo -e "${RED}✗${NC} $1"; exit 1; }
-header() { echo -e "\n${BOLD}${CYAN}$1${NC}"; }
+ok()     { echo -e "${GREEN}✓${NC} $1"; }
+info()   { echo -e "${CYAN}→${NC} $1"; }
+warn()   { echo -e "${YELLOW}!${NC} $1"; }
+fail()   { echo -e "${RED}✗${NC} $1"; exit 1; }
+header() { echo -e "\n${BOLD}${CYAN}━━━ $1${NC}"; }
+dim()    { echo -e "${DIM}$1${NC}"; }
 
-# ─── pull ─────────────────────────────────────────────────────────────────────
 cmd_pull() {
-  header "shar pull — обновление сервера"
-
-  info "Переходим в $APP_DIR..."
+  header "shar pull"
   cd "$APP_DIR" || fail "Папка $APP_DIR не найдена"
-
   info "git pull origin main..."
   git pull origin main || fail "git pull завершился с ошибкой"
   ok "Код обновлён"
-
-  info "Сборка фронтенда..."
+  info "npm run build..."
   cd "$FRONTEND_DIR" || fail "Папка $FRONTEND_DIR не найдена"
   npm run build || fail "npm run build завершился с ошибкой"
   ok "Фронтенд собран"
-
   cmd_restart
 }
 
-# ─── restart ──────────────────────────────────────────────────────────────────
 cmd_restart() {
-  header "shar restart — перезапуск сервисов"
-
-  info "Перезапуск $FRONTEND_SERVICE..."
-  systemctl restart "$FRONTEND_SERVICE" && ok "$FRONTEND_SERVICE перезапущен" || warn "Не удалось перезапустить $FRONTEND_SERVICE"
-
-  info "Перезапуск $BACKEND_SERVICE..."
-  systemctl restart "$BACKEND_SERVICE" && ok "$BACKEND_SERVICE перезапущен" || warn "Не удалось перезапустить $BACKEND_SERVICE"
+  header "shar restart"
+  for svc in "$FRONTEND_SERVICE" "$BACKEND_SERVICE"; do
+    systemctl restart "$svc" \
+      && ok "$svc перезапущен" \
+      || warn "Не удалось перезапустить $svc"
+  done
+  if systemctl list-units --type=service 2>/dev/null | grep -q "$SIGNAL_SERVICE"; then
+    systemctl restart "$SIGNAL_SERVICE" \
+      && ok "$SIGNAL_SERVICE перезапущен" \
+      || warn "Не удалось перезапустить $SIGNAL_SERVICE"
+  fi
 }
 
-# ─── status ───────────────────────────────────────────────────────────────────
 cmd_status() {
-  header "shar status — состояние сервисов"
+  header "shar status"
+  echo ""
 
-  for svc in "$FRONTEND_SERVICE" "$BACKEND_SERVICE"; do
-    if systemctl is-active --quiet "$svc"; then
-      echo -e "  ${GREEN}●${NC} $svc — ${GREEN}active${NC}"
+  for svc in "$FRONTEND_SERVICE" "$BACKEND_SERVICE" "$SIGNAL_SERVICE"; do
+    ACTIVE=$(systemctl is-active "$svc" 2>/dev/null)
+    if [ -z "$ACTIVE" ] || [ "$ACTIVE" = "inactive" ] && ! systemctl status "$svc" >/dev/null 2>&1; then
+      echo -e "  ${DIM}○ $svc — не найден${NC}"
+      continue
+    fi
+    MEM=$(systemctl show -p MemoryCurrent "$svc" 2>/dev/null | awk -F= '{if($2+0>0) printf "%.0f MB", $2/1024/1024}')
+    PID=$(systemctl show -p MainPID "$svc" 2>/dev/null | awk -F= '{print $2}')
+    SINCE=$(systemctl show -p ActiveEnterTimestamp "$svc" 2>/dev/null | awk -F= '{print $2}' | awk '{print $1, $2}')
+    if [ "$ACTIVE" = "active" ]; then
+      echo -e "  ${GREEN}●${NC} ${BOLD}$svc${NC} — ${GREEN}active${NC}  ${DIM}pid=$PID | mem=$MEM | с $SINCE${NC}"
     else
-      echo -e "  ${RED}●${NC} $svc — ${RED}inactive${NC}"
+      echo -e "  ${RED}●${NC} ${BOLD}$svc${NC} — ${RED}${ACTIVE:-unknown}${NC}"
     fi
   done
 
   echo ""
-  info "Git статус:"
-  cd "$APP_DIR" && git log --oneline -3
+  info "Последние коммиты:"
+  cd "$APP_DIR" 2>/dev/null && git log --oneline -5 | while read -r line; do
+    echo -e "    ${DIM}$line${NC}"
+  done
+
+  echo ""
+  info "Диск:"
+  df -h / | awk 'NR==2{printf "    / используется %s из %s (%s)\n", $3, $2, $5}'
 }
 
-# ─── logs ─────────────────────────────────────────────────────────────────────
 cmd_logs() {
-  SERVICE="${2:-$FRONTEND_SERVICE}"
-  LINES="${3:-50}"
-  header "shar logs — последние $LINES строк $SERVICE"
-  journalctl -u "$SERVICE" -n "$LINES" --no-pager
+  LINES="${2:-80}"
+  header "shar logs (последние $LINES строк на сервис)"
+  for svc in "$FRONTEND_SERVICE" "$BACKEND_SERVICE" "$SIGNAL_SERVICE"; do
+    if journalctl -u "$svc" -n 1 --no-pager >/dev/null 2>&1; then
+      echo -e "\n${BOLD}${CYAN}── $svc ──${NC}"
+      journalctl -u "$svc" -n "$LINES" --no-pager --output=short-iso 2>/dev/null
+    fi
+  done
 }
 
-# ─── update (electron build) ──────────────────────────────────────────────────
+cmd_clear() {
+  header "shar clear"
+  info "Очистка .next/cache..."
+  rm -rf "$FRONTEND_DIR/.next/cache" && ok ".next/cache удалён" || warn "Не удалось"
+  info "Очистка journalctl (старше 3 дней)..."
+  journalctl --vacuum-time=3d && ok "journalctl очищен" || warn "Ошибка"
+  info "Очистка /tmp/shar*..."
+  find /tmp -maxdepth 1 -name "shar*" -delete 2>/dev/null && ok "/tmp/shar* удалены"
+  info "npm cache clean..."
+  npm cache clean --force 2>/dev/null && ok "npm cache очищен" || warn "npm cache: ошибка"
+}
+
 cmd_update() {
-  header "shar update — сборка обновления Electron"
-
-  # Проверяем Node.js
+  header "shar update"
   command -v node >/dev/null 2>&1 || fail "Node.js не найден"
-
   cd "$ELECTRON_DIR" || fail "Папка $ELECTRON_DIR не найдена"
-
   info "npm install..."
-  npm install --prefer-offline || fail "npm install завершился с ошибкой"
-
-  info "Сборка инсталлера (nsis-web)..."
-  npm run build:win || fail "Сборка Electron завершилась с ошибкой"
-  ok "Инсталлер собран в $ELECTRON_DIR/release/"
-
-  info "Публикуем файлы обновлений..."
+  npm install --prefer-offline || fail "npm install: ошибка"
+  info "Сборка nsis-web инсталлера..."
+  npm run build:win || fail "Сборка Electron: ошибка"
+  ok "Инсталлер собран"
   mkdir -p "$UPDATES_DIR"
-
-  # Копируем latest.yml (метаданные версии — без кэша)
-  cp "$ELECTRON_DIR/release/latest.yml" "$UPDATES_DIR/latest.yml"
-  ok "latest.yml скопирован"
-
-  # Копируем nsis-web chunks (если есть)
-  if [ -d "$ELECTRON_DIR/release/nsis-web" ]; then
-    cp -r "$ELECTRON_DIR/release/nsis-web/." "$UPDATES_DIR/"
-    ok "nsis-web chunks скопированы"
-  fi
-
-  # Копируем полный инсталлер
+  cp "$ELECTRON_DIR/release/latest.yml" "$UPDATES_DIR/latest.yml" && ok "latest.yml опубликован"
+  [ -d "$ELECTRON_DIR/release/nsis-web" ] && cp -r "$ELECTRON_DIR/release/nsis-web/." "$UPDATES_DIR/" && ok "nsis-web chunks скопированы"
   for f in "$ELECTRON_DIR/release/"*.exe "$ELECTRON_DIR/release/"*.blockmap; do
     [ -f "$f" ] && cp "$f" "$UPDATES_DIR/" && ok "$(basename "$f") скопирован"
   done
-
-  # Ссылка на скачивание — "Shar setup.exe" → доступен как /updates/Shar setup.exe
-  VERSION=$(grep '^version:' "$UPDATES_DIR/latest.yml" | awk '{print $2}')
-  ok "Обновление v${VERSION} опубликовано в $UPDATES_DIR"
-  info "Ссылка для скачивания: https://vokrug-sveta.shar-os.ru/updates/Shar%20setup.exe"
+  VERSION=$(grep '^version:' "$UPDATES_DIR/latest.yml" 2>/dev/null | awk '{print $2}')
+  ok "Обновление v${VERSION} опубликовано → /updates/"
 }
 
-# ─── deploy (pull + update) ───────────────────────────────────────────────────
 cmd_deploy() {
-  header "shar deploy — полный деплой + electron update"
+  header "shar deploy — полный деплой"
   cmd_pull
   cmd_update
   ok "Деплой завершён"
 }
 
-# ─── install (копирование CLI на сервер) ──────────────────────────────────────
-cmd_install_hint() {
-  header "Установка CLI на сервер"
-  echo -e "  Выполни локально:"
-  echo -e "  ${CYAN}scp shar root@81.90.31.129:/usr/local/bin/shar${NC}"
-  echo -e "  ${CYAN}ssh root@81.90.31.129 \"chmod +x /usr/local/bin/shar\"${NC}"
+cmd_info() {
+  echo -e ""
+  echo -e "  ${BOLD}${CYAN}Shar OS CLI${NC}  ${DIM}vokrug-sveta.shar-os.ru${NC}"
+  echo -e ""
+  echo -e "  ${BOLD}Деплой${NC}"
+  echo -e "    ${CYAN}shar pull${NC}        git pull + npm build + restart"
+  echo -e "    ${CYAN}shar restart${NC}     перезапуск всех сервисов"
+  echo -e "    ${CYAN}shar deploy${NC}      pull + build + electron installer"
+  echo -e ""
+  echo -e "  ${BOLD}Мониторинг${NC}"
+  echo -e "    ${CYAN}shar status${NC}      состояние сервисов, диск, коммиты"
+  echo -e "    ${CYAN}shar logs${NC} [N]    логи всех сервисов (по умолч. 80 строк)"
+  echo -e ""
+  echo -e "  ${BOLD}Обслуживание${NC}"
+  echo -e "    ${CYAN}shar clear${NC}       очистка кэша .next, журналов, tmp"
+  echo -e "    ${CYAN}shar update${NC}      сборка Electron + публикация обновлений"
+  echo -e "    ${CYAN}shar info${NC}        эта справка"
+  echo -e ""
+  echo -e "  ${DIM}Путь: $APP_DIR${NC}"
+  echo -e ""
 }
 
-# ─── help ─────────────────────────────────────────────────────────────────────
-cmd_help() {
-  echo -e "${BOLD}Shar OS CLI${NC}"
-  echo ""
-  echo -e "  ${CYAN}shar pull${NC}       — git pull + npm build + restart"
-  echo -e "  ${CYAN}shar restart${NC}    — перезапуск frontend + backend сервисов"
-  echo -e "  ${CYAN}shar status${NC}     — статус сервисов + последние коммиты"
-  echo -e "  ${CYAN}shar logs${NC}       — логи (по умолч. frontend, N строк)"
-  echo -e "              ${YELLOW}shar logs backend 100${NC}"
-  echo -e "  ${CYAN}shar update${NC}     — сборка Electron инсталлера + публикация обновлений"
-  echo -e "  ${CYAN}shar deploy${NC}     — pull + build + electron update (всё сразу)"
-  echo -e "  ${CYAN}shar help${NC}       — эта справка"
-}
-
-# ─── router ───────────────────────────────────────────────────────────────────
-case "${1:-help}" in
+case "${1:-info}" in
   pull)    cmd_pull ;;
   restart) cmd_restart ;;
   status)  cmd_status ;;
   logs)    cmd_logs "$@" ;;
+  clear)   cmd_clear ;;
   update)  cmd_update ;;
   deploy)  cmd_deploy ;;
-  install) cmd_install_hint ;;
-  help|-h|--help) cmd_help ;;
+  info|-h|--help|help) cmd_info ;;
   *)
-    warn "Неизвестная команда: $1"
-    cmd_help
-    exit 1
-    ;;
+    echo -e "${YELLOW}!${NC} Неизвестная команда: $1"
+    cmd_info; exit 1 ;;
 esac
