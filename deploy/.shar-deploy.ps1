@@ -1,10 +1,10 @@
 # .shar-deploy.ps1
-# Полный деплой Electron приложения + обновление на сервере
-# Использование:
+# Full deploy: Electron app + server update
+# Usage:
 #   .\.shar-deploy.ps1              # Patch bump (0.2.6 -> 0.2.7)
 #   .\.shar-deploy.ps1 -Minor       # Minor bump (0.2.6 -> 0.3.0)
 #   .\.shar-deploy.ps1 -Major       # Major bump (0.2.6 -> 1.0.0)
-#   .\.shar-deploy.ps1 -Version 1.0.0  # Конкретная версия
+#   .\.shar-deploy.ps1 -Version 1.0.0  # Specific version
 
 param(
     [string]$Version = "",
@@ -20,20 +20,18 @@ $RootDir = Split-Path -Parent $PSScriptRoot
 $ElectronDir = "$RootDir\frontend\native\electron"
 $ReleaseDir = "$ElectronDir\release"
 
-function Write-Step($msg) { Write-Host "`n▶ $msg" -ForegroundColor Cyan }
-function Write-Success($msg) { Write-Host "✓ $msg" -ForegroundColor Green }
-function Write-Info($msg) { Write-Host "  $msg" -ForegroundColor Gray }
-function Write-Fail($msg) { Write-Host "✗ $msg" -ForegroundColor Red; exit 1 }
+function Write-Step($msg) { Write-Host "`n>> $msg" -ForegroundColor Cyan }
+function Write-Success($msg) { Write-Host "[OK] $msg" -ForegroundColor Green }
+function Write-Info($msg) { Write-Host " >> $msg" -ForegroundColor Gray }
+function Write-Fail($msg) { Write-Host "[!!] $msg" -ForegroundColor Red; exit 1 }
 
 Write-Host ""
-Write-Host "═══════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "  Shar OS — Полный деплой (Electron + Server)" -ForegroundColor Cyan
-Write-Host "═══════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "=============================================" -ForegroundColor Cyan
+Write-Host "  Shar OS - Full Deploy (Electron + Server)" -ForegroundColor Cyan
+Write-Host "=============================================" -ForegroundColor Cyan
 
-# ═══════════════════════════════════════════════════════════════
-# 1. Загрузка .env и проверка SSH
-# ═══════════════════════════════════════════════════════════════
-Write-Step "Загрузка конфигурации..."
+# === 1. Load .env and check SSH ===
+Write-Step "Loading configuration..."
 $envFile = "$RootDir\.env"
 if (Test-Path $envFile) {
     Get-Content $envFile | ForEach-Object {
@@ -41,19 +39,18 @@ if (Test-Path $envFile) {
             [System.Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process')
         }
     }
-    Write-Success ".env загружен"
+    Write-Success ".env loaded"
 }
 
 $sshPassword = $env:SSH_PASSWORD
-if (-not $sshPassword) { Write-Fail "SSH_PASSWORD не задан. Добавьте SSH_PASSWORD=<пароль> в .env" }
+if (-not $sshPassword) { Write-Fail "SSH_PASSWORD not set. Add SSH_PASSWORD=<password> to .env" }
 
-# Установка Posh-SSH если нужно
 if (-not (Get-Module -ListAvailable -Name "Posh-SSH")) {
-    Write-Info "Установка Posh-SSH модуля..."
+    Write-Info "Installing Posh-SSH module..."
     Install-Module -Name Posh-SSH -Force -Scope CurrentUser -AllowClobber
 }
 Import-Module Posh-SSH -ErrorAction Stop
-Write-Success "SSH модуль загружен"
+Write-Success "SSH module loaded"
 
 $sshCred = New-Object PSCredential($ServerUser, (ConvertTo-SecureString $sshPassword -AsPlainText -Force))
 
@@ -70,13 +67,11 @@ function Upload-File($localPath, $remoteDest) {
     Remove-SSHSession -SessionId $session.SessionId | Out-Null
 }
 
-# ═══════════════════════════════════════════════════════════════
-# 2. Определение новой версии
-# ═══════════════════════════════════════════════════════════════
-Write-Step "Определение версии..."
+# === 2. Version bump ===
+Write-Step "Determining version..."
 $pkgPath = "$ElectronDir\package.json"
 if (-not (Test-Path $pkgPath)) {
-    Write-Fail "package.json не найден: $pkgPath"
+    Write-Fail "package.json not found: $pkgPath"
 }
 
 $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
@@ -96,122 +91,106 @@ if ($Version) {
     $newVersion = "$maj.$min.$($pat + 1)"
 }
 
-Write-Info "Текущая версия: $currentVersion"
-Write-Info "Новая версия:   $newVersion"
+Write-Info "Current version: $currentVersion"
+Write-Info "New version:     $newVersion"
 $pkg.version = $newVersion
 $jsonContent = $pkg | ConvertTo-Json -Depth 10
 [System.IO.File]::WriteAllText($pkgPath, $jsonContent, [System.Text.UTF8Encoding]::new($false))
-Write-Success "package.json обновлён → v$newVersion"
+Write-Success "package.json updated -> v$newVersion"
 
-# ═══════════════════════════════════════════════════════════════
-# 3. Сборка Electron приложения
-# ═══════════════════════════════════════════════════════════════
-Write-Step "Сборка Electron приложения..."
+# === 3. Build Electron app ===
+Write-Step "Building Electron application..."
 Push-Location $ElectronDir
 
 Write-Info "npm install..."
 npm install --prefer-offline --silent --no-audit 2>&1 | Out-Null
 
-Write-Info "electron-builder (это займёт ~1 минуту)..."
+Write-Info "electron-builder (this will take ~1 minute)..."
 npm run build:win 2>&1 | Out-Null
 
 if ($LASTEXITCODE -ne 0) {
     Pop-Location
-    Write-Fail "electron-builder завершился с ошибкой (код $LASTEXITCODE)"
+    Write-Fail "electron-builder failed with code $LASTEXITCODE"
 }
 
-# Фикс: синхронизация latest.yml из nsis-web
 if (Test-Path "release\nsis-web\latest.yml") {
     Copy-Item "release\nsis-web\latest.yml" "release\latest.yml" -Force
-    Write-Success "latest.yml синхронизирован"
+    Write-Success "latest.yml synced"
 }
 
 Pop-Location
-Write-Success "Сборка завершена"
+Write-Success "Build completed"
 
-# ═══════════════════════════════════════════════════════════════
-# 4. Загрузка файлов на сервер
-# ═══════════════════════════════════════════════════════════════
-Write-Step "Загрузка на сервер $ServerHost..."
+# === 4. Upload to server ===
+Write-Step "Uploading to server $ServerHost..."
 
-# Создание директории
 $mkdirResult = Invoke-Remote "mkdir -p $RemotePath"
-if ($mkdirResult.ExitStatus -ne 0) { Write-Fail "Не удалось создать $RemotePath" }
+if ($mkdirResult.ExitStatus -ne 0) { Write-Fail "Failed to create $RemotePath" }
 
-# Загрузка latest.yml
 if (-not (Test-Path "$ReleaseDir\latest.yml")) {
-    Write-Fail "latest.yml не найден в $ReleaseDir"
+    Write-Fail "latest.yml not found in $ReleaseDir"
 }
 Upload-File "$ReleaseDir\latest.yml" $RemotePath
-Write-Success "latest.yml загружен"
+Write-Success "latest.yml uploaded"
 
-# Загрузка .exe файлов
 $exeFiles = Get-ChildItem "$ReleaseDir\*.exe" -ErrorAction SilentlyContinue
 foreach ($f in $exeFiles) {
-    Write-Info "Загрузка $($f.Name) ($([Math]::Round($f.Length/1MB,1)) MB)..."
+    Write-Info "Uploading $($f.Name) ($([Math]::Round($f.Length/1MB,1)) MB)..."
     Upload-File $f.FullName $RemotePath
 }
-Write-Success "Установщики загружены"
+Write-Success "Installers uploaded"
 
-# Загрузка .blockmap файлов
 $blockmaps = Get-ChildItem "$ReleaseDir\*.blockmap" -ErrorAction SilentlyContinue
 foreach ($f in $blockmaps) {
     Upload-File $f.FullName $RemotePath
 }
 
-# Загрузка nsis-web файлов
 if (Test-Path "$ReleaseDir\nsis-web") {
     $chunks = Get-ChildItem "$ReleaseDir\nsis-web\*" -ErrorAction SilentlyContinue
     foreach ($f in $chunks) {
         Upload-File $f.FullName $RemotePath
     }
-    Write-Success "NSIS-web файлы загружены"
+    Write-Success "NSIS-web files uploaded"
 }
 
-# ═══════════════════════════════════════════════════════════════
-# 5. Обновление сервера (shar pull)
-# ═══════════════════════════════════════════════════════════════
-Write-Step "Обновление сервера..."
-Write-Info "Выполнение команды: shar pull"
+# === 5. Update server (shar pull) ===
+Write-Step "Updating server..."
+Write-Info "Running command: shar pull"
 
-$pullResult = Invoke-Remote "cd /root && /root/.cargo/bin/shar pull"
+$pullResult = Invoke-Remote "cd /root && /usr/local/bin/shar pull"
 if ($pullResult.ExitStatus -eq 0) {
-    Write-Success "Сервер обновлён успешно"
+    Write-Success "Server updated successfully"
     if ($pullResult.Output) {
         Write-Host "`n$($pullResult.Output)" -ForegroundColor Gray
     }
 } else {
-    Write-Host "`nВнимание: shar pull завершился с кодом $($pullResult.ExitStatus)" -ForegroundColor Yellow
+    Write-Host "`nWarning: shar pull exited with code $($pullResult.ExitStatus)" -ForegroundColor Yellow
     if ($pullResult.Error) {
         Write-Host $pullResult.Error -ForegroundColor Yellow
     }
 }
 
-# ═══════════════════════════════════════════════════════════════
-# 6. Коммит изменений в Git
-# ═══════════════════════════════════════════════════════════════
-Write-Step "Сохранение в Git..."
+# === 6. Git commit ===
+Write-Step "Saving to Git..."
 Push-Location $RootDir
 
 git add "$pkgPath" 2>&1 | Out-Null
-git commit -m "chore: release v$newVersion" 2>&1 | Out-Null
-git push origin main 2>&1 | Out-Null
+$commitOutput = git commit -m "chore: release v$newVersion" 2>&1
+$pushOutput = git push origin main 2>&1
 
 Pop-Location
-Write-Success "Коммит создан и отправлен"
+Write-Success "Commit created and pushed"
 
-# ═══════════════════════════════════════════════════════════════
-# Готово!
-# ═══════════════════════════════════════════════════════════════
+# === Done! ===
 Write-Host ""
-Write-Host "═══════════════════════════════════════════════" -ForegroundColor Green
-Write-Host "  ✓ Релиз v$newVersion успешно опубликован!" -ForegroundColor Green
-Write-Host "═══════════════════════════════════════════════" -ForegroundColor Green
+Write-Host "=============================================" -ForegroundColor Green
+Write-Host "  Release v$newVersion published!" -ForegroundColor Green
+Write-Host "=============================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  Electron приложение:" -ForegroundColor Cyan
-Write-Host "    Установщик: https://vokrug-sveta.shar-os.ru/updates/Shar%20setup.exe" -ForegroundColor Gray
-Write-Host "    Обновление: https://vokrug-sveta.shar-os.ru/updates/latest.yml" -ForegroundColor Gray
+Write-Host "  Electron app:" -ForegroundColor Cyan
+Write-Host "    Installer: https://vokrug-sveta.shar-os.ru/updates/Shar%20setup.exe" -ForegroundColor Gray
+Write-Host "    Updates:   https://vokrug-sveta.shar-os.ru/updates/latest.yml" -ForegroundColor Gray
 Write-Host ""
-Write-Host "  Веб-приложение:" -ForegroundColor Cyan
+Write-Host "  Web app:" -ForegroundColor Cyan
 Write-Host "    URL: https://vokrug-sveta.shar-os.ru" -ForegroundColor Gray
 Write-Host ""
