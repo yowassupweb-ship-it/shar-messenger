@@ -239,10 +239,7 @@ export default function ElectronShell({ children }: ElectronShellProps) {
       document.documentElement.removeAttribute('data-electron-react-shell');
       document.body.classList.remove('electron-app');
       if (typeof unsubscribe === 'function') unsubscribe();
-      if (typeof unsubscribeUpdater === 'function') unsubscribeUpdatern-app');
-      document.documentElement.removeAttribute('data-electron-react-shell');
-      document.body.classList.remove('electron-app');
-      if (typeof unsubscribe === 'function') unsubscribe();
+      if (typeof unsubscribeUpdater === 'function') unsubscribeUpdater();
     };
   }, []);
 
