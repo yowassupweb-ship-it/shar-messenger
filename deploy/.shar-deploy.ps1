@@ -54,17 +54,17 @@ Write-Success "SSH module loaded"
 
 $sshCred = New-Object PSCredential($ServerUser, (ConvertTo-SecureString $sshPassword -AsPlainText -Force))
 
-function Invoke-Remote($cmd) {
-    $session = New-SSHSession -ComputerName $ServerHost -Credential $sshCred -AcceptKey -Force -WarningAction SilentlyContinue
-    $result = Invoke-SSHCommand -SessionId $session.SessionId -Command $cmd
-    Remove-SSHSession -SessionId $session.SessionId | Out-Null
+function Invoke-Remote($cmd, $timeout = 60) {
+    $session = New-SSHSession -ComputerName $ServerHost -Credential $sshCred -AcceptKey -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
+    $result = Invoke-SSHCommand -SessionId $session.SessionId -Command $cmd -TimeOut $timeout
+    Remove-SSHSession -SessionId $session.SessionId -WarningAction SilentlyContinue | Out-Null
     return $result
 }
 
 function Upload-File($localPath, $remoteDest) {
-    $session = New-SSHSession -ComputerName $ServerHost -Credential $sshCred -AcceptKey -Force -WarningAction SilentlyContinue
-    Set-SCPItem -ComputerName $ServerHost -Credential $sshCred -Path $localPath -Destination $remoteDest -AcceptKey -Force | Out-Null
-    Remove-SSHSession -SessionId $session.SessionId | Out-Null
+    $session = New-SSHSession -ComputerName $ServerHost -Credential $sshCred -AcceptKey -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
+    Set-SCPItem -ComputerName $ServerHost -Credential $sshCred -Path $localPath -Destination $remoteDest -AcceptKey -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null
+    Remove-SSHSession -SessionId $session.SessionId -WarningAction SilentlyContinue | Out-Null
 }
 
 # === 2. Version bump ===
@@ -155,9 +155,9 @@ if (Test-Path "$ReleaseDir\nsis-web") {
 
 # === 5. Update server (shar pull) ===
 Write-Step "Updating server..."
-Write-Info "Running command: shar pull"
+Write-Info "Running command: shar pull (timeout: 5 minutes)"
 
-$pullResult = Invoke-Remote "cd /root && /usr/local/bin/shar pull"
+$pullResult = Invoke-Remote "cd /root && /usr/local/bin/shar pull" -timeout 300
 if ($pullResult.ExitStatus -eq 0) {
     Write-Success "Server updated successfully"
     if ($pullResult.Output) {
@@ -175,8 +175,8 @@ Write-Step "Saving to Git..."
 Push-Location $RootDir
 
 git add "$pkgPath" 2>&1 | Out-Null
-$commitOutput = git commit -m "chore: release v$newVersion" 2>&1
-$pushOutput = git push origin main 2>&1
+git commit -m "chore: release v$newVersion" 2>&1 | Out-Null
+git push origin main 2>&1 | Out-Null
 
 Pop-Location
 Write-Success "Commit created and pushed"
