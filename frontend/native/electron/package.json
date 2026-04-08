@@ -1,6 +1,6 @@
 {
     "name":  "shar-os-client",
-    "version":  "0.2.8",
+    "version":  "0.2.9",
     "private":  true,
     "author":  "Shar OS",
     "main":  "electron/main.cjs",
@@ -59,7 +59,8 @@
                                "createDesktopShortcut":  true,
                                "createStartMenuShortcut":  true,
                                "shortcutName":  "Shar OS",
-                               "include":  "electron/installer.nsh"
+                               "include":  "electron/installer.nsh",
+                               "differentialPackage":  true
                            },
                   "nsisWeb":  {
                                   "artifactName":  "Shar setup.${ext}"
