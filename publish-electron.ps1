@@ -107,6 +107,12 @@ if (-not $UploadOnly) {
     if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Fail "electron-builder failed" }
     Pop-Location
     Write-Ok "Installer built"
+    
+    # Fix: Copy correct latest.yml from nsis-web (electron-builder bug workaround)
+    if (Test-Path "$ReleaseDir\nsis-web\latest.yml") {
+        Copy-Item "$ReleaseDir\nsis-web\latest.yml" "$ReleaseDir\latest.yml" -Force
+        Write-Ok "latest.yml synced from nsis-web"
+    }
 }
 
 # --- Verify release files -----------------------------------------------
