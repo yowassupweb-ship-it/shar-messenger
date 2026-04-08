@@ -682,37 +682,37 @@ export default function ElectronShell({ children }: ElectronShellProps) {
                     )}
                   </>
                 )}
-                </div>
               </div>
-            )}Кнопка обновления */}
-              {updateState !== 'idle' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (updateState === 'downloaded') {
-                      window.sharDesktop?.updater?.install?.();
-                    }
-                  }}
-                  className={`flex items-center gap-1 px-2 h-[22px] rounded-full text-[10px] font-semibold whitespace-nowrap transition-all ${
-                    updateState === 'downloaded'
-                      ? 'bg-green-500 hover:bg-green-400 text-white cursor-pointer'
-                      : 'bg-blue-500/20 text-blue-400 cursor-default'
-                  }`}
-                  title={updateState === 'downloaded' ? `Обновить v${updateVersion || ''} (автоматически)` : `Загрузка обновления ${updatePercent}%`}
-                  disabled={updateState === 'downloading'}
-                >
-                  {updateState === 'downloaded'
-                    ? <><RefreshCw className="h-2.5 w-2.5" strokeWidth={2.5} />Обновить{updateVersion ? ` v${updateVersion}` : ''}</>
-                    : <><Download className="h-2.5 w-2.5" strokeWidth={2.5} />{updatePercent}%</>}
-                </button>
-              )}
+            </div>
+          )}
 
-              {/* 
+          {/* Кнопка обновления */}
+          {updateState !== 'idle' && (
+            <button
+              type="button"
+              onClick={() => {
+                if (updateState === 'downloaded') {
+                  window.sharDesktop?.updater?.install?.();
+                }
+              }}
+              className={`flex items-center gap-1 px-2 h-[22px] rounded-full text-[10px] font-semibold whitespace-nowrap transition-all ${
+                updateState === 'downloaded'
+                  ? 'bg-green-500 hover:bg-green-400 text-white cursor-pointer'
+                  : 'bg-blue-500/20 text-blue-400 cursor-default'
+              }`}
+              title={updateState === 'downloaded' ? `Обновить v${updateVersion || ''} (автоматически)` : `Загрузка обновления ${updatePercent}%`}
+              disabled={updateState === 'downloading'}
+            >
+              {updateState === 'downloaded'
+                ? <><RefreshCw className="h-2.5 w-2.5" strokeWidth={2.5} />Обновить{updateVersion ? ` v${updateVersion}` : ''}</>
+                : <><Download className="h-2.5 w-2.5" strokeWidth={2.5} />{updatePercent}%</>}
+            </button>
+          )}
 
-            {/* Правая часть: Меню + Window Controls */}
-            <div
-              className="flex items-center gap-1 pointer-events-auto"
-              style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
+          {/* Правая часть: Меню + Window Controls */}
+          <div
+            className="flex items-center gap-1 pointer-events-auto"
+            style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
             >
               {/* Меню с тремя точками */}
               <div className="relative" ref={menuRef}>
