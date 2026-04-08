@@ -228,9 +228,6 @@ export default function ElectronShell({ children }: ElectronShellProps) {
     document.body.classList.add('electron-app');
 
     const controls = window.sharDesktop?.windowControls;
-    controls?.isMaximized?.().then((value) => setIsMaximized(Boolean(value))).catch(() => {});
-    const unsubscribe = controls?.onMaximizedChanged?.((value) => setIsMaximized(Boolean(value)));
-
     const unsubscribeUpdater = window.sharDesktop?.updater?.onStatus?.((data) => {
       setUpdateState(data.state === 'downloaded' ? 'downloaded' : 'downloading');
       if (typeof data.percent === 'number') setUpdatePercent(Math.round(data.percent));
@@ -242,7 +239,10 @@ export default function ElectronShell({ children }: ElectronShellProps) {
       document.documentElement.removeAttribute('data-electron-react-shell');
       document.body.classList.remove('electron-app');
       if (typeof unsubscribe === 'function') unsubscribe();
-      if (typeof unsubscribeUpdater === 'function') unsubscribeUpdater();
+      if (typeof unsubscribeUpdater === 'function') unsubscribeUpdatern-app');
+      document.documentElement.removeAttribute('data-electron-react-shell');
+      document.body.classList.remove('electron-app');
+      if (typeof unsubscribe === 'function') unsubscribe();
     };
   }, []);
 
@@ -687,14 +687,7 @@ export default function ElectronShell({ children }: ElectronShellProps) {
                 )}
                 </div>
               </div>
-            )}
-
-            {/* Правая часть: Меню + Window Controls */}
-            <div
-              className="flex items-center gap-1 pointer-events-auto"
-              style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
-            >
-              {/* Кнопка обновления */}
+            )}Кнопка обновления */}
               {updateState !== 'idle' && (
                 <button
                   type="button"
@@ -708,7 +701,7 @@ export default function ElectronShell({ children }: ElectronShellProps) {
                       ? 'bg-green-500 hover:bg-green-400 text-white cursor-pointer'
                       : 'bg-blue-500/20 text-blue-400 cursor-default'
                   }`}
-                  title={updateState === 'downloaded' ? `Установить v${updateVersion || ''} и перезапустить` : `Загрузка обновления ${updatePercent}%`}
+                  title={updateState === 'downloaded' ? `Обновить v${updateVersion || ''} (автоматически)` : `Загрузка обновления ${updatePercent}%`}
                   disabled={updateState === 'downloading'}
                 >
                   {updateState === 'downloaded'
@@ -717,6 +710,13 @@ export default function ElectronShell({ children }: ElectronShellProps) {
                 </button>
               )}
 
+              {/* 
+
+            {/* Правая часть: Меню + Window Controls */}
+            <div
+              className="flex items-center gap-1 pointer-events-auto"
+              style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
+            >
               {/* Меню с тремя точками */}
               <div className="relative" ref={menuRef}>
                 <button

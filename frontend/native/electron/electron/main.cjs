@@ -63,6 +63,8 @@ autoUpdater.on('download-progress', (progressObj) => {
 autoUpdater.on('update-downloaded', (info) => {
   console.log('Update downloaded:', info);
   sendUpdaterStatus({ state: 'downloaded', version: info.version });
+  // Автоматическая установка при выходе из приложения
+  console.log('Update will be installed on quit');
 });
 
 function sendUpdaterStatus(payload) {
@@ -77,8 +79,12 @@ function sendUpdaterStatus(payload) {
 require('electron').ipcMain.handle('updater:install', () => {
   if (isInstallingUpdate) return;
   isInstallingUpdate = true;
+  console.log('Manual update installation requested');
   try {
-    autoUpdater.quitAndInstall(true, true);
+    // Сразу перезапускаем без дополнительных окон
+    setImmediate(() => {
+      autoUpdater.quitAndInstall(false, true);
+    });
   } catch (error) {
     isInstallingUpdate = false;
     console.error('Failed to install update:', error);
@@ -778,11 +784,18 @@ function createWindow() {
   tray.setContextMenu(contextMenu);
 
   tray.on('click', () => {
-    if (mainWindow.isVisible()) {
-      mainWindow.hide();
+    // Проверяем, что окно ещё существует
+    if (!mainWindowRef || mainWindowRef.isDestroyed()) {
+      console.log('Main window destroyed, recreating...');
+      createWindow();
+      return;
+    }
+    
+    if (mainWindowRef.isVisible()) {
+      mainWindowRef.hide();
     } else {
-      mainWindow.show();
-      mainWindow.focus();
+      mainWindowRef.show();
+      mainWindowRef.focus();
     }
   });
 
