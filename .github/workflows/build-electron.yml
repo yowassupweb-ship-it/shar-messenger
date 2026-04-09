@@ -42,8 +42,18 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           source: |
             frontend/native/electron/release/latest.yml,
-            frontend/native/electron/release/Shar setup.exe,
-            frontend/native/electron/release/Shar setup.exe.blockmap
+            frontend/native/electron/release/Shar setup.exe
+          target: /var/www/shar/updates/
+          strip_components: 4
+
+      - name: Upload installer blockmap (optional)
+        uses: appleboy/scp-action@v0.1.7
+        continue-on-error: true
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: frontend/native/electron/release/Shar setup.exe.blockmap
           target: /var/www/shar/updates/
           strip_components: 4
 
