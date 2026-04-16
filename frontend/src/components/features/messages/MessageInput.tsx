@@ -150,6 +150,26 @@ const MessageInput: React.FC<MessageInputProps> = ({
   }, []);
 
   const [isElectronDesktopComposer, setIsElectronDesktopComposer] = React.useState(false);
+  const [isTauriRuntime, setIsTauriRuntime] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const detectTauriRuntime = () => {
+      const fromStorage = localStorage.getItem('_platform') === 'tauri';
+      const fromUa = /tauri/i.test(navigator.userAgent || '');
+      setIsTauriRuntime(fromStorage || fromUa);
+    };
+
+    detectTauriRuntime();
+    window.addEventListener('resize', detectTauriRuntime);
+    window.addEventListener('storage', detectTauriRuntime);
+
+    return () => {
+      window.removeEventListener('resize', detectTauriRuntime);
+      window.removeEventListener('storage', detectTauriRuntime);
+    };
+  }, []);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -178,6 +198,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
       window.removeEventListener('resize', updateComposerMode);
     };
   }, []);
+
+  const useFlowComposerLayout = isElectronDesktopComposer || (isTauriRuntime && isMobileViewport);
 
   const [composerBottomOffset, setComposerBottomOffset] = React.useState(() => getCurrentNavOffset());
   const [isMobileViewport, setIsMobileViewport] = React.useState(() => {
@@ -369,10 +391,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
   return (
     <div
       ref={composerContainerRef}
-      className={`${isElectronDesktopComposer ? 'relative mt-auto' : 'absolute left-0 right-0'} z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(var(--shar-mobile-bottom-inset,12px),12px)] bg-transparent ${
+      className={`${useFlowComposerLayout ? 'relative mt-auto' : 'absolute left-0 right-0'} z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(var(--shar-mobile-bottom-inset,12px),12px)] bg-transparent ${
         isDragging ? 'scale-[1.02]' : ''
       }`}
-      style={isElectronDesktopComposer ? undefined : { bottom: `${composerBottomOffset}px` }}
+      style={useFlowComposerLayout ? undefined : { bottom: `${composerBottomOffset}px` }}
       onDragEnter={(e) => {
         if (!hasFilePayload(e.dataTransfer)) return;
         e.preventDefault();
