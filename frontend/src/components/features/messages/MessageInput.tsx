@@ -111,6 +111,11 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const getCurrentNavOffset = React.useCallback(() => {
     if (typeof window === 'undefined') return 0;
 
+    const rootStyle = window.getComputedStyle(document.documentElement);
+    const keyboardInsetRaw = rootStyle.getPropertyValue('--shar-mobile-keyboard-inset').trim();
+    const keyboardInset = Number.parseInt(keyboardInsetRaw || '0', 10);
+    const nativeKeyboardInset = Number.isFinite(keyboardInset) ? Math.max(0, keyboardInset) : 0;
+
     const getVisibleHeight = (selector: string) => {
       const el = document.querySelector(selector) as HTMLElement | null;
       if (!el) return 0;
@@ -141,8 +146,16 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const isTauriRuntime = localStorage.getItem('_platform') === 'tauri';
     const isTouchViewport = window.matchMedia('(pointer: coarse)').matches;
     if (isTauriRuntime && isTouchViewport) {
-      // Android WebView can report 0 safe-area; keep composer above the bottom system zone.
-      return 18;
+      // Android WebView can report 0 safe-area and delayed resize events.
+      // Derive a reliable bottom gap from visualViewport when available.
+      const vv = window.visualViewport;
+      const bridgeOffset = nativeKeyboardInset > 0 ? nativeKeyboardInset + 6 : 0;
+      if (vv) {
+        const viewportGap = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+        const minGap = window.innerWidth < 773 ? 28 : 18;
+        return Math.max(minGap, viewportGap + 12, bridgeOffset);
+      }
+      return Math.max(28, bridgeOffset);
     }
     
     console.log('[MessageInput] No nav detected, offset = 0');
@@ -150,26 +163,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
   }, []);
 
   const [isElectronDesktopComposer, setIsElectronDesktopComposer] = React.useState(false);
-  const [isTauriRuntime, setIsTauriRuntime] = React.useState(false);
-
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const detectTauriRuntime = () => {
-      const fromStorage = localStorage.getItem('_platform') === 'tauri';
-      const fromUa = /tauri/i.test(navigator.userAgent || '');
-      setIsTauriRuntime(fromStorage || fromUa);
-    };
-
-    detectTauriRuntime();
-    window.addEventListener('resize', detectTauriRuntime);
-    window.addEventListener('storage', detectTauriRuntime);
-
-    return () => {
-      window.removeEventListener('resize', detectTauriRuntime);
-      window.removeEventListener('storage', detectTauriRuntime);
-    };
-  }, []);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -206,7 +199,26 @@ const MessageInput: React.FC<MessageInputProps> = ({
     return window.innerWidth < 773 || isTouch;
   });
 
-  const useFlowComposerLayout = isElectronDesktopComposer || (isTauriRuntime && isMobileViewport);
+  const sendMessageKeepingFocus = React.useCallback(() => {
+    const isTauriRuntime = typeof window !== 'undefined' && localStorage.getItem('_platform') === 'tauri';
+    const isTouchViewport = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+    const shouldKeepKeyboard = isTauriRuntime && isTouchViewport;
+
+    sendMessage();
+
+    if (!shouldKeepKeyboard) return;
+
+    const refocusComposer = () => {
+      const textarea = messageInputRef.current;
+      if (!textarea) return;
+      textarea.focus({ preventScroll: true });
+      const nextCursor = textarea.value.length;
+      textarea.setSelectionRange(nextCursor, nextCursor);
+    };
+
+    requestAnimationFrame(refocusComposer);
+    window.setTimeout(refocusComposer, 60);
+  }, [messageInputRef, sendMessage]);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -235,6 +247,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
     updateBottomOffset();
     const rafId = requestAnimationFrame(updateBottomOffset);
     window.addEventListener('resize', updateBottomOffset);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateBottomOffset);
+      window.visualViewport.addEventListener('scroll', updateBottomOffset);
+    }
 
     // Отслеживание изменения CSS переменной Electron
     const electronOffsetObserver = new MutationObserver(() => {
@@ -250,6 +266,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
       requestAnimationFrame(() => requestAnimationFrame(updateBottomOffset));
     };
     window.addEventListener('chat-selection-changed', onChatSelectionChanged);
+    const onKeyboardInsetChanged = () => {
+      requestAnimationFrame(updateBottomOffset);
+    };
+    window.addEventListener('shar-keyboard-inset-change', onKeyboardInsetChanged);
 
     // MutationObserver: watches for nav class changes (flex ↔ hidden) in real time
     // Watches both mobile (.bottom-nav-fixed) and desktop (.desktop-navigation) navs
@@ -264,7 +284,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
     return () => {
       cancelAnimationFrame(rafId);
       window.removeEventListener('resize', updateBottomOffset);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateBottomOffset);
+        window.visualViewport.removeEventListener('scroll', updateBottomOffset);
+      }
       window.removeEventListener('chat-selection-changed', onChatSelectionChanged);
+      window.removeEventListener('shar-keyboard-inset-change', onKeyboardInsetChanged);
       electronOffsetObserver.disconnect();
       navObserver?.disconnect();
     };
@@ -391,10 +416,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
   return (
     <div
       ref={composerContainerRef}
-      className={`${useFlowComposerLayout ? 'relative mt-auto' : 'absolute left-0 right-0'} z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(var(--shar-mobile-bottom-inset,12px),12px)] bg-transparent ${
+      className={`${isElectronDesktopComposer ? 'relative mt-auto' : 'absolute left-0 right-0'} z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(var(--shar-mobile-bottom-inset,12px),12px)] bg-transparent ${
         isDragging ? 'scale-[1.02]' : ''
       }`}
-      style={useFlowComposerLayout ? undefined : { bottom: `${composerBottomOffset}px` }}
+      style={isElectronDesktopComposer ? undefined : { bottom: `${composerBottomOffset}px` }}
       onDragEnter={(e) => {
         if (!hasFilePayload(e.dataTransfer)) return;
         e.preventDefault();
@@ -751,7 +776,9 @@ const MessageInput: React.FC<MessageInputProps> = ({
           ) : (
             <button
               onMouseDown={(e) => e.preventDefault()}
-              onClick={sendMessage}
+              onPointerDown={(e) => e.preventDefault()}
+              onTouchStart={(e) => e.preventDefault()}
+              onClick={sendMessageKeepingFocus}
               disabled={selectedChat?.isNotificationsChat || isUploadingAttachments}
               className="w-12 h-12 md:w-11 md:h-11 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 border border-[var(--border-light)] disabled:from-[var(--bg-glass)] disabled:to-[var(--bg-glass)] disabled:border-[var(--border-color)] flex items-center justify-center text-white disabled:text-[var(--text-muted)] transition-all flex-shrink-0 shadow-[0_8px_32px_-8px_rgba(59,130,246,0.6),inset_0_1px_2px_rgba(255,255,255,0.2)] hover:shadow-[0_8px_40px_-8px_rgba(59,130,246,0.8),inset_0_1px_2px_rgba(255,255,255,0.25)] disabled:shadow-none disabled:cursor-not-allowed"
             >

@@ -2049,6 +2049,20 @@ export default function MessagesPage() {
     // Проверяем: должен быть либо текст, либо вложения
     if ((!messageText.trim() && attachments.length === 0) || !selectedChat || !currentUser || !selectedChat.id) return;
 
+    const shouldKeepComposerFocus = typeof window !== 'undefined'
+      && localStorage.getItem('_platform') === 'tauri'
+      && window.matchMedia('(pointer: coarse)').matches;
+    const keepComposerFocus = () => {
+      if (!shouldKeepComposerFocus) return;
+      const textarea = messageInputRef.current;
+      if (!textarea) return;
+      requestAnimationFrame(() => {
+        textarea.focus({ preventScroll: true });
+        const cursorPosition = textarea.value.length;
+        textarea.setSelectionRange(cursorPosition, cursorPosition);
+      });
+    };
+
     const optimisticMessage: Message = {
       id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       chatId: selectedChat.id,
@@ -2069,7 +2083,8 @@ export default function MessagesPage() {
     if (messageInputRef.current) {
       messageInputRef.current.value = '';
     }
-      syncComposerHeight('');
+    syncComposerHeight('');
+    keepComposerFocus();
     setReplyToMessage(null);
     setAttachments([]);
 
@@ -2107,6 +2122,7 @@ export default function MessagesPage() {
         forceScrollToBottom(false);
         
         void updateUserStatus({ isOnline: true, force: true });
+        keepComposerFocus();
 
         loadChats();
       } else {
@@ -2122,11 +2138,17 @@ export default function MessagesPage() {
             alert('Чат был удалён. Не удалось автоматически создать новый — откройте диалог снова.');
           }
         }
+        keepComposerFocus();
       }
     } catch (error) {
       pendingOutgoingRef.current = pendingOutgoingRef.current.filter((msg) => msg.id !== optimisticMessage.id);
       setMessagesWithTimelineSnapshot(selectedChat.id, prev => prev.filter((msg) => msg.id !== optimisticMessage.id));
       console.error('Error sending message:', error);
+      keepComposerFocus();
+    } finally {
+      if (shouldKeepComposerFocus) {
+        window.setTimeout(keepComposerFocus, 80);
+      }
     }
   }, [messageInputRef, selectedChat, currentUser, attachments, replyToMessage, messagesListRef, loadChats, syncComposerHeight, updateUserStatus, recoverFromMissingChat, recreateDeletedChatAndResend, isNoAutoScrollChat, isTimelineNearBottom, setMessagesWithTimelineSnapshot, forceScrollToBottom]);
 
@@ -3228,9 +3250,31 @@ export default function MessagesPage() {
     ? 'max(env(safe-area-inset-top, 0px), 26px)'
     : 'env(safe-area-inset-top, 0px)';
   const mobileBottomInset = isTauriMobileRuntime
-    ? 'max(env(safe-area-inset-bottom, 0px), 18px)'
+    ? 'max(env(safe-area-inset-bottom, 0px), 28px)'
     : 'env(safe-area-inset-bottom, 0px)';
   const isElectronDesktop = isDesktopView && isElectronEnvironment;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (localStorage.getItem('_platform') !== 'tauri') return;
+
+    const root = document.documentElement;
+    const applyInset = (nextInset: number) => {
+      const safeInset = Math.max(0, Math.round(Number(nextInset) || 0));
+      root.style.setProperty('--shar-mobile-keyboard-inset', `${safeInset}px`);
+      window.dispatchEvent(new CustomEvent('shar-keyboard-inset-change', { detail: { inset: safeInset } }));
+    };
+
+    (window as any).__setSharKeyboardInset = applyInset;
+    applyInset(0);
+
+    return () => {
+      if ((window as any).__setSharKeyboardInset === applyInset) {
+        delete (window as any).__setSharKeyboardInset;
+      }
+      root.style.removeProperty('--shar-mobile-keyboard-inset');
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -3372,14 +3416,7 @@ export default function MessagesPage() {
                 top: 'var(--shar-mobile-top-inset, 0px)',
                 left: 0,
                 right: 0,
-                ...(isTauriMobileRuntime
-                  ? {
-                      bottom: '0',
-                      height: 'auto',
-                    }
-                  : {
-                      height: 'calc(100dvh - var(--shar-mobile-top-inset, 0px) - var(--shar-mobile-bottom-inset, 0px))',
-                    }),
+                height: 'calc(100dvh - var(--shar-mobile-top-inset, 0px) - var(--shar-mobile-bottom-inset, 0px))',
                 zIndex: 45,
               }
             : {
