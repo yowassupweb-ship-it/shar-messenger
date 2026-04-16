@@ -3130,7 +3130,7 @@ export default function MessagesPage() {
       messagesContainerRef.current.style.height = `${vh}px`;
       // Обновляем высоту мобильного chat-панели (position:fixed не реагирует на dvh в старых iOS)
       if (chatPanelRef.current) {
-        chatPanelRef.current.style.height = `${vh}px`;
+        chatPanelRef.current.style.height = `calc(${vh}px - var(--shar-mobile-top-inset, 0px) - var(--shar-mobile-bottom-inset, 0px))`;
       }
       
       // Также подстраиваем body, чтобы не было скролла за пределы
@@ -3219,6 +3219,14 @@ export default function MessagesPage() {
     : String(chatSettings?.chatOverlayImageLight || '').trim();
   const desktopOverlayScale = Math.max(20, Math.min(200, Number(chatSettings?.chatOverlayScale ?? 100) || 100));
   const desktopOverlayOpacity = Math.max(0, Math.min(1, Number(chatSettings?.chatOverlayOpacity ?? 1) || 1));
+
+  const isTauriMobileRuntime = typeof window !== 'undefined' && localStorage.getItem('_platform') === 'tauri';
+  const mobileTopInset = isTauriMobileRuntime
+    ? 'max(env(safe-area-inset-top, 0px), 26px)'
+    : 'env(safe-area-inset-top, 0px)';
+  const mobileBottomInset = isTauriMobileRuntime
+    ? 'max(env(safe-area-inset-bottom, 0px), 8px)'
+    : 'env(safe-area-inset-bottom, 0px)';
   const isElectronDesktop = isDesktopView && isElectronEnvironment;
 
   useEffect(() => {
@@ -3277,6 +3285,8 @@ export default function MessagesPage() {
         ref={messagesContainerRef}
         className={`${isDesktopView ? 'bg-transparent' : 'bg-[var(--bg-primary)] px-2'} text-[var(--text-primary)] flex w-full max-w-full overflow-hidden overflow-x-hidden rounded-none overscroll-none min-w-0 cursor-default relative`}
         style={{
+          '--shar-mobile-top-inset': mobileTopInset,
+          '--shar-mobile-bottom-inset': mobileBottomInset,
           height: isDesktopView
             ? (isElectronDesktop
                 ? '100%'
@@ -3300,7 +3310,7 @@ export default function MessagesPage() {
                   : {})
               }
             : {})
-        }}
+        } as React.CSSProperties}
       >
       {isDesktopView && !selectedChat && desktopChatOverlayImage && (
         <div
@@ -3354,7 +3364,14 @@ export default function MessagesPage() {
           className="flex-1 min-h-0 min-w-0 flex overflow-hidden bg-transparent"
           ref={chatPanelRef}
           style={!isDesktopView
-            ? { position: 'fixed', top: 0, left: 0, right: 0, height: '100dvh', zIndex: 45 }
+            ? {
+                position: 'fixed',
+                top: 'var(--shar-mobile-top-inset, 0px)',
+                left: 0,
+                right: 0,
+                height: 'calc(100dvh - var(--shar-mobile-top-inset, 0px) - var(--shar-mobile-bottom-inset, 0px))',
+                zIndex: 45,
+              }
             : {
                 margin: '-10px 5px 5px 0',
                 height: '100%',

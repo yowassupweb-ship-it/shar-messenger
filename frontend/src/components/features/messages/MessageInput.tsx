@@ -362,7 +362,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   return (
     <div
       ref={composerContainerRef}
-      className={`${isElectronDesktopComposer ? 'relative mt-auto' : 'absolute left-0 right-0'} z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(env(safe-area-inset-bottom,8px),8px)] bg-transparent ${
+      className={`${isElectronDesktopComposer ? 'relative mt-auto' : 'absolute left-0 right-0'} z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(env(safe-area-inset-bottom,12px),12px)] bg-transparent ${
         isDragging ? 'scale-[1.02]' : ''
       }`}
       style={isElectronDesktopComposer ? undefined : { bottom: `${composerBottomOffset}px` }}
