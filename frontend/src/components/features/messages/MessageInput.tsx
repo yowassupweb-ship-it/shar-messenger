@@ -200,9 +200,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
   });
 
   const sendMessageKeepingFocus = React.useCallback(() => {
-    const isTauriRuntime = typeof window !== 'undefined' && localStorage.getItem('_platform') === 'tauri';
     const isTouchViewport = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
-    const shouldKeepKeyboard = isTauriRuntime && isTouchViewport;
+    const shouldKeepKeyboard = isTouchViewport;
 
     sendMessage();
 

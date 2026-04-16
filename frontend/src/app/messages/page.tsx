@@ -2050,10 +2050,10 @@ export default function MessagesPage() {
     if ((!messageText.trim() && attachments.length === 0) || !selectedChat || !currentUser || !selectedChat.id) return;
 
     const shouldKeepComposerFocus = typeof window !== 'undefined'
-      && localStorage.getItem('_platform') === 'tauri'
       && window.matchMedia('(pointer: coarse)').matches;
+    const hadComposerFocus = typeof document !== 'undefined' && document.activeElement === messageInputRef.current;
     const keepComposerFocus = () => {
-      if (!shouldKeepComposerFocus) return;
+      if (!shouldKeepComposerFocus || !hadComposerFocus) return;
       const textarea = messageInputRef.current;
       if (!textarea) return;
       requestAnimationFrame(() => {
