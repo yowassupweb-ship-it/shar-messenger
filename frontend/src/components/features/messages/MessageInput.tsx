@@ -137,6 +137,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
       console.log('[MessageInput] Electron env detected, offset = 0');
       return 0; // Строго 0 для Electron
     }
+
+    const isTauriRuntime = localStorage.getItem('_platform') === 'tauri';
+    const isTouchViewport = window.matchMedia('(pointer: coarse)').matches;
+    if (isTauriRuntime && isTouchViewport) {
+      // Android WebView can report 0 safe-area; keep composer above the bottom system zone.
+      return 18;
+    }
     
     console.log('[MessageInput] No nav detected, offset = 0');
     return 0;
@@ -362,7 +369,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   return (
     <div
       ref={composerContainerRef}
-      className={`${isElectronDesktopComposer ? 'relative mt-auto' : 'absolute left-0 right-0'} z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(env(safe-area-inset-bottom,12px),12px)] bg-transparent ${
+      className={`${isElectronDesktopComposer ? 'relative mt-auto' : 'absolute left-0 right-0'} z-30 px-[2px] md:px-4 lg:px-8 py-2 pb-[max(var(--shar-mobile-bottom-inset,12px),12px)] bg-transparent ${
         isDragging ? 'scale-[1.02]' : ''
       }`}
       style={isElectronDesktopComposer ? undefined : { bottom: `${composerBottomOffset}px` }}

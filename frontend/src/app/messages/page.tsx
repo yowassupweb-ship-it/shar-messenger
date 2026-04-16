@@ -3103,6 +3103,7 @@ export default function MessagesPage() {
     let prevHeight = window.innerHeight;
     let rafId: number | null = null;
     const isTouchViewport = window.matchMedia('(pointer: coarse)').matches;
+    const isTauriRuntime = localStorage.getItem('_platform') === 'tauri';
 
     if (!isTouchViewport) {
       const nextIsDesktop = !(window.innerWidth < 773 || isTouchPointer);
@@ -3162,9 +3163,11 @@ export default function MessagesPage() {
     const originalHtmlBackground = document.documentElement.style.background;
 
     document.body.style.overflow = 'hidden';
-    document.body.style.position = 'fixed';
-    document.body.style.width = '100%';
-    document.body.style.top = '0';
+    if (!isTauriRuntime) {
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+      document.body.style.top = '0';
+    }
     document.documentElement.style.overflow = 'hidden';
     
     /* 
@@ -3225,7 +3228,7 @@ export default function MessagesPage() {
     ? 'max(env(safe-area-inset-top, 0px), 26px)'
     : 'env(safe-area-inset-top, 0px)';
   const mobileBottomInset = isTauriMobileRuntime
-    ? 'max(env(safe-area-inset-bottom, 0px), 8px)'
+    ? 'max(env(safe-area-inset-bottom, 0px), 18px)'
     : 'env(safe-area-inset-bottom, 0px)';
   const isElectronDesktop = isDesktopView && isElectronEnvironment;
 
