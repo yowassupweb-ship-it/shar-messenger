@@ -1,6 +1,6 @@
 {
   "name": "shar-tauri-client",
-  "version": "0.1.0",
+  "version": "1.0.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +9,10 @@
     "build": "tauri build",
     "android:init": "tauri android init",
     "android:dev": "tauri android dev",
-    "android:build": "tauri android build"
+    "android:build": "tauri android build",
+    "android:sign": "powershell -ExecutionPolicy Bypass -File ./sign-apk.ps1",
+    "android:sign:release": "powershell -ExecutionPolicy Bypass -File ./sign-apk.ps1 -Release",
+    "android:release": "npm run android:build && npm run android:sign:release"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0"
