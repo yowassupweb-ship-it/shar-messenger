@@ -3372,7 +3372,14 @@ export default function MessagesPage() {
                 top: 'var(--shar-mobile-top-inset, 0px)',
                 left: 0,
                 right: 0,
-                height: 'calc(100dvh - var(--shar-mobile-top-inset, 0px) - var(--shar-mobile-bottom-inset, 0px))',
+                ...(isTauriMobileRuntime
+                  ? {
+                      bottom: '0',
+                      height: 'auto',
+                    }
+                  : {
+                      height: 'calc(100dvh - var(--shar-mobile-top-inset, 0px) - var(--shar-mobile-bottom-inset, 0px))',
+                    }),
                 zIndex: 45,
               }
             : {

@@ -199,14 +199,14 @@ const MessageInput: React.FC<MessageInputProps> = ({
     };
   }, []);
 
-  const useFlowComposerLayout = isElectronDesktopComposer || (isTauriRuntime && isMobileViewport);
-
   const [composerBottomOffset, setComposerBottomOffset] = React.useState(() => getCurrentNavOffset());
   const [isMobileViewport, setIsMobileViewport] = React.useState(() => {
     if (typeof window === 'undefined') return false;
     const isTouch = window.matchMedia('(pointer: coarse)').matches;
     return window.innerWidth < 773 || isTouch;
   });
+
+  const useFlowComposerLayout = isElectronDesktopComposer || (isTauriRuntime && isMobileViewport);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;

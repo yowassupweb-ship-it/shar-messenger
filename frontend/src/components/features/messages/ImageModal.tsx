@@ -95,9 +95,19 @@ export default function ImageModal({
     }
   };
 
+  const isTauriRuntime = typeof window !== 'undefined' && localStorage.getItem('_platform') === 'tauri';
+
   const modalContent = (
     <div 
       className="fixed inset-0 z-[99999] bg-black/95 flex items-center justify-center"
+      style={{
+        width: '100vw',
+        height: '100dvh',
+        maxWidth: '100vw',
+        maxHeight: '100dvh',
+        paddingTop: isTauriRuntime ? 'env(safe-area-inset-top, 0px)' : undefined,
+        paddingBottom: isTauriRuntime ? 'env(safe-area-inset-bottom, 0px)' : undefined,
+      }}
       onClick={handleBackdropClick}
     >
       {/* Header с кнопками - десктоп версия */}
@@ -215,11 +225,15 @@ export default function ImageModal({
         </button>
       </div>
       
-      <div className="w-screen h-[100dvh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="w-screen h-[100dvh] max-w-[100vw] max-h-[100dvh] flex items-center justify-center"
+        style={{ minHeight: '100dvh' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <img 
           src={imageUrl}
           alt="Full size"
-          className="w-full h-full object-contain transition-transform duration-200 select-none"
+          className="w-full h-full max-w-[100vw] max-h-[100dvh] object-contain transition-transform duration-200 select-none"
           style={{ 
             transform: `scale(${zoom})`,
             cursor: zoom > 1 ? 'grab' : 'default',

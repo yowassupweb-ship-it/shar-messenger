@@ -51,6 +51,31 @@ const isElectronRuntime = (): boolean => {
   return /electron/i.test(navigator.userAgent || '');
 };
 
+const isTauriRuntime = (): boolean => {
+  if (typeof window === 'undefined') return false;
+
+  try {
+    if (localStorage.getItem('_platform') === 'tauri') return true;
+  } catch {
+    // ignore localStorage issues
+  }
+
+  const maybeWindow = window as Window & {
+    __TAURI__?: unknown;
+    __TAURI_INTERNALS__?: unknown;
+  };
+
+  return Boolean(maybeWindow.__TAURI__ || maybeWindow.__TAURI_INTERNALS__ || /tauri/i.test(navigator.userAgent || ''));
+};
+
+type TauriNotificationPermission = 'default' | 'denied' | 'granted';
+
+type TauriNotificationApi = {
+  isPermissionGranted: () => Promise<boolean>;
+  requestPermission: () => Promise<TauriNotificationPermission>;
+  sendNotification: (notification: string | { title?: string; body?: string }) => Promise<void> | void;
+};
+
 const TASK_STATUS_RU: Record<string, string> = {
   'todo': 'К выполнению',
   'pending': 'В ожидании',
@@ -81,6 +106,7 @@ export class BrowserPushService {
   private firedCalendarReminders = new Set<string>();
   private notifiedEventVersions = new Set<string>();
   private shownKeys = new Set<string>();
+  private tauriNotificationApiPromise: Promise<TauriNotificationApi | null> | null = null;
 
   async start(options: StartOptions): Promise<void> {
     if (!options.userId) return;
@@ -276,6 +302,11 @@ export class BrowserPushService {
   }
 
   private async ensurePermissionAndWorker(): Promise<void> {
+    if (isTauriRuntime()) {
+      await this.ensureTauriPermission();
+      return;
+    }
+
     if (isElectronRuntime()) {
       console.log('[BrowserPushService] Electron runtime detected: browser notification permission is skipped');
       return;
@@ -310,6 +341,67 @@ export class BrowserPushService {
       console.log('[BrowserPushService] ✅ Разрешение на уведомления получено');
     } else {
       console.warn('[BrowserPushService] ⚠️ Разрешение на уведомления не получено');
+    }
+  }
+
+  private async getTauriNotificationApi(): Promise<TauriNotificationApi | null> {
+    if (!isTauriRuntime()) return null;
+
+    if (!this.tauriNotificationApiPromise) {
+      this.tauriNotificationApiPromise = import('@tauri-apps/plugin-notification')
+        .then((mod) => {
+          const api: TauriNotificationApi = {
+            isPermissionGranted: mod.isPermissionGranted,
+            requestPermission: mod.requestPermission,
+            sendNotification: mod.sendNotification,
+          };
+          return api;
+        })
+        .catch((error) => {
+          console.warn('[BrowserPushService] Tauri notification plugin is unavailable', error);
+          return null;
+        });
+    }
+
+    return this.tauriNotificationApiPromise;
+  }
+
+  private async ensureTauriPermission(): Promise<boolean> {
+    const api = await this.getTauriNotificationApi();
+    if (!api) return false;
+
+    try {
+      const granted = await api.isPermissionGranted();
+      if (granted) return true;
+
+      const permission = await api.requestPermission();
+      return permission === 'granted';
+    } catch (error) {
+      console.warn('[BrowserPushService] Failed to request Tauri notification permission', error);
+      return false;
+    }
+  }
+
+  private async showTauriNotification(title: string, body: string): Promise<boolean> {
+    const api = await this.getTauriNotificationApi();
+    if (!api) return false;
+
+    try {
+      const granted = await this.ensureTauriPermission();
+      if (!granted) {
+        console.warn('[BrowserPushService] Tauri notification permission is not granted');
+        return false;
+      }
+
+      await api.sendNotification({
+        title,
+        body,
+      });
+
+      return true;
+    } catch (error) {
+      console.warn('[BrowserPushService] Failed to show Tauri notification', error);
+      return false;
     }
   }
 
@@ -933,6 +1025,15 @@ export class BrowserPushService {
     if (electronRuntime && !hasElectronBridge) {
       console.warn('[BrowserPushService] Electron runtime without desktop bridge: browser notification fallback is disabled');
       return;
+    }
+
+    if (isTauriRuntime()) {
+      const shown = await this.showTauriNotification(title, body);
+      if (shown) {
+        console.log('[BrowserPushService] ✅✅✅ Tauri notification sent');
+        return;
+      }
+      console.warn('[BrowserPushService] Tauri notification failed, falling back to web Notification API');
     }
 
     if (typeof window === 'undefined' || !('Notification' in window)) {
