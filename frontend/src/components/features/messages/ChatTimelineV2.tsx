@@ -764,7 +764,7 @@ export class ChatTimelineV2 extends Component<
           }}
         >
         <div
-          className="px-4 space-y-0.5"
+          className="w-full max-w-[650px] mx-auto px-[5px] space-y-0.5"
           style={{
             paddingTop: this.props.scrollTopPadding ? `${this.props.scrollTopPadding + 16}px` : '16px',
             paddingBottom: this.props.scrollBottomPadding ? `${this.props.scrollBottomPadding}px` : '16px',
@@ -1006,13 +1006,9 @@ export class ChatTimelineV2 extends Component<
                 textColor = this.props.theme === 'dark' ? '#ffffff' : '#1f2937';
               }
               
-              // Telegram-like behavior:
-              // - bubble width is fixed by min/max constraints (no adaptive % scaling)
-              // - at chat width <= 1200px, messages are split by sides
-              // - at wider desktop widths, all messages stay on the left
-              const alignment = isOwnBubble
-                ? (this.props.isDesktopView ? 'justify-start max-[1200px]:justify-end' : 'justify-end')
-                : 'justify-start';
+              // Telegram Desktop behavior: own messages stay on the right,
+              // incoming messages stay on the left regardless of viewport width.
+              const alignment = isOwnBubble ? 'justify-end' : 'justify-start';
               
               // ── Call message: render as Telegram-style centered row (early return) ──
               if (String(message.notificationType || '').trim().toLowerCase() === 'call') {
@@ -1092,7 +1088,7 @@ export class ChatTimelineV2 extends Component<
                     ref={(el) => {
                       this.props.messageRefs.current[message.id] = el;
                     }}
-                    className={`flex items-end ${alignment} ${isGroupedWithNext ? 'mb-[2px]' : 'mb-[6px]'} ${isGroupedWithPrev ? 'mt-[2px]' : 'mt-[6px]'} gap-2 cursor-pointer`}
+                    className={`w-full flex items-end ${alignment} ${isGroupedWithNext ? 'mb-[2px]' : 'mb-[6px]'} ${isGroupedWithPrev ? 'mt-[2px]' : 'mt-[6px]'} gap-2 cursor-pointer`}
                     style={undefined}
                     onClick={() => {
                       // Skip click if this was the end of a drag-select gesture
@@ -1159,7 +1155,7 @@ export class ChatTimelineV2 extends Component<
                     </div>
                   )}
                   <div
-                    className={`inline-block relative rounded-[18px] ${(isMediaOnly || isEmojiOnly) ? 'overflow-hidden' : 'px-2.5 py-1.5 pb-1.5 min-w-[100px]'} ${renderAsNotification ? (isMobileView ? 'max-w-[92vw]' : 'max-w-[620px]') : (isMobileView ? 'max-w-[86vw]' : 'max-w-[420px]')} w-fit transition-all ${renderAsNotification ? 'border border-slate-300/70 dark:border-slate-600/70' : ''} ${
+                    className={`inline-block relative rounded-[18px] ${(isMediaOnly || isEmojiOnly) ? 'overflow-hidden' : 'px-2.5 py-1.5 pb-1.5 min-w-[100px]'} w-fit transition-all ${renderAsNotification ? 'border border-slate-300/70 dark:border-slate-600/70' : ''} ${
                       this.props.selectedMessages.has(String(message.id)) 
                         ? 'ring-2 ring-blue-500 ring-opacity-50'
                         : this.props.activeSearchMessageId === String(message.id)
@@ -1176,6 +1172,10 @@ export class ChatTimelineV2 extends Component<
                     }}
                     style={{
                       fontFamily: 'Inter, -apple-system, system-ui, sans-serif',
+                      width: 'fit-content',
+                      maxWidth: isMobileView
+                        ? (renderAsNotification ? '92vw' : '86vw')
+                        : (renderAsNotification ? 'min(82%, 700px)' : 'min(74%, 620px)'),
                       backgroundColor: isEmojiOnly ? 'transparent' : bubbleColor,
                       color: textColor
                     }}

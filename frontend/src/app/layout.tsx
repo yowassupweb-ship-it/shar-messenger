@@ -35,6 +35,7 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const tauriBackendBase = process.env.NEXT_PUBLIC_TAURI_BACKEND_URL || 'https://vokrug-sveta.shar-os.ru';
   const themeScript = `
     (function() {
       try {
@@ -48,8 +49,9 @@ export default function RootLayout({
         }
       } catch (e) {}
       try {
+        var isTauriRuntime = !!(window.__TAURI__ || window.__TAURI_INTERNALS__ || (navigator.userAgent || '').toLowerCase().includes('tauri'));
         var params = new URLSearchParams(window.location.search);
-        if (params.get('_platform') === 'tauri') {
+        if (params.get('_platform') === 'tauri' || isTauriRuntime) {
           localStorage.setItem('_platform', 'tauri');
           params.delete('_platform');
           var newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
@@ -59,6 +61,37 @@ export default function RootLayout({
           document.documentElement.setAttribute('data-platform', 'tauri');
           var z = localStorage.getItem('tauriZoom');
           if (z) document.documentElement.style.zoom = z;
+
+          var backendBase = '${tauriBackendBase}';
+          var toBackendApiUrl = function(url) {
+            if (!url) return url;
+            if (url.startsWith('/api')) return backendBase + url;
+            return url;
+          };
+
+          var originalFetch = window.fetch.bind(window);
+          window.fetch = function(input, init) {
+            if (typeof input === 'string') {
+              return originalFetch(toBackendApiUrl(input), init);
+            }
+            if (input instanceof Request) {
+              var nextUrl = toBackendApiUrl(input.url);
+              if (nextUrl !== input.url) {
+                var nextReq = new Request(nextUrl, input);
+                return originalFetch(nextReq, init);
+              }
+            }
+            return originalFetch(input, init);
+          };
+
+          var originalOpen = XMLHttpRequest.prototype.open;
+          XMLHttpRequest.prototype.open = function(method, url) {
+            var args = Array.prototype.slice.call(arguments);
+            if (typeof url === 'string') {
+              args[1] = toBackendApiUrl(url);
+            }
+            return originalOpen.apply(this, args);
+          };
         }
       } catch (e) {}
     })();

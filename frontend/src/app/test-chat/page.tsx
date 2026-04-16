@@ -167,10 +167,11 @@ export default function TestChat() {
   const [groupParticipants, setGroupParticipants] = useState<GroupParticipantUI[]>([]);
   const [groupLocalStream, setGroupLocalStream] = useState<MediaStream | null>(null);
   const groupCallServiceRef = useRef<GroupCallService | null>(null);
+  const isMessagesTabActiveRef = useRef(true);
 
   const [isBelow768, setIsBelow768] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 768 : false));
   const [mobileViewportHeight, setMobileViewportHeight] = useState<number | null>(null);
-  const [mobileKeyboardOffset, setMobileKeyboardOffset] = useState(0);
+  const prevMobileViewportHeightRef = useRef<number | null>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatTimelineRef = useRef<ChatTimelineV2 | null>(null);
@@ -185,6 +186,28 @@ export default function TestChat() {
   /** Ожидающий автозвонок после перехода в чат (из контактов) */
   const pendingAutoCallRef = useRef<'voice' | 'video' | null>(null);
   const isTauri = typeof window !== 'undefined' && localStorage.getItem('_platform') === 'tauri';
+
+  const computeIsMessagesTabActive = useCallback(() => {
+    if (typeof window === 'undefined') return true;
+    if (!window.location.pathname.startsWith('/account')) return true;
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    return !tab || tab === 'messages';
+  }, []);
+
+  useEffect(() => {
+    const updateActiveState = () => {
+      isMessagesTabActiveRef.current = computeIsMessagesTabActive();
+    };
+
+    updateActiveState();
+    window.addEventListener('popstate', updateActiveState);
+    window.addEventListener('account-tab-changed', updateActiveState as EventListener);
+
+    return () => {
+      window.removeEventListener('popstate', updateActiveState);
+      window.removeEventListener('account-tab-changed', updateActiveState as EventListener);
+    };
+  }, [computeIsMessagesTabActive]);
 
   const normalizeAttachmentUrl = (rawUrl: string): string => {
     if (!rawUrl) return rawUrl;
@@ -230,34 +253,24 @@ export default function TestChat() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const updateViewport = () => {
+    const updateViewportHeight = () => {
       const vv = window.visualViewport;
-      const viewportHeight = vv ? Math.round(vv.height) : window.innerHeight;
-      setMobileViewportHeight(viewportHeight);
-
-      if (!vv || !isBelow768) {
-        setMobileKeyboardOffset(0);
-        return;
-      }
-
-      // Android keyboard reduces visual viewport height; move composer above it.
-      const keyboardHeight = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
-      setMobileKeyboardOffset(keyboardHeight > 70 ? keyboardHeight : 0);
+      setMobileViewportHeight(Math.round(vv ? vv.height : window.innerHeight));
     };
 
-    updateViewport();
+    updateViewportHeight();
 
     const vv = window.visualViewport;
-    window.addEventListener('resize', updateViewport);
-    vv?.addEventListener('resize', updateViewport);
-    vv?.addEventListener('scroll', updateViewport);
+    window.addEventListener('resize', updateViewportHeight);
+    vv?.addEventListener('resize', updateViewportHeight);
+    vv?.addEventListener('scroll', updateViewportHeight);
 
     return () => {
-      window.removeEventListener('resize', updateViewport);
-      vv?.removeEventListener('resize', updateViewport);
-      vv?.removeEventListener('scroll', updateViewport);
+      window.removeEventListener('resize', updateViewportHeight);
+      vv?.removeEventListener('resize', updateViewportHeight);
+      vv?.removeEventListener('scroll', updateViewportHeight);
     };
-  }, [isBelow768]);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -661,8 +674,10 @@ export default function TestChat() {
 
   // Загрузка пользователей + быстрый polling статусов онлайн
   useEffect(() => {
+    if (!isMessagesTabActiveRef.current) return;
     void refreshUsers();
     const interval = window.setInterval(() => {
+      if (!isMessagesTabActiveRef.current) return;
       if (typeof document !== 'undefined' && document.hidden) return;
       void refreshUsers();
     }, PRESENCE_POLL_INTERVAL_MS);
@@ -787,6 +802,7 @@ export default function TestChat() {
 
   // Загрузка списка чатов
   useEffect(() => {
+    if (!isMessagesTabActiveRef.current) return;
     void loadChats();
   }, [loadChats]);
 
@@ -996,9 +1012,10 @@ export default function TestChat() {
   }, []);
 
   useEffect(() => {
-    if (!currentChatId) return;
+    if (!currentChatId || !isMessagesTabActiveRef.current) return;
 
     const interval = window.setInterval(() => {
+      if (!isMessagesTabActiveRef.current) return;
       loadMessagesFromServer(currentChatId, true);
     }, MESSAGE_POLL_INTERVAL_MS);
 
@@ -1007,8 +1024,9 @@ export default function TestChat() {
 
   // Быстро синхронизируем read-markers/галочки и превью чатов
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !isMessagesTabActiveRef.current) return;
     const sync = () => {
+      if (!isMessagesTabActiveRef.current) return;
       if (typeof document !== 'undefined' && document.hidden) return;
       void loadChats();
     };
@@ -1035,6 +1053,32 @@ export default function TestChat() {
     setTimeout(scroll, 240);
     setTimeout(scroll, 600);
   }, []);
+
+  useEffect(() => {
+    if (!isBelow768 || !currentChatId || !mobileViewportHeight) {
+      prevMobileViewportHeightRef.current = mobileViewportHeight;
+      return;
+    }
+
+    const prevHeight = prevMobileViewportHeightRef.current;
+    prevMobileViewportHeightRef.current = mobileViewportHeight;
+    if (!prevHeight) return;
+
+    const keyboardOpeningDelta = prevHeight - mobileViewportHeight;
+    if (keyboardOpeningDelta < 80) return;
+
+    const container = chatTimelineRef.current?.containerRef?.current;
+    if (!container) {
+      forceScrollToBottom(false);
+      return;
+    }
+
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    const isNearBottom = distanceFromBottom <= 140;
+    if (!isNearBottom) return;
+
+    forceScrollToBottom(false);
+  }, [mobileViewportHeight, isBelow768, currentChatId, forceScrollToBottom]);
 
   const handleSendMessage = useCallback(async () => {
     if ((!messageText.trim() && attachments.length === 0) || !currentChatId || !currentUser) return;
@@ -1804,7 +1848,13 @@ export default function TestChat() {
   return (
     <div
       className={`h-full min-h-0 flex p-1 gap-1 ${backgroundGradient} max-md:p-0 max-md:gap-0`}
-      style={isBelow768 && mobileViewportHeight ? { height: `${mobileViewportHeight}px` } : undefined}
+      style={isBelow768
+        ? {
+            height: currentChatId && mobileViewportHeight ? `${mobileViewportHeight}px` : '100dvh',
+            overflow: 'hidden',
+            overscrollBehavior: 'none',
+          }
+        : undefined}
     >
       {/* Скрываем сайдбар на мобильных когда открыт чат */}
       <div className={`${isBelow768 && currentChatId ? 'hidden' : 'flex'} flex-col md:h-full md:min-h-0 max-md:w-full max-md:h-full`}>
@@ -1959,7 +2009,7 @@ export default function TestChat() {
                   router={{}}
                   scrollTopPadding={hasPinnedMessages ? (isBelow768 ? 125 : 88) : (isBelow768 ? 100 : 72)}
                   // Keep room for floating composer.
-                  scrollBottomPadding={composerDockHeight}
+                  scrollBottomPadding={composerDockHeight + 14}
                   enableDragSelect={false}
                   setSelectedMessages={setSelectedMessages}
                   setIsSelectionMode={setIsSelectionMode}
@@ -2050,7 +2100,6 @@ export default function TestChat() {
               {/* Floating composer over chat background (no separate underlay block). */}
               <div
                 className={`absolute ${isBelow768 && currentChatId ? 'bottom-0' : 'bottom-[56px] md:bottom-0'} left-0 right-0 z-10`}
-                style={isBelow768 && currentChatId ? { bottom: `${mobileKeyboardOffset}px` } : undefined}
                 ref={composerContainerRef}
               >
                 {(currentChat?.isNotificationsChat || String(currentChatId || '').startsWith('notifications-') || String(currentChatId || '').startsWith('notifications_')) ? (

@@ -404,7 +404,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const ownMessageAlignClass = isNotificationBubble
     ? 'justify-start'
     : isMyMessage
-      ? (isDesktopView ? 'justify-start' : 'justify-end')
+      ? 'justify-end'
       : 'justify-start';
   const rowPaddingClass = isNotificationBubble ? 'mx-0' : (isDesktopView ? 'md:px-2 md:-mx-2' : 'mx-0');
   const isGroupChatForAvatar = !!(selectedChat?.isGroup || (selectedChat?.participantIds?.length ?? 0) > 2);
@@ -413,8 +413,8 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const bubbleBoxClass = isNotificationBubble
     ? 'w-full max-w-[94%] md:max-w-[82%]'
     : hasOnlyImages
-      ? (isDesktopView ? 'max-w-[70%] lg:max-w-[60%]' : 'max-w-[85%]')
-      : (isDesktopView ? 'max-w-[65%] lg:max-w-[55%]' : 'max-w-[75%]');
+      ? (isDesktopView ? 'max-w-[78%] lg:max-w-[72%]' : 'max-w-[85%]')
+      : (isDesktopView ? 'max-w-[74%] lg:max-w-[68%]' : 'max-w-[75%]');
   const bubbleOverflowClass = isNotificationBubble ? 'overflow-visible' : 'overflow-hidden';
   // Всегда используем полноценные эффекты (как в Signal/Telegram)
   const shouldUseFlatBubbleSurface = false;
@@ -732,7 +732,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
       <div
         key={message.id}
         ref={(el) => { messageRefs.current[message.id] = el; }}
-        className={`flex ${ownMessageAlignClass} group ${rowPaddingClass} ${
+        className={`w-full flex ${ownMessageAlignClass} group ${rowPaddingClass} ${
           selectedMessages.has(message.id) ? 'bg-[var(--accent-primary)]/20' : ''
         } ${!isNotificationBubble && isSideSwitch ? 'mt-[9px] md:mt-[12px]' : ''}`}
         onClick={(e) => {

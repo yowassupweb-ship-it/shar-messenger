@@ -478,40 +478,15 @@ export default function AccountPage() {
     return () => window.removeEventListener('shar:open-task', handleOpenTask);
   }, [router]);
 
-  // Интервал для проверки URL параметра chat (replaceState не триггерит searchParams)
-  // ref для хранения состояния события (чтобы интервал не перебивал результат события)
-  const chatOpenFromEvent = useRef(false);
-
   useEffect(() => {
-    const checkChatOpen = () => {
-      // Если от события уже известно состояние — не трогаем
-      if (chatOpenFromEvent.current) return;
-
-      if (typeof window !== 'undefined') {
-        // Проверяем только URL и текущую вкладку
-        const url = new URL(window.location.href);
-        const chatIdFromUrl = url.searchParams.get('chat');
-        // Считаем чат открытым только если мы на вкладке messages и chat есть в URL
-        const isMessagesTab = activeTab === 'messages';
-        const hasChatSelected = !!chatIdFromUrl;
-        setIsChatOpen(isMessagesTab && hasChatSelected);
-        activeChatIdRef.current = (isMessagesTab && chatIdFromUrl) ? chatIdFromUrl : null;
-      }
-    };
-
     const handleChatSelectionChanged = (event: Event) => {
       const customEvent = event as CustomEvent<{ isOpen?: boolean }>;
       const isOpen = !!customEvent.detail?.isOpen;
-      chatOpenFromEvent.current = isOpen;
       setIsChatOpen(activeTab === 'messages' && isOpen);
     };
 
-    checkChatOpen();
     window.addEventListener('chat-selection-changed', handleChatSelectionChanged as EventListener);
-    const interval = setInterval(checkChatOpen, 1000); // fallback синхронизация
-
     return () => {
-      clearInterval(interval);
       window.removeEventListener('chat-selection-changed', handleChatSelectionChanged as EventListener);
     };
   }, [activeTab]);
@@ -530,44 +505,13 @@ export default function AccountPage() {
   }, []);
 
   const shouldUseMobileNav = isBelow768;
-  // Скрываем мобильное нижнее меню только на мобиле когда открыт чат
-  const [hasChatInUrl, setHasChatInUrl] = useState(
-    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).has('chat') : false
-  );
-
-  useEffect(() => {
-    // Реактивное отслеживание параметра chat в URL для скрытия нижнего меню
-    const checkUrlForChat = () => {
-      if (typeof window !== 'undefined') {
-        const hasChat = new URLSearchParams(window.location.search).has('chat');
-        if (hasChatInUrl !== hasChat) {
-          setHasChatInUrl(hasChat);
-        }
-      }
-    };
-
-    // Проверяем сразу после монтирования
-    checkUrlForChat();
-
-    // Слушаем события истории (popstate)
-    window.addEventListener('popstate', checkUrlForChat);
-
-    // Интервал для случаев, когда Next.js делает shallow routing без вызова popstate
-    const intervalId = setInterval(checkUrlForChat, 50);
-
-    return () => {
-      window.removeEventListener('popstate', checkUrlForChat);
-      clearInterval(intervalId);
-    };
-  }, [hasChatInUrl]);
-
-  // Проверяем как флаг isChatOpen, так и наличие параметра chat в URL для надежности.
-  // Скрываем нижнюю мобильную навигацию, когда открыт конкретный чат.
-  const hideBottomNavInOpenedChat = activeTab === 'messages' && isBelow768 && (isChatOpen || hasChatInUrl);
+  const hasOpenedChatInMessages = activeTab === 'messages' && Boolean(searchParams.get('chat'));
+  // На мобильной вкладке сообщений меню скрываем только внутри конкретного чата.
+  const hideBottomNavInOpenedChat = isBelow768 && hasOpenedChatInMessages;
 
   // Флаги первого монтирования по вкладкам — каждая вкладка монтируется при первом посещении и не размонтируется
   const [hasMountedMessages, setHasMountedMessages] = useState(true);
-  const [hasMountedTasks, setHasMountedTasks] = useState(true);
+  const [hasMountedTasks, setHasMountedTasks] = useState(false);
   const [hasMountedCalendar, setHasMountedCalendar] = useState(false);
   const [hasMountedContacts, setHasMountedContacts] = useState(false);
   const [hasMountedLinks, setHasMountedLinks] = useState(false);
@@ -584,6 +528,7 @@ export default function AccountPage() {
       }
     }
     setActiveTab(tab);
+    window.dispatchEvent(new CustomEvent('account-tab-changed', { detail: { tab } }));
     router.push(`/account?tab=${tab}`, { scroll: false });
   };
 
@@ -599,6 +544,13 @@ export default function AccountPage() {
   useEffect(() => {
     activeTabRef.current = activeTab;
   }, [activeTab]);
+
+  useEffect(() => {
+    document.body.classList.add('account-has-own-nav');
+    return () => {
+      document.body.classList.remove('account-has-own-nav');
+    };
+  }, []);
 
   useEffect(() => {
     isChatOpenRef.current = isChatOpen;
@@ -791,7 +743,9 @@ export default function AccountPage() {
     || document.documentElement.classList.contains('electron-app')
     || document.documentElement.hasAttribute('data-electron-react-shell')
   );
-  const accountContentBottomInset = shouldUseMobileNav ? 0 : (isElectronRuntime ? 0 : 46);
+  const accountContentBottomInset = shouldUseMobileNav
+    ? 0
+    : (isElectronRuntime ? 0 : 46);
 
   return (
     <div
@@ -895,7 +849,11 @@ export default function AccountPage() {
       </div>
 
       {/* Mobile Bottom Navigation Bar - стеклянные кнопки */}
-      <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-2 pb-[max(env(safe-area-inset-bottom),14px)] px-3 z-40 pointer-events-none select-none overflow-visible ${shouldUseMobileNav && !hideBottomNavInOpenedChat ? 'flex' : 'hidden'}`} onCopy={(e) => e.preventDefault()}>
+      <div
+        className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-2 pb-[max(env(safe-area-inset-bottom),10px)] px-3 z-40 pointer-events-none select-none overflow-visible ${shouldUseMobileNav && !hideBottomNavInOpenedChat ? 'flex' : 'hidden'}`}
+        style={{ background: 'transparent' }}
+        onCopy={(e) => e.preventDefault()}
+      >
         <div className={`flex items-center gap-2 p-1.5 rounded-[100px] pointer-events-auto select-none border shadow-[var(--shadow-card)] ${accountBottomNavShellClass}`} onCopy={(e) => e.preventDefault()}>
           {visibleTabs.messages && (
           <button

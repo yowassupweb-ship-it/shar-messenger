@@ -465,7 +465,7 @@ export default function ChatInput({
         </div>
       )}
 
-      <div className="flex items-center gap-1 w-full px-[5px] py-0">
+      <div className="flex items-center gap-1 w-full max-w-[650px] mx-auto px-[5px] py-0">
         <input
           ref={fileInputRef}
           type="file"

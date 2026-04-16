@@ -249,8 +249,9 @@ export default function BottomNav() {
   const desktopTabIdleClass = 'bg-gradient-to-b from-white/10 to-white/5 border border-white/20 text-gray-900 dark:text-white hover:from-white/15 hover:to-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_2px_8px_rgba(0,0,0,0.2)]';
   const desktopTabActiveClass = 'bg-[#007aff]/20 !text-gray-900 dark:!text-white border border-[#007aff]/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_2px_8px_rgba(0,0,0,0.3)]';
 
-  // Показываем везде КРОМЕ /test-chat и /login
-  const shouldShow = !pathname.startsWith('/test-chat') && pathname !== '/login';
+  const accountOwnNavMounted = typeof document !== 'undefined' && document.body.classList.contains('account-has-own-nav');
+  // Показываем везде КРОМЕ /test-chat, /login и режима, где account рисует свою навигацию
+  const shouldShow = !pathname.startsWith('/test-chat') && pathname !== '/login' && !pathname.startsWith('/account') && !accountOwnNavMounted;
 
   const removePinnedTool = async (toolId: string) => {
     const updated = pinnedTools.filter((id) => id !== toolId);
@@ -299,7 +300,7 @@ export default function BottomNav() {
   return (
     <>
       {/* Mobile Bottom Navigation */}
-      <div className={`bottom-nav-fixed fixed bottom-0 left-0 right-0 justify-center pt-2 pb-[max(env(safe-area-inset-bottom),14px)] px-3 z-40 pointer-events-none select-none overflow-visible ${!shouldUseMobileNav || hasActiveModal ? 'hidden' : 'flex'}`} style={{ background: 'transparent' }}>
+      <div className={`bottom-nav-fixed fixed -bottom-[10px] left-0 right-0 justify-center pt-2 pb-[max(env(safe-area-inset-bottom),14px)] px-3 z-40 pointer-events-none select-none overflow-visible ${!shouldUseMobileNav || hasActiveModal ? 'hidden' : 'flex'}`} style={{ background: 'transparent' }}>
         <div className={`flex items-center gap-2 p-1.5 rounded-[100px] pointer-events-auto px-2 py-1.5 ${mobileNavShellClass}`}>
           {visibleTabs.messages && (
             <button
@@ -326,7 +327,7 @@ export default function BottomNav() {
 
           {visibleTabs.calendar && (
             <button
-              onClick={() => handleNavClick('/calendar')}
+              onClick={() => handleNavClick('/account?tab=calendar')}
               className={`w-12 h-12 flex-shrink-0 rounded-[100px] flex items-center justify-center transition-all duration-300 focus:outline-none ${mobileNavButtonClass}`}
             >
               <Calendar className="w-5 h-5" strokeWidth={2} />
@@ -395,9 +396,9 @@ export default function BottomNav() {
 
           {visibleTabs.calendar && (
             <button
-              onClick={() => handleNavClick('/calendar')}
+              onClick={() => handleNavClick('/account?tab=calendar')}
               className={`px-4 py-2 min-h-[36px] rounded-[20px] flex items-center gap-2 text-[12px] font-normal transition-all whitespace-nowrap ${
-                pathname === '/calendar' ? desktopTabActiveClass : desktopTabIdleClass
+                (pathname === '/account' && searchParams.get('tab') === 'calendar') ? desktopTabActiveClass : desktopTabIdleClass
               }`}
             >
               <Calendar className="w-3.5 h-3.5" />

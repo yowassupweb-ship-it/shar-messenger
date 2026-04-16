@@ -159,7 +159,7 @@ export default function MainBottomNav({ hide = false, activeTab, onTabClick }: M
 
   return (
     <div
-      className="bottom-nav-fixed fixed bottom-0 left-0 right-0 flex justify-center pt-2 pb-[max(env(safe-area-inset-bottom),14px)] px-3 z-40 pointer-events-none select-none overflow-visible"
+      className="bottom-nav-fixed fixed -bottom-[10px] left-0 right-0 flex justify-center pt-2 pb-[max(env(safe-area-inset-bottom),14px)] px-3 z-40 pointer-events-none select-none overflow-visible"
       style={{ background: 'transparent' }}
     >
       <div className="flex items-center gap-2 p-1.5 rounded-[100px] pointer-events-auto backdrop-blur-xl bg-gradient-to-b from-[var(--bg-glass-active)] to-[var(--bg-glass)] border border-[var(--border-light)] shadow-[var(--shadow-card)]">

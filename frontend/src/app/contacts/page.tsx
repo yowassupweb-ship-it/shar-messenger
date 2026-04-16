@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { User, Mail, Phone, Briefcase, Shield, Calendar, MessageCircle, CheckSquare, Plus, X, Inbox, Search, Eye, EyeOff, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -346,34 +346,38 @@ export default function ContactsPage() {
     }
   };
 
-  const filteredContacts = contacts.filter(contact => {
-    if (!searchQuery) return true;
+  const filteredContacts = useMemo(() => {
+    if (!searchQuery) return contacts;
     const query = searchQuery.toLowerCase();
-    return (
-      contact.name?.toLowerCase().includes(query) ||
-      contact.username?.toLowerCase().includes(query) ||
-      contact.email?.toLowerCase().includes(query) ||
-      contact.position?.toLowerCase().includes(query) ||
-      contact.department?.toLowerCase().includes(query)
-    );
-  });
+    return contacts.filter((contact) => (
+      contact.name?.toLowerCase().includes(query)
+      || contact.username?.toLowerCase().includes(query)
+      || contact.email?.toLowerCase().includes(query)
+      || contact.position?.toLowerCase().includes(query)
+      || contact.department?.toLowerCase().includes(query)
+    ));
+  }, [contacts, searchQuery]);
 
   // Группировка контактов по отделам
-  const contactsByDepartment = filteredContacts.reduce((acc, contact) => {
-    const dept = contact.department || 'Без отдела';
-    if (!acc[dept]) {
-      acc[dept] = [];
-    }
-    acc[dept].push(contact);
-    return acc;
-  }, {} as Record<string, Contact[]>);
+  const contactsByDepartment = useMemo(() => {
+    return filteredContacts.reduce((acc, contact) => {
+      const dept = contact.department || 'Без отдела';
+      if (!acc[dept]) {
+        acc[dept] = [];
+      }
+      acc[dept].push(contact);
+      return acc;
+    }, {} as Record<string, Contact[]>);
+  }, [filteredContacts]);
 
   // Сортировка отделов (сначала с названием, потом "Без отдела")
-  const sortedDepartments = Object.keys(contactsByDepartment).sort((a, b) => {
-    if (a === 'Без отдела') return 1;
-    if (b === 'Без отдела') return -1;
-    return a.localeCompare(b, 'ru');
-  });
+  const sortedDepartments = useMemo(() => {
+    return Object.keys(contactsByDepartment).sort((a, b) => {
+      if (a === 'Без отдела') return 1;
+      if (b === 'Без отдела') return -1;
+      return a.localeCompare(b, 'ru');
+    });
+  }, [contactsByDepartment]);
 
   const canViewContactTodos = Boolean(
     currentUser &&
@@ -445,14 +449,17 @@ export default function ContactsPage() {
       </div>
 
       {/* Main Content - только один скролл */}
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pt-[60px] md:pt-[70px]">
+      <div
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain pt-[60px] md:pt-[70px]"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
         <div className="p-0 md:p-3">
           <div className="max-w-6xl mx-auto">
 
         {/* Contacts grouped by department */}
-        <div className="space-y-3 md:space-y-4 pb-20">
+        <div className="space-y-3 md:space-y-4 pb-32 md:pb-20">
           {sortedDepartments.map((department, index) => (
-            <div key={department} className="rounded-2xl border border-[var(--border-color)] p-2.5 md:p-3.5 md:mx-0 mx-2 mt-[10px] backdrop-blur-xl" style={getDepartmentStyle(index)}>
+            <div key={department} className="rounded-2xl border border-[var(--border-color)] p-2.5 md:p-3.5 md:mx-0 mx-2 mt-[10px] backdrop-blur-xl max-md:backdrop-blur-0" style={getDepartmentStyle(index)}>
               {/* Department Header */}
               <div className="flex items-center gap-2 md:gap-3 px-1 md:px-2 py-1.5 md:py-2 mb-2">
                 <div className="flex items-center gap-2">
@@ -473,9 +480,9 @@ export default function ContactsPage() {
                       setViewingContact(contact);
                       setShowContactCard(true);
                     }}
-                    className="bg-[var(--bg-secondary)]/90 backdrop-blur-md border border-[var(--border-color)] rounded-2xl p-2 md:p-2.5 hover:bg-[var(--bg-glass)] transition-all duration-200 group cursor-pointer"
+                    className="bg-[var(--bg-secondary)]/90 backdrop-blur-md max-md:backdrop-blur-0 border border-[var(--border-color)] rounded-2xl p-2 md:p-2.5 hover:bg-[var(--bg-glass)] transition-all duration-200 group cursor-pointer"
                   >
-                    <div className="flex items-center gap-2 md:gap-3">
+                    <div className="flex items-start gap-2.5 md:items-center md:gap-3">
                       {/* Avatar */}
                       <Avatar
                         type="user"
@@ -487,16 +494,16 @@ export default function ContactsPage() {
 
                       {/* Main Info */}
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-xs md:text-sm truncate">
+                        <h3 className="font-semibold text-[16px] leading-[1.2] md:text-sm truncate">
                           {contact.name || contact.username || 'Без имени'}
                         </h3>
-                        <p className="text-[10px] md:text-xs text-[var(--text-muted)] truncate">
+                        <p className="text-[13px] md:text-xs text-[var(--text-muted)] truncate mt-0.5">
                           {contact.position || 'Должность не указана'}
                         </p>
                         {contact.isOnline ? (
-                          <p className="text-[10px] text-green-400 truncate">в сети</p>
+                          <p className="text-[12px] text-green-400 truncate mt-0.5">в сети</p>
                         ) : contact.lastSeen ? (
-                          <p className="text-[10px] text-[var(--text-muted)] truncate">
+                          <p className="text-[12px] text-[var(--text-muted)] truncate mt-0.5">
                             {(() => {
                               const diff = Date.now() - new Date(contact.lastSeen).getTime();
                               const mins = Math.floor(diff / 60000);
@@ -512,8 +519,8 @@ export default function ContactsPage() {
                         ) : null}
                       </div>
 
-                      {/* Quick Actions - всегда видны */}
-                      <div className="flex gap-1 transition-opacity shrink-0">
+                      {/* Quick Actions desktop */}
+                      <div className="hidden md:flex gap-1 transition-opacity shrink-0">
                         {contact.email && (
                           <a 
                             href={`mailto:${contact.email}`}
@@ -594,6 +601,92 @@ export default function ContactsPage() {
                           <CheckSquare className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-700 dark:text-white" />
                         </button>
                       </div>
+                    </div>
+
+                    {/* Quick Actions mobile */}
+                    <div className="mt-2 flex flex-nowrap gap-1.5 md:hidden overflow-x-auto no-scrollbar">
+                      {contact.email && (
+                        <a
+                          href={`mailto:${contact.email}`}
+                          className="inline-flex items-center h-8 px-3 rounded-xl bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] border border-[var(--border-color)] transition-all text-[12px] font-medium text-gray-700 dark:text-white whitespace-nowrap"
+                          title={contact.email}
+                        >
+                          <span>Почта</span>
+                        </a>
+                      )}
+
+                      <button
+                        onClick={async () => {
+                          try {
+                            const myAccountStr = localStorage.getItem('myAccount');
+                            if (!myAccountStr) return;
+                            const myAccount = JSON.parse(myAccountStr) as { id: string };
+                            if (!myAccount.id) return;
+                            if (contact.id === myAccount.id) {
+                              const favId = `favorites_${myAccount.id}`;
+                              window.dispatchEvent(new CustomEvent('shar:open-chat', { detail: { chatId: favId } }));
+                              router.push(`/account?tab=messages&chat=${favId}`);
+                              return;
+                            }
+                            const res = await fetch('/api/chats', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ participantIds: [myAccount.id, contact.id], isGroup: false })
+                            });
+                            if (res.ok) {
+                              const chat = await res.json() as { id?: string };
+                              if (chat?.id) {
+                                window.dispatchEvent(new CustomEvent('shar:open-chat', { detail: { chatId: chat.id } }));
+                                router.push(`/account?tab=messages&chat=${chat.id}`);
+                              }
+                            }
+                          } catch { /* ignore */ }
+                        }}
+                        className="inline-flex items-center h-8 px-3 rounded-xl bg-gradient-to-br from-white/15 to-white/5 hover:from-white/25 hover:to-white/10 border border-white/20 transition-all text-[12px] font-medium text-gray-700 dark:text-white whitespace-nowrap"
+                        title="Написать сообщение"
+                      >
+                        <span>Сообщение</span>
+                      </button>
+
+                      {contact.id !== currentUser?.id && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              const myAccountStr = localStorage.getItem('myAccount');
+                              if (!myAccountStr) return;
+                              const myAccount = JSON.parse(myAccountStr) as { id: string };
+                              if (!myAccount.id || contact.id === myAccount.id) return;
+                              const res = await fetch('/api/chats', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ participantIds: [myAccount.id, contact.id], isGroup: false })
+                              });
+                              if (res.ok) {
+                                const chat = await res.json() as { id?: string };
+                                if (chat?.id) {
+                                  window.dispatchEvent(new CustomEvent('shar:open-chat', { detail: { chatId: chat.id, autoCall: 'voice' } }));
+                                  router.push(`/account?tab=messages&chat=${chat.id}`);
+                                }
+                              }
+                            } catch { /* ignore */ }
+                          }}
+                          className="inline-flex items-center h-8 px-3 rounded-xl bg-gradient-to-br from-white/15 to-white/5 hover:from-white/25 hover:to-white/10 border border-white/20 transition-all text-[12px] font-medium text-gray-700 dark:text-white whitespace-nowrap"
+                          title="Позвонить"
+                        >
+                          <span>Звонок</span>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          setSelectedContact(contact);
+                          setShowListModal(true);
+                        }}
+                        className="inline-flex items-center h-8 px-3 rounded-xl bg-gradient-to-br from-white/15 to-white/5 hover:from-white/25 hover:to-white/10 border border-white/20 transition-all text-[12px] font-medium text-gray-700 dark:text-white whitespace-nowrap"
+                        title="Поставить задачу"
+                      >
+                        <span>Задача</span>
+                      </button>
                     </div>
                   </div>
                 ))}

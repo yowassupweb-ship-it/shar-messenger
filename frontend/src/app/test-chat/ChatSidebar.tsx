@@ -71,7 +71,25 @@ function ChatSidebar({
 }: ChatSidebarProps) {
   const { theme, toggleTheme } = useTheme();
   const [showToolsMenu, setShowToolsMenu] = React.useState(false);
+  const [isOnline, setIsOnline] = React.useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
+  const [notificationPermission, setNotificationPermission] = React.useState<'default' | 'granted' | 'denied' | 'unsupported'>(() => {
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') return 'unsupported';
+    return Notification.permission;
+  });
   const toolsMenuRef = React.useRef<HTMLDivElement>(null);
+
+  const requestNotificationPermission = React.useCallback(async () => {
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') {
+      setNotificationPermission('unsupported');
+      return;
+    }
+    try {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+    } catch {
+      setNotificationPermission(Notification.permission);
+    }
+  }, []);
 
   React.useEffect(() => {
     if (!showToolsMenu) return;
@@ -90,15 +108,40 @@ function ChatSidebar({
     };
   }, [showToolsMenu]);
 
+  React.useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (notificationPermission === 'default') {
+      void requestNotificationPermission();
+    }
+  }, [notificationPermission, requestNotificationPermission]);
+
   const isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
+  const statusTitle = isOnline && notificationPermission === 'granted' ? 'Shar' : 'Подключение...';
+  const statusSubtitle = !isOnline
+    ? 'Нет сети'
+    : (notificationPermission === 'granted'
+      ? 'Все системы в норме'
+      : (notificationPermission === 'unsupported' ? 'Уведомления недоступны' : 'Дайте доступ к уведомлениям'));
   
   return (
-    <div className="w-80 h-full min-h-0 flex flex-col bg-transparent rounded-t-[26px] rounded-b-2xl shadow-lg overflow-hidden relative max-md:w-full max-md:rounded-none max-md:flex-1 max-md:overflow-x-hidden">
+    <div className="w-80 h-full min-h-0 flex flex-col bg-slate-50 dark:bg-[#0f1f3d] rounded-t-[26px] rounded-b-2xl shadow-lg overflow-hidden relative max-md:w-full max-md:rounded-none max-md:flex-1 max-md:overflow-x-hidden">
       {/* Хедер - поиск */}
       <div className="absolute top-0 left-0 right-0 z-10 px-0 pt-0 pb-2 bg-transparent border-0">
-        <div className="flex items-center gap-1 w-full px-0">
+        <div className="grid grid-cols-2 gap-1 w-full px-0">
           {/* Островок поиска */}
-          <div className="h-10 max-md:h-12 mt-[2px] ml-[5px] px-3 max-md:px-4 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 shadow-[0_3px_10px_rgba(0,0,0,0.09)] dark:shadow-[0_3px_10px_rgba(0,0,0,0.45)] inline-flex items-center gap-2 flex-1 min-w-0">
+          <div className="h-10 max-md:h-12 mt-[2px] ml-[5px] px-3 max-md:px-4 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 shadow-[0_3px_10px_rgba(0,0,0,0.09)] dark:shadow-[0_3px_10px_rgba(0,0,0,0.45)] inline-flex items-center gap-2 min-w-0">
             <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
             <input
               type="text"
@@ -109,82 +152,71 @@ function ChatSidebar({
             />
           </div>
           
-          {/* Островок кнопок */}
-          <div ref={toolsMenuRef} className="h-10 max-md:h-12 mt-[2px] mr-[5px] px-1.5 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 shadow-[0_3px_10px_rgba(0,0,0,0.09)] dark:shadow-[0_3px_10px_rgba(0,0,0,0.45)] flex items-center gap-1.5 flex-shrink-0 ml-auto relative">
-            {isMobile ? (
-              <>
+          {/* Островок статуса */}
+          <div ref={toolsMenuRef} className="h-10 max-md:h-12 mt-[2px] mr-[5px] px-2.5 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 shadow-[0_3px_10px_rgba(0,0,0,0.09)] dark:shadow-[0_3px_10px_rgba(0,0,0,0.45)] flex items-center min-w-0 relative">
+            <div className="min-w-0 flex-1 pr-1.5">
+              <div className="text-[11px] max-md:text-[12px] leading-[1.05] font-semibold text-gray-900 dark:text-gray-100 truncate">{statusTitle}</div>
+              <div className="text-[10px] max-md:text-[11px] leading-[1.05] text-gray-500 dark:text-gray-400 truncate">{statusSubtitle}</div>
+            </div>
+            <button
+              onClick={() => setShowToolsMenu(prev => !prev)}
+              className="w-8 h-8 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100/80 dark:hover:bg-slate-700/80 transition-colors flex items-center justify-center"
+              title="Меню"
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
+
+            {showToolsMenu && (
+              <div className="absolute right-0 top-12 min-w-[220px] rounded-2xl border border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl p-1.5 shadow-2xl z-30">
                 <button
-                  onClick={() => setShowToolsMenu(prev => !prev)}
-                  className="w-8 h-8 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100/80 dark:hover:bg-slate-700/80 transition-colors flex items-center justify-center"
-                  title="Меню"
+                  onClick={() => {
+                    toggleTheme();
+                    setShowToolsMenu(false);
+                  }}
+                  className="w-full px-3 py-2 rounded-xl text-left text-sm hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2"
                 >
-                  <MoreVertical className="w-4 h-4" />
+                  {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                  {theme === 'dark' ? 'Светлая тема' : 'Темная тема'}
                 </button>
-                {showToolsMenu && (
-                  <div className="absolute right-0 top-12 min-w-[190px] rounded-2xl border border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl p-1.5 shadow-2xl z-30">
-                    <button
-                      onClick={() => {
-                        toggleTheme();
-                        setShowToolsMenu(false);
-                      }}
-                      className="w-full px-3 py-2 rounded-xl text-left text-sm hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2"
-                    >
-                      {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                      {theme === 'dark' ? 'Светлая тема' : 'Темная тема'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        onToggleArchivedChats();
-                        setShowToolsMenu(false);
-                      }}
-                      className="w-full px-3 py-2 rounded-xl text-left text-sm hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2"
-                    >
-                      <Archive className="w-4 h-4" />
-                      {showArchivedChats ? 'Показать активные чаты' : 'Показать архив'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        onOpenNewChat();
-                        setShowToolsMenu(false);
-                      }}
-                      className="w-full px-3 py-2 rounded-xl text-left text-sm hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Новый чат
-                    </button>
-                  </div>
+                <button
+                  onClick={() => {
+                    onToggleArchivedChats();
+                    setShowToolsMenu(false);
+                  }}
+                  className="w-full px-3 py-2 rounded-xl text-left text-sm hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                >
+                  <Archive className="w-4 h-4" />
+                  {showArchivedChats ? 'Показать активные чаты' : 'Показать архив'}
+                </button>
+                <button
+                  onClick={() => {
+                    onOpenNewChat();
+                    setShowToolsMenu(false);
+                  }}
+                  className="w-full px-3 py-2 rounded-xl text-left text-sm hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Новый чат
+                </button>
+                {notificationPermission !== 'granted' && (
+                  <button
+                    onClick={() => {
+                      void requestNotificationPermission();
+                      setShowToolsMenu(false);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl text-left text-sm hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                  >
+                    <Bell className="w-4 h-4" />
+                    Разрешить уведомления
+                  </button>
                 )}
-              </>
-            ) : (
-              <>
-                <button
-                  className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center justify-center"
-                  title={theme === 'dark' ? 'Светлая тема' : 'Темная тема'}
-                  onClick={toggleTheme}
-                >
-                  {theme === 'dark' ? <Sun className="w-[14px] h-[14px]" /> : <Moon className="w-[14px] h-[14px]" />}
-                </button>
-                <button
-                  onClick={onToggleArchivedChats}
-                  className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center justify-center"
-                  title={showArchivedChats ? 'Показать активные чаты' : 'Показать архив'}
-                >
-                  <Archive className={`w-[14px] h-[14px] ${showArchivedChats ? 'text-blue-500 dark:text-blue-400' : ''}`} />
-                </button>
-                <button
-                  onClick={onOpenNewChat}
-                  className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center justify-center"
-                  title="Новый чат"
-                >
-                  <Plus className="w-[14px] h-[14px]" />
-                </button>
-              </>
+              </div>
             )}
           </div>
         </div>
       </div>
       
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-transparent scrollbar-hide pt-[50px] max-md:pt-[58px] pb-[calc(env(safe-area-inset-bottom)+124px)] md:pb-[96px]">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-slate-50 dark:bg-[#0f1f3d] scrollbar-hide pt-[50px] max-md:pt-[58px] pb-[calc(env(safe-area-inset-bottom)+124px)] md:pb-[96px]">
         {chats.length === 0 ? (
           isLoading ? (
             <div className="space-y-0">
