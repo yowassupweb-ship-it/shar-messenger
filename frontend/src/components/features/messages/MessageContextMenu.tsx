@@ -57,9 +57,11 @@ export default function MessageContextMenu({
 }: MessageContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const reactionBarRef = useRef<HTMLDivElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
   const [coords, setCoords] = useState(position);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [reactionsPosition, setReactionsPosition] = useState<'top' | 'bottom'>('top');
+  const [emojiPickerCoords, setEmojiPickerCoords] = useState({ top: 0, left: 0 });
 
   // Корректировка позиции меню и панели реакций
   useLayoutEffect(() => {
@@ -95,6 +97,55 @@ export default function MessageContextMenu({
       }
     }
   }, [position, message]);
+
+  // Пересчитываем позицию эмоджи-пикера при его открытии
+  useLayoutEffect(() => {
+    if (showEmojiPicker && emojiPickerRef.current) {
+      const pickerWidth = 320; // w-80
+      const pickerHeight = 384; // max-h-96
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const padding = 10; // отступ от края экрана
+
+      let pickerTop = coords.top;
+      let pickerLeft = coords.left;
+
+      // Позиционирование по вертикали
+      if (reactionsPosition === 'top') {
+        // Пикер должен быть сверху от меню
+        pickerTop = coords.top - pickerHeight - 10;
+        // Если не влезает сверху, показываем снизу
+        if (pickerTop < padding) {
+          pickerTop = coords.top + 50;
+        }
+      } else {
+        // Пикер снизу от меню
+        pickerTop = coords.top + 50;
+      }
+
+      // Проверяем, не выходит ли пикер за нижний край
+      if (pickerTop + pickerHeight > viewportHeight - padding) {
+        pickerTop = viewportHeight - pickerHeight - padding;
+      }
+      // Проверяем, не выходит ли за верхний край
+      if (pickerTop < padding) {
+        pickerTop = padding;
+      }
+
+      // Позиционирование по горизонтали
+      // Пытаемся расположить слева от меню
+      if (pickerLeft + pickerWidth > viewportWidth - padding) {
+        // Не влезает справа, сдвигаем влево
+        pickerLeft = viewportWidth - pickerWidth - padding;
+      }
+      // Проверяем левый край
+      if (pickerLeft < padding) {
+        pickerLeft = padding;
+      }
+
+      setEmojiPickerCoords({ top: pickerTop, left: pickerLeft });
+    }
+  }, [showEmojiPicker, coords, reactionsPosition]);
 
   if (!message) return null;
 
@@ -179,15 +230,11 @@ export default function MessageContextMenu({
         <div className="relative">
           {showEmojiPicker ? (
             <div 
+              ref={emojiPickerRef}
               className="fixed z-[100000] transition-all duration-150 ease-out"
               style={{
-                top: reactionsPosition === 'top' 
-                  ? 'auto'
-                  : `${coords.top + 50}px`,
-                bottom: reactionsPosition === 'top'
-                  ? `${window.innerHeight - coords.top + 10}px`
-                  : 'auto',
-                left: `${Math.max(10, Math.min(coords.left, window.innerWidth - 330))}px`
+                top: `${emojiPickerCoords.top}px`,
+                left: `${emojiPickerCoords.left}px`
               }}
             >
               <EmojiPicker
