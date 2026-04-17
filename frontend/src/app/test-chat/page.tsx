@@ -1337,6 +1337,95 @@ export default function TestChat() {
     }
   }, [currentChatId, currentUser]);
 
+  const handleToggleReaction = useCallback(async (messageId: string, emoji: string) => {
+    if (!currentChatId || !currentUser) return;
+
+    const normalizeReactions = (raw: unknown): Record<string, string[]> => {
+      if (!raw || typeof raw !== 'object') return {};
+      return Object.fromEntries(
+        Object.entries(raw as Record<string, unknown>)
+          .map(([key, value]) => [
+            key,
+            Array.from(new Set(Array.isArray(value) ? value.map((id) => String(id)).filter(Boolean) : [])),
+          ])
+          .filter(([, ids]) => ids.length > 0)
+      );
+    };
+
+    const getNextReactions = (current: Record<string, string[]>): Record<string, string[]> => {
+      const prev = current[emoji] || [];
+      const hasMine = prev.includes(String(currentUser.id));
+      const nextForEmoji = hasMine
+        ? prev.filter((id) => id !== String(currentUser.id))
+        : [...prev, String(currentUser.id)];
+
+      const next = { ...current };
+      if (nextForEmoji.length === 0) {
+        delete next[emoji];
+      } else {
+        next[emoji] = nextForEmoji;
+      }
+      return next;
+    };
+
+    const sourceMessage = messages.find((m) => String(m.id) === String(messageId));
+    if (!sourceMessage) return;
+
+    const prevReactions = normalizeReactions((sourceMessage.metadata as any)?.reactions);
+    const nextReactions = getNextReactions(prevReactions);
+
+    const applyReactions = (reactions: Record<string, string[]>) => {
+      setMessages((prev) => prev.map((m) => {
+        if (String(m.id) !== String(messageId)) return m;
+        return {
+          ...m,
+          metadata: {
+            ...(m.metadata || {}),
+            reactions,
+          },
+        };
+      }));
+
+      setMessageCache((prev) => ({
+        ...prev,
+        [currentChatId]: (prev[currentChatId] || []).map((m) => {
+          if (String(m.id) !== String(messageId)) return m;
+          return {
+            ...m,
+            metadata: {
+              ...(m.metadata || {}),
+              reactions,
+            },
+          };
+        }),
+      }));
+    };
+
+    applyReactions(nextReactions);
+
+    try {
+      const res = await fetch(`/api/chats/${currentChatId}/messages/${messageId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metadata: { reactions: nextReactions } }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to update reactions: ${res.status}`);
+      }
+
+      const updated = normalizeMessageAttachments(await res.json());
+      setMessages((prev) => prev.map((m) => String(m.id) === String(messageId) ? { ...m, ...updated } : m));
+      setMessageCache((prev) => ({
+        ...prev,
+        [currentChatId]: (prev[currentChatId] || []).map((m) => String(m.id) === String(messageId) ? { ...m, ...updated } : m),
+      }));
+    } catch (error) {
+      console.error('Error toggling reaction:', error);
+      applyReactions(prevReactions);
+    }
+  }, [currentChatId, currentUser, messages]);
+
   const handleForwardToChat = useCallback(async (targetChatId: string) => {
     if (!forwardingMessage || !currentUser) throw new Error('No message or user');
 
@@ -2047,6 +2136,7 @@ export default function TestChat() {
                   }}
                   setCurrentImageUrl={setCurrentImageUrl}
                   setShowImageModal={setShowImageModal}
+                  onToggleReaction={handleToggleReaction}
                 />
               ) : (
                 <EmptyState 
@@ -2277,6 +2367,7 @@ export default function TestChat() {
           }}
           onLoadCalendars={loadCalendarLists}
           onTogglePin={handleTogglePin}
+          onToggleReaction={handleToggleReaction}
           onSelect={handleStartSelection}
           canPinMessage
         />

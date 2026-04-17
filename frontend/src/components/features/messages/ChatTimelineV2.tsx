@@ -31,6 +31,17 @@ import {
   type ScrollAnchorProps,
 } from '@/lib/timelineUtil';
 
+// ── Twemoji helper ────────────────────────────────────────────────────────────
+function getTwemojiUrl(emoji: string): string {
+  const codepoints: string[] = [];
+  for (const symbol of Array.from(emoji)) {
+    const cp = symbol.codePointAt(0);
+    if (!cp || cp === 0xfe0f) continue;
+    codepoints.push(cp.toString(16));
+  }
+  return `https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/${codepoints.join('-')}.png`;
+}
+
 // ── URL rendering ─────────────────────────────────────────────────────────────
 const URL_REGEX = /https?:\/\/[^\s<>"']+/g;
 
@@ -284,6 +295,7 @@ export interface ChatTimelineV2Props {
   setShowImageModal: (show: boolean) => void;
   onNearBottomChange?: (value: boolean) => void;
   onViewportReadyChange?: (value: boolean) => void;
+  onToggleReaction?: (messageId: string, emoji: string) => void;
   scrollTopPadding?: number;
   scrollBottomPadding?: number;
   enableDragSelect?: boolean;
@@ -941,11 +953,35 @@ export class ChatTimelineV2 extends Component<
               const emojiOnlyFontSize = emojiOnlyCount === 1 ? 56 : emojiOnlyCount === 2 ? 46 : emojiOnlyCount === 3 ? 38 : 32;
               // Media-only: images/video, no text, no files, no quote → Telegram-style overlay timestamp
               const isMediaOnly = hasMedia && !hasTextContent && !msgFiles.length && !message.replyToId;
-              const timestampBottomClass = msgFiles.length > 0 ? 'bottom-0' : (isMultiline ? 'bottom-2' : 'bottom-1');
+              
+              // Check if message has reactions
+              const reactionsData = (message.metadata as any)?.reactions;
+              const hasReactions = reactionsData && typeof reactionsData === 'object' && 
+                Object.values(reactionsData).some((userIds: any) => Array.isArray(userIds) && userIds.length > 0);
+              
+              // Calculate min width for reactions (each reaction ~55px, +N ~35px, timestamp ~60px)
+              const reactionCount = hasReactions 
+                ? Math.min(3, Object.keys(reactionsData).filter(k => {
+                    const val = reactionsData[k];
+                    return Array.isArray(val) && val.length > 0;
+                  }).length)
+                : 0;
+              const hasMoreReactions = hasReactions && Object.keys(reactionsData).filter(k => {
+                const val = reactionsData[k];
+                return Array.isArray(val) && val.length > 0;
+              }).length > 3;
+              const reactionsMinWidth = hasReactions 
+                ? (reactionCount * 58 + (hasMoreReactions ? 35 : 0) + 60) // reactions width + +N indicator + timestamp space
+                : 100;
+              
+              const timestampBottomClass = hasReactions 
+                ? 'bottom-1' 
+                : (msgFiles.length > 0 ? 'bottom-0' : (isMultiline ? 'bottom-2' : 'bottom-1'));
               const fmtSize = (b: number) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
               const isMobileView = !this.props.isDesktopView;
               const bodyFontSize = isMobileView ? '16px' : '14px';
               const bodyLineHeight = isMobileView ? '22px' : '20px';
+              
               const forwardedFromUserId = (
                 message.forwardedFromUserId ||
                 (message.metadata as any)?.forwardedFromUserId ||
@@ -1206,7 +1242,7 @@ export class ChatTimelineV2 extends Component<
                     </div>
                   )}
                   <div
-                    className={`inline-block relative rounded-[18px] ${(isMediaOnly || isEmojiOnly) ? 'overflow-hidden' : 'px-2.5 py-1.5 pb-1.5 min-w-[100px]'} w-fit transition-all ${renderAsNotification ? 'border border-slate-300/70 dark:border-slate-600/70' : ''} ${
+                    className={`inline-block relative rounded-[18px] ${(isMediaOnly || isEmojiOnly) ? (hasReactions ? 'overflow-visible' : 'overflow-hidden') : `px-2.5 py-1.5 pb-1.5 ${hasReactions ? 'overflow-visible' : ''}`} w-fit transition-all ${renderAsNotification ? 'border border-slate-300/70 dark:border-slate-600/70' : ''} ${
                       this.props.selectedMessages.has(String(message.id)) 
                         ? 'ring-2 ring-blue-500 ring-opacity-50'
                         : this.props.activeSearchMessageId === String(message.id)
@@ -1224,6 +1260,7 @@ export class ChatTimelineV2 extends Component<
                     style={{
                       fontFamily: 'Inter, -apple-system, system-ui, sans-serif',
                       width: 'fit-content',
+                      minWidth: `${reactionsMinWidth}px`,
                       maxWidth: isMobileView
                         ? (renderAsNotification ? '92vw' : '86vw')
                         : (renderAsNotification ? 'min(82%, 700px)' : 'min(74%, 620px)'),
@@ -1233,7 +1270,7 @@ export class ChatTimelineV2 extends Component<
                   >
                     {isMediaOnly ? (
                       /* ── Telegram-style: media fills the bubble, timestamp overlays ── */
-                      <div className="relative">
+                      <div className={`relative ${hasReactions ? 'mb-[26px]' : ''}`}>
                         {/* Forwarded message indicator (media-only) */}
                         {forwardedFromName && (
                           <div
@@ -1399,7 +1436,7 @@ export class ChatTimelineV2 extends Component<
                       <>
                         {isEmojiOnly ? (
                           <div
-                            className="pr-[44px] pt-[2px] select-none"
+                            className={`pr-[44px] pt-[2px] select-none ${hasReactions ? 'mb-[26px]' : ''}`}
                             style={{
                               fontSize: `${emojiOnlyFontSize}px`,
                               lineHeight: 1.08,
@@ -1556,7 +1593,7 @@ export class ChatTimelineV2 extends Component<
                         {/* Text */}
                         {hasTextContent ? (
                           <div
-                            className="whitespace-pre-wrap break-words overflow-wrap-anywhere pr-[44px]"
+                            className={`whitespace-pre-wrap break-words overflow-wrap-anywhere pr-[44px] ${hasReactions ? 'mb-[26px]' : ''}`}
                             style={{ fontSize: bodyFontSize, lineHeight: bodyLineHeight, letterSpacing: '-0.08px' }}
                           >
                             <span>{renderTextWithLinksAndHighlight(message.content || '', this.props.messageSearchQuery, this.props.activeSearchMessageId === String(message.id))}</span>
@@ -1567,7 +1604,7 @@ export class ChatTimelineV2 extends Component<
 
                         {/* Files */}
                         {msgFiles.length > 0 && (
-                          <div className="mt-1.5 space-y-1.5 pb-[6px]">
+                          <div className={`mt-1.5 space-y-1.5 pb-[6px] ${hasReactions && !hasTextContent ? 'mb-[26px]' : ''}`}>
                             {msgFiles.map((att: any, idx: number) => (
                               <FileAttachment
                                 key={`${message.id}-file-${idx}`}
@@ -1582,7 +1619,7 @@ export class ChatTimelineV2 extends Component<
                         )}
 
                         {hasNotificationAction && (
-                          <div className="mt-2 mb-1">
+                          <div className={`mt-2 ${hasReactions ? 'mb-[26px]' : 'mb-1'}`}>
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1623,6 +1660,92 @@ export class ChatTimelineV2 extends Component<
                       </>
                     )}
 
+                    {/* Reactions - inside bubble */}
+                    {(() => {
+                      const reactionsData = (message.metadata as any)?.reactions;
+                      if (!reactionsData || typeof reactionsData !== 'object') return null;
+                      
+                      const allReactionEntries = Object.entries(reactionsData)
+                        .map(([emoji, userIds]) => [emoji, Array.isArray(userIds) ? userIds : []])
+                        .filter(([, userIds]) => (userIds as any[]).length > 0);
+                      
+                      if (allReactionEntries.length === 0) return null;
+                      
+                      const currentUserId = this.props.currentUser?.id;
+                      const maxDisplayReactions = 3;
+                      const reactionEntries = allReactionEntries.slice(0, maxDisplayReactions);
+                      const hasMoreReactions = allReactionEntries.length > maxDisplayReactions;
+                      const extraCount = allReactionEntries.length - maxDisplayReactions;
+                      
+                      return (
+                        <div className="absolute bottom-1 left-2 right-[60px] flex items-center gap-1 overflow-visible"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {reactionEntries.map(([emoji, userIds]) => {
+                            const emojiStr = String(emoji);
+                            const reactedByMe = currentUserId ? (userIds as string[]).includes(String(currentUserId)) : false;
+                            const count = (userIds as string[]).length;
+                            
+                            // Get users who reacted (max 3 for avatars)
+                            const reactedUsers = (userIds as string[])
+                              .slice(0, 3)
+                              .map(uid => this.props.users.find(u => String(u.id) === uid))
+                              .filter(Boolean) as User[];
+                            
+                            return (
+                              <button
+                                key={`reaction-${emojiStr}`}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (this.props.onToggleReaction) {
+                                    this.props.onToggleReaction(String(message.id), emojiStr);
+                                  }
+                                }}
+                                className={`inline-flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 rounded-full text-xs transition-all hover:scale-105 ${
+                                  reactedByMe
+                                    ? 'bg-blue-500/20 border border-blue-500/40'
+                                    : 'bg-gray-100/80 dark:bg-gray-800/80 border border-gray-200/40 dark:border-gray-700/40'
+                                }`}
+                                title={`${emojiStr} · ${count}`}
+                              >
+                                <div className="flex items-center -space-x-1">
+                                  {reactedUsers.map((user, idx) => (
+                                    <div
+                                      key={`avatar-${user.id}-${idx}`}
+                                      className="relative w-4 h-4 rounded-full border border-white dark:border-gray-900 overflow-hidden"
+                                      style={{ zIndex: reactedUsers.length - idx }}
+                                    >
+                                      <img
+                                        src={user.avatar || getDiceBearAvatarUrl(String(user.id))}
+                                        alt=""
+                                        className="w-full h-full object-cover"
+                                        draggable={false}
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                                <img
+                                  src={getTwemojiUrl(emojiStr)}
+                                  alt={emojiStr}
+                                  className="h-[14px] w-[14px] object-contain flex-shrink-0"
+                                  draggable={false}
+                                />
+                                {count > 1 && (
+                                  <span className="text-[10px] font-medium">{count}</span>
+                                )}
+                              </button>
+                            );
+                          })}
+                          {hasMoreReactions && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100/80 dark:bg-gray-800/80 border border-gray-200/40 dark:border-gray-700/40">
+                              +{extraCount}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                     {/* Tail (always) */}
                     {showTail && (
                       <span className={`absolute bottom-[4px] ${isOwnBubble ? '-right-[2px]' : '-left-[2px]'}`} aria-hidden="true">
@@ -1632,6 +1755,7 @@ export class ChatTimelineV2 extends Component<
                       </span>
                     )}
                   </div>
+                  
                   </div>
                 </React.Fragment>
               );

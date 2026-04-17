@@ -158,7 +158,7 @@ export default function ChatInput({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      onSendMessage();
+      sendMessageKeepingFocus();
     }
   };
 
@@ -297,6 +297,27 @@ export default function ChatInput({
   const removeAttachment = (id: string) => {
     if (!onAttachmentsChange) return;
     onAttachmentsChange(attachments.filter(a => a.id !== id));
+  };
+
+  const sendMessageKeepingFocus = () => {
+    const isTouchDevice = typeof window !== 'undefined' && (
+      window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768
+    );
+
+    onSendMessage();
+
+    if (!isTouchDevice) return;
+
+    const refocus = () => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      textarea.focus({ preventScroll: true });
+      const cursorPos = textarea.value.length;
+      textarea.setSelectionRange(cursorPos, cursorPos);
+    };
+
+    requestAnimationFrame(refocus);
+    window.setTimeout(refocus, 70);
   };
 
   useEffect(() => {
@@ -504,7 +525,10 @@ export default function ChatInput({
 
         <div className="flex-shrink-0">
           <button
-            onClick={onSendMessage}
+            onMouseDown={(e) => e.preventDefault()}
+            onPointerDown={(e) => e.preventDefault()}
+            onTouchStart={(e) => e.preventDefault()}
+            onClick={sendMessageKeepingFocus}
             disabled={!messageText.trim() && attachments.length === 0}
             className="w-11 h-11 md:w-10 md:h-10 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 flex items-center justify-center transition-colors text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:cursor-not-allowed"
             title={editingMessageId ? "Сохранить" : "Отправить"}

@@ -3,7 +3,11 @@
 import { useState, useEffect, type ChangeEvent } from 'react';
 import { X, Image as ImageIcon, FileText, Link as LinkIcon, Bell, BellOff, Trash2, Archive, ChevronRight, Copy, Check, Video, File, Camera, UserPlus, UserMinus } from 'lucide-react';
 import type { Chat, Message, User } from '@/components/features/messages/types';
-import { getAvatarGradient, getInitials } from './avatarUtils';
+import { getInitials } from './avatarUtils';
+
+function getDiceBearAvatarUrl(seed: string): string {
+  return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundColor=1e40af,7c3aed,db2777,dc2626,ea580c,ca8a04,65a30d,059669,0891b2`;
+}
 
 interface ChatProfileProps {
   chat: Chat;
@@ -232,8 +236,6 @@ export default function ChatProfile({
             {(chat.participantIds || []).map(pid => {
               const user = users.find(u => String(u.id) === String(pid));
               const userName = user?.name || user?.username || user?.email || pid;
-              const avatarColor = getAvatarGradient(String(pid));
-              const initials = getInitials(userName);
               const canRemove = canManageGroup && String(pid) !== String(currentUser?.id) && !!onRemoveParticipant;
 
               return (
@@ -248,11 +250,11 @@ export default function ChatProfile({
                       className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                     />
                   ) : (
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br ${avatarColor} text-white font-semibold text-sm flex-shrink-0`}
-                    >
-                      {initials}
-                    </div>
+                    <img
+                      src={getDiceBearAvatarUrl(userName)}
+                      alt={userName}
+                      className="w-10 h-10 rounded-full flex-shrink-0"
+                    />
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
@@ -344,11 +346,11 @@ export default function ChatProfile({
             {chat.avatar ? (
               <img src={chat.avatar} alt={displayTitle} className="w-24 h-24 rounded-full object-cover shadow-lg" />
             ) : (
-              <div
-                className={`w-24 h-24 rounded-full flex items-center justify-center bg-gradient-to-br ${getAvatarGradient(chat.id)} text-white font-bold text-3xl shadow-lg`}
-              >
-                {getInitials(displayTitle)}
-              </div>
+              <img
+                src={getDiceBearAvatarUrl(displayTitle || chat.id)}
+                alt={displayTitle}
+                className="w-24 h-24 rounded-full shadow-lg"
+              />
             )}
             {isGroupChat && canManageGroup && onUpdateChatAvatar && (
               <label className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center cursor-pointer shadow-lg hover:bg-blue-700 transition-colors">

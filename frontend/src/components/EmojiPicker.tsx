@@ -5,6 +5,16 @@ interface EmojiPickerProps {
   onClose: () => void;
 }
 
+function getTwemojiUrl(emoji: string): string {
+  const codepoints: string[] = [];
+  for (const symbol of Array.from(emoji)) {
+    const cp = symbol.codePointAt(0);
+    if (!cp || cp === 0xfe0f) continue;
+    codepoints.push(cp.toString(16));
+  }
+  return `https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/${codepoints.join('-')}.png`;
+}
+
 // Эмодзи как в Telegram - самые популярные
 const popularEmojis = [
   '😂', '😭', '🥰', '😍', '🤣', '😊', '🙏', '💕', '😘', '🥺', '😩', '🔥', '👍', '😁', '♥️', '🤦', '🤷', '😅', '😆', '👏',
@@ -51,10 +61,15 @@ export default function EmojiPicker({ onEmojiSelect, onClose }: EmojiPickerProps
                 onEmojiSelect(emoji);
                 onClose();
               }}
-              className="w-9 h-9 rounded-lg hover:bg-white/10 flex items-center justify-center text-2xl transition-all hover:scale-110 active:scale-95"
+              className="w-9 h-9 rounded-lg hover:bg-white/10 flex items-center justify-center transition-all hover:scale-110 active:scale-95"
               title={emoji}
             >
-              <span className="emoji-native">{emoji}</span>
+              <img
+                src={getTwemojiUrl(emoji)}
+                alt={emoji}
+                className="h-7 w-7 object-contain"
+                draggable={false}
+              />
             </button>
           ))}
         </div>

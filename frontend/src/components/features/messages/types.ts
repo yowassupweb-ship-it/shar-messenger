@@ -18,6 +18,8 @@ export interface CallInfo {
   timestamp: Date;
 }
 
+export type MessageReactions = Record<string, string[]>;
+
 export interface Message {
   id: string;
   chatId: string;
@@ -60,6 +62,7 @@ export interface Message {
     pinnedAt?: string;
     pinnedMessageId?: string;
     preview?: string;
+    reactions?: MessageReactions;
   };
 }
 

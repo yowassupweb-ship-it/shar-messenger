@@ -1,6 +1,16 @@
 import { Search, Clock3, Smile, Heart, Cat, Coffee, Car, Lightbulb, Flag, Activity, Music, Trophy } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
+function getTwemojiUrl(emoji: string): string {
+  const codepoints: string[] = [];
+  for (const symbol of Array.from(emoji)) {
+    const cp = symbol.codePointAt(0);
+    if (!cp || cp === 0xfe0f) continue;
+    codepoints.push(cp.toString(16));
+  }
+  return `https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/${codepoints.join('-')}.png`;
+}
+
 type EmojiCategory = {
   id: string;
   label: string;
@@ -15,13 +25,14 @@ const CATEGORIES: EmojiCategory[] = [
     label: 'Смайлы и эмоции', 
     icon: Smile, 
     items: [
-      '😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😇',
-      '🥰','😍','🤩','😘','😗','😚','😙','🥲','😋','😛','😜','🤪','😝',
+      '👍','🤝','😁','❤️','👎','🔥','🥰','😂','😭','🙏','😍',
+      '😀','😃','😄','😆','😅','🤣','🙂','🙃','😉','😊','😇',
+      '🤩','😘','😗','😚','😙','🥲','😋','😛','😜','🤪','😝',
       '🤑','🤗','🤭','🤫','🤔','🤐','🤨','😐','😑','😶','😏','😒','🙄',
       '😬','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🤧',
       '🥵','🥶','🥴','😵','🤯','🤠','🥳','🥸','😎','🤓','🧐','😕','😟',
       '🙁','☹️','😮','😯','😲','😳','🥺','😦','😧','😨','😰','😥','😢',
-      '😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬',
+      '😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬',
       '😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖','😺',
       '😸','😹','😻','😼','😽','🙀','😿','😾'
     ] 
@@ -256,15 +267,15 @@ export default function EmojiPicker({ recents, onSelect }: EmojiPickerProps) {
   }, [categories, activeCategory, query]);
 
   return (
-    <div className="w-[320px] max-w-[90vw] h-[360px] rounded-2xl border border-[var(--border-light)] bg-[var(--bg-primary)] shadow-2xl overflow-hidden flex flex-col">
-      <div className="p-2 border-b border-[var(--border-light)]">
+    <div className="w-[320px] max-w-[90vw] h-[360px] rounded-2xl border border-[var(--border-light)] bg-[var(--bg-secondary)] shadow-2xl overflow-hidden flex flex-col backdrop-blur-xl">
+      <div className="p-2 border-b border-[var(--border-primary)]">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Поиск emoji"
-            className="w-full h-9 pl-9 pr-3 rounded-lg border border-[var(--border-light)] bg-[var(--bg-glass)] text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
+            className="w-full h-9 pl-9 pr-3 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-glass)] text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] transition-colors"
           />
         </div>
       </div>
@@ -279,7 +290,7 @@ export default function EmojiPicker({ recents, onSelect }: EmojiPickerProps) {
             e.preventDefault();
           }
         }}
-        className="px-2 py-1 border-b border-[var(--border-light)] flex items-center gap-1 overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide"
+        className="px-2 py-1 border-b border-[var(--border-primary)] flex items-center gap-1 overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
       >
         {categories.map(cat => {
@@ -290,7 +301,7 @@ export default function EmojiPicker({ recents, onSelect }: EmojiPickerProps) {
               key={cat.id}
               onClick={() => setActiveCategory(cat.id)}
               title={cat.label}
-              className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center border ${active ? 'bg-[var(--bg-glass-active)] text-[var(--accent-primary)] border-[var(--border-primary)]' : 'text-[var(--text-muted)] border-transparent hover:bg-[var(--bg-glass)] hover:text-[var(--text-primary)]'}`}
+              className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center border transition-all ${active ? 'bg-[var(--accent-primary)] text-white border-[var(--accent-primary)] shadow-lg' : 'text-[var(--text-muted)] border-transparent hover:bg-[var(--bg-glass-hover)] hover:text-[var(--text-primary)] hover:scale-110'}`}
             >
               <Icon className="w-4 h-4" />
             </button>
@@ -304,9 +315,14 @@ export default function EmojiPicker({ recents, onSelect }: EmojiPickerProps) {
             <button
               key={`${emoji}-${idx}`}
               onClick={() => onSelect(emoji)}
-              className="h-9 rounded-md text-[22px] leading-none hover:bg-[var(--bg-glass)] transition-colors"
+              className="h-9 rounded-md flex items-center justify-center hover:bg-[var(--bg-glass-hover)] active:scale-95 transition-all"
             >
-              {emoji}
+              <img
+                src={getTwemojiUrl(emoji)}
+                alt={emoji}
+                className="h-[26px] w-[26px] object-contain"
+                draggable={false}
+              />
             </button>
           ))}
         </div>
