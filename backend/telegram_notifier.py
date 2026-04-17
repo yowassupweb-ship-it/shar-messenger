@@ -105,6 +105,16 @@ class TelegramNotifier:
         message = f"❌ <b>Ошибка: {error_type}</b>\n\n" \
                  f"{error_message}"
         self.send_notification(message)
+    
+    def notify_reaction(self, user_name: str, emoji: str, message_content: str, chat_title: str = None):
+        """Уведомление о новой реакции на сообщение"""
+        chat_info = f" в чате «{chat_title}»" if chat_title else ""
+        # Обрезаем длинные сообщения
+        preview = message_content[:50] + "..." if len(message_content) > 50 else message_content
+        message = f"{emoji} <b>Новая реакция</b>\n\n" \
+                 f"От: {user_name}\n" \
+                 f"На сообщение: {preview}{chat_info}"
+        self.send_notification(message)
 
 # Глобальный экземпляр
 telegram = TelegramNotifier()

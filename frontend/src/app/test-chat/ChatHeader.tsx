@@ -4,7 +4,7 @@ import type { Message } from '@/components/features/messages/types';
 import PinnedMessageBar from './PinnedMessageBar';
 
 function getDiceBearUrl(seed: string) {
-  return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundColor=1e40af,7c3aed,db2777,dc2626,ea580c,ca8a04,65a30d,059669,0891b2`;
+  return `https://api.dicebear.com/9.x/thumbs/svg?seed=${encodeURIComponent(seed)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
 }
 
 /** Аватар с 2-уровневым фолбэком: src → DiceBear → градиент+инициали */

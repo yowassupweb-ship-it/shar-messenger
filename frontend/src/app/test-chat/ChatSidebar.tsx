@@ -128,7 +128,7 @@ function ChatSidebar({
   }, [notificationPermission, requestNotificationPermission]);
 
   const isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
-  const statusTitle = 'Shar';
+  const statusTitle = 'Shar OS';
   
   return (
     <div className="w-80 h-full min-h-0 flex flex-col bg-slate-50 dark:bg-[#0f1f3d] rounded-t-[26px] rounded-b-2xl shadow-lg overflow-hidden relative max-md:w-full max-md:rounded-none max-md:flex-1 max-md:overflow-x-hidden">

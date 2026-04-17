@@ -56,10 +56,12 @@ export default function MessageContextMenu({
   canPinMessage = true,
 }: MessageContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const reactionBarRef = useRef<HTMLDivElement>(null);
   const [coords, setCoords] = useState(position);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [reactionsPosition, setReactionsPosition] = useState<'top' | 'bottom'>('top');
 
-  // Корректировка позиции меню, чтобы оно не вылезало за границы экрана
+  // Корректировка позиции меню и панели реакций
   useLayoutEffect(() => {
     if (menuRef.current) {
       const rect = menuRef.current.getBoundingClientRect();
@@ -79,6 +81,18 @@ export default function MessageContextMenu({
       }
 
       setCoords({ top, left });
+
+      // Определяем позицию панели реакций (сверху или снизу)
+      const reactionBarHeight = 48; // примерная высота панели реакций
+      const spaceAbove = position.top;
+      const spaceBelow = viewportHeight - position.top;
+      
+      // Если сверху меньше места, показываем снизу
+      if (spaceAbove < reactionBarHeight + 10 && spaceBelow > reactionBarHeight + 10) {
+        setReactionsPosition('bottom');
+      } else {
+        setReactionsPosition('top');
+      }
     }
   }, [position, message]);
 
@@ -164,7 +178,18 @@ export default function MessageContextMenu({
       >
         <div className="relative">
           {showEmojiPicker ? (
-            <div className="relative z-20 transition-all duration-150 ease-out">
+            <div 
+              className="fixed z-[100000] transition-all duration-150 ease-out"
+              style={{
+                top: reactionsPosition === 'top' 
+                  ? 'auto'
+                  : `${coords.top + 50}px`,
+                bottom: reactionsPosition === 'top'
+                  ? `${window.innerHeight - coords.top + 10}px`
+                  : 'auto',
+                left: `${Math.max(10, Math.min(coords.left, window.innerWidth - 330))}px`
+              }}
+            >
               <EmojiPicker
                 mode="inline"
                 onEmojiSelect={handleEmojiPickerSelect}
@@ -173,7 +198,14 @@ export default function MessageContextMenu({
             </div>
           ) : (
             <>
-              <div className="absolute left-1/2 -top-1 z-10 -translate-x-1/2 -translate-y-full">
+              <div 
+                ref={reactionBarRef}
+                className={`absolute left-1/2 -translate-x-1/2 z-10 ${
+                  reactionsPosition === 'top' 
+                    ? '-top-1 -translate-y-full' 
+                    : 'top-full mt-1'
+                }`}
+              >
               <div className="relative flex items-center gap-0.5 rounded-[16px] bg-[#4B446E] px-1.5 py-1 shadow-2xl border border-white/10 transition-all duration-150 ease-out">
                 {reactionOptions.map((emoji) => {
                   const selectedByMe = Boolean(currentUser?.id && reactions[emoji]?.includes(String(currentUser.id)));

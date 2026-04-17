@@ -5885,6 +5885,16 @@ def update_message(chat_id: str, message_id: str, update_data: dict):
     if 'content' not in update_data and 'metadata' not in update_data and 'isPinned' not in update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
 
+    # Получаем текущее сообщение для проверки изменений
+    old_message = None
+    if hasattr(db, 'conn'):
+        old_row = db.conn.fetch_one("SELECT * FROM messages WHERE id = %s", (message_id,))
+        if old_row:
+            old_message = dict(old_row)
+    else:
+        chat_messages = db.get_chat_messages(chat_id) or []
+        old_message = next((msg for msg in chat_messages if str(msg.get('id')) == message_id), None)
+
     # PostgreSQL path: обновляем и возвращаем запись атомарно
     if hasattr(db, 'conn'):
         if 'content' in update_data:
@@ -5917,7 +5927,49 @@ def update_message(chat_id: str, message_id: str, update_data: dict):
 
         if not row:
             raise HTTPException(status_code=404, detail="Message not found")
-        return snake_to_camel(dict(row))
+        
+        updated_message = dict(row)
+        
+        # Проверяем, добавилась ли новая реакция
+        if 'metadata' in update_data and 'reactions' in update_data['metadata']:
+            try:
+                old_reactions = (old_message.get('metadata') or {}).get('reactions') or {} if old_message else {}
+                new_reactions = update_data['metadata']['reactions']
+                
+                # Находим новые реакции
+                for emoji, user_ids in new_reactions.items():
+                    old_user_ids = old_reactions.get(emoji, [])
+                    new_user_ids = [uid for uid in user_ids if uid not in old_user_ids]
+                    
+                    # Если есть новые пользователи, отправляем уведомление
+                    if new_user_ids and updated_message.get('author_id'):
+                        # Получаем информацию о пользователе, который поставил реакцию
+                        reactor_id = new_user_ids[0]  # берем первого нового
+                        reactor = db.get_user(str(reactor_id))
+                        author = db.get_user(str(updated_message['author_id']))
+                        
+                        if reactor and author and str(reactor_id) != str(updated_message['author_id']):
+                            # Отправляем уведомление только если реакцию поставил не автор сообщения
+                            reactor_name = reactor.get('name') or reactor.get('username', 'Пользователь')
+                            message_content = updated_message.get('content', '')
+                            
+                            # Получаем название чата
+                            chat = None
+                            if hasattr(db, 'conn'):
+                                chat_row = db.conn.fetch_one("SELECT * FROM chats WHERE id = %s", (chat_id,))
+                                if chat_row:
+                                    chat = dict(chat_row)
+                            else:
+                                chats = db.get_chats(str(updated_message['author_id']))
+                                chat = next((c for c in chats if str(c.get('id')) == chat_id), None)
+                            
+                            chat_title = chat.get('title') if chat else None
+                            
+                            telegram.notify_reaction(reactor_name, emoji, message_content, chat_title)
+            except Exception as e:
+                logger.error(f"Failed to send reaction notification: {e}")
+        
+        return snake_to_camel(updated_message)
 
     # JSON fallback path
     chat_messages = db.get_chat_messages(chat_id) or []
@@ -5940,6 +5992,33 @@ def update_message(chat_id: str, message_id: str, update_data: dict):
     updated_message = next((msg for msg in refreshed_messages if str(msg.get('id')) == message_id), None)
     if not updated_message:
         raise HTTPException(status_code=404, detail="Message not found")
+    
+    # Проверяем реакции для JSON fallback
+    if 'metadata' in update_data and 'reactions' in update_data['metadata']:
+        try:
+            old_reactions = (old_message.get('metadata') or {}).get('reactions') or {} if old_message else {}
+            new_reactions = update_data['metadata']['reactions']
+            
+            for emoji, user_ids in new_reactions.items():
+                old_user_ids = old_reactions.get(emoji, [])
+                new_user_ids = [uid for uid in user_ids if uid not in old_user_ids]
+                
+                if new_user_ids and updated_message.get('authorId'):
+                    reactor_id = new_user_ids[0]
+                    reactor = db.get_user(str(reactor_id))
+                    author = db.get_user(str(updated_message['authorId']))
+                    
+                    if reactor and author and str(reactor_id) != str(updated_message['authorId']):
+                        reactor_name = reactor.get('name') or reactor.get('username', 'Пользователь')
+                        message_content = updated_message.get('content', '')
+                        
+                        chats = db.get_chats(str(updated_message['authorId']))
+                        chat = next((c for c in chats if str(c.get('id')) == chat_id), None)
+                        chat_title = chat.get('title') if chat else None
+                        
+                        telegram.notify_reaction(reactor_name, emoji, message_content, chat_title)
+        except Exception as e:
+            logger.error(f"Failed to send reaction notification: {e}")
 
     return snake_to_camel(updated_message)
 
