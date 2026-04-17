@@ -806,7 +806,17 @@ export default function AccountPage() {
         )}
         {/* Календарь */}
         {hasMountedCalendar && (
-          <div className={`h-full min-w-0 overflow-x-hidden ${activeTab === 'calendar' ? 'block' : 'hidden'}`}>
+          <div
+            className={`h-full min-w-0 overflow-x-hidden ${activeTab === 'calendar' ? 'block' : 'hidden'}`}
+            style={
+              !shouldUseMobileNav
+                ? {
+                    height: `calc(100dvh - env(safe-area-inset-top,0px) - ${accountContentBottomInset}px)`,
+                    minHeight: '560px',
+                  }
+                : undefined
+            }
+          >
             <Suspense fallback={
               <div className="flex items-center justify-center h-full">
                 <div className="text-white/50">Загрузка календаря...</div>

@@ -26,6 +26,7 @@ import './globals.css';
 
 const EventCalendarSelector = dynamic(() => import('@/components/features/messages/EventCalendarSelector'));
 const TaskListSelector = dynamic(() => import('@/components/features/messages/TaskListSelector'));
+const ImageModal = dynamic(() => import('@/components/features/messages/ImageModal'));
 const MESSAGE_POLL_INTERVAL_MS = 1800;
 const PRESENCE_POLL_INTERVAL_MS = 5000;
 const CHAT_LIST_POLL_INTERVAL_MS = 4500;
@@ -61,6 +62,9 @@ export default function TestChat() {
   const [showForwardModal, setShowForwardModal] = useState(false);
   const [showTaskListSelector, setShowTaskListSelector] = useState(false);
   const [showEventCalendarSelector, setShowEventCalendarSelector] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string>('');
+  const [imageZoom, setImageZoom] = useState(1);
   const [selectedMessageForAction, setSelectedMessageForAction] = useState<Message | null>(null);
   const [todoLists, setTodoLists] = useState<any[]>([]);
   const [calendarLists, setCalendarLists] = useState<any[]>([]);
@@ -2027,8 +2031,8 @@ export default function TestChat() {
                       }, 1000);
                     }
                   }}
-                  setCurrentImageUrl={() => {}}
-                  setShowImageModal={() => {}}
+                  setCurrentImageUrl={setCurrentImageUrl}
+                  setShowImageModal={setShowImageModal}
                 />
               ) : (
                 <EmptyState 
@@ -2326,6 +2330,14 @@ export default function TestChat() {
         currentUser={currentUser}
         currentChatId={currentChatId}
         onForward={handleForwardToChat}
+      />
+
+      <ImageModal
+        isOpen={showImageModal}
+        imageUrl={currentImageUrl}
+        onClose={() => setShowImageModal(false)}
+        zoom={imageZoom}
+        setZoom={setImageZoom}
       />
 
       {showTaskListSelector && selectedMessageForAction && (

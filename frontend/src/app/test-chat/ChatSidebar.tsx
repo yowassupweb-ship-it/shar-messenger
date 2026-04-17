@@ -128,20 +128,27 @@ function ChatSidebar({
   }, [notificationPermission, requestNotificationPermission]);
 
   const isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
-  const statusTitle = isOnline && notificationPermission === 'granted' ? 'Shar' : 'Подключение...';
-  const statusSubtitle = !isOnline
-    ? 'Нет сети'
-    : (notificationPermission === 'granted'
-      ? 'Все системы в норме'
-      : (notificationPermission === 'unsupported' ? 'Уведомления недоступны' : 'Дайте доступ к уведомлениям'));
+  const statusTitle = 'Shar';
   
   return (
     <div className="w-80 h-full min-h-0 flex flex-col bg-slate-50 dark:bg-[#0f1f3d] rounded-t-[26px] rounded-b-2xl shadow-lg overflow-hidden relative max-md:w-full max-md:rounded-none max-md:flex-1 max-md:overflow-x-hidden">
       {/* Хедер - поиск */}
       <div className="absolute top-0 left-0 right-0 z-10 px-0 pt-0 pb-2 bg-transparent border-0">
-        <div className="grid grid-cols-2 gap-1 w-full px-0">
+        <div className="grid grid-cols-[auto_1fr_auto] gap-1 w-full px-0">
+          {/* Островок статуса */}
+          <div className="h-10 max-md:h-12 mt-[2px] ml-[5px] px-5 max-md:px-6 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 shadow-[0_3px_10px_rgba(0,0,0,0.09)] dark:shadow-[0_3px_10px_rgba(0,0,0,0.45)] flex items-center justify-center min-w-[112px] max-md:min-w-[128px]">
+            <div className="inline-flex items-center justify-center gap-2 text-[15px] max-md:text-[17px] leading-none font-semibold text-gray-900 dark:text-gray-100 text-center tracking-[0.01em]">
+              <span className="relative -top-[1px]">{statusTitle}</span>
+              <span
+                className={`w-2 h-2 max-md:w-2.5 max-md:h-2.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-gray-400 dark:bg-gray-500'}`}
+                aria-label={isOnline ? 'online' : 'offline'}
+                title={isOnline ? 'Онлайн' : 'Оффлайн'}
+              />
+            </div>
+          </div>
+
           {/* Островок поиска */}
-          <div className="h-10 max-md:h-12 mt-[2px] ml-[5px] px-3 max-md:px-4 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 shadow-[0_3px_10px_rgba(0,0,0,0.09)] dark:shadow-[0_3px_10px_rgba(0,0,0,0.45)] inline-flex items-center gap-2 min-w-0">
+          <div className="h-10 max-md:h-12 mt-[2px] px-3 max-md:px-4 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 shadow-[0_3px_10px_rgba(0,0,0,0.09)] dark:shadow-[0_3px_10px_rgba(0,0,0,0.45)] inline-flex items-center gap-2 min-w-0">
             <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
             <input
               type="text"
@@ -151,19 +158,15 @@ function ChatSidebar({
               className="w-full min-w-0 py-0 bg-transparent border-0 rounded-full text-sm max-md:text-base text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-0"
             />
           </div>
-          
-          {/* Островок статуса */}
-          <div ref={toolsMenuRef} className="h-10 max-md:h-12 mt-[2px] mr-[5px] px-2.5 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 shadow-[0_3px_10px_rgba(0,0,0,0.09)] dark:shadow-[0_3px_10px_rgba(0,0,0,0.45)] flex items-center min-w-0 relative">
-            <div className="min-w-0 flex-1 pr-1.5">
-              <div className="text-[11px] max-md:text-[12px] leading-[1.05] font-semibold text-gray-900 dark:text-gray-100 truncate">{statusTitle}</div>
-              <div className="text-[10px] max-md:text-[11px] leading-[1.05] text-gray-500 dark:text-gray-400 truncate">{statusSubtitle}</div>
-            </div>
+
+          {/* Отдельная кнопка меню */}
+          <div ref={toolsMenuRef} className="h-10 max-md:h-12 mt-[2px] mr-[5px] relative">
             <button
               onClick={() => setShowToolsMenu(prev => !prev)}
-              className="w-8 h-8 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100/80 dark:hover:bg-slate-700/80 transition-colors flex items-center justify-center"
+              className="w-10 h-10 max-md:w-12 max-md:h-12 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100/80 dark:hover:bg-slate-700/80 transition-colors flex items-center justify-center shadow-[0_3px_10px_rgba(0,0,0,0.09)] dark:shadow-[0_3px_10px_rgba(0,0,0,0.45)]"
               title="Меню"
             >
-              <MoreVertical className="w-4 h-4" />
+              <MoreVertical className="w-4 h-4 max-md:w-5 max-md:h-5" />
             </button>
 
             {showToolsMenu && (

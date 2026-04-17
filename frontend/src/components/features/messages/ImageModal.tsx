@@ -95,19 +95,41 @@ export default function ImageModal({
     }
   };
 
-  const isTauriRuntime = typeof window !== 'undefined' && localStorage.getItem('_platform') === 'tauri';
+  const handleCopyToClipboard = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (typeof navigator === 'undefined' || !navigator.clipboard) return;
+
+    const normalizedUrl = imageUrl.startsWith('http://') || imageUrl.startsWith('https://')
+      ? imageUrl
+      : imageUrl.startsWith('/')
+        ? imageUrl
+        : `/${imageUrl}`;
+
+    try {
+      const response = await fetch(normalizedUrl);
+      if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
+
+      const blob = await response.blob();
+      const clipboardItemCtor = (window as any).ClipboardItem;
+      if (clipboardItemCtor) {
+        const clipboardItem = new clipboardItemCtor({ [blob.type || 'image/png']: blob });
+        await navigator.clipboard.write([clipboardItem]);
+        return;
+      }
+
+      await navigator.clipboard.writeText(normalizedUrl);
+    } catch {
+      try {
+        await navigator.clipboard.writeText(normalizedUrl);
+      } catch {
+        // Ignore clipboard errors to keep modal interaction non-blocking.
+      }
+    }
+  };
 
   const modalContent = (
     <div 
       className="fixed inset-0 z-[99999] bg-black/95 flex items-center justify-center"
-      style={{
-        width: '100vw',
-        height: '100dvh',
-        maxWidth: '100vw',
-        maxHeight: '100dvh',
-        paddingTop: isTauriRuntime ? 'env(safe-area-inset-top, 0px)' : undefined,
-        paddingBottom: isTauriRuntime ? 'env(safe-area-inset-bottom, 0px)' : undefined,
-      }}
       onClick={handleBackdropClick}
     >
       {/* Header с кнопками - десктоп версия */}
@@ -152,6 +174,15 @@ export default function ImageModal({
         {/* Кнопки справа */}
         <div className="flex gap-2">
           <button
+            onClick={handleCopyToClipboard}
+            className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-xl border border-white/20 flex items-center justify-center transition-all"
+            title="Копировать"
+          >
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H7a2 2 0 01-2-2V7a2 2 0 012-2h7a2 2 0 012 2v1m-3 13h4a2 2 0 002-2v-5a2 2 0 00-2-2h-4a2 2 0 00-2 2v5a2 2 0 002 2z" />
+            </svg>
+          </button>
+          <button
             onClick={handleDownload}
             className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-xl border border-white/20 flex items-center justify-center transition-all"
             title="Скачать"
@@ -171,6 +202,15 @@ export default function ImageModal({
 
       {/* Мобильная версия - кнопки НАД хедером */}
       <div className="md:hidden flex flex-col gap-2 absolute top-4 right-4 z-10" onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={handleCopyToClipboard}
+          className="w-12 h-12 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 flex items-center justify-center transition-all backdrop-blur-xl shadow-lg"
+          title="Копировать"
+        >
+          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H7a2 2 0 01-2-2V7a2 2 0 012-2h7a2 2 0 012 2v1m-3 13h4a2 2 0 002-2v-5a2 2 0 00-2-2h-4a2 2 0 00-2 2v5a2 2 0 002 2z" />
+          </svg>
+        </button>
         <button
           onClick={handleDownload}
           className="w-12 h-12 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 flex items-center justify-center transition-all backdrop-blur-xl shadow-lg"
@@ -225,15 +265,11 @@ export default function ImageModal({
         </button>
       </div>
       
-      <div
-        className="w-screen h-[100dvh] max-w-[100vw] max-h-[100dvh] flex items-center justify-center"
-        style={{ minHeight: '100dvh' }}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="w-screen h-[100dvh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
         <img 
           src={imageUrl}
           alt="Full size"
-          className="w-full h-full max-w-[100vw] max-h-[100dvh] object-contain transition-transform duration-200 select-none"
+          className="w-full h-full object-contain transition-transform duration-200 select-none"
           style={{ 
             transform: `scale(${zoom})`,
             cursor: zoom > 1 ? 'grab' : 'default',
