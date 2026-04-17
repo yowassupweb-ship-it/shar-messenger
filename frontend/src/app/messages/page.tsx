@@ -401,11 +401,16 @@ export default function MessagesPage() {
       }
 
       const composerRect = composerEl.getBoundingClientRect();
-      const nextOffset = Math.max(96, Math.round(composerRect.height + electronBottomOffset + 20));
+      const composerStyles = getComputedStyle(composerEl);
+      const composerBottom = Number.parseFloat(composerStyles.bottom || '0');
+      const resolvedComposerBottom = Number.isFinite(composerBottom) ? Math.max(0, composerBottom) : 0;
+      const nextOffset = Math.max(96, Math.round(composerRect.height + resolvedComposerBottom + electronBottomOffset + 20));
       setDesktopComposerDockOffset(nextOffset);
     };
 
+    // Composer can mount after chat selection; defer first measurement to next frame.
     updateDesktopComposerDockOffset();
+    const rafId = requestAnimationFrame(updateDesktopComposerDockOffset);
 
     const resizeObserver = composerContainerRef.current ? new ResizeObserver(updateDesktopComposerDockOffset) : null;
     if (composerContainerRef.current && resizeObserver) {
@@ -416,11 +421,12 @@ export default function MessagesPage() {
     window.addEventListener('composer-resize', updateDesktopComposerDockOffset as EventListener);
 
     return () => {
+      cancelAnimationFrame(rafId);
       resizeObserver?.disconnect();
       window.removeEventListener('resize', updateDesktopComposerDockOffset);
       window.removeEventListener('composer-resize', updateDesktopComposerDockOffset as EventListener);
     };
-  }, []);
+  }, [selectedChat?.id]);
   
   // Обёртки для функций с правильной сигнатурой
   const getChatTitleWrapper = useCallback((chat: Chat) => getChatTitle(chat, currentUser, users), [currentUser, users]);
@@ -3579,7 +3585,7 @@ export default function MessagesPage() {
                 setCurrentImageUrl={setCurrentImageUrl}
                 setShowImageModal={setShowImageModal}
                 hasPinnedMessage={Boolean(activePinnedMessage) && !linkedTaskBanner.id && isPinnedOverlayMobileView}
-                scrollBottomPadding={isDesktopView ? desktopComposerDockOffset : undefined}
+                scrollBottomPadding={desktopComposerDockOffset}
                 onNearBottomChange={(near) => {
                   chatNearBottomRef.current[selectedChat.id] = near;
                   setSelectedChatNearBottom(near);

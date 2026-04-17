@@ -296,19 +296,33 @@ export default function TestChat() {
 
     const updateComposerDockHeight = () => {
       const rect = node.getBoundingClientRect();
-      const next = Math.max(67, Math.ceil(rect.height) + 10);
+      const style = window.getComputedStyle(node);
+      const bottom = Number.parseFloat(style.bottom || '0');
+      const resolvedBottom = Number.isFinite(bottom) ? Math.max(0, bottom) : 0;
+      const next = Math.max(67, Math.ceil(rect.height + resolvedBottom + 16));
       setComposerDockHeight(prev => (prev === next ? prev : next));
     };
 
     updateComposerDockHeight();
+    const rafId = requestAnimationFrame(updateComposerDockHeight);
 
     const observer = new ResizeObserver(() => updateComposerDockHeight());
     observer.observe(node);
 
+    window.addEventListener('resize', updateComposerDockHeight);
+    window.addEventListener('composer-resize', updateComposerDockHeight as EventListener);
+    window.visualViewport?.addEventListener('resize', updateComposerDockHeight);
+    window.visualViewport?.addEventListener('scroll', updateComposerDockHeight);
+
     return () => {
+      cancelAnimationFrame(rafId);
       observer.disconnect();
+      window.removeEventListener('resize', updateComposerDockHeight);
+      window.removeEventListener('composer-resize', updateComposerDockHeight as EventListener);
+      window.visualViewport?.removeEventListener('resize', updateComposerDockHeight);
+      window.visualViewport?.removeEventListener('scroll', updateComposerDockHeight);
     };
-  }, [currentChatId, isBelow768, replyTo, editingMessageId, attachments.length, messageText]);
+  }, [currentChatId, isBelow768, replyTo, editingMessageId, attachments.length]);
 
   // Загрузка chatSettings из localStorage
   useEffect(() => {

@@ -51,6 +51,7 @@ export default function ChatInput({
   const [formatMenuPosition, setFormatMenuPosition] = useState({ top: 0, left: 0 });
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
+  const composerWidthClass = 'w-full max-w-[650px] mx-auto px-[5px]';
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -331,30 +332,9 @@ export default function ChatInput({
       ref={composerRef} 
       className="px-0 pt-0 max-md:px-0 bg-transparent border-0 shadow-none pb-[max(calc(env(safe-area-inset-bottom)+5px),5px)] relative"
     >
-      {/* Edit Preview */}
-      {editingMessageId && (
-        <div className="mx-3 mb-1.5 py-2 px-3 bg-orange-50 dark:bg-orange-900/20 border-l-[3px] border-orange-500 dark:border-orange-400 rounded-lg flex items-center gap-2.5">
-          <div className="flex-1 min-w-0 flex items-center gap-1.5">
-            <Edit3 className="w-3 h-3 text-orange-600 dark:text-orange-400 flex-shrink-0" />
-            <div className="text-[12px] md:text-[11px] font-semibold text-orange-600 dark:text-orange-400 leading-tight">
-              Редактирование
-            </div>
-          </div>
-          {onCancelEdit && (
-            <button
-              onClick={onCancelEdit}
-              className="flex-shrink-0 p-0.5 hover:bg-orange-200 dark:hover:bg-orange-800/50 rounded transition-colors"
-              title="Отменить редактирование"
-            >
-              <X className="w-3.5 h-3.5 text-orange-500 dark:text-orange-400" />
-            </button>
-          )}
-        </div>
-      )}
-      
       {/* Signal-style attachment strip */}
       {attachments.length > 0 && (
-        <div className="px-3 pt-2.5 pb-1">
+        <div className={`${composerWidthClass} pt-2.5 pb-1`}>
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide items-end">
             {attachments.map(attachment => (
               <div key={attachment.id} className="relative flex-shrink-0">
@@ -421,7 +401,8 @@ export default function ChatInput({
 
       {/* Editing Preview */}
       {editingMessageId && (
-        <div className="px-3 py-2 mb-1 bg-orange-50/80 dark:bg-orange-900/30 backdrop-blur-sm rounded-lg mx-3 flex items-center gap-2.5">
+        <div className={`${composerWidthClass} py-2 mb-1`}>
+          <div className="bg-orange-50/80 dark:bg-orange-900/30 backdrop-blur-sm rounded-lg px-3 py-2 flex items-center gap-2.5">
           <div className="flex-1 min-w-0">
             <div className="text-[12px] md:text-[11px] font-medium text-orange-600 dark:text-orange-400 leading-tight">
               Редактирование сообщения
@@ -439,12 +420,14 @@ export default function ChatInput({
               <X className="w-3 h-3" />
             </button>
           )}
+          </div>
         </div>
       )}
 
       {/* Reply Preview */}
       {replyTo && !editingMessageId && (
-        <div className="px-3 py-2 mb-1 bg-blue-50/80 dark:bg-blue-900/30 backdrop-blur-sm rounded-lg mx-3 flex items-center gap-2.5">
+        <div className={`${composerWidthClass} py-2 mb-1`}>
+          <div className="bg-blue-50/80 dark:bg-blue-900/30 backdrop-blur-sm rounded-lg px-3 py-2 flex items-center gap-2.5">
           <div className="flex-1 min-w-0">
             <div className="text-[12px] md:text-[11px] font-medium text-blue-600 dark:text-blue-400 leading-tight">
               {replyTo.author}
@@ -462,10 +445,11 @@ export default function ChatInput({
               <X className="w-3 h-3" />
             </button>
           )}
+          </div>
         </div>
       )}
 
-      <div className="flex items-center gap-1 w-full max-w-[650px] mx-auto px-[5px] py-0">
+      <div className={`flex items-center gap-1 ${composerWidthClass} py-0`}>
         <input
           ref={fileInputRef}
           type="file"
@@ -510,6 +494,12 @@ export default function ChatInput({
           >
             <Paperclip className="w-[18px] h-[18px] md:w-[16px] md:h-[16px]" />
           </button>
+
+          {showEmojiPicker && (
+            <div className="absolute bottom-[calc(100%+8px)] left-0 z-50">
+              <EmojiPicker recents={recentEmojis} onSelect={insertEmoji} />
+            </div>
+          )}
         </div>
 
         <div className="flex-shrink-0">
@@ -531,11 +521,6 @@ export default function ChatInput({
         applyFormatting={applyFormatting}
       />
 
-      {showEmojiPicker && (
-        <div className="absolute bottom-[56px] left-[8px] z-50">
-          <EmojiPicker recents={recentEmojis} onSelect={insertEmoji} />
-        </div>
-      )}
     </div>
   );
 }

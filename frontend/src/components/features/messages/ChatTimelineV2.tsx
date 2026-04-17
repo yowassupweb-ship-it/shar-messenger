@@ -102,6 +102,31 @@ function renderTextWithLinks(text: string): React.ReactNode {
   return parts.length === 1 && typeof parts[0] === 'string' ? parts[0] : <>{parts}</>;
 }
 
+function normalizeMediaUrl(rawUrl: unknown): string {
+  const input = String(rawUrl || '').trim();
+  if (!input) return '';
+
+  const uploadMatch = input.match(/\/api\/uploads\/([^?#]+)/i);
+  if (uploadMatch?.[1]) {
+    try {
+      const decoded = decodeURIComponent(uploadMatch[1]);
+      return `/api/uploads/${encodeURIComponent(decoded)}`;
+    } catch {
+      return `/api/uploads/${uploadMatch[1]}`;
+    }
+  }
+
+  if (input.startsWith('/api/uploads/')) {
+    return input.replace(/[?#].*$/, '');
+  }
+
+  return input;
+}
+
+function getDiceBearAvatarUrl(seed: string): string {
+  return `https://api.dicebear.com/9.x/thumbs/svg?seed=${encodeURIComponent(seed)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+}
+
 // ── Lazy image with Telegram-style fade-in effect + in-memory cache ───────────
 const imgLoadedCache = new Set<string>();
 const IMG_CACHE_STORAGE_KEY = 'chat_timeline_loaded_images_v1';
@@ -874,10 +899,36 @@ export class ChatTimelineV2 extends Component<
               const avatarSourceUser = renderAsNotification
                 ? (notificationActorById || notificationActorByName || author)
                 : author;
-              const showAvatar = this.props.isDesktopView && !isOwnBubble && !!avatarSourceUser && isLastInGroup;
+              const selectedChatAny = this.props.selectedChat as any;
+              const selectedChatParticipantIds: string[] = Array.isArray(selectedChatAny?.participantIds)
+                ? selectedChatAny.participantIds.map((id: unknown) => String(id))
+                : [];
+              const currentUserId = String(this.props.currentUser?.id || '');
+              const directChatOtherParticipantId = !renderAsNotification && !selectedChatAny?.isGroup
+                ? selectedChatParticipantIds.find((id) => id !== currentUserId)
+                : undefined;
+              const directChatOtherUser = directChatOtherParticipantId
+                ? this.props.users.find((u) => String(u.id) === directChatOtherParticipantId)
+                : undefined;
+              const bubbleAvatarUrl = avatarSourceUser?.avatar || directChatOtherUser?.avatar || selectedChatAny?.avatar;
+              const bubbleAvatarName =
+                avatarSourceUser?.name ||
+                avatarSourceUser?.username ||
+                directChatOtherUser?.name ||
+                directChatOtherUser?.username ||
+                selectedChatAny?.displayTitle ||
+                selectedChatAny?.title ||
+                'U';
+              const bubbleAvatarFallbackUrl = bubbleAvatarUrl
+                ? ''
+                : getDiceBearAvatarUrl(String(bubbleAvatarName || selectedChatAny?.id || message.authorId || 'user'));
+              const showAvatar = this.props.isDesktopView && !isOwnBubble && isLastInGroup;
               const isMultiline = String(message.content || '').includes('\n');
               // Attachment classification
-              const msgAtts: any[] = (message.attachments as any[]) || [];
+              const msgAtts: any[] = ((message.attachments as any[]) || []).map((att: any) => ({
+                ...att,
+                url: normalizeMediaUrl(att?.url),
+              }));
               const msgImages = msgAtts.filter((a: any) => a.type === 'image');
               const msgVideos = msgAtts.filter((a: any) => a.type === 'video');
               const msgFiles  = msgAtts.filter((a: any) => a.type !== 'image' && a.type !== 'video');
@@ -918,7 +969,7 @@ export class ChatTimelineV2 extends Component<
                 const rawHeight = Number(att?.height) || 0;
                 const ratio = rawWidth > 0 && rawHeight > 0 ? rawWidth / rawHeight : 4 / 3;
                 const clampedRatio = Math.max(0.55, Math.min(2.2, ratio));
-                const targetWidth = 320;
+                const targetWidth = hasTextContent || msgFiles.length > 0 ? (isMobileView ? 260 : 290) : 320;
                 const targetHeight = Math.round(Math.max(120, Math.min(320, targetWidth / clampedRatio)));
                 return { width: targetWidth, height: targetHeight };
               };
@@ -1135,16 +1186,16 @@ export class ChatTimelineV2 extends Component<
                     <div className="flex-shrink-0 w-7 h-7 flex items-end justify-center">
                       {showAvatar && (
                         <>
-                          {avatarSourceUser?.avatar ? (
+                          {(bubbleAvatarUrl || bubbleAvatarFallbackUrl) ? (
                             <img
-                              src={avatarSourceUser.avatar}
-                              alt={avatarSourceUser.name || avatarSourceUser.username || 'avatar'}
+                              src={bubbleAvatarUrl || bubbleAvatarFallbackUrl}
+                              alt={bubbleAvatarName || 'avatar'}
                               className="w-7 h-7 rounded-full object-cover"
                             />
                           ) : (
                             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white text-[11px] font-bold flex items-center justify-center">
                               {(() => {
-                                const name = avatarSourceUser?.name || avatarSourceUser?.username || 'U';
+                                const name = bubbleAvatarName || 'U';
                                 const words = name.trim().split(/\s+/);
                                 return words.length >= 2 ? `${words[0][0]}${words[1][0]}`.toUpperCase() : name.slice(0, 2).toUpperCase();
                               })()}
@@ -1429,7 +1480,7 @@ export class ChatTimelineV2 extends Component<
                                 width={msgImages[0].width}
                                 height={msgImages[0].height}
                                 eager={isRecentMessage}
-                                style={{ width: `${box.width}px`, height: `${box.height}px`, display: 'block' }}
+                                style={{ width: '100%', maxHeight: `${box.height}px`, display: 'block' }}
                                 onClick={(e) => { e.stopPropagation(); openImg(msgImages[0].url, allImgUrls); }}
                               />
                                 );
