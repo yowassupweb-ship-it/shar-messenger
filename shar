@@ -7,6 +7,8 @@ UPDATES_DIR="$APP_DIR/updates"
 FRONTEND_SERVICE="shar-frontend"
 BACKEND_SERVICE="shar-backend"
 SIGNAL_SERVICE="shar-signal"
+LIVEKIT_SERVICE="livekit-server"
+REDIS_SERVICE="redis"
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; DIM='\033[2m'; NC='\033[0m'
@@ -45,6 +47,7 @@ cmd_restart() {
       && ok "$SIGNAL_SERVICE перезапущен" \
       || warn "Не удалось перезапустить $SIGNAL_SERVICE"
   fi
+  # Примечание: LiveKit и Redis перезапускаются через 'shar livekit'
 }
 
 cmd_status() {
@@ -67,6 +70,17 @@ cmd_status() {
     fi
   done
 
+  # Проверка LiveKit (Docker)
+  LIVEKIT_CONTAINER=$(docker ps --format '{{.Names}} {{.Status}}' 2>/dev/null | grep -E 'livekit.*livekit|livekit-server')
+  if [ -n "$LIVEKIT_CONTAINER" ]; then
+    echo -e "  ${GREEN}●${NC} ${BOLD}livekit (docker)${NC} — ${GREEN}running${NC}  ${DIM}$LIVEKIT_CONTAINER${NC}"
+  else
+    LIVEKIT_STOPPED=$(docker ps -a --format '{{.Names}} {{.Status}}' 2>/dev/null | grep -E 'livekit.*livekit|livekit-server')
+    if [ -n "$LIVEKIT_STOPPED" ]; then
+      echo -e "  ${RED}●${NC} ${BOLD}livekit (docker)${NC} — ${RED}stopped${NC}  ${DIM}$LIVEKIT_STOPPED${NC}"
+    fi
+  fi
+
   echo ""
   info "Последние коммиты:"
   cd "$APP_DIR" 2>/dev/null && git log --oneline -5 | while read -r line; do
@@ -87,6 +101,12 @@ cmd_logs() {
       journalctl -u "$svc" -n "$LINES" --no-pager --output=short-iso 2>/dev/null
     fi
   done
+  # Логи LiveKit (Docker)
+  LIVEKIT_CONTAINER=$(docker ps -a --format '{{.Names}}' 2>/dev/null | grep -E 'livekit.*livekit|livekit-server' | head -1)
+  if [ -n "$LIVEKIT_CONTAINER" ]; then
+    echo -e "\n${BOLD}${CYAN}── $LIVEKIT_CONTAINER (docker) ──${NC}"
+    docker logs --tail "$LINES" "$LIVEKIT_CONTAINER" 2>/dev/null
+  fi
 }
 
 cmd_clear() {
@@ -127,6 +147,66 @@ cmd_deploy() {
   ok "Деплой завершён"
 }
 
+cmd_livekit() {
+  header "shar livekit — управление LiveKit"
+  
+  # Поиск Docker контейнеров LiveKit
+  LIVEKIT_CONTAINER=$(docker ps -a --format '{{.Names}}' 2>/dev/null | grep -E 'livekit.*livekit|livekit-server' | head -1)
+  REDIS_CONTAINER=$(docker ps -a --format '{{.Names}}' 2>/dev/null | grep -E 'livekit.*redis|livekit-redis' | head -1)
+  
+  if [ -z "$LIVEKIT_CONTAINER" ]; then
+    warn "LiveKit контейнеры не найдены"
+    echo ""
+    echo "Установите LiveKit:"
+    echo "  cat /var/www/shar/backend/LIVEKIT_SETUP.md"
+    return 1
+  fi
+  
+  info "Найдены контейнеры: $LIVEKIT_CONTAINER, $REDIS_CONTAINER"
+  
+  # Поиск docker-compose.yml
+  COMPOSE_DIR=""
+  for dir in /opt/livekit /root/livekit ~/livekit; do
+    if [ -f "$dir/docker-compose.yml" ]; then
+      COMPOSE_DIR="$dir"
+      break
+    fi
+  done
+  
+  if [ -n "$COMPOSE_DIR" ]; then
+    info "Используется docker-compose в $COMPOSE_DIR"
+    cd "$COMPOSE_DIR" || { warn "Не удалось перейти в $COMPOSE_DIR"; return 1; }
+    
+    docker-compose up -d \
+      && ok "LiveKit контейнеры перезапущены" \
+      || warn "Ошибка перезапуска"
+    
+    echo ""
+    info "Статус контейнеров:"
+    docker-compose ps
+    
+    echo ""
+    info "Логи LiveKit (последние 30 строк):"
+    docker-compose logs --tail=30 livekit 2>/dev/null || docker logs --tail=30 "$LIVEKIT_CONTAINER"
+  else
+    info "docker-compose.yml не найден, перезапуск напрямую"
+    
+    docker start "$LIVEKIT_CONTAINER" \
+      && ok "$LIVEKIT_CONTAINER запущен" \
+      || warn "Ошибка запуска $LIVEKIT_CONTAINER"
+    
+    [ -n "$REDIS_CONTAINER" ] && docker restart "$REDIS_CONTAINER" >/dev/null 2>&1
+    
+    echo ""
+    info "Статус:"
+    docker ps | grep -E 'livekit|redis' || docker ps -a | grep -E 'livekit|redis'
+    
+    echo ""
+    info "Логи (последние 30 строк):"
+    docker logs --tail=30 "$LIVEKIT_CONTAINER"
+  fi
+}
+
 cmd_info() {
   echo -e ""
   echo -e "  ${BOLD}${CYAN}Shar OS CLI${NC}  ${DIM}vokrug-sveta.shar-os.ru${NC}"
@@ -135,6 +215,7 @@ cmd_info() {
   echo -e "    ${CYAN}shar pull${NC}        git pull + npm build + restart"
   echo -e "    ${CYAN}shar restart${NC}     перезапуск всех сервисов"
   echo -e "    ${CYAN}shar deploy${NC}      pull + build + electron installer"
+  echo -e "    ${CYAN}shar livekit${NC}     перезапуск LiveKit + Redis"
   echo -e ""
   echo -e "  ${BOLD}Мониторинг${NC}"
   echo -e "    ${CYAN}shar status${NC}      состояние сервисов, диск, коммиты"
@@ -157,6 +238,7 @@ case "${1:-info}" in
   clear)   cmd_clear ;;
   update)  cmd_update ;;
   deploy)  cmd_deploy ;;
+  livekit) cmd_livekit ;;
   info|-h|--help|help) cmd_info ;;
   *)
     echo -e "${YELLOW}!${NC} Неизвестная команда: $1"

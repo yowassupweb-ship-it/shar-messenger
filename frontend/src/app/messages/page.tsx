@@ -299,6 +299,9 @@ export default function MessagesPage() {
   const activeMessagesChatIdRef = useRef<string | null>(null);
   const latestMessagesRequestSeqRef = useRef(0);
   const latestMessagesRequestByChatRef = useRef<Record<string, number>>({});
+  const pollingMessagesInFlightRef = useRef<Record<string, boolean>>({});
+  const chatsLoadInFlightRef = useRef(false);
+  const lastPollingChatsRefreshAtRef = useRef(0);
   const pendingRestoreChatScrollRef = useRef<string | null>(null);
   const openFromNotificationChatIdRef = useRef<string | null>(null);
   const suppressAutoScrollUntilRef = useRef(0);
@@ -323,6 +326,16 @@ export default function MessagesPage() {
     const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
     return distanceToBottom <= thresholdPx;
   }, [getScrollContainer]);
+
+  const fetchWithTimeout = useCallback(async (url: string, init: RequestInit = {}, timeoutMs: number = 15000) => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }, []);
 
   const forceScrollToBottom = useCallback((smooth: boolean = false) => {
     const container = getScrollContainer();
@@ -1612,6 +1625,12 @@ export default function MessagesPage() {
       return;
     }
 
+    if (chatsLoadInFlightRef.current) {
+      return;
+    }
+
+    chatsLoadInFlightRef.current = true;
+
     const cacheKey = `messages_chats_cache_${currentUser.id}`;
     if (hydratedChatsCacheKeyRef.current !== cacheKey) {
       hydratedChatsCacheKeyRef.current = cacheKey;
@@ -1631,7 +1650,7 @@ export default function MessagesPage() {
 
     // Убрали setIsLoadingChats(true) - loader только при initial load
     try {
-      const res = await fetch(`/api/chats?user_id=${currentUser.id}&include_archived=true`);
+      const res = await fetchWithTimeout(`/api/chats?user_id=${currentUser.id}&include_archived=true`, { cache: 'no-store' }, 15000);
       
       if (res.ok) {
         let data = await res.json();
@@ -1697,7 +1716,7 @@ export default function MessagesPage() {
         // Получаем или создаем чат уведомлений из backend
         if (!hasNotificationsChat) {
           try {
-            const notifRes = await fetch(`/api/chats/notifications/${currentUser.id}`);
+            const notifRes = await fetchWithTimeout(`/api/chats/notifications/${currentUser.id}`, { cache: 'no-store' }, 10000);
             if (notifRes.ok) {
               const notificationsChat = await notifRes.json();
               notificationsChat.pinnedByUser = normalizePinMap(notificationsChat.pinnedByUser || notificationsChat.pinned_by_user);
@@ -1751,11 +1770,15 @@ export default function MessagesPage() {
         // иначе открытый чат получает лишние rerender/restore циклы.
       }
     } catch (error) {
+      if ((error as Error)?.name === 'AbortError') {
+        console.warn('loadChats timeout: backend did not respond in time');
+      }
       console.error('Error loading chats:', error);
     } finally {
       setIsLoadingChats(false); // 🚀 PERFORMANCE: End loading
+      chatsLoadInFlightRef.current = false;
     }
-  }, [currentUser]);
+  }, [currentUser, fetchWithTimeout]);
 
   // Load chats when currentUser is available
   useEffect(() => {
@@ -1805,6 +1828,13 @@ export default function MessagesPage() {
     const normalizedChatId = String(chatId || '').trim();
     if (!normalizedChatId) return;
 
+    if (isPolling && pollingMessagesInFlightRef.current[normalizedChatId]) {
+      return;
+    }
+    if (isPolling) {
+      pollingMessagesInFlightRef.current[normalizedChatId] = true;
+    }
+
     const requestSeq = ++latestMessagesRequestSeqRef.current;
     latestMessagesRequestByChatRef.current[normalizedChatId] = requestSeq;
     const isLatestActiveRequest = () => (
@@ -1838,7 +1868,7 @@ export default function MessagesPage() {
     }
 
     try {
-      const res = await fetch(`/api/chats/${normalizedChatId}/messages`);
+      const res = await fetchWithTimeout(`/api/chats/${normalizedChatId}/messages`, { cache: 'no-store' }, 15000);
       if (res.ok) {
         const data = await res.json();
 
@@ -1867,6 +1897,9 @@ export default function MessagesPage() {
 
         if (isLatestActiveRequest()) {
           setMessagesWithTimelineSnapshot(normalizedChatId, (prev) => (hasMessagesChanged(prev, mergedMessages) ? mergedMessages : prev));
+          if (!isPolling) {
+            setIsLoadingMessages(false);
+          }
         }
 
         try {
@@ -1880,26 +1913,29 @@ export default function MessagesPage() {
         // Отмечаем сообщения как прочитанные (при любой загрузке, если есть новые сообщения)
         if (data.length > 0 && currentUser && isLatestActiveRequest()) {
           const lastMessage = data[data.length - 1];
-          await fetch(`/api/chats/${normalizedChatId}/mark-read`, {
+          void fetchWithTimeout(`/api/chats/${normalizedChatId}/mark-read`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               userId: currentUser.id,
               lastMessageId: lastMessage.id
             })
+          }, 8000).catch((error) => {
+            console.warn('mark-read request failed:', error);
           });
         }
         
-        // При polling обновляем список чатов, но не перетираем selectedChat.
+        // При polling обновляем список чатов ограниченно по частоте,
+        // чтобы избежать каскада фоновых запросов и UI подлагиваний.
         if (isPolling && currentUser) {
-          const chatRes = await fetch(`/api/chats?user_id=${currentUser.id}&include_archived=true`);
-          if (chatRes.ok) {
-            const allChats = await chatRes.json();
-            setChats(allChats);
+          const now = Date.now();
+          if (now - lastPollingChatsRefreshAtRef.current > 12000) {
+            lastPollingChatsRefreshAtRef.current = now;
+            void loadChats();
           }
         } else if (!isPolling) {
           // Обновляем счетчики непрочитанных при первой загрузке
-          loadChats();
+          void loadChats();
         }
       } else {
         const errorData = await res.json().catch(() => null);
@@ -1909,11 +1945,17 @@ export default function MessagesPage() {
         }
       }
     } catch (error) {
+      if ((error as Error)?.name === 'AbortError') {
+        console.warn('loadMessages timeout for chat:', normalizedChatId);
+      }
       console.error('Error loading messages:', error);
     } finally {
       if (!isPolling && isLatestActiveRequest()) setIsLoadingMessages(false);
+      if (isPolling) {
+        pollingMessagesInFlightRef.current[normalizedChatId] = false;
+      }
     }
-  }, [messagesListRef, messages, messageInputRef, currentUser, loadChats, updateUserStatus, recoverFromMissingChat, chats, selectedChat, isNoAutoScrollChat, isAutoScrollSuppressed, hasMessagesChanged, setMessagesWithTimelineSnapshot]);
+  }, [currentUser, loadChats, updateUserStatus, recoverFromMissingChat, hasMessagesChanged, setMessagesWithTimelineSnapshot, fetchWithTimeout]);
 
   const createChat = async () => {
     if (!currentUser || selectedUsers.length === 0) return;
@@ -2052,8 +2094,18 @@ export default function MessagesPage() {
 
   const sendMessage = useCallback(async () => {
     const messageText = messageInputRef.current?.value || '';
+    const readyAttachments = attachments.filter((att: any) => {
+      if (!att || typeof att !== 'object') return false;
+      if (att.status === 'uploading' || att.status === 'error') return false;
+      if (att.type === 'file' || att.type === 'image') return Boolean(String(att.url || '').trim());
+      return true;
+    }).map((att: any) => {
+      const { status, clientUploadId, ...rest } = att;
+      return rest;
+    });
+
     // Проверяем: должен быть либо текст, либо вложения
-    if ((!messageText.trim() && attachments.length === 0) || !selectedChat || !currentUser || !selectedChat.id) return;
+    if ((!messageText.trim() && readyAttachments.length === 0) || !selectedChat || !currentUser || !selectedChat.id) return;
 
     const shouldKeepComposerFocus = typeof window !== 'undefined'
       && window.matchMedia('(pointer: coarse)').matches;
@@ -2077,7 +2129,7 @@ export default function MessagesPage() {
       content: messageText,
       mentions: [],
       replyToId: replyToMessage?.id,
-      attachments: attachments.length > 0 ? attachments : undefined,
+      attachments: readyAttachments.length > 0 ? readyAttachments : undefined,
       createdAt: new Date().toISOString(),
       isEdited: false,
     };
@@ -2107,7 +2159,7 @@ export default function MessagesPage() {
       content: messageText,
       mentions: [],
       replyToId: replyToMessage?.id,
-      attachments: attachments.length > 0 ? attachments : undefined,
+      attachments: readyAttachments.length > 0 ? readyAttachments : undefined,
     };
 
     try {

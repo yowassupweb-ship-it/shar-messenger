@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Send, X, Paperclip, FileText, Link as LinkIcon, Calendar, Image, File, Upload, Smile, Check, Edit3, Reply, Loader2 } from 'lucide-react';
+import { Send, X, Paperclip, FileText, Link as LinkIcon, Calendar, Image, File, Upload, Smile, Check, Edit3, Reply, Loader2, AlertCircle } from 'lucide-react';
 import Avatar from '@/components/common/data-display/Avatar';
 import EmojiPicker from '@/components/common/overlays/EmojiPicker';
 import { Chat, User, Message } from './types';
@@ -83,6 +83,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
 }) => {
   const DEFAULT_CHROMIUM_IMAGE_FILENAME = 'image.png';
   const dragDepthRef = React.useRef(0);
+  const activeUploadsRef = React.useRef(0);
 
   const hasFilePayload = React.useCallback((transfer: DataTransfer | null | undefined) => {
     if (!transfer?.types) return false;
@@ -90,7 +91,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   }, []);
 
   const getDroppedFiles = React.useCallback((transfer: DataTransfer | null | undefined): File[] => {
-    if (!transfer || transfer.types[0] !== 'Files') return [];
+    if (!transfer || !Array.from(transfer.types || []).includes('Files')) return [];
     return Array.from(transfer.files || []);
   }, []);
 
@@ -346,30 +347,60 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
   const uploadAndAttachFiles = React.useCallback(async (files: File[]) => {
     if (files.length === 0) return;
-    setIsUploadingAttachments(true);
-    for (const file of files) {
+    const pendingItems = files.map((file) => {
+      const clientUploadId = `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      return {
+        clientUploadId,
+        status: 'uploading',
+        type: file.type.startsWith('image/') ? 'image' : 'file',
+        name: file.name,
+        url: '',
+      };
+    });
+
+    setAttachments((prev) => [...prev, ...pendingItems]);
+    activeUploadsRef.current += files.length;
+    setIsUploadingAttachments(activeUploadsRef.current > 0);
+
+    const uploadSingle = async (file: File, clientUploadId: string) => {
       const formData = new FormData();
       formData.append('file', file);
-      
+
       try {
         const uploadRes = await fetch('/api/upload', {
           method: 'POST',
           body: formData
         });
-        
-        if (uploadRes.ok) {
-          const uploadData = await uploadRes.json();
-          setAttachments(prev => [...prev, {
-            type: file.type.startsWith('image/') ? 'image' : 'file',
-            name: file.name,
-            url: uploadData.url
-          }]);
+
+        if (!uploadRes.ok) {
+          throw new Error(`Upload failed with status ${uploadRes.status}`);
         }
+
+        const uploadData = await uploadRes.json();
+        setAttachments((prev) => prev.map((att) => {
+          if (att.clientUploadId !== clientUploadId) return att;
+          return {
+            ...att,
+            status: 'ready',
+            url: uploadData.url,
+          };
+        }));
       } catch (error) {
         console.error('Error uploading file:', error);
+        setAttachments((prev) => prev.map((att) => {
+          if (att.clientUploadId !== clientUploadId) return att;
+          return {
+            ...att,
+            status: 'error',
+          };
+        }));
+      } finally {
+        activeUploadsRef.current = Math.max(0, activeUploadsRef.current - 1);
+        setIsUploadingAttachments(activeUploadsRef.current > 0);
       }
-    }
-    setIsUploadingAttachments(false);
+    };
+
+    await Promise.all(files.map((file, index) => uploadSingle(file, pendingItems[index].clientUploadId)));
   }, [setAttachments, setIsUploadingAttachments]);
 
   const handleDrop = async (e: React.DragEvent) => {
@@ -469,7 +500,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       {!selectedChat?.isNotificationsChat && attachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2 px-2 md:px-4 lg:px-8">
           {attachments.map((att, idx) => (
-            <div key={idx} className="bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg px-3 py-1.5 text-xs text-[var(--text-secondary)] flex items-center gap-2 shadow-[var(--shadow-glass)]">
+            <div key={att.clientUploadId || idx} className="bg-[var(--bg-glass)] border border-[var(--border-color)] rounded-lg px-3 py-1.5 text-xs text-[var(--text-secondary)] flex items-center gap-2 shadow-[var(--shadow-glass)]">
               {att.type === 'task' && <FileText className="w-3 h-3" />}
               {att.type === 'link' && <LinkIcon className="w-3 h-3" />}
               {att.type === 'event' && <Calendar className="w-3 h-3" />}
@@ -482,6 +513,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
               ) : null}
               {att.type === 'image' && !att.url && <Image className="w-3 h-3" />}
               {att.type === 'file' && <File className="w-3 h-3" />}
+              {att.status === 'uploading' && <Loader2 className="w-3 h-3 animate-spin text-[var(--accent-primary)]" />}
+              {att.status === 'error' && <AlertCircle className="w-3 h-3 text-red-400" />}
               <span>{att.name}</span>
               <button
                 onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}

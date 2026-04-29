@@ -46,6 +46,7 @@ from parser.tour_dates_parser import TourDatesParser
 from yandex_metrica import YandexMetricaClient
 from feed_generator import generate_yml_feed
 from competitor_data import competitor_manager
+from s3_storage import S3Storage
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 from telegram_notifier import telegram
@@ -204,6 +205,22 @@ else:
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 print(f"[Storage] Upload directory: {UPLOAD_DIR}")
 
+s3_storage = S3Storage()
+S3_UPLOAD_THRESHOLD_BYTES = int(os.getenv("S3_UPLOAD_THRESHOLD_BYTES", str(120 * 1024)))
+if s3_storage.enabled:
+    print(f"[Storage] S3 enabled. Bucket: {s3_storage.bucket}, threshold: {S3_UPLOAD_THRESHOLD_BYTES} bytes")
+else:
+    print("[Storage] S3 disabled. Using local filesystem")
+
+
+def _get_upload_size(upload: UploadFile) -> int:
+    stream = upload.file
+    current_pos = stream.tell()
+    stream.seek(0, os.SEEK_END)
+    size = stream.tell()
+    stream.seek(current_pos)
+    return int(size)
+
 # Upload файлов
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
@@ -212,11 +229,18 @@ async def upload_file(file: UploadFile = File(...)):
         # Генерируем уникальное имя файла
         file_ext = Path(file.filename).suffix
         unique_filename = f"{uuid.uuid4()}{file_ext}"
-        file_path = UPLOAD_DIR / unique_filename
-        
-        # Сохраняем файл
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        file_size = _get_upload_size(file)
+        file.file.seek(0)
+        store_in_s3 = s3_storage.enabled and file_size > S3_UPLOAD_THRESHOLD_BYTES
+
+        if store_in_s3:
+            key = f"uploads/{unique_filename}"
+            size = s3_storage.upload_fileobj(file.file, key, file.content_type)
+        else:
+            file_path = UPLOAD_DIR / unique_filename
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            size = file_path.stat().st_size
         
         # Возвращаем URL файла
         file_url = f"/api/uploads/{unique_filename}"
@@ -225,7 +249,7 @@ async def upload_file(file: UploadFile = File(...)):
             "success": True,
             "url": file_url,
             "filename": file.filename,
-            "size": file_path.stat().st_size
+            "size": size
         }
     except Exception as e:
         print(f"Error uploading file: {e}")
@@ -235,6 +259,17 @@ async def upload_file(file: UploadFile = File(...)):
 @app.get("/api/uploads/{filename}")
 async def get_uploaded_file(filename: str):
     """Получить загруженный файл"""
+    if s3_storage.enabled:
+        key = f"uploads/{filename}"
+        obj = s3_storage.get_object(key)
+        if obj is not None:
+            media_type = obj.get("ContentType") or "application/octet-stream"
+            content_length = str(obj.get("ContentLength", ""))
+            headers = {}
+            if content_length:
+                headers["Content-Length"] = content_length
+            return StreamingResponse(obj["Body"], media_type=media_type, headers=headers)
+
     file_path = UPLOAD_DIR / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
@@ -426,15 +461,22 @@ async def upload_avatar(file: UploadFile = File(...), userId: str = Form(...)):
         # Генерируем уникальное имя файла
         file_ext = Path(file.filename).suffix if file.filename else '.jpg'
         unique_filename = f"{userId}_{uuid.uuid4()}{file_ext}"
-        file_path = AVATARS_DIR / unique_filename
-        
-        # Удаляем старый аватар пользователя если есть
-        for old_file in AVATARS_DIR.glob(f"{userId}_*"):
-            old_file.unlink()
-        
-        # Сохраняем файл
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        file_size = _get_upload_size(file)
+        file.file.seek(0)
+        store_in_s3 = s3_storage.enabled and file_size > S3_UPLOAD_THRESHOLD_BYTES
+
+        if s3_storage.enabled:
+            s3_storage.delete_prefix(f"avatars/{userId}_")
+
+        if store_in_s3:
+            key = f"avatars/{unique_filename}"
+            s3_storage.upload_fileobj(file.file, key, file.content_type)
+        else:
+            file_path = AVATARS_DIR / unique_filename
+            for old_file in AVATARS_DIR.glob(f"{userId}_*"):
+                old_file.unlink()
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
         
         # URL аватара
         avatar_url = f"/api/avatars/{unique_filename}"
@@ -457,8 +499,11 @@ async def upload_avatar(file: UploadFile = File(...), userId: str = Form(...)):
 async def delete_avatar(userId: str):
     """Удаление аватара пользователя"""
     try:
-        # Удаляем файлы аватара пользователя
         deleted = False
+        if s3_storage.enabled:
+            deleted_count = s3_storage.delete_prefix(f"avatars/{userId}_")
+            deleted = deleted_count > 0
+
         for old_file in AVATARS_DIR.glob(f"{userId}_*"):
             old_file.unlink()
             deleted = True
@@ -475,6 +520,17 @@ async def delete_avatar(userId: str):
 @app.get("/api/avatars/{filename}")
 async def get_avatar(filename: str):
     """Получить файл аватара"""
+    if s3_storage.enabled:
+        key = f"avatars/{filename}"
+        obj = s3_storage.get_object(key)
+        if obj is not None:
+            media_type = obj.get("ContentType") or "application/octet-stream"
+            content_length = str(obj.get("ContentLength", ""))
+            headers = {}
+            if content_length:
+                headers["Content-Length"] = content_length
+            return StreamingResponse(obj["Body"], media_type=media_type, headers=headers)
+
     file_path = AVATARS_DIR / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Avatar not found")

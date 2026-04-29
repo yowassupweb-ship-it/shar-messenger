@@ -19,6 +19,8 @@ interface Attachment {
   taskId?: string;
   eventId?: string;
   url?: string;
+  status?: 'uploading' | 'ready' | 'error';
+  clientUploadId?: string;
 }
 
 interface AttachmentModalsProps {
@@ -358,8 +360,17 @@ const AttachmentModals: React.FC<AttachmentModalsProps> = ({
                   e.currentTarget.classList.remove('border-blue-500');
                   const files = Array.from(e.dataTransfer.files);
                   if (files.length > 0) {
+                    const pendingItems = files.map((file) => ({
+                      clientUploadId: `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                      status: 'uploading',
+                      type: file.type.startsWith('image/') ? 'image' : 'file',
+                      name: file.name,
+                      url: '',
+                    }));
+                    setAttachments((prev) => [...prev, ...pendingItems]);
                     setIsUploadingAttachments(true);
-                    for (const file of files) {
+                    await Promise.all(files.map(async (file, index) => {
+                      const clientUploadId = pendingItems[index].clientUploadId;
                       const formData = new FormData();
                       formData.append('file', file);
                       
@@ -368,19 +379,23 @@ const AttachmentModals: React.FC<AttachmentModalsProps> = ({
                           method: 'POST',
                           body: formData
                         });
-                        
-                        if (uploadRes.ok) {
-                          const uploadData = await uploadRes.json();
-                          setAttachments(prev => [...prev, {
-                            type: file.type.startsWith('image/') ? 'image' : 'file',
-                            name: file.name,
-                            url: uploadData.url
-                          }]);
+                        if (!uploadRes.ok) {
+                          throw new Error(`Upload failed with status ${uploadRes.status}`);
                         }
+
+                        const uploadData = await uploadRes.json();
+                        setAttachments((prev) => prev.map((att: any) => {
+                          if (att.clientUploadId !== clientUploadId) return att;
+                          return { ...att, status: 'ready', url: uploadData.url };
+                        }));
                       } catch (error) {
                         console.error('Error uploading file:', error);
+                        setAttachments((prev) => prev.map((att: any) => {
+                          if (att.clientUploadId !== clientUploadId) return att;
+                          return { ...att, status: 'error' };
+                        }));
                       }
-                    }
+                    }));
                     setIsUploadingAttachments(false);
                     setShowAttachmentMenu(false);
                   }

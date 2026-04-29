@@ -10,6 +10,7 @@ lxml
 requests
 pystache
 apscheduler
+boto3
 psycopg2-binary
 asyncpg
 sqlalchemy
