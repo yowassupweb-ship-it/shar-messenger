@@ -327,6 +327,44 @@ export default function ContactsPage() {
     router.push(`/todos?createTask=true&listId=${listId}&assignTo=${selectedContact.id}&assignToName=${encodeURIComponent(selectedContact.name || selectedContact.username || '')}&authorId=${myAccount.id}&authorName=${encodeURIComponent(myAccount.name || myAccount.username || '')}`);
   };
 
+  const openDirectChat = async (contact: Contact, options?: { autoCall?: 'voice' }) => {
+    try {
+      const currentUserId = String(currentUser?.id || '').trim();
+      const myAccountStr = localStorage.getItem('myAccount');
+      const myAccountId = myAccountStr ? String((JSON.parse(myAccountStr) as { id?: string })?.id || '').trim() : '';
+      const myUserId = currentUserId || myAccountId;
+      const contactId = String(contact?.id || '').trim();
+
+      if (!myUserId || !contactId) return;
+      if (contactId === myUserId) {
+        const favId = `favorites_${myUserId}`;
+        window.dispatchEvent(new CustomEvent('shar:open-chat', { detail: { chatId: favId } }));
+        router.push(`/account?tab=messages&chat=${encodeURIComponent(favId)}`);
+        return;
+      }
+
+      const res = await fetch('/api/chats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ participantIds: [myUserId, contactId], isGroup: false })
+      });
+
+      if (!res.ok) return;
+      const chat = await res.json() as { id?: string };
+      if (!chat?.id) return;
+
+      window.dispatchEvent(new CustomEvent('shar:open-chat', {
+        detail: {
+          chatId: chat.id,
+          ...(options?.autoCall ? { autoCall: options.autoCall } : {})
+        }
+      }));
+      router.push(`/account?tab=messages&chat=${encodeURIComponent(chat.id)}`);
+    } catch (error) {
+      console.error('Error opening chat:', error);
+    }
+  };
+
   const getTodoStatusLabel = (status?: ContactTodo['status']) => {
     switch (status) {
       case 'todo':
@@ -531,32 +569,7 @@ export default function ContactsPage() {
                           </a>
                         )}
                         <button
-                          onClick={async () => {
-                            try {
-                              const myAccountStr = localStorage.getItem('myAccount');
-                              if (!myAccountStr) return;
-                              const myAccount = JSON.parse(myAccountStr) as { id: string };
-                              if (!myAccount.id) return;
-                              if (contact.id === myAccount.id) {
-                                const favId = `favorites_${myAccount.id}`;
-                                window.dispatchEvent(new CustomEvent('shar:open-chat', { detail: { chatId: favId } }));
-                                router.push(`/account?tab=messages&chat=${favId}`);
-                                return;
-                              }
-                              const res = await fetch('/api/chats', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ participantIds: [myAccount.id, contact.id], isGroup: false })
-                              });
-                              if (res.ok) {
-                                const chat = await res.json() as { id?: string };
-                                if (chat?.id) {
-                                  window.dispatchEvent(new CustomEvent('shar:open-chat', { detail: { chatId: chat.id } }));
-                                  router.push(`/account?tab=messages&chat=${chat.id}`);
-                                }
-                              }
-                            } catch { /* ignore */ }
-                          }}
+                          onClick={() => void openDirectChat(contact)}
                           className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/25 hover:to-white/10 border border-white/20 flex items-center justify-center transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,0,0,0.1)] backdrop-blur-md"
                           title="Написать сообщение"
                         >
@@ -564,26 +577,7 @@ export default function ContactsPage() {
                         </button>
                         {contact.id !== currentUser?.id && (
                           <button
-                            onClick={async () => {
-                              try {
-                                const myAccountStr = localStorage.getItem('myAccount');
-                                if (!myAccountStr) return;
-                                const myAccount = JSON.parse(myAccountStr) as { id: string };
-                                if (!myAccount.id || contact.id === myAccount.id) return;
-                                const res = await fetch('/api/chats', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ participantIds: [myAccount.id, contact.id], isGroup: false })
-                                });
-                                if (res.ok) {
-                                  const chat = await res.json() as { id?: string };
-                                  if (chat?.id) {
-                                    window.dispatchEvent(new CustomEvent('shar:open-chat', { detail: { chatId: chat.id, autoCall: 'voice' } }));
-                                    router.push(`/account?tab=messages&chat=${chat.id}`);
-                                  }
-                                }
-                              } catch { /* ignore */ }
-                            }}
+                            onClick={() => void openDirectChat(contact, { autoCall: 'voice' })}
                             className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-white/15 to-white/5 hover:from-white/25 hover:to-white/10 border border-white/20 flex items-center justify-center transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,0,0,0.1)] backdrop-blur-md"
                             title="Позвонить"
                           >
@@ -616,32 +610,7 @@ export default function ContactsPage() {
                       )}
 
                       <button
-                        onClick={async () => {
-                          try {
-                            const myAccountStr = localStorage.getItem('myAccount');
-                            if (!myAccountStr) return;
-                            const myAccount = JSON.parse(myAccountStr) as { id: string };
-                            if (!myAccount.id) return;
-                            if (contact.id === myAccount.id) {
-                              const favId = `favorites_${myAccount.id}`;
-                              window.dispatchEvent(new CustomEvent('shar:open-chat', { detail: { chatId: favId } }));
-                              router.push(`/account?tab=messages&chat=${favId}`);
-                              return;
-                            }
-                            const res = await fetch('/api/chats', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ participantIds: [myAccount.id, contact.id], isGroup: false })
-                            });
-                            if (res.ok) {
-                              const chat = await res.json() as { id?: string };
-                              if (chat?.id) {
-                                window.dispatchEvent(new CustomEvent('shar:open-chat', { detail: { chatId: chat.id } }));
-                                router.push(`/account?tab=messages&chat=${chat.id}`);
-                              }
-                            }
-                          } catch { /* ignore */ }
-                        }}
+                        onClick={() => void openDirectChat(contact)}
                         className="inline-flex items-center h-8 px-3 rounded-xl bg-gradient-to-br from-white/15 to-white/5 hover:from-white/25 hover:to-white/10 border border-white/20 transition-all text-[12px] font-medium text-gray-700 dark:text-white whitespace-nowrap"
                         title="Написать сообщение"
                       >
@@ -650,26 +619,7 @@ export default function ContactsPage() {
 
                       {contact.id !== currentUser?.id && (
                         <button
-                          onClick={async () => {
-                            try {
-                              const myAccountStr = localStorage.getItem('myAccount');
-                              if (!myAccountStr) return;
-                              const myAccount = JSON.parse(myAccountStr) as { id: string };
-                              if (!myAccount.id || contact.id === myAccount.id) return;
-                              const res = await fetch('/api/chats', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ participantIds: [myAccount.id, contact.id], isGroup: false })
-                              });
-                              if (res.ok) {
-                                const chat = await res.json() as { id?: string };
-                                if (chat?.id) {
-                                  window.dispatchEvent(new CustomEvent('shar:open-chat', { detail: { chatId: chat.id, autoCall: 'voice' } }));
-                                  router.push(`/account?tab=messages&chat=${chat.id}`);
-                                }
-                              }
-                            } catch { /* ignore */ }
-                          }}
+                          onClick={() => void openDirectChat(contact, { autoCall: 'voice' })}
                           className="inline-flex items-center h-8 px-3 rounded-xl bg-gradient-to-br from-white/15 to-white/5 hover:from-white/25 hover:to-white/10 border border-white/20 transition-all text-[12px] font-medium text-gray-700 dark:text-white whitespace-nowrap"
                           title="Позвонить"
                         >
@@ -1045,34 +995,7 @@ export default function ContactsPage() {
               {/* Actions */}
               <div className="flex gap-2 mt-6">
                 <button
-                  onClick={async () => {
-                    try {
-                      const myAccountStr = localStorage.getItem('myAccount');
-                      if (!myAccountStr) return;
-                      const myAccount = JSON.parse(myAccountStr);
-                      if (!myAccount.id || viewingContact.id === myAccount.id) return;
-                      
-                      const res = await fetch('/api/chats', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          participantIds: [myAccount.id, viewingContact.id],
-                          isGroup: false
-                        })
-                      });
-                      
-                      if (res.ok) {
-                        const chat = await res.json();
-                        if (chat && chat.id) {
-                          router.push(`/account?tab=messages&chat=${chat.id}`);
-                        } else {
-                          console.error('[Contacts] Invalid chat response:', chat);
-                        }
-                      }
-                    } catch (error) {
-                      console.error('Error opening chat:', error);
-                    }
-                  }}
+                  onClick={() => void openDirectChat(viewingContact)}
                   className="flex-1 py-2.5 rounded-[16px] bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] text-[var(--text-primary)] font-medium transition-all flex items-center justify-center gap-2 border border-[var(--border-color)]"
                 >
                   <MessageCircle className="w-4 h-4" />

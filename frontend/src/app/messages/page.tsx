@@ -1518,24 +1518,51 @@ export default function MessagesPage() {
     }
     
     if (formatType === 'paste') {
-      navigator.clipboard.readText().then(clipText => {
-        if (!messageInputRef.current) return;
-        const currentValue = messageInputRef.current.value;
-        const newText = currentValue.substring(0, start) + clipText + currentValue.substring(end);
-        messageInputRef.current.value = newText;
-        setNewMessage(newText);
-        setShowTextFormatMenu(false);
-        syncComposerHeight(newText);
-        setTimeout(() => {
-          if (messageInputRef.current) {
-            messageInputRef.current.focus();
-            messageInputRef.current.setSelectionRange(start + clipText.length, start + clipText.length);
+      const runPaste = async () => {
+        try {
+          const clipboardApi = navigator.clipboard as Clipboard & { read?: () => Promise<ClipboardItem[]> };
+
+          if (clipboardApi?.read) {
+            const items = await clipboardApi.read();
+            const files: File[] = [];
+
+            for (const item of items) {
+              for (const type of item.types) {
+                if (!type.startsWith('image/') && !type.startsWith('application/')) continue;
+                const blob = await item.getType(type);
+                const extension = type.includes('/') ? type.split('/')[1] : 'bin';
+                const fileName = `clipboard-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${extension}`;
+                files.push(new globalThis.File([blob], fileName, { type, lastModified: Date.now() }));
+              }
+            }
+
+            if (files.length > 0) {
+              await uploadFilesFromClipboard(files);
+              setShowTextFormatMenu(false);
+              return;
+            }
           }
-        }, 0);
-      }).catch(() => {
-        // Если нет доступа к буферу обмена, просто закрываем меню
-        setShowTextFormatMenu(false);
-      });
+
+          const clipText = await navigator.clipboard.readText();
+          if (!messageInputRef.current) return;
+          const currentValue = messageInputRef.current.value;
+          const newText = currentValue.substring(0, start) + clipText + currentValue.substring(end);
+          messageInputRef.current.value = newText;
+          setNewMessage(newText);
+          setShowTextFormatMenu(false);
+          syncComposerHeight(newText);
+          setTimeout(() => {
+            if (messageInputRef.current) {
+              messageInputRef.current.focus();
+              messageInputRef.current.setSelectionRange(start + clipText.length, start + clipText.length);
+            }
+          }, 0);
+        } catch {
+          setShowTextFormatMenu(false);
+        }
+      };
+
+      void runPaste();
       return;
     }
     
@@ -1619,6 +1646,59 @@ export default function MessagesPage() {
       }
     }, 0);
   };
+
+  const uploadFilesFromClipboard = useCallback(async (files: File[]) => {
+    if (files.length === 0) return;
+
+    const pendingItems = files.map((file) => ({
+      clientUploadId: `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      status: 'uploading' as const,
+      type: file.type.startsWith('image/') ? 'image' : 'file',
+      name: file.name || `clipboard-${Date.now()}`,
+      url: '',
+    }));
+
+    setAttachments((prev) => [...prev, ...pendingItems]);
+    setIsUploadingAttachments(true);
+
+    await Promise.all(files.map(async (file, index) => {
+      const clientUploadId = pendingItems[index].clientUploadId;
+      const formData = new FormData();
+      formData.append('file', file, file.name || `clipboard-${Date.now()}`);
+
+      try {
+        const uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error(`Upload failed with status ${uploadRes.status}`);
+        }
+
+        const uploadData = await uploadRes.json();
+        setAttachments((prev) => prev.map((att: any) => {
+          if (att.clientUploadId !== clientUploadId) return att;
+          return {
+            ...att,
+            status: 'ready',
+            url: uploadData.url,
+          };
+        }));
+      } catch (error) {
+        console.error('Error uploading clipboard file:', error);
+        setAttachments((prev) => prev.map((att: any) => {
+          if (att.clientUploadId !== clientUploadId) return att;
+          return {
+            ...att,
+            status: 'error',
+          };
+        }));
+      }
+    }));
+
+    setIsUploadingAttachments(false);
+  }, [setAttachments, setIsUploadingAttachments]);
 
   const loadChats = useCallback(async () => {
     if (!currentUser) {
