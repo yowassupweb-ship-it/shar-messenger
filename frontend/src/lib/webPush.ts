@@ -1,5 +1,21 @@
-import webpush, { type PushSubscription } from 'web-push';
 import { readJsonFile, writeJsonFile } from '@/lib/dataStore';
+
+type PushSubscription = {
+  endpoint: string;
+  keys?: {
+    p256dh?: string;
+    auth?: string;
+  };
+};
+
+type WebPushModule = {
+  setVapidDetails: (subject: string, publicKey: string, privateKey: string) => void;
+  sendNotification: (
+    subscription: PushSubscription,
+    payload?: string,
+    options?: { TTL?: number; urgency?: string; topic?: string }
+  ) => Promise<unknown>;
+};
 
 type StoredPushSubscription = {
   userId: string;
@@ -18,6 +34,20 @@ type PushSubscriptionsData = {
 const SUBSCRIPTIONS_FILE = 'web_push_subscriptions.json';
 const DEFAULT_SUBSCRIPTIONS: PushSubscriptionsData = { subscriptions: [] };
 
+let cachedWebPush: WebPushModule | null = null;
+
+const getWebPushModule = (): WebPushModule | null => {
+  if (cachedWebPush) return cachedWebPush;
+  try {
+    // Lazy require prevents build-time module resolution failures on misconfigured servers.
+    const req = eval('require') as (moduleName: string) => WebPushModule;
+    cachedWebPush = req('web-push');
+    return cachedWebPush;
+  } catch {
+    return null;
+  }
+};
+
 const getVapidConfig = () => {
   const publicKey = process.env.NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY || '';
   const privateKey = process.env.WEB_PUSH_PRIVATE_KEY || '';
@@ -26,6 +56,9 @@ const getVapidConfig = () => {
 };
 
 const configureWebPush = (): boolean => {
+  const webpush = getWebPushModule();
+  if (!webpush) return false;
+
   const { publicKey, privateKey, subject } = getVapidConfig();
   if (!publicKey || !privateKey) return false;
 
@@ -125,7 +158,8 @@ export const sendWebPushToUser = async (
   userId: string,
   payload: Record<string, unknown>
 ): Promise<{ sent: number; failed: number }> => {
-  if (!configureWebPush()) {
+  const webpush = getWebPushModule();
+  if (!webpush || !configureWebPush()) {
     return { sent: 0, failed: 0 };
   }
 
