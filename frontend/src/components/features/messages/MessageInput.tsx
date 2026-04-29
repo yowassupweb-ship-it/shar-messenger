@@ -347,11 +347,48 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
   const uploadAndAttachFiles = React.useCallback(async (files: File[]) => {
     if (files.length === 0) return;
+    if (activeUploadsRef.current > 0 || isUploadingAttachments) return;
+
+    const uploadFileWithProgress = (file: File, onProgress: (progress: number) => void) => {
+      return new Promise<{ url: string }>((resolve, reject) => {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/upload');
+
+        xhr.upload.onprogress = (event) => {
+          if (!event.lengthComputable) return;
+          const progress = Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100)));
+          onProgress(progress);
+        };
+
+        xhr.onload = () => {
+          if (xhr.status < 200 || xhr.status >= 300) {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+            return;
+          }
+
+          try {
+            const data = JSON.parse(xhr.responseText || '{}');
+            resolve(data);
+          } catch {
+            reject(new Error('Invalid upload response'));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('Upload network error'));
+        xhr.onabort = () => reject(new Error('Upload aborted'));
+        xhr.send(formData);
+      });
+    };
+
     const pendingItems = files.map((file) => {
       const clientUploadId = `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       return {
         clientUploadId,
         status: 'uploading',
+        progress: 0,
         type: file.type.startsWith('image/') ? 'image' : 'file',
         name: file.name,
         url: '',
@@ -363,25 +400,23 @@ const MessageInput: React.FC<MessageInputProps> = ({
     setIsUploadingAttachments(activeUploadsRef.current > 0);
 
     const uploadSingle = async (file: File, clientUploadId: string) => {
-      const formData = new FormData();
-      formData.append('file', file);
-
       try {
-        const uploadRes = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData
+        const uploadData = await uploadFileWithProgress(file, (progress) => {
+          setAttachments((prev) => prev.map((att) => {
+            if (att.clientUploadId !== clientUploadId) return att;
+            return {
+              ...att,
+              progress,
+            };
+          }));
         });
 
-        if (!uploadRes.ok) {
-          throw new Error(`Upload failed with status ${uploadRes.status}`);
-        }
-
-        const uploadData = await uploadRes.json();
         setAttachments((prev) => prev.map((att) => {
           if (att.clientUploadId !== clientUploadId) return att;
           return {
             ...att,
             status: 'ready',
+            progress: 100,
             url: uploadData.url,
           };
         }));
@@ -392,6 +427,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           return {
             ...att,
             status: 'error',
+            progress: 0,
           };
         }));
       } finally {
@@ -401,7 +437,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
     };
 
     await Promise.all(files.map((file, index) => uploadSingle(file, pendingItems[index].clientUploadId)));
-  }, [setAttachments, setIsUploadingAttachments]);
+  }, [isUploadingAttachments, setAttachments, setIsUploadingAttachments]);
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
@@ -411,6 +447,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
     const files = getDroppedFiles(e.dataTransfer);
     if (files.length > 0) {
+      if (activeUploadsRef.current > 0 || isUploadingAttachments) return;
       await uploadAndAttachFiles(files);
     }
   };
@@ -418,6 +455,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
+    if (activeUploadsRef.current > 0 || isUploadingAttachments) {
+      e.target.value = '';
+      return;
+    }
     await uploadAndAttachFiles(files);
     e.target.value = '';
   };
@@ -439,6 +480,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       : [normalizePastedFile(fileItems[0])].filter((file): file is File => Boolean(file));
 
     if (files.length === 0) return;
+    if (activeUploadsRef.current > 0 || isUploadingAttachments) return;
     e.preventDefault();
     await uploadAndAttachFiles(files);
   };
@@ -515,7 +557,20 @@ const MessageInput: React.FC<MessageInputProps> = ({
               {att.type === 'file' && <File className="w-3 h-3" />}
               {att.status === 'uploading' && <Loader2 className="w-3 h-3 animate-spin text-[var(--accent-primary)]" />}
               {att.status === 'error' && <AlertCircle className="w-3 h-3 text-red-400" />}
-              <span>{att.name}</span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate">{att.name}</div>
+                {att.status === 'uploading' && (
+                  <div className="mt-1">
+                    <div className="h-1.5 rounded-full bg-[var(--bg-tertiary)] overflow-hidden">
+                      <div
+                        className="h-full bg-[var(--accent-primary)] transition-all duration-150"
+                        style={{ width: `${Math.max(0, Math.min(100, Number(att.progress || 0)))}%` }}
+                      />
+                    </div>
+                    <div className="mt-0.5 text-[10px] text-[var(--text-muted)]">{Math.max(0, Math.min(100, Number(att.progress || 0)))}%</div>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
                 className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]"

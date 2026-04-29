@@ -1024,6 +1024,19 @@ export default function UserSettingsPage() {
                           requireInteraction: false,
                           silent: false
                         });
+
+                        if (currentUser?.id) {
+                          await fetch('/api/push/test', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              userId: String(currentUser.id),
+                              title: 'Push-тест для PWA',
+                              body: 'Если приложение свернуто или закрыто, это уведомление покажет service worker.',
+                              url: '/account?tab=settings',
+                            }),
+                          });
+                        }
                       } else if (electronRuntime) {
                         alert('Кастомные уведомления Electron недоступны: bridge не инициализирован. Перезапустите Electron-клиент.');
                       }

@@ -21,6 +21,7 @@ interface Attachment {
   url?: string;
   status?: 'uploading' | 'ready' | 'error';
   clientUploadId?: string;
+  progress?: number;
 }
 
 interface AttachmentModalsProps {
@@ -358,11 +359,46 @@ const AttachmentModals: React.FC<AttachmentModalsProps> = ({
                 onDrop={async (e) => {
                   e.preventDefault();
                   e.currentTarget.classList.remove('border-blue-500');
+                  if (isUploadingAttachments) return;
                   const files = Array.from(e.dataTransfer.files);
                   if (files.length > 0) {
+                    const uploadFileWithProgress = (file: File, onProgress: (progress: number) => void) => {
+                      return new Promise<{ url: string }>((resolve, reject) => {
+                        const formData = new FormData();
+                        formData.append('file', file);
+
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('POST', '/api/upload');
+
+                        xhr.upload.onprogress = (event) => {
+                          if (!event.lengthComputable) return;
+                          const progress = Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100)));
+                          onProgress(progress);
+                        };
+
+                        xhr.onload = () => {
+                          if (xhr.status < 200 || xhr.status >= 300) {
+                            reject(new Error(`Upload failed with status ${xhr.status}`));
+                            return;
+                          }
+                          try {
+                            const data = JSON.parse(xhr.responseText || '{}');
+                            resolve(data);
+                          } catch {
+                            reject(new Error('Invalid upload response'));
+                          }
+                        };
+
+                        xhr.onerror = () => reject(new Error('Upload network error'));
+                        xhr.onabort = () => reject(new Error('Upload aborted'));
+                        xhr.send(formData);
+                      });
+                    };
+
                     const pendingItems = files.map((file) => ({
                       clientUploadId: `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                       status: 'uploading',
+                      progress: 0,
                       type: file.type.startsWith('image/') ? 'image' : 'file',
                       name: file.name,
                       url: '',
@@ -371,28 +407,24 @@ const AttachmentModals: React.FC<AttachmentModalsProps> = ({
                     setIsUploadingAttachments(true);
                     await Promise.all(files.map(async (file, index) => {
                       const clientUploadId = pendingItems[index].clientUploadId;
-                      const formData = new FormData();
-                      formData.append('file', file);
                       
                       try {
-                        const uploadRes = await fetch('/api/upload', {
-                          method: 'POST',
-                          body: formData
+                        const uploadData = await uploadFileWithProgress(file, (progress) => {
+                          setAttachments((prev) => prev.map((att: any) => {
+                            if (att.clientUploadId !== clientUploadId) return att;
+                            return { ...att, progress };
+                          }));
                         });
-                        if (!uploadRes.ok) {
-                          throw new Error(`Upload failed with status ${uploadRes.status}`);
-                        }
 
-                        const uploadData = await uploadRes.json();
                         setAttachments((prev) => prev.map((att: any) => {
                           if (att.clientUploadId !== clientUploadId) return att;
-                          return { ...att, status: 'ready', url: uploadData.url };
+                          return { ...att, status: 'ready', progress: 100, url: uploadData.url };
                         }));
                       } catch (error) {
                         console.error('Error uploading file:', error);
                         setAttachments((prev) => prev.map((att: any) => {
                           if (att.clientUploadId !== clientUploadId) return att;
-                          return { ...att, status: 'error' };
+                          return { ...att, status: 'error', progress: 0 };
                         }));
                       }
                     }));

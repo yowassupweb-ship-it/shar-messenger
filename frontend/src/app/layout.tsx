@@ -6,6 +6,7 @@ import BottomNav from '@/components/layout/BottomNav';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import ElectronShell from '@/components/layout/ElectronShell';
 import { Suspense } from 'react';
+import PwaEnhancements from '@/components/pwa/PwaEnhancements';
 
 export const metadata: Metadata = {
   title: 'Shar OS',
@@ -110,6 +111,7 @@ export default function RootLayout({
               <Suspense fallback={null}>
                 <BottomNav />
               </Suspense>
+              <PwaEnhancements />
             </ElectronShell>
           </ThemeProvider>
         </ErrorBoundary>

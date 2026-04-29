@@ -62,6 +62,21 @@ const TASK_STATUS_RU: Record<string, string> = {
   'done': 'Готово',
 };
 
+const PUBLIC_PUSH_KEY_ENDPOINT = '/api/push/subscriptions';
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+
+  return outputArray;
+}
+
 export class BrowserPushService {
   private userId: string | null = null;
   private userName: string | null = null;
@@ -288,9 +303,11 @@ export class BrowserPushService {
 
     console.log(`[BrowserPushService] Текущий статус разрешений на уведомления: ${Notification.permission}`);
 
+    let registration: ServiceWorkerRegistration | null = null;
+
     if ('serviceWorker' in navigator) {
       try {
-        await navigator.serviceWorker.register('/notifications-sw.js');
+        registration = await navigator.serviceWorker.register('/notifications-sw.js');
       } catch {
         // ignore registration errors
       }
@@ -308,8 +325,46 @@ export class BrowserPushService {
     
     if (Notification.permission === 'granted') {
       console.log('[BrowserPushService] ✅ Разрешение на уведомления получено');
+      if (registration && this.userId) {
+        await this.ensureWebPushSubscription(registration);
+      }
     } else {
       console.warn('[BrowserPushService] ⚠️ Разрешение на уведомления не получено');
+    }
+  }
+
+  private async ensureWebPushSubscription(registration: ServiceWorkerRegistration): Promise<void> {
+    if (!this.userId || typeof window === 'undefined') return;
+    if (!('PushManager' in window)) return;
+
+    try {
+      const pushMetaResponse = await fetch(PUBLIC_PUSH_KEY_ENDPOINT, { cache: 'no-store' });
+      if (!pushMetaResponse.ok) return;
+      const pushMeta = await pushMetaResponse.json();
+      const publicKey = String(pushMeta?.publicKey || '');
+      const configured = Boolean(pushMeta?.configured);
+      if (!configured || !publicKey) return;
+
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        });
+      }
+
+      await fetch(PUBLIC_PUSH_KEY_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: this.userId,
+          subscription,
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+          platform: typeof navigator !== 'undefined' ? navigator.platform : '',
+        }),
+      });
+    } catch (error) {
+      console.warn('[BrowserPushService] Failed to ensure web push subscription', error);
     }
   }
 

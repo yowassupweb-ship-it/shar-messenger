@@ -208,6 +208,21 @@ body {
       font-size: 13px !important;
       line-height: 1.35 !important;
     }
+
+    /* Mobile chat readability and tap comfort */
+    .chat-bubble-text,
+    .chat-bubble-text span,
+    .chat-bubble-text a {
+      font-size: 17px !important;
+      line-height: 1.42 !important;
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+
+    .chat-bubble-text a {
+      text-decoration-thickness: 2px;
+      text-underline-offset: 2px;
+    }
   }
 
   *:focus {

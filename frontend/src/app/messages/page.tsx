@@ -1649,10 +1649,46 @@ export default function MessagesPage() {
 
   const uploadFilesFromClipboard = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
+    if (isUploadingAttachments) return;
+
+    const uploadFileWithProgress = (file: File, onProgress: (progress: number) => void) => {
+      return new Promise<{ url: string }>((resolve, reject) => {
+        const formData = new FormData();
+        formData.append('file', file, file.name || `clipboard-${Date.now()}`);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/upload');
+
+        xhr.upload.onprogress = (event) => {
+          if (!event.lengthComputable) return;
+          const progress = Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100)));
+          onProgress(progress);
+        };
+
+        xhr.onload = () => {
+          if (xhr.status < 200 || xhr.status >= 300) {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+            return;
+          }
+
+          try {
+            const data = JSON.parse(xhr.responseText || '{}');
+            resolve(data);
+          } catch {
+            reject(new Error('Invalid upload response'));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('Upload network error'));
+        xhr.onabort = () => reject(new Error('Upload aborted'));
+        xhr.send(formData);
+      });
+    };
 
     const pendingItems = files.map((file) => ({
       clientUploadId: `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       status: 'uploading' as const,
+      progress: 0,
       type: file.type.startsWith('image/') ? 'image' : 'file',
       name: file.name || `clipboard-${Date.now()}`,
       url: '',
@@ -1663,25 +1699,24 @@ export default function MessagesPage() {
 
     await Promise.all(files.map(async (file, index) => {
       const clientUploadId = pendingItems[index].clientUploadId;
-      const formData = new FormData();
-      formData.append('file', file, file.name || `clipboard-${Date.now()}`);
 
       try {
-        const uploadRes = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
+        const uploadData = await uploadFileWithProgress(file, (progress) => {
+          setAttachments((prev) => prev.map((att: any) => {
+            if (att.clientUploadId !== clientUploadId) return att;
+            return {
+              ...att,
+              progress,
+            };
+          }));
         });
 
-        if (!uploadRes.ok) {
-          throw new Error(`Upload failed with status ${uploadRes.status}`);
-        }
-
-        const uploadData = await uploadRes.json();
         setAttachments((prev) => prev.map((att: any) => {
           if (att.clientUploadId !== clientUploadId) return att;
           return {
             ...att,
             status: 'ready',
+            progress: 100,
             url: uploadData.url,
           };
         }));
@@ -1692,13 +1727,14 @@ export default function MessagesPage() {
           return {
             ...att,
             status: 'error',
+            progress: 0,
           };
         }));
       }
     }));
 
     setIsUploadingAttachments(false);
-  }, [setAttachments, setIsUploadingAttachments]);
+  }, [isUploadingAttachments, setAttachments, setIsUploadingAttachments]);
 
   const loadChats = useCallback(async () => {
     if (!currentUser) {
@@ -2180,7 +2216,7 @@ export default function MessagesPage() {
       if (att.type === 'file' || att.type === 'image') return Boolean(String(att.url || '').trim());
       return true;
     }).map((att: any) => {
-      const { status, clientUploadId, ...rest } = att;
+      const { status, clientUploadId, progress, ...rest } = att;
       return rest;
     });
 

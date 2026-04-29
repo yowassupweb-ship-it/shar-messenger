@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readJsonFile, writeJsonFile } from '@/lib/dataStore';
+import { sendWebPushToUser } from '@/lib/webPush';
 
 export interface Notification {
   id: string;
@@ -23,6 +24,27 @@ interface NotificationsData {
 const DEFAULT_DATA: NotificationsData = {
   notifications: []
 };
+
+function mapNotificationTitle(type: Notification['type']): string {
+  switch (type) {
+    case 'new_task':
+    case 'assignment':
+      return 'Новая задача';
+    case 'status_change':
+    case 'task_updated':
+      return 'Изменение по задаче';
+    case 'event_invite':
+      return 'Приглашение в событие';
+    case 'event_reminder':
+      return 'Напоминание о событии';
+    case 'event_update':
+      return 'Обновление события';
+    case 'mention':
+      return 'Вас упомянули';
+    default:
+      return 'Новое уведомление';
+  }
+}
 
 // GET - получить уведомления
 export async function GET(request: NextRequest) {
@@ -61,6 +83,19 @@ export async function POST(request: NextRequest) {
     }
     
     writeJsonFile('notifications.json', data);
+
+    void sendWebPushToUser(notification.toUserId, {
+      title: mapNotificationTitle(notification.type),
+      body: notification.message || notification.todoTitle || notification.eventTitle || 'У вас новое уведомление',
+      tag: `notif-${notification.id}`,
+      url: notification.todoId
+        ? `/account?tab=tasks&task=${encodeURIComponent(notification.todoId)}`
+        : notification.eventId
+          ? '/account?tab=calendar'
+          : '/account',
+      requireInteraction: notification.type === 'event_reminder',
+      silent: false,
+    });
     
     return NextResponse.json(notification);
   } catch (error) {

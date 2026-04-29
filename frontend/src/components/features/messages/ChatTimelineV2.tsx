@@ -950,7 +950,6 @@ export class ChatTimelineV2 extends Component<
                 ? 0
                 : getEmojiOnlyCount(message.content || '');
               const isEmojiOnly = emojiOnlyCount > 0;
-              const emojiOnlyFontSize = emojiOnlyCount === 1 ? 56 : emojiOnlyCount === 2 ? 46 : emojiOnlyCount === 3 ? 38 : 32;
               // Media-only: images/video, no text, no files, no quote → Telegram-style overlay timestamp
               const isMediaOnly = hasMedia && !hasTextContent && !msgFiles.length && !message.replyToId;
               
@@ -970,17 +969,22 @@ export class ChatTimelineV2 extends Component<
                 const val = reactionsData[k];
                 return Array.isArray(val) && val.length > 0;
               }).length > 3;
+              const isMobileView = !this.props.isDesktopView;
+              const reactionBubbleWidth = isMobileView ? 66 : 58;
+              const reactionExtraWidth = isMobileView ? 40 : 35;
+              const timestampReserveWidth = isMobileView ? 74 : 60;
               const reactionsMinWidth = hasReactions 
-                ? (reactionCount * 58 + (hasMoreReactions ? 35 : 0) + 60) // reactions width + +N indicator + timestamp space
+                ? (reactionCount * reactionBubbleWidth + (hasMoreReactions ? reactionExtraWidth : 0) + timestampReserveWidth) // reactions width + +N indicator + timestamp space
                 : 100;
               
               const timestampBottomClass = hasReactions 
                 ? 'bottom-1' 
                 : (msgFiles.length > 0 ? 'bottom-0' : (isMultiline ? 'bottom-2' : 'bottom-1'));
               const fmtSize = (b: number) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
-              const isMobileView = !this.props.isDesktopView;
-              const bodyFontSize = isMobileView ? '16px' : '14px';
-              const bodyLineHeight = isMobileView ? '22px' : '20px';
+              const bodyFontSize = isMobileView ? '17px' : '14px';
+              const bodyLineHeight = isMobileView ? '24px' : '20px';
+              const emojiOnlyFontSize = emojiOnlyCount === 1 ? 56 : emojiOnlyCount === 2 ? 46 : emojiOnlyCount === 3 ? 38 : 32;
+              const emojiOnlyDisplayFontSize = isMobileView ? Math.round(emojiOnlyFontSize * 1.08) : emojiOnlyFontSize;
               
               const forwardedFromUserId = (
                 message.forwardedFromUserId ||
@@ -1242,7 +1246,7 @@ export class ChatTimelineV2 extends Component<
                     </div>
                   )}
                   <div
-                    className={`inline-block relative rounded-[18px] ${(isMediaOnly || isEmojiOnly) ? (hasReactions ? 'overflow-visible' : 'overflow-hidden') : `px-2.5 py-1.5 pb-1.5 ${hasReactions ? 'overflow-visible' : ''}`} w-fit transition-all ${renderAsNotification ? 'border border-slate-300/70 dark:border-slate-600/70' : ''} ${
+                    className={`inline-block relative rounded-[18px] ${(isMediaOnly || isEmojiOnly) ? (hasReactions ? 'overflow-visible' : 'overflow-hidden') : `${isMobileView ? 'px-3 py-2 pb-2' : 'px-2.5 py-1.5 pb-1.5'} ${hasReactions ? 'overflow-visible' : ''}`} w-fit transition-all ${renderAsNotification ? 'border border-slate-300/70 dark:border-slate-600/70' : ''} ${
                       this.props.selectedMessages.has(String(message.id)) 
                         ? 'ring-2 ring-blue-500 ring-opacity-50'
                         : this.props.activeSearchMessageId === String(message.id)
@@ -1438,7 +1442,7 @@ export class ChatTimelineV2 extends Component<
                           <div
                             className={`pr-[44px] pt-[2px] select-none ${hasReactions ? 'mb-[26px]' : ''}`}
                             style={{
-                              fontSize: `${emojiOnlyFontSize}px`,
+                              fontSize: `${emojiOnlyDisplayFontSize}px`,
                               lineHeight: 1.08,
                               letterSpacing: '-0.02em',
                               filter: this.props.theme === 'dark' ? 'drop-shadow(0 1px 2px rgba(0,0,0,0.35))' : 'none',
@@ -1471,7 +1475,7 @@ export class ChatTimelineV2 extends Component<
                         {forwardedFromName && (
                           <div
                             className="flex items-center gap-1 mb-1 opacity-60"
-                            style={{ fontSize: '12px', lineHeight: '16px' }}
+                            style={{ fontSize: isMobileView ? '13px' : '12px', lineHeight: isMobileView ? '18px' : '16px' }}
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="15 17 20 12 15 7"></polyline>
@@ -1485,7 +1489,7 @@ export class ChatTimelineV2 extends Component<
                         {!isOwnBubble && author && !this.props.isDesktopView && !renderAsNotification && (
                           <div
                             className="font-semibold mb-[3px]"
-                            style={{ fontSize: '13px', lineHeight: '18px', letterSpacing: '-0.03px', opacity: 0.7 }}
+                            style={{ fontSize: isMobileView ? '14px' : '13px', lineHeight: isMobileView ? '20px' : '18px', letterSpacing: '-0.03px', opacity: 0.7 }}
                           >
                             {author.name || author.username}
                           </div>
@@ -1593,7 +1597,7 @@ export class ChatTimelineV2 extends Component<
                         {/* Text */}
                         {hasTextContent ? (
                           <div
-                            className={`whitespace-pre-wrap break-words overflow-wrap-anywhere pr-[44px] ${hasReactions ? 'mb-[26px]' : ''}`}
+                            className={`chat-bubble-text whitespace-pre-wrap break-words overflow-wrap-anywhere pr-[44px] ${hasReactions ? 'mb-[26px]' : ''}`}
                             style={{ fontSize: bodyFontSize, lineHeight: bodyLineHeight, letterSpacing: '-0.08px' }}
                           >
                             <span>{renderTextWithLinksAndHighlight(message.content || '', this.props.messageSearchQuery, this.props.activeSearchMessageId === String(message.id))}</span>
@@ -1644,7 +1648,7 @@ export class ChatTimelineV2 extends Component<
                         {/* Inline timestamp */}
                         <span
                           className={`absolute right-2 inline-flex items-center gap-1 select-none whitespace-nowrap ${timestampBottomClass}`}
-                          style={{ fontSize: '11px', lineHeight: '14px', letterSpacing: '0.06px', opacity: 0.6 }}
+                          style={{ fontSize: isMobileView ? '12px' : '11px', lineHeight: isMobileView ? '16px' : '14px', letterSpacing: '0.06px', opacity: 0.62 }}
                         >
                           <span>{new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
                           {isOwnBubble && (
@@ -1678,7 +1682,7 @@ export class ChatTimelineV2 extends Component<
                       const extraCount = allReactionEntries.length - maxDisplayReactions;
                       
                       return (
-                        <div className="absolute bottom-1 left-2 right-[60px] flex items-center gap-1 overflow-visible"
+                        <div className={`absolute bottom-1 left-2 ${isMobileView ? 'right-[72px] gap-1.5' : 'right-[60px] gap-1'} flex items-center overflow-visible`}
                           onClick={(e) => e.stopPropagation()}
                         >
                           {reactionEntries.map(([emoji, userIds]) => {
@@ -1702,7 +1706,7 @@ export class ChatTimelineV2 extends Component<
                                     this.props.onToggleReaction(String(message.id), emojiStr);
                                   }
                                 }}
-                                className={`inline-flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 rounded-full text-xs transition-all hover:scale-105 ${
+                                className={`inline-flex items-center ${isMobileView ? 'gap-2 pl-1.5 pr-2 py-1 rounded-[999px]' : 'gap-1.5 pl-1 pr-1.5 py-0.5 rounded-full'} text-xs transition-all hover:scale-105 ${
                                   reactedByMe
                                     ? 'bg-blue-500/20 border border-blue-500/40'
                                     : 'bg-gray-100/80 dark:bg-gray-800/80 border border-gray-200/40 dark:border-gray-700/40'
@@ -1713,7 +1717,7 @@ export class ChatTimelineV2 extends Component<
                                   {reactedUsers.map((user, idx) => (
                                     <div
                                       key={`avatar-${user.id}-${idx}`}
-                                      className="relative w-4 h-4 rounded-full border border-white dark:border-gray-900 overflow-hidden"
+                                      className={`relative ${isMobileView ? 'w-[18px] h-[18px]' : 'w-4 h-4'} rounded-full border border-white dark:border-gray-900 overflow-hidden`}
                                       style={{ zIndex: reactedUsers.length - idx }}
                                     >
                                       <img
@@ -1728,17 +1732,17 @@ export class ChatTimelineV2 extends Component<
                                 <img
                                   src={getTwemojiUrl(emojiStr)}
                                   alt={emojiStr}
-                                  className="h-[14px] w-[14px] object-contain flex-shrink-0"
+                                  className={`${isMobileView ? 'h-[18px] w-[18px]' : 'h-[14px] w-[14px]'} object-contain flex-shrink-0`}
                                   draggable={false}
                                 />
                                 {count > 1 && (
-                                  <span className="text-[10px] font-medium">{count}</span>
+                                  <span className={`${isMobileView ? 'text-[12px]' : 'text-[10px]'} font-semibold`}>{count}</span>
                                 )}
                               </button>
                             );
                           })}
                           {hasMoreReactions && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100/80 dark:bg-gray-800/80 border border-gray-200/40 dark:border-gray-700/40">
+                            <span className={`inline-flex items-center ${isMobileView ? 'px-2 py-1 text-[11px]' : 'px-1.5 py-0.5 text-[10px]'} rounded-full font-medium bg-gray-100/80 dark:bg-gray-800/80 border border-gray-200/40 dark:border-gray-700/40`}>
                               +{extraCount}
                             </span>
                           )}
